@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprIndex>("value[42]");
     rt::<ast::ExprIndex>("value[value2[v + 2]]");

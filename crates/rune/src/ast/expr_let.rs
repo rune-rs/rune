@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprLet>("let x = 1");
     rt::<ast::ExprLet>("#[attr] let a = f()");

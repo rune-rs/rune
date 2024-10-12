@@ -1,3 +1,5 @@
+#![cfg(not(miri))]
+
 #[macro_use]
 mod macros;
 

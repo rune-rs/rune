@@ -6,7 +6,7 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawRef, Ref, Value, Vec,
+    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawAnyGuard, Ref, Value, Vec,
     VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module};
@@ -807,7 +807,7 @@ fn from(vec: Vec) -> VmResult<VecDeque> {
 pub(crate) struct Iter {
     iter: alloc::vec_deque::RawIter<Value>,
     // Drop must happen after the raw iterator.
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl Iter {

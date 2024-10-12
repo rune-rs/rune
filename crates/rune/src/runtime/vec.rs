@@ -13,7 +13,7 @@ use crate::runtime::slice::Iter;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
 use crate::runtime::{
-    Formatter, FromValue, Mutable, ProtocolCaller, RawRef, Ref, ToValue, UnsafeToRef, Value,
+    Formatter, FromValue, Mutable, ProtocolCaller, RawAnyGuard, Ref, ToValue, UnsafeToRef, Value,
     ValueBorrowRef, VmErrorKind, VmResult,
 };
 use crate::Any;
@@ -541,7 +541,7 @@ where
 }
 
 impl UnsafeToRef for [Value] {
-    type Guard = RawRef;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let vec = vm_try!(value.into_vec_ref());

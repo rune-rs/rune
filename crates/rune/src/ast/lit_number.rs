@@ -3,6 +3,7 @@ use crate::ast::prelude::*;
 use num::Num;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::LitNumber>("42");
     rt::<ast::LitNumber>("42.42");

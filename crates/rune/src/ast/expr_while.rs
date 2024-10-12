@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprWhile>("while x {}");
     rt::<ast::ExprWhile>("'label: while x {}");

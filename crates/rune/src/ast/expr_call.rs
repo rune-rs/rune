@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprCall>("test()");
     rt::<ast::ExprCall>("(foo::bar)()");

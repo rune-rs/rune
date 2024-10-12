@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprMatch>("match 0 { _ => 1, }");
     let expr = rt::<ast::ExprMatch>("#[jit(always)] match 0 { _ => 1, }");

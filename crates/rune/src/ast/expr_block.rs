@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     let expr = rt::<ast::ExprBlock>("async {}");
     assert_eq!(expr.block.statements.len(), 0);

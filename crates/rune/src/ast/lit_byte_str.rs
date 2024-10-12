@@ -2,6 +2,7 @@ use crate::alloc::borrow::Cow;
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::LitByteStr>("b\"hello world\"");
     rt::<ast::LitByteStr>("b\"hello\\nworld\"");

@@ -4,6 +4,8 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash::Hash;
 use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
+use crate::Any;
+
 use ::rust_alloc::sync::Arc;
 
 /// Type information about a value, that can be printed for human consumption
@@ -22,6 +24,14 @@ pub enum TypeInfo {
 }
 
 impl TypeInfo {
+    /// Construct type info from an statically known [`Any`] type.
+    pub(crate) fn any<T>() -> Self
+    where
+        T: Any,
+    {
+        TypeInfo::Any(AnyTypeInfo::__private_new(T::BASE_NAME, T::type_hash()))
+    }
+
     #[cfg(feature = "emit")]
     pub(crate) fn type_hash(&self) -> Hash {
         match self {

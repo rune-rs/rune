@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::ExprGroup>("(for i in x {})");
     rt::<ast::ExprGroup>("(1 + 2)");

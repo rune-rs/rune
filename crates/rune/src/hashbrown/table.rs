@@ -11,7 +11,7 @@ use crate::alloc::prelude::*;
 
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
-use crate::runtime::{ProtocolCaller, RawRef, Ref, Value, VmError, VmResult};
+use crate::runtime::{ProtocolCaller, RawAnyGuard, Ref, Value, VmError, VmResult};
 
 use crate::alloc::hashbrown::raw::{RawIter, RawTable};
 use crate::alloc::hashbrown::ErrorOrInsertSlot;
@@ -127,7 +127,7 @@ impl<V> Table<V> {
     pub(crate) fn iter_ref(this: Ref<Self>) -> IterRef<V> {
         let (this, _guard) = Ref::into_raw(this);
         // SAFETY: Table will be alive and a reference to it held for as long as
-        // `RawRef` is alive.
+        // `RawAnyGuard` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
         IterRef { iter, _guard }
     }
@@ -141,7 +141,7 @@ impl<V> Table<V> {
     pub(crate) fn keys_ref(this: Ref<Self>) -> KeysRef<V> {
         let (this, _guard) = Ref::into_raw(this);
         // SAFETY: Table will be alive and a reference to it held for as long as
-        // `RawRef` is alive.
+        // `RawAnyGuard` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
         KeysRef { iter, _guard }
     }
@@ -150,7 +150,7 @@ impl<V> Table<V> {
     pub(crate) fn values_ref(this: Ref<Self>) -> ValuesRef<V> {
         let (this, _guard) = Ref::into_raw(this);
         // SAFETY: Table will be alive and a reference to it held for as long as
-        // `RawRef` is alive.
+        // `RawAnyGuard` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
         ValuesRef { iter, _guard }
     }
@@ -183,7 +183,7 @@ impl<'a, V> iter::Iterator for Iter<'a, V> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // SAFETY: we're still holding onto the `RawRef` guard.
+        // SAFETY: we're still holding onto the `RawAnyGuard` guard.
         unsafe { Some(self.iter.next()?.as_ref()) }
     }
 
@@ -195,7 +195,7 @@ impl<'a, V> iter::Iterator for Iter<'a, V> {
 
 pub(crate) struct IterRef<V> {
     iter: RawIter<(Value, V)>,
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl<V> iter::Iterator for IterRef<V>
@@ -206,7 +206,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // SAFETY: we're still holding onto the `RawRef` guard.
+        // SAFETY: we're still holding onto the `RawAnyGuard` guard.
         unsafe { Some(self.iter.next()?.as_ref().clone()) }
     }
 
@@ -228,7 +228,7 @@ where
 
 pub(crate) struct KeysRef<V> {
     iter: RawIter<(Value, V)>,
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl<V> iter::Iterator for KeysRef<V> {
@@ -236,7 +236,7 @@ impl<V> iter::Iterator for KeysRef<V> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // SAFETY: we're still holding onto the `RawRef` guard.
+        // SAFETY: we're still holding onto the `RawAnyGuard` guard.
         unsafe { Some(self.iter.next()?.as_ref().0.clone()) }
     }
 
@@ -248,7 +248,7 @@ impl<V> iter::Iterator for KeysRef<V> {
 
 pub(crate) struct ValuesRef<V> {
     iter: RawIter<(Value, V)>,
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl<V> iter::Iterator for ValuesRef<V>
@@ -259,7 +259,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // SAFETY: we're still holding onto the `RawRef` guard.
+        // SAFETY: we're still holding onto the `RawAnyGuard` guard.
         unsafe { Some(self.iter.next()?.as_ref().1.clone()) }
     }
 

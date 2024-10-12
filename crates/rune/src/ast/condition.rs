@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::Condition>("true");
     rt::<ast::Condition>("let [a, ..] = v");

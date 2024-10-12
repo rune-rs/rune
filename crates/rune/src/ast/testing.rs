@@ -1,5 +1,7 @@
 //! Internal testing module.
 
+#![cfg(not(miri))]
+
 use core::fmt;
 
 use crate::macros::{self, ToTokens, TokenStream};

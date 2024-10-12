@@ -3,6 +3,7 @@ use core::mem::take;
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::Stmt>("let x = 1;");
     rt::<ast::Stmt>("#[attr] let a = f();");

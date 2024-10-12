@@ -10,7 +10,7 @@ use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::alloc::{hash_map, HashMap};
-use crate::runtime::{FromValue, ProtocolCaller, RawRef, Ref, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmResult};
 use crate::{Any, ItemBuf};
 
 /// An owning iterator over the entries of a `Object`.
@@ -542,7 +542,7 @@ impl fmt::Display for DebugStruct<'_> {
 #[rune(item = ::std::object, name = Iter)]
 pub struct RuneIter {
     iter: RawIter<(String, Value)>,
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl RuneIter {
@@ -585,7 +585,7 @@ impl iter::Iterator for RuneIter {
 #[rune(item = ::std::object, name = Keys)]
 pub struct RuneIterKeys {
     iter: RawIter<(String, Value)>,
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl RuneIterKeys {
@@ -628,7 +628,7 @@ impl iter::Iterator for RuneIterKeys {
 #[rune(item = ::std::object, name = Values)]
 pub struct RuneValues {
     iter: RawIter<(String, Value)>,
-    _guard: RawRef,
+    _guard: RawAnyGuard,
 }
 
 impl RuneValues {

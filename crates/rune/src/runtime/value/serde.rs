@@ -105,8 +105,10 @@ impl ser::Serialize for Value {
                 Mutable::ControlFlow(..) => {
                     Err(ser::Error::custom("cannot serialize `start..end` ranges"))
                 }
-                Mutable::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
             },
+            ValueBorrowRef::Any(..) => {
+                Err(ser::Error::custom("cannot serialize external references"))
+            }
         }
     }
 }

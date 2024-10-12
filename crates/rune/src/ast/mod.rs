@@ -98,6 +98,9 @@ macro_rules! item_parse {
     };
 }
 
+#[cfg(test)]
+mod tests;
+
 mod attribute;
 mod block;
 mod condition;

@@ -29,10 +29,16 @@ where
 
     for (index, value) in values.into_iter().enumerate() {
         let value = match vm_try!(value.value_ref()) {
-            ValueRef::Mutable(value) => vm_try!(value.clone().into_mut()),
-            ValueRef::Inline(actual) => {
+            ValueRef::Inline(value) => {
                 return VmResult::err([
-                    VmErrorKind::expected::<Future>(actual.type_info()),
+                    VmErrorKind::expected::<Future>(value.type_info()),
+                    VmErrorKind::bad_argument(index),
+                ]);
+            }
+            ValueRef::Mutable(value) => vm_try!(value.clone().into_mut()),
+            ValueRef::Any(value) => {
+                return VmResult::err([
+                    VmErrorKind::expected::<Future>(value.type_info()),
                     VmErrorKind::bad_argument(index),
                 ]);
             }
@@ -118,5 +124,9 @@ async fn join(value: Value) -> VmResult<Value> {
                 VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
             ]),
         },
+        ValueBorrowRef::Any(value) => VmResult::err([
+            VmErrorKind::bad_argument(0),
+            VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
+        ]),
     }
 }

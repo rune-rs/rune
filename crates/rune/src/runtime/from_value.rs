@@ -1,9 +1,7 @@
 use core::cmp::Ordering;
 
 use crate::alloc;
-use crate::runtime::{
-    AnyObj, Mut, Mutable, RawMut, RawRef, Ref, Value, ValueRepr, VmError, VmResult,
-};
+use crate::runtime::{AnyObj, Mut, Mutable, RawAnyGuard, Ref, Value, ValueRepr, VmError, VmResult};
 use crate::Any;
 
 /// Cheap conversion trait to convert something infallibly into a dynamic [`Value`].
@@ -293,9 +291,12 @@ impl FromValue for ::rust_alloc::boxed::Box<str> {
 impl FromValue for Mut<alloc::String> {
     fn from_value(value: Value) -> VmResult<Self> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<alloc::String>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_mut()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<alloc::String>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<alloc::String>(value.type_info());
             }
         };
 
@@ -314,9 +315,12 @@ impl FromValue for Mut<alloc::String> {
 impl FromValue for Ref<alloc::String> {
     fn from_value(value: Value) -> VmResult<Self> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<alloc::String>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<alloc::String>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<alloc::String>(value.type_info());
             }
         };
 
@@ -335,9 +339,12 @@ impl FromValue for Ref<alloc::String> {
 impl FromValue for Ref<str> {
     fn from_value(value: Value) -> VmResult<Self> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<str>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<str>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<str>(value.type_info());
             }
         };
 
@@ -354,13 +361,16 @@ impl FromValue for Ref<str> {
 }
 
 impl UnsafeToRef for str {
-    type Guard = RawRef;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<str>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<str>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<str>(value.type_info());
             }
         };
 
@@ -380,13 +390,16 @@ impl UnsafeToRef for str {
 }
 
 impl UnsafeToMut for str {
-    type Guard = RawMut;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<str>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_mut()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<str>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<str>(value.type_info());
             }
         };
 
@@ -406,13 +419,16 @@ impl UnsafeToMut for str {
 }
 
 impl UnsafeToRef for alloc::String {
-    type Guard = RawRef;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<str>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<str>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<str>(value.type_info());
             }
         };
 
@@ -432,13 +448,16 @@ impl UnsafeToRef for alloc::String {
 }
 
 impl UnsafeToMut for alloc::String {
-    type Guard = RawMut;
+    type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<str>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_mut()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<str>(actual.type_info());
+            ValueRepr::Any(value) => {
+                return VmResult::expected::<str>(value.type_info());
             }
         };
 

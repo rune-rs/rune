@@ -1,6 +1,7 @@
 use crate::ast::prelude::*;
 
 #[test]
+#[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::LitByte>("b'a'");
     rt::<ast::LitByte>("b'\\0'");
