@@ -1,7 +1,7 @@
 use core::cell::{Cell, UnsafeCell};
 use core::fmt;
 use core::future::Future;
-use core::mem::{self, transmute, ManuallyDrop};
+use core::mem::{transmute, ManuallyDrop};
 use core::ops;
 use core::pin::Pin;
 use core::ptr;
@@ -149,25 +149,6 @@ impl<T> Shared<T> {
             })
         }
     }
-
-    /// Deconstruct the shared value into a guard and shared box.
-    ///
-    /// # Safety
-    ///
-    /// The content of the shared value will be forcibly destructed once the
-    /// returned guard is dropped, unchecked use of the shared value after this
-    /// point will lead to undefined behavior.
-    pub(crate) unsafe fn into_drop_guard(self) -> (Self, SharedPointerGuard) {
-        // Increment the reference count by one to account for the guard holding
-        // onto it.
-        SharedBox::inc(self.inner);
-
-        let guard = SharedPointerGuard {
-            _inner: RawDrop::take_shared_box(self.inner),
-        };
-
-        (self, guard)
-    }
 }
 
 impl<T: ?Sized> Shared<T> {
@@ -183,8 +164,7 @@ impl<T: ?Sized> Shared<T> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.shared()?;
-            mem::forget(guard);
-            Ok(BorrowRef::new(&*inner.data.get(), &inner.access))
+            Ok(BorrowRef::new(&*inner.data.get(), guard))
         }
     }
 
@@ -200,8 +180,7 @@ impl<T: ?Sized> Shared<T> {
         unsafe {
             let inner = self.inner.as_ref();
             let guard = inner.access.exclusive()?;
-            mem::forget(guard);
-            Ok(BorrowMut::new(&mut *inner.data.get(), &inner.access))
+            Ok(BorrowMut::new(&mut *inner.data.get(), guard))
         }
     }
 }
@@ -411,35 +390,6 @@ impl RawDrop {
             drop_fn: drop_fn_impl::<T>,
         }
     }
-
-    /// Construct a raw drop that will take the shared box as it's being
-    /// dropped.
-    ///
-    /// # Safety
-    ///
-    /// Should only be constructed over a pointer that is lively owned.
-    fn take_shared_box<T>(data: ptr::NonNull<SharedBox<T>>) -> Self {
-        unsafe fn drop_fn_impl<T>(data: ptr::NonNull<()>) {
-            let shared = data.cast::<SharedBox<T>>();
-
-            // Mark the shared box for exclusive access.
-            let _ = ManuallyDrop::new(
-                (*ptr::addr_of!((*shared.as_ptr()).access))
-                    .take()
-                    .expect("raw pointers must not be shared"),
-            );
-
-            // Free the inner `Any` structure, and since we have marked the
-            // Shared as taken, this will prevent anyone else from doing it.
-            drop(ptr::read((*ptr::addr_of!((*shared.as_ptr()).data)).get()));
-            SharedBox::dec(shared);
-        }
-
-        Self {
-            data: data.cast(),
-            drop_fn: drop_fn_impl::<T>,
-        }
-    }
 }
 
 impl Drop for RawDrop {
@@ -604,32 +554,6 @@ impl<T: ?Sized> Ref<T> {
         }
     }
 
-    #[inline]
-    pub(crate) fn result_map<U: ?Sized, F, E>(this: Self, f: F) -> Result<Ref<U>, (E, Ref<T>)>
-    where
-        F: FnOnce(&T) -> Result<&U, E>,
-    {
-        let Self {
-            data, guard, inner, ..
-        } = this;
-
-        // Safety: this follows the same safety guarantees as when the managed
-        // ref was acquired. And since we have a managed reference to `T`, we're
-        // permitted to do any sort of projection to `U`.
-        unsafe {
-            let data = match f(data.as_ref()) {
-                Ok(data) => data,
-                Err(e) => return Err((e, Ref { data, guard, inner })),
-            };
-
-            Ok(Ref {
-                data: data.into(),
-                guard,
-                inner,
-            })
-        }
-    }
-
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -637,8 +561,8 @@ impl<T: ?Sized> Ref<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    pub fn into_raw(this: Self) -> (ptr::NonNull<T>, RawRef) {
-        let guard = RawRef {
+    pub fn into_raw(this: Self) -> (ptr::NonNull<T>, RawRefGuard) {
+        let guard = RawRefGuard {
             _guard: this.guard,
             _inner: this.inner,
         };
@@ -652,7 +576,7 @@ impl<T: ?Sized> Ref<T> {
     ///
     /// The caller is responsible for ensuring that the raw reference is
     /// associated with the specific pointer.
-    pub unsafe fn from_raw(data: ptr::NonNull<T>, guard: RawRef) -> Self {
+    pub unsafe fn from_raw(data: ptr::NonNull<T>, guard: RawRefGuard) -> Self {
         Self {
             data,
             guard: guard._guard,
@@ -690,7 +614,7 @@ where
 }
 
 /// A raw guard to a [Ref].
-pub struct RawRef {
+pub struct RawRefGuard {
     _guard: Option<RawAccessGuard>,
     _inner: RawDrop,
 }
@@ -799,35 +723,6 @@ impl<T: ?Sized> Mut<T> {
         }
     }
 
-    #[inline]
-    pub(crate) fn result_map<U: ?Sized, F, E>(this: Self, f: F) -> Result<Mut<U>, (E, Mut<T>)>
-    where
-        F: FnOnce(&mut T) -> Result<&mut U, E>,
-    {
-        let Self {
-            mut data,
-            guard,
-            inner,
-            ..
-        } = this;
-
-        // Safety: this follows the same safety guarantees as when the managed
-        // ref was acquired. And since we have a managed reference to `T`, we're
-        // permitted to do any sort of projection to `U`.
-        unsafe {
-            let data = match f(data.as_mut()) {
-                Ok(data) => data,
-                Err(error) => return Err((error, Mut { data, guard, inner })),
-            };
-
-            Ok(Mut {
-                data: data.into(),
-                guard,
-                inner,
-            })
-        }
-    }
-
     /// Convert into a raw pointer and associated raw access guard.
     ///
     /// # Safety
@@ -835,8 +730,8 @@ impl<T: ?Sized> Mut<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
-    pub fn into_raw(this: Self) -> (ptr::NonNull<T>, RawMut) {
-        let guard = RawMut {
+    pub fn into_raw(this: Self) -> (ptr::NonNull<T>, RawRefGuard) {
+        let guard = RawRefGuard {
             _guard: this.guard,
             _inner: this.inner,
         };
@@ -851,7 +746,7 @@ impl<T: ?Sized> Mut<T> {
     ///
     /// The caller is responsible for ensuring that the raw mutable reference is
     /// associated with the specific pointer.
-    pub unsafe fn from_raw(data: ptr::NonNull<T>, guard: RawMut) -> Self {
+    pub unsafe fn from_raw(data: ptr::NonNull<T>, guard: RawRefGuard) -> Self {
         Self {
             data,
             guard: guard._guard,
@@ -912,17 +807,4 @@ where
         let this = self.get_mut();
         Pin::new(&mut **this).poll(cx)
     }
-}
-
-/// A raw guard to a [Ref].
-pub struct RawMut {
-    _guard: Option<RawAccessGuard>,
-    _inner: RawDrop,
-}
-
-/// A drop guard for a shared value.
-///
-/// Once this is dropped, the shared value will be destructed.
-pub struct SharedPointerGuard {
-    _inner: RawDrop,
 }

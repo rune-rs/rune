@@ -8,7 +8,7 @@ use core::pin::Pin;
 use core::ptr;
 use core::task::{Context, Poll};
 
-use crate::runtime::{AnyObjError, RawStr};
+use crate::runtime::RawStr;
 
 /// Test if exclusively held.
 const EXCLUSIVE: usize = 1usize.rotate_right(2);
@@ -47,10 +47,14 @@ impl fmt::Display for AccessError {
                 f,
                 "Expected data of type `{expected}`, but found `{actual}`",
             ),
+            AccessErrorKind::RefAsMut { name } => write!(
+                f,
+                "Cannot borrow a shared reference `&{name}` mutably as `&mut {name}`",
+            ),
+            AccessErrorKind::Cast => write!(f, "Cast failed"),
             AccessErrorKind::NotAccessibleRef { error } => error.fmt(f),
             AccessErrorKind::NotAccessibleMut { error } => error.fmt(f),
             AccessErrorKind::NotAccessibleTake { error } => error.fmt(f),
-            AccessErrorKind::AnyObjError { error } => error.fmt(f),
         }
     }
 }
@@ -78,13 +82,6 @@ impl From<NotAccessibleTake> for AccessError {
     }
 }
 
-impl From<AnyObjError> for AccessError {
-    #[inline]
-    fn from(source: AnyObjError) -> Self {
-        AccessError::new(AccessErrorKind::AnyObjError { error: source })
-    }
-}
-
 impl From<AccessErrorKind> for AccessError {
     #[inline]
     fn from(kind: AccessErrorKind) -> Self {
@@ -96,10 +93,11 @@ impl From<AccessErrorKind> for AccessError {
 pub(crate) enum AccessErrorKind {
     Empty,
     UnexpectedType { expected: RawStr, actual: RawStr },
+    RefAsMut { name: RawStr },
+    Cast,
     NotAccessibleRef { error: NotAccessibleRef },
     NotAccessibleMut { error: NotAccessibleMut },
     NotAccessibleTake { error: NotAccessibleTake },
-    AnyObjError { error: AnyObjError },
 }
 
 /// Error raised when tried to access for shared access but it was not
@@ -267,9 +265,7 @@ impl Access {
     #[inline(always)]
     fn release(&self) {
         let b = self.0.get();
-
         let b = if b & MASK == 0 { b - 1 } else { 0 };
-
         self.0.set(b);
     }
 
@@ -304,11 +300,8 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// ensure that access has been acquired correctly using e.g.
     /// [Access::shared]. Otherwise access can be release incorrectly once
     /// this guard is dropped.
-    pub(crate) fn new(data: &'a T, access: &'a Access) -> Self {
-        Self {
-            data,
-            guard: AccessGuard(access),
-        }
+    pub(crate) unsafe fn new(data: &'a T, guard: AccessGuard<'a>) -> Self {
+        Self { data, guard }
     }
 
     /// Map the reference.
@@ -447,10 +440,10 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ensure that access has been acquired correctly using e.g.
     /// [Access::exclusive]. Otherwise access can be release incorrectly once
     /// this guard is dropped.
-    pub(crate) unsafe fn new(data: &'a mut T, access: &'a Access) -> Self {
+    pub(crate) unsafe fn new(data: &'a mut T, guard: AccessGuard<'a>) -> Self {
         Self {
             data: ptr::NonNull::from(data),
-            guard: AccessGuard(access),
+            guard,
             _marker: PhantomData,
         }
     }

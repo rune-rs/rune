@@ -12,7 +12,9 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::{Mutable, RawRef, Ref, UnsafeToRef, Value, ValueRepr, VmErrorKind, VmResult};
+use crate::runtime::{
+    Mutable, RawRefGuard, Ref, UnsafeToRef, Value, ValueRepr, VmErrorKind, VmResult,
+};
 use crate::Any;
 
 /// A vector of bytes.
@@ -356,13 +358,16 @@ impl AsRef<[u8]> for Bytes {
 from_value2!(Bytes, into_bytes_ref, into_bytes_mut, into_bytes);
 
 impl UnsafeToRef for [u8] {
-    type Guard = RawRef;
+    type Guard = RawRefGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
         let value = match vm_try!(value.into_repr()) {
+            ValueRepr::Inline(value) => {
+                return VmResult::expected::<Bytes>(value.type_info());
+            }
             ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Inline(actual) => {
-                return VmResult::expected::<Bytes>(actual.type_info());
+            ValueRepr::Ref(value) => {
+                return VmResult::expected::<Bytes>(value.type_info());
             }
         };
 

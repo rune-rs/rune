@@ -240,6 +240,9 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
+                ValueRef::Ref(..) => {
+                    break 'fallback;
+                }
             }
 
             return VmResult::Ok(());
@@ -279,6 +282,9 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
+                ValueRef::Ref(..) => {
+                    break 'fallback;
+                }
             }
 
             return VmResult::Ok(());

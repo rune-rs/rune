@@ -12,6 +12,7 @@ pub use self::data::{EmptyStruct, Struct, TupleStruct};
 use core::any;
 use core::cmp::{Ord, Ordering, PartialOrd};
 use core::fmt;
+use core::ptr::NonNull;
 
 use ::rust_alloc::sync::Arc;
 
@@ -22,16 +23,40 @@ use crate::compile::meta;
 use crate::runtime::static_type;
 use crate::runtime::vm::CallResultOnly;
 use crate::runtime::{
-    AccessError, AccessErrorKind, AnyObj, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
-    ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue, Function, Future,
-    Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, Ref, RuntimeError, Shared, SharedPointerGuard, Snapshot, Stream, ToValue,
-    Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
+    AccessError, AccessErrorKind, AnyObj, AnyRef, AnyRefDrop, BorrowMut, BorrowRef, Bytes,
+    ConstValue, ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue,
+    Function, Future, Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object,
+    OwnedTuple, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, RawAnyRefGuard, RawRefGuard, Ref, RuntimeError, Shared, Snapshot, Stream,
+    ToValue, Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, Tuple};
 use crate::{Any, Hash};
+
+enum RawValueGuardKind {
+    Any(#[allow(unused)] RawRefGuard),
+    AnyRef(#[allow(unused)] RawAnyRefGuard),
+}
+
+/// Defined guard for a reference value.
+///
+/// See [Value::from_ref].
+pub struct ValueRefGuard {
+    _guard: AnyRefDrop,
+}
+
+/// Defined guard for a reference value.
+///
+/// See [Value::from_mut].
+pub struct ValueMutGuard {
+    _guard: AnyRefDrop,
+}
+
+/// The guard returned by [Value::into_any_mut_ptr].
+pub struct RawValueGuard {
+    _kind: RawValueGuardKind,
+}
 
 // Small helper function to build errors.
 fn err<T, E>(error: E) -> VmResult<T>
@@ -46,16 +71,19 @@ enum Repr {
     Empty,
     Inline(Inline),
     Mutable(Shared<Mutable>),
+    Ref(AnyRef),
 }
 
 pub(crate) enum ValueRepr {
     Inline(Inline),
     Mutable(Shared<Mutable>),
+    Ref(AnyRef),
 }
 
 pub(crate) enum OwnedValue {
     Inline(Inline),
     Mutable(Mutable),
+    Ref(AnyRef),
 }
 
 impl OwnedValue {
@@ -64,6 +92,7 @@ impl OwnedValue {
         match self {
             OwnedValue::Inline(value) => value.type_info(),
             OwnedValue::Mutable(value) => value.type_info(),
+            OwnedValue::Ref(value) => value.type_info(),
         }
     }
 }
@@ -71,6 +100,7 @@ impl OwnedValue {
 pub(crate) enum ValueRef<'a> {
     Inline(&'a Inline),
     Mutable(&'a Shared<Mutable>),
+    Ref(&'a AnyRef),
 }
 
 impl ValueRef<'_> {
@@ -79,6 +109,7 @@ impl ValueRef<'_> {
         match self {
             ValueRef::Inline(value) => Ok(value.type_info()),
             ValueRef::Mutable(value) => Ok(value.borrow_ref()?.type_info()),
+            ValueRef::Ref(value) => Ok(value.type_info()),
         }
     }
 }
@@ -86,6 +117,7 @@ impl ValueRef<'_> {
 pub(crate) enum ValueBorrowRef<'a> {
     Inline(&'a Inline),
     Mutable(BorrowRef<'a, Mutable>),
+    Ref(&'a AnyRef),
 }
 
 impl<'a> ValueBorrowRef<'a> {
@@ -94,6 +126,7 @@ impl<'a> ValueBorrowRef<'a> {
         match self {
             ValueBorrowRef::Inline(value) => value.type_info(),
             ValueBorrowRef::Mutable(value) => value.type_info(),
+            ValueBorrowRef::Ref(value) => value.type_info(),
         }
     }
 }
@@ -102,11 +135,13 @@ impl<'a> ValueBorrowRef<'a> {
 pub(crate) enum ValueMut<'a> {
     Inline(&'a mut Inline),
     Mutable(#[allow(unused)] &'a mut Shared<Mutable>),
+    Ref(#[allow(unused)] &'a mut AnyRef),
 }
 
 pub(crate) enum ValueShared {
     Inline(Inline),
     Mutable(Shared<Mutable>),
+    Ref(AnyRef),
 }
 
 /// An entry on the stack.
@@ -154,31 +189,26 @@ impl Value {
     ///
     /// unsafe {
     ///     let (any, guard) = Value::from_ref(&mut v)?;
-    ///     let b = any.into_any_ref::<Foo>().unwrap();
+    ///     let b = any.downcast_borrow_ref::<Foo>().unwrap();
     ///     assert_eq!(b.0, 1u32);
     /// }
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub unsafe fn from_ref<T>(data: &T) -> alloc::Result<(Self, SharedPointerGuard)>
+    pub unsafe fn from_ref<T>(data: &T) -> alloc::Result<(Self, ValueRefGuard)>
     where
         T: Any,
     {
-        let value = Shared::new(Mutable::Any(AnyObj::from_ref(data)))?;
-        let (value, guard) = Shared::into_drop_guard(value);
+        let value = AnyRef::from_ref(data)?;
+        let (value, guard) = AnyRef::into_drop_guard(value);
+
+        let guard = ValueRefGuard { _guard: guard };
+
         Ok((
             Self {
-                repr: Repr::Mutable(value),
+                repr: Repr::Ref(value),
             },
             guard,
         ))
-    }
-
-    /// Optionally get the snapshot of the value if available.
-    pub(crate) fn snapshot(&self) -> Option<Snapshot> {
-        match &self.repr {
-            Repr::Mutable(value) => Some(value.snapshot()),
-            _ => None,
-        }
     }
 
     /// Construct a value that wraps a mutable pointer.
@@ -220,7 +250,7 @@ impl Value {
     /// unsafe {
     ///     let (mut any, guard) = Value::from_mut(&mut v)?;
     ///
-    ///     if let Ok(mut v) = any.into_any_mut::<Foo>() {
+    ///     if let Ok(mut v) = any.downcast_borrow_mut::<Foo>() {
     ///         v.0 += 1;
     ///     }
     /// }
@@ -228,19 +258,29 @@ impl Value {
     /// assert_eq!(v.0, 2);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub unsafe fn from_mut<T>(data: &mut T) -> alloc::Result<(Self, SharedPointerGuard)>
+    pub unsafe fn from_mut<T>(data: &mut T) -> alloc::Result<(Self, ValueMutGuard)>
     where
         T: Any,
     {
-        let obj = AnyObj::from_mut(data);
-        let value = Shared::new(Mutable::Any(obj))?;
-        let (value, guard) = Shared::into_drop_guard(value);
+        let value = AnyRef::from_mut(data)?;
+        let (value, guard) = AnyRef::into_drop_guard(value);
+
+        let guard = ValueMutGuard { _guard: guard };
+
         Ok((
             Self {
-                repr: Repr::Mutable(value),
+                repr: Repr::Ref(value),
             },
             guard,
         ))
+    }
+
+    /// Optionally get the snapshot of the value if available.
+    pub(crate) fn snapshot(&self) -> Option<Snapshot> {
+        match &self.repr {
+            Repr::Mutable(value) => Some(value.snapshot()),
+            _ => None,
+        }
     }
 
     /// Test if the value is writable.
@@ -249,6 +289,7 @@ impl Value {
             Repr::Empty => false,
             Repr::Inline(..) => true,
             Repr::Mutable(ref value) => value.is_writable(),
+            Repr::Ref(ref any) => any.is_writable(),
         }
     }
 
@@ -258,6 +299,7 @@ impl Value {
             Repr::Empty => false,
             Repr::Inline(..) => true,
             Repr::Mutable(ref value) => value.is_readable(),
+            Repr::Ref(ref any) => any.is_readable(),
         }
     }
 
@@ -332,6 +374,9 @@ impl Value {
                         break 'fallback;
                     }
                 },
+                ValueBorrowRef::Ref(..) => {
+                    break 'fallback;
+                }
             }
 
             return VmResult::Ok(());
@@ -403,6 +448,9 @@ impl Value {
                         break 'fallback;
                     }
                 },
+                ValueBorrowRef::Ref(..) => {
+                    break 'fallback;
+                }
             };
 
             return VmResult::Ok(Self {
@@ -448,6 +496,7 @@ impl Value {
                     return VmResult::Ok(());
                 }
                 Repr::Mutable(ref value) => value,
+                Repr::Ref(..) => break 'fallback,
             };
 
             match &*vm_try!(value.borrow_ref()) {
@@ -548,6 +597,10 @@ impl Value {
                 }
                 Repr::Mutable(value) => {
                     let ty = vm_try!(value.borrow_ref()).type_info();
+                    vm_write!(f, "<{ty} object at {value:p}>");
+                }
+                Repr::Ref(value) => {
+                    let ty = value.type_info();
                     vm_write!(f, "<{ty} object at {value:p}>");
                 }
             },
@@ -717,7 +770,7 @@ impl Value {
         match self.take_value()? {
             OwnedValue::Inline(value) => match value {
                 Inline::Unit => Ok(TypeValue::Unit),
-                actual => Ok(TypeValue::NotTypedInline(NotTypedInlineValue(actual))),
+                value => Ok(TypeValue::NotTypedInline(NotTypedInlineValue(value))),
             },
             OwnedValue::Mutable(value) => match value {
                 Mutable::Tuple(tuple) => Ok(TypeValue::Tuple(tuple)),
@@ -726,8 +779,9 @@ impl Value {
                 Mutable::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
                 Mutable::Struct(object) => Ok(TypeValue::Struct(object)),
                 Mutable::Variant(object) => Ok(TypeValue::Variant(object)),
-                actual => Ok(TypeValue::NotTypedMutable(NotTypedMutableValue(actual))),
+                value => Ok(TypeValue::NotTypedMutable(NotTypedMutableValue(value))),
             },
+            OwnedValue::Ref(value) => Ok(TypeValue::NotTypedRef(NotTypedRefValue(value))),
         }
     }
 
@@ -736,10 +790,7 @@ impl Value {
     pub fn into_unit(&self) -> Result<(), RuntimeError> {
         match self.borrow_ref()? {
             ValueBorrowRef::Inline(Inline::Unit) => Ok(()),
-            ValueBorrowRef::Inline(actual) => Err(RuntimeError::expected::<()>(actual.type_info())),
-            ValueBorrowRef::Mutable(actual) => {
-                Err(RuntimeError::expected::<()>(actual.type_info()))
-            }
+            value => Err(RuntimeError::expected::<()>(value.type_info())),
         }
     }
 
@@ -1019,6 +1070,7 @@ impl Value {
             OwnedValue::Mutable(Mutable::Future(future)) => return VmResult::Ok(future),
             OwnedValue::Inline(value) => Value::from(value),
             OwnedValue::Mutable(value) => vm_try!(Value::try_from(value)),
+            OwnedValue::Ref(value) => Value::from(value),
         };
 
         let value =
@@ -1033,34 +1085,84 @@ impl Value {
     where
         T: Any,
     {
-        let value = match self.into_repr()? {
-            ValueRepr::Mutable(value) => value.into_ref()?,
-            ValueRepr::Inline(actual) => {
-                return Err(RuntimeError::expected_any(actual.type_info()));
+        match self.into_repr()? {
+            ValueRepr::Inline(value) => Err(RuntimeError::expected_any(value.type_info())),
+            ValueRepr::Mutable(value) => {
+                let value = value.into_ref()?;
+                let result = Ref::try_map(value, |value| match value {
+                    Mutable::Any(any) => Some(any),
+                    _ => None,
+                });
+
+                let any = match result {
+                    Ok(any) => any,
+                    Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
+                };
+
+                match Ref::try_map(any, AnyObj::downcast_ref) {
+                    Ok(value) => Ok(value),
+                    Err(any) => Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                        expected: any::type_name::<T>().into(),
+                        actual: any.type_name(),
+                    })),
+                }
             }
-        };
+            ValueRepr::Ref(value) => Err(RuntimeError::expected_any(value.type_info())),
+        }
+    }
 
-        let result = Ref::try_map(value, |value| match value {
-            Mutable::Any(any) => Some(any),
-            _ => None,
-        });
+    /// Try to coerce value into a typed reference.
+    ///
+    /// # Safety
+    ///
+    /// The returned pointer is only valid to dereference as long as the
+    /// returned guard is live.
+    #[inline]
+    pub fn into_any_ref_ptr<T>(self) -> Result<(NonNull<T>, RawValueGuard), RuntimeError>
+    where
+        T: Any,
+    {
+        match self.into_repr()? {
+            ValueRepr::Inline(value) => Err(RuntimeError::expected_any(value.type_info())),
+            ValueRepr::Mutable(value) => {
+                let value = value.into_ref()?;
+                let result = Ref::try_map(value, |value| match value {
+                    Mutable::Any(any) => Some(any),
+                    _ => None,
+                });
 
-        let any = match result {
-            Ok(any) => any,
-            Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
-        };
+                let any = match result {
+                    Ok(any) => any,
+                    Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
+                };
 
-        let result = Ref::result_map(any, |any| any.downcast_borrow_ref());
+                let value = match Ref::try_map(any, AnyObj::downcast_ref) {
+                    Ok(value) => value,
+                    Err(any) => {
+                        return Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                            expected: any::type_name::<T>().into(),
+                            actual: any.type_name(),
+                        }));
+                    }
+                };
 
-        match result {
-            Ok(value) => Ok(value),
-            Err((AnyObjError::Cast, any)) => {
-                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
-                    expected: any::type_name::<T>().into(),
-                    actual: any.type_name(),
-                }))
+                let (ptr, guard) = Ref::into_raw(value);
+
+                let guard = RawValueGuard {
+                    _kind: RawValueGuardKind::Any(guard),
+                };
+
+                Ok((ptr, guard))
             }
-            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
+            ValueRepr::Ref(value) => {
+                let (ptr, guard) = value.downcast_borrow_ptr::<T>()?;
+
+                let guard = RawValueGuard {
+                    _kind: RawValueGuardKind::AnyRef(guard),
+                };
+
+                Ok((ptr, guard))
+            }
         }
     }
 
@@ -1070,82 +1172,138 @@ impl Value {
     where
         T: Any,
     {
-        let value = match self.into_repr()? {
-            ValueRepr::Mutable(value) => value.into_mut()?,
-            ValueRepr::Inline(actual) => {
-                return Err(RuntimeError::expected_any(actual.type_info()));
+        match self.into_repr()? {
+            ValueRepr::Inline(value) => Err(RuntimeError::expected_any(value.type_info())),
+            ValueRepr::Mutable(value) => {
+                let value = value.into_mut()?;
+
+                let result = Mut::try_map(value, |value| match value {
+                    Mutable::Any(any) => Some(any),
+                    _ => None,
+                });
+
+                let any = match result {
+                    Ok(any) => any,
+                    Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
+                };
+
+                match Mut::try_map(any, AnyObj::downcast_mut) {
+                    Ok(value) => Ok(value),
+                    Err(any) => Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                        expected: any::type_name::<T>().into(),
+                        actual: any.type_name(),
+                    })),
+                }
             }
-        };
+            ValueRepr::Ref(value) => Err(RuntimeError::expected_any(value.type_info())),
+        }
+    }
 
-        let result = Mut::try_map(value, |value| match value {
-            Mutable::Any(any) => Some(any),
-            _ => None,
-        });
+    /// Try to coerce value into a typed mutable reference.
+    ///
+    /// # Safety
+    ///
+    /// The returned pointer is only valid to dereference as long as the
+    /// returned guard is live.
+    #[inline]
+    pub fn into_any_mut_ptr<T>(self) -> Result<(NonNull<T>, RawValueGuard), RuntimeError>
+    where
+        T: Any,
+    {
+        match self.into_repr()? {
+            ValueRepr::Inline(value) => Err(RuntimeError::expected_any(value.type_info())),
+            ValueRepr::Mutable(value) => {
+                let value = value.into_mut()?;
 
-        let any = match result {
-            Ok(any) => any,
-            Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
-        };
+                let result = Mut::try_map(value, |value| match value {
+                    Mutable::Any(any) => Some(any),
+                    _ => None,
+                });
 
-        let result = Mut::result_map(any, |any| any.downcast_borrow_mut());
+                let any = match result {
+                    Ok(any) => any,
+                    Err(actual) => return Err(RuntimeError::expected_any(actual.type_info())),
+                };
 
-        match result {
-            Ok(value) => Ok(value),
-            Err((AnyObjError::Cast, any)) => {
-                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
-                    expected: any::type_name::<T>().into(),
-                    actual: any.type_name(),
-                }))
+                let result = Mut::try_map(any, AnyObj::downcast_mut);
+
+                let value = match result {
+                    Ok(value) => value,
+                    Err(any) => {
+                        return Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                            expected: any::type_name::<T>().into(),
+                            actual: any.type_name(),
+                        }));
+                    }
+                };
+
+                let (ptr, guard) = Mut::into_raw(value);
+
+                let guard = RawValueGuard {
+                    _kind: RawValueGuardKind::Any(guard),
+                };
+
+                Ok((ptr, guard))
             }
-            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
+            ValueRepr::Ref(value) => {
+                let (ptr, guard) = value.downcast_borrow_mut_ptr::<T>()?;
+
+                let guard = RawValueGuard {
+                    _kind: RawValueGuardKind::AnyRef(guard),
+                };
+
+                Ok((ptr, guard))
+            }
         }
     }
 
     /// Borrow the value as a typed reference.
     #[inline]
-    pub fn borrow_any_ref<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
+    pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
     where
         T: Any,
     {
-        let value = match self.value_ref()? {
-            ValueRef::Mutable(value) => value.borrow_ref()?,
-            ValueRef::Inline(actual) => {
-                return Err(RuntimeError::expected_any(actual.type_info()));
+        match self.value_ref()? {
+            ValueRef::Inline(value) => Err(RuntimeError::expected_any(value.type_info())),
+            ValueRef::Mutable(value) => {
+                let value = value.borrow_ref()?;
+
+                let result = BorrowRef::try_map(value, |value| match value {
+                    Mutable::Any(any) => any.downcast_ref(),
+                    _ => None,
+                });
+
+                match result {
+                    Ok(s) => Ok(s),
+                    Err(value) => Err(RuntimeError::expected_any(value.type_info())),
+                }
             }
-        };
-
-        let result = BorrowRef::try_map(value, |value| match value {
-            Mutable::Any(any) => any.downcast_borrow_ref().ok(),
-            _ => None,
-        });
-
-        match result {
-            Ok(s) => Ok(s),
-            Err(actual) => Err(RuntimeError::expected_any(actual.type_info())),
+            ValueRef::Ref(value) => Ok(value.downcast_borrow_ref()?),
         }
     }
 
     /// Borrow the value as a mutable typed reference.
     #[inline]
-    pub fn borrow_any_mut<T>(&self) -> Result<BorrowMut<'_, T>, RuntimeError>
+    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, RuntimeError>
     where
         T: Any,
     {
-        let value = match self.value_ref()? {
-            ValueRef::Mutable(value) => value.borrow_mut()?,
-            ValueRef::Inline(actual) => {
-                return Err(RuntimeError::expected_any(actual.type_info()));
+        match self.value_ref()? {
+            ValueRef::Inline(value) => Err(RuntimeError::expected_any(value.type_info())),
+            ValueRef::Mutable(value) => {
+                let value = value.borrow_mut()?;
+
+                let result = BorrowMut::try_map(value, |value| match value {
+                    Mutable::Any(any) => any.downcast_mut(),
+                    _ => None,
+                });
+
+                match result {
+                    Ok(s) => Ok(s),
+                    Err(value) => Err(RuntimeError::expected_any(value.type_info())),
+                }
             }
-        };
-
-        let result = BorrowMut::try_map(value, |value| match value {
-            Mutable::Any(any) => any.downcast_borrow_mut().ok(),
-            _ => None,
-        });
-
-        match result {
-            Ok(s) => Ok(s),
-            Err(actual) => Err(RuntimeError::expected_any(actual.type_info())),
+            ValueRef::Ref(value) => Ok(value.downcast_borrow_mut()?),
         }
     }
 
@@ -1162,13 +1320,10 @@ impl Value {
 
         match any.downcast::<T>() {
             Ok(any) => Ok(any),
-            Err((AnyObjError::Cast, any)) => {
-                Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
-                    expected: any::type_name::<T>().into(),
-                    actual: any.type_name(),
-                }))
-            }
-            Err((error, _)) => Err(RuntimeError::from(AccessError::from(error))),
+            Err(any) => Err(RuntimeError::from(AccessErrorKind::UnexpectedType {
+                expected: any::type_name::<T>().into(),
+                actual: any.type_name(),
+            })),
         }
     }
 
@@ -1180,6 +1335,7 @@ impl Value {
         match &self.repr {
             Repr::Inline(value) => Ok(value.type_hash()),
             Repr::Mutable(value) => Ok(value.borrow_ref()?.type_hash()),
+            Repr::Ref(value) => Ok(value.type_hash()),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1189,6 +1345,7 @@ impl Value {
         match &self.repr {
             Repr::Inline(value) => Ok(value.type_info()),
             Repr::Mutable(value) => Ok(value.borrow_ref()?.type_info()),
+            Repr::Ref(value) => Ok(value.type_info()),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1397,6 +1554,7 @@ impl Value {
                 }
                 _ => {}
             },
+            ValueBorrowRef::Ref(..) => {}
         }
 
         let mut args = DynGuardedArgs::new((hasher,));
@@ -1824,6 +1982,7 @@ impl Value {
         match &self.repr {
             Repr::Inline(value) => Ok(Some(value)),
             Repr::Mutable(..) => Ok(None),
+            Repr::Ref(..) => Ok(None),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1832,6 +1991,7 @@ impl Value {
         match &mut self.repr {
             Repr::Inline(value) => Ok(Some(value)),
             Repr::Mutable(..) => Ok(None),
+            Repr::Ref(..) => Ok(None),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1840,6 +2000,7 @@ impl Value {
         match self.repr {
             Repr::Inline(value) => Ok(OwnedValue::Inline(value)),
             Repr::Mutable(value) => Ok(OwnedValue::Mutable(value.take()?)),
+            Repr::Ref(value) => Ok(OwnedValue::Ref(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1848,6 +2009,7 @@ impl Value {
         match self.repr {
             Repr::Inline(value) => Ok(ValueRepr::Inline(value)),
             Repr::Mutable(value) => Ok(ValueRepr::Mutable(value)),
+            Repr::Ref(value) => Ok(ValueRepr::Ref(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1856,6 +2018,7 @@ impl Value {
         match &self.repr {
             Repr::Inline(value) => Ok(ValueBorrowRef::Inline(value)),
             Repr::Mutable(value) => Ok(ValueBorrowRef::Mutable(value.borrow_ref()?)),
+            Repr::Ref(value) => Ok(ValueBorrowRef::Ref(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1864,6 +2027,7 @@ impl Value {
         match &self.repr {
             Repr::Inline(value) => Ok(ValueRef::Inline(value)),
             Repr::Mutable(value) => Ok(ValueRef::Mutable(value)),
+            Repr::Ref(value) => Ok(ValueRef::Ref(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1871,7 +2035,8 @@ impl Value {
     pub(crate) fn value_mut(&mut self) -> Result<ValueMut<'_>, AccessError> {
         match &mut self.repr {
             Repr::Inline(value) => Ok(ValueMut::Inline(value)),
-            Repr::Mutable(mutable) => Ok(ValueMut::Mutable(mutable)),
+            Repr::Mutable(value) => Ok(ValueMut::Mutable(value)),
+            Repr::Ref(value) => Ok(ValueMut::Ref(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1880,6 +2045,7 @@ impl Value {
         match self.repr {
             Repr::Inline(value) => Ok(ValueShared::Inline(value)),
             Repr::Mutable(value) => Ok(ValueShared::Mutable(value)),
+            Repr::Ref(value) => Ok(ValueShared::Ref(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1939,6 +2105,7 @@ impl fmt::Debug for Value {
                 return Ok(());
             }
             Repr::Mutable(value) => value.snapshot(),
+            Repr::Ref(value) => value.snapshot(),
         };
 
         if !snapshot.is_readable() {
@@ -1965,6 +2132,10 @@ impl fmt::Debug for Value {
                         write!(f, "<unknown object at {value:p}: {e}: {e2}>")?;
                     }
                 },
+                Repr::Ref(value) => {
+                    let ty = value.type_info();
+                    write!(f, "<{ty} object at {value:p}: {e}>")?;
+                }
             }
 
             return Ok(());
@@ -1996,6 +2167,15 @@ impl From<Inline> for Value {
     fn from(value: Inline) -> Self {
         Self {
             repr: Repr::Inline(value),
+        }
+    }
+}
+
+impl From<AnyRef> for Value {
+    #[inline]
+    fn from(value: AnyRef) -> Self {
+        Self {
+            repr: Repr::Ref(value),
         }
     }
 }
@@ -2091,6 +2271,7 @@ impl Clone for Value {
             Repr::Empty => Repr::Empty,
             Repr::Inline(inline) => Repr::Inline(*inline),
             Repr::Mutable(mutable) => Repr::Mutable(mutable.clone()),
+            Repr::Ref(any) => Repr::Ref(any.clone()),
         };
 
         Self { repr }
@@ -2104,6 +2285,9 @@ impl Clone for Value {
                 *lhs = *rhs;
             }
             (Repr::Mutable(lhs), Repr::Mutable(rhs)) => {
+                lhs.clone_from(rhs);
+            }
+            (Repr::Ref(lhs), Repr::Ref(rhs)) => {
                 lhs.clone_from(rhs);
             }
             (lhs, rhs) => {
@@ -2127,6 +2311,10 @@ pub struct NotTypedInlineValue(Inline);
 /// Wrapper for a value kind.
 #[doc(hidden)]
 pub struct NotTypedMutableValue(Mutable);
+
+/// Wrapper for an any ref value kind.
+#[doc(hidden)]
+pub struct NotTypedRefValue(AnyRef);
 
 /// The coersion of a value into a typed value.
 #[doc(hidden)]
@@ -2152,6 +2340,9 @@ pub enum TypeValue {
     /// Not a typed value.
     #[doc(hidden)]
     NotTypedMutable(NotTypedMutableValue),
+    /// Not a typed value.
+    #[doc(hidden)]
+    NotTypedRef(NotTypedRefValue),
 }
 
 impl TypeValue {
@@ -2168,6 +2359,7 @@ impl TypeValue {
             TypeValue::Variant(empty) => empty.type_info(),
             TypeValue::NotTypedInline(value) => value.0.type_info(),
             TypeValue::NotTypedMutable(value) => value.0.type_info(),
+            TypeValue::NotTypedRef(value) => value.0.type_info(),
         }
     }
 }

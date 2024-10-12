@@ -48,13 +48,13 @@ fn test_from_ref() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_ref(&value)?;
-        assert!(value.clone().into_any_mut::<Thing>().is_err());
-        assert_eq!(10u32, value.clone().into_any_ref::<Thing>()?.0);
+        assert!(value.downcast_borrow_mut::<Thing>().is_err());
+        assert_eq!(10u32, value.downcast_borrow_ref::<Thing>()?.0);
 
         drop(guard);
 
-        assert!(value.clone().into_any_mut::<Thing>().is_err());
-        assert!(value.clone().into_any_ref::<Thing>().is_err());
+        assert!(value.downcast_borrow_mut::<Thing>().is_err());
+        assert!(value.downcast_borrow_ref::<Thing>().is_err());
     }
 
     Ok(())
@@ -69,15 +69,15 @@ fn test_from_mut() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_mut(&mut value)?;
-        value.clone().into_any_mut::<Thing>()?.0 = 20;
+        value.downcast_borrow_mut::<Thing>()?.0 = 20;
 
-        assert_eq!(20u32, value.clone().into_any_mut::<Thing>()?.0);
-        assert_eq!(20u32, value.clone().into_any_ref::<Thing>()?.0);
+        assert_eq!(20u32, value.downcast_borrow_mut::<Thing>()?.0);
+        assert_eq!(20u32, value.downcast_borrow_ref::<Thing>()?.0);
 
         drop(guard);
 
-        assert!(value.clone().into_any_mut::<Thing>().is_err());
-        assert!(value.clone().into_any_ref::<Thing>().is_err());
+        assert!(value.downcast_borrow_mut::<Thing>().is_err());
+        assert!(value.downcast_borrow_ref::<Thing>().is_err());
     }
 
     Ok(())

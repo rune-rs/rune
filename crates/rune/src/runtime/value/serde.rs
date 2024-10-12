@@ -107,6 +107,9 @@ impl ser::Serialize for Value {
                 }
                 Mutable::Any(..) => Err(ser::Error::custom("cannot serialize external objects")),
             },
+            ValueBorrowRef::Ref(..) => {
+                Err(ser::Error::custom("cannot serialize external references"))
+            }
         }
     }
 }

@@ -140,7 +140,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
 }
 
 struct Guard {
-    _guard: RawRef,
+    _guard: RawRefGuard,
     dropped: Rc<Cell<bool>>,
 }
 

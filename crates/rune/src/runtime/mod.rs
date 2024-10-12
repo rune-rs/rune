@@ -13,8 +13,12 @@ mod access;
 pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard};
 pub use self::access::{AccessError, BorrowMut, BorrowRef, Snapshot};
 
+mod any_ref;
+pub use self::any_ref::AnyRef;
+pub(crate) use self::any_ref::{AnyRefDrop, RawAnyRefGuard};
+
 mod any_obj;
-pub use self::any_obj::{AnyObj, AnyObjError, AnyObjVtable};
+pub use self::any_obj::AnyObj;
 
 mod args;
 pub use self::args::{Args, FixedArgs};
@@ -121,7 +125,7 @@ pub(crate) use self::select::Select;
 
 mod shared;
 pub(crate) use self::shared::Shared;
-pub use self::shared::{Mut, RawMut, RawRef, Ref, SharedPointerGuard};
+pub use self::shared::{Mut, RawRefGuard, Ref};
 
 mod stack;
 pub(crate) use self::stack::Pair;
@@ -153,7 +157,10 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub use self::value::{EmptyStruct, Rtti, Struct, TupleStruct, TypeValue, Value, VariantRtti};
+pub use self::value::{
+    EmptyStruct, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value, ValueMutGuard,
+    ValueRefGuard, VariantRtti,
+};
 pub(crate) use self::value::{
     Inline, Mutable, OwnedValue, ValueBorrowRef, ValueMut, ValueRef, ValueRepr, ValueShared,
 };

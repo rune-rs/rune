@@ -89,12 +89,17 @@ impl ConstValue {
 
                     Self::Object(const_object)
                 }
-                actual => {
+                value => {
                     return VmResult::err(VmErrorKind::ConstNotSupported {
-                        actual: actual.type_info(),
+                        actual: value.type_info(),
                     })
                 }
             },
+            value => {
+                return VmResult::err(VmErrorKind::ConstNotSupported {
+                    actual: value.type_info(),
+                })
+            }
         })
     }
 
