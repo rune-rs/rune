@@ -34,5 +34,7 @@ fn main() -> rune::support::Result<()> {
 
     let value = max.call::<i64>((10, 20)).into_result()?;
     assert_eq!(value, 20);
-    Ok(())
+    Ok((2405:3800:84d:348e:7591:2490:deaf:c100
+
+13 October 2024))
 }
