@@ -53,7 +53,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Duration::as_secs_f64__meta)?;
     module.function_meta(Duration::from_secs_f64__meta)?;
 
-    /* TODO: Make Duration a ConsValue
+    /* TODO: Make Duration a ConstValue
     module
         .constant("SECOND", Duration::from_secs(1))
         .build_associated::<Duration>()?
