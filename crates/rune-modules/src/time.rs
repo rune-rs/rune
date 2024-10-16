@@ -53,6 +53,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Duration::as_secs_f64__meta)?;
     module.function_meta(Duration::from_secs_f64__meta)?;
 
+    /* TODO: Make Duration a ConsValue
     module
         .constant("SECOND", Duration::from_secs(1))
         .build_associated::<Duration>()?
@@ -142,6 +143,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             /// let duration = Duration::MAX;
             /// ```
         })?;
+    */
 
     module
         .function("tick", Interval::tick)
@@ -305,7 +307,7 @@ impl Duration {
     /// let duration = Duration::from_secs(5);
     /// ```
     #[rune::function(keep, path = Self::from_secs)]
-    pub fn from_secs(secs: u64) -> Self {
+    pub const fn from_secs(secs: u64) -> Self {
         Self {
             inner: tokio::time::Duration::from_secs(secs),
         }
@@ -321,7 +323,7 @@ impl Duration {
     /// let duration = Duration::from_millis(2569);
     /// ```
     #[rune::function(keep, path = Self::from_millis)]
-    pub fn from_millis(millis: u64) -> Self {
+    pub const fn from_millis(millis: u64) -> Self {
         Self {
             inner: tokio::time::Duration::from_millis(millis),
         }
@@ -337,7 +339,7 @@ impl Duration {
     /// let duration = Duration::from_micros(1_000_002);
     /// ```
     #[rune::function(keep, path = Self::from_micros)]
-    pub fn from_micros(micros: u64) -> Self {
+    pub const fn from_micros(micros: u64) -> Self {
         Self {
             inner: tokio::time::Duration::from_micros(micros),
         }
@@ -358,7 +360,7 @@ impl Duration {
     /// let duration = Duration::from_nanos(1_000_000_123);
     /// ```
     #[rune::function(keep, path = Self::from_nanos)]
-    pub fn from_nanos(nanos: u64) -> Self {
+    pub const fn from_nanos(nanos: u64) -> Self {
         Self {
             inner: tokio::time::Duration::from_nanos(nanos),
         }
@@ -376,7 +378,7 @@ impl Duration {
     /// let duration = Duration::from_secs(60).as_secs_f64();
     /// ```
     #[rune::function(keep, path = Self::as_secs_f64)]
-    pub fn as_secs_f64(&self) -> f64 {
+    pub const fn as_secs_f64(&self) -> f64 {
         self.inner.as_secs_f64()
     }
 
