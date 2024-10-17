@@ -1616,7 +1616,7 @@ impl StatusCode {
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct Version {
-    inner: reqwest::Version,
+    _inner: reqwest::Version,
 }
 
 /// A builder to construct the properties of a Request.
