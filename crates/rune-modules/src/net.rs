@@ -63,7 +63,7 @@ pub struct SocketAddr {
 impl SocketAddr {
     /// Creates a new socket address from an IP address and a port number.
     #[rune::function(keep, path = Self::new)]
-    pub fn new(ip: IpAddr, port: u16) -> Self {
+    pub const fn new(ip: IpAddr, port: u16) -> Self {
         Self {
             inner: net::SocketAddr::new(ip.inner, port),
         }
@@ -71,7 +71,7 @@ impl SocketAddr {
 
     /// Returns the IP address associated with this socket address.
     #[rune::function(instance, keep)]
-    pub fn ip(&self) -> IpAddr {
+    pub const fn ip(&self) -> IpAddr {
         IpAddr {
             inner: self.inner.ip(),
         }
@@ -85,7 +85,7 @@ impl SocketAddr {
 
     /// Returns the port number associated with this socket address.
     #[rune::function(instance, keep)]
-    pub fn port(&self) -> u16 {
+    pub const fn port(&self) -> u16 {
         self.inner.port()
     }
 
@@ -98,26 +98,26 @@ impl SocketAddr {
     /// Returns [`true`] if the IP address in this `SocketAddr` is an
     /// `IPv4` address, and [`false`] otherwise.
     #[rune::function(instance, keep)]
-    pub fn is_ipv4(&self) -> bool {
+    pub const fn is_ipv4(&self) -> bool {
         self.inner.is_ipv4()
     }
 
     /// Returns [`true`] if the IP address in this `SocketAddr` is an
     /// `IPv6` address, and [`false`] otherwise.
     #[rune::function(instance, keep)]
-    pub fn is_ipv6(&self) -> bool {
+    pub const fn is_ipv6(&self) -> bool {
         self.inner.is_ipv6()
     }
 }
 
 impl SocketAddr {
     /// Converts [`SocketAddr`] into a [`std::net::SocketAddr`].
-    pub fn into_std(self) -> net::SocketAddr {
+    pub const fn into_std(self) -> net::SocketAddr {
         self.inner
     }
 
     /// Creates a [`SocketAddr`] from a [`std::net::SocketAddr`].
-    pub fn from_std(addr: net::SocketAddr) -> Self {
+    pub const fn from_std(addr: net::SocketAddr) -> Self {
         Self { inner: addr }
     }
 }
@@ -132,40 +132,40 @@ pub struct IpAddr {
 impl IpAddr {
     /// Returns [`true`] for the special 'unspecified' address.
     #[rune::function(instance, keep)]
-    pub fn is_unspecified(&self) -> bool {
+    pub const fn is_unspecified(&self) -> bool {
         self.inner.is_unspecified()
     }
 
     /// Returns [`true`] if this is a loopback address.
     #[rune::function(instance, keep)]
-    pub fn is_loopback(&self) -> bool {
+    pub const fn is_loopback(&self) -> bool {
         self.inner.is_loopback()
     }
 
     /// Returns [`true`] if this is a multicast address.
     #[rune::function(instance, keep)]
-    pub fn is_multicast(&self) -> bool {
+    pub const fn is_multicast(&self) -> bool {
         self.inner.is_multicast()
     }
 
     /// Returns [`true`] if this address is an `IPv4` address, and [`false`]
     /// otherwise.
     #[rune::function(instance, keep)]
-    pub fn is_ipv4(&self) -> bool {
+    pub const fn is_ipv4(&self) -> bool {
         self.inner.is_ipv4()
     }
 
     /// Returns [`true`] if this address is an `IPv6` address, and [`false`]
     /// otherwise.
     #[rune::function(instance, keep)]
-    pub fn is_ipv6(&self) -> bool {
+    pub const fn is_ipv6(&self) -> bool {
         self.inner.is_ipv6()
     }
 
     /// Converts this address to an `IpAddr::V4` if it is an IPv4-mapped IPv6 addresses, otherwise it
     /// returns `self` as-is.
     #[rune::function(instance, keep)]
-    pub fn to_canonical(&self) -> IpAddr {
+    pub const fn to_canonical(&self) -> IpAddr {
         Self {
             inner: self.inner.to_canonical(),
         }
@@ -174,12 +174,12 @@ impl IpAddr {
 
 impl IpAddr {
     /// Converts [`IpAddr`] into a [`std::net::IpAddr`].
-    pub fn into_std(self) -> net::IpAddr {
+    pub const fn into_std(self) -> net::IpAddr {
         self.inner
     }
 
     /// Creates a [`IpAddr`] from a [`std::net::IpAddr`].
-    pub fn from_std(addr: net::IpAddr) -> Self {
+    pub const fn from_std(addr: net::IpAddr) -> Self {
         Self { inner: addr }
     }
 }
