@@ -1308,6 +1308,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(StatusCode::is_client_error)?;
     module.function_meta(StatusCode::is_server_error)?;
 
+    module.function_meta(Version::string_display)?;
+
     module
         .constant(
             "HTTP_09",
@@ -1616,7 +1618,15 @@ impl StatusCode {
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct Version {
-    _inner: reqwest::Version,
+    inner: reqwest::Version,
+}
+
+impl Version {
+    #[rune::function(instance, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        rune::vm_write!(f, "{:?}", self.inner);
+        VmResult::Ok(())
+    }
 }
 
 /// A builder to construct the properties of a Request.
