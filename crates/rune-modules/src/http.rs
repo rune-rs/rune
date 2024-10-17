@@ -49,7 +49,6 @@
 //! ```
 
 use rune::alloc::{fmt::TryWrite, HashMap};
-use rune::modules::net::SocketAddr;
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
 use rune::{docstring, Any, ContextError, Module, Value};
 
@@ -88,7 +87,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Response::status)?;
     module.function_meta(Response::version)?;
     module.function_meta(Response::content_length)?;
-    module.function_meta(Response::remote_addr)?;
+    // module.function_meta(Response::remote_addr)?; TODO: Make rune net module
 
     module.function_meta(RequestBuilder::send)?;
     module.function_meta(RequestBuilder::header)?;
@@ -97,7 +96,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(RequestBuilder::fetch_mode_no_cors)?;
     module.function_meta(RequestBuilder::body_bytes)?;
     module.function_meta(RequestBuilder::form)?;
-    module.function_meta(RequestBuilder::timeout)?;
+    // module.function_meta(RequestBuilder::timeout)?; TODO: Make rune net module
 
     module
         .constant(
@@ -1531,6 +1530,7 @@ impl Response {
         self.response.content_length()
     }
 
+    /* TODO: Make rune net module
     /// Get the remote address of the response.
     #[rune::function(instance)]
     fn remote_addr(&self) -> Option<SocketAddr> {
@@ -1538,6 +1538,7 @@ impl Response {
             .remote_addr()
             .map(|addr| SocketAddr::from_std(addr))
     }
+    */
 }
 
 /// An HTTP status code.
@@ -1785,6 +1786,7 @@ impl RequestBuilder {
         }
     }
 
+    /* TODO: Make rune net module
     /// Set the request timeout.
     ///
     /// ```rune,no_run
@@ -1803,6 +1805,7 @@ impl RequestBuilder {
             request: self.request.timeout(timeout.into_std()),
         }
     }
+    */
 }
 
 impl Client {
