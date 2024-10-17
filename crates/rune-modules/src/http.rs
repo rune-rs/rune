@@ -1308,7 +1308,10 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(StatusCode::is_client_error)?;
     module.function_meta(StatusCode::is_server_error)?;
 
-    module.function_meta(Version::string_display)?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::PartialEq))?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::Eq))?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::PartialOrd))?;
+    module.implement_trait::<StatusCode>(rune::item!(::std::cmp::Ord))?;
 
     module
         .constant(
@@ -1409,6 +1412,13 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
             /// let version = Version::HTTP_3;
             /// ```
         })?;
+
+    module.function_meta(Version::string_display)?;
+
+    module.implement_trait::<Version>(rune::item!(::std::cmp::PartialEq))?;
+    module.implement_trait::<Version>(rune::item!(::std::cmp::Eq))?;
+    module.implement_trait::<Version>(rune::item!(::std::cmp::PartialOrd))?;
+    module.implement_trait::<Version>(rune::item!(::std::cmp::Ord))?;
 
     module.function_meta(Error::string_display)?;
 
@@ -1544,7 +1554,7 @@ impl Response {
 }
 
 /// An HTTP status code.
-#[derive(Debug, Any)]
+#[derive(Debug, Any, PartialEq, Eq, PartialOrd, Ord)]
 #[rune(item = ::http)]
 pub struct StatusCode {
     inner: reqwest::StatusCode,
@@ -1615,7 +1625,7 @@ impl StatusCode {
 }
 
 /// Represents a version of the HTTP spec.
-#[derive(Debug, Any)]
+#[derive(Debug, Any, PartialEq, Eq, PartialOrd, Ord)]
 #[rune(item = ::http)]
 pub struct Version {
     inner: reqwest::Version,
