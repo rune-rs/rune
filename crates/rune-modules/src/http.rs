@@ -48,7 +48,7 @@
 //! }
 //! ```
 
-use rune::alloc::{fmt::TryWrite, HashMap};
+use rune::alloc::fmt::TryWrite;
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
 use rune::{docstring, Any, ContextError, Module, Value};
 
@@ -95,7 +95,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(RequestBuilder::bearer_auth)?;
     module.function_meta(RequestBuilder::fetch_mode_no_cors)?;
     module.function_meta(RequestBuilder::body_bytes)?;
-    module.function_meta(RequestBuilder::form)?;
+    // module.function_meta(RequestBuilder::form)?; TODO: Make with support anonymous objects: future work.
     // module.function_meta(RequestBuilder::timeout)?; TODO: Make rune net module
 
     module
@@ -1767,6 +1767,8 @@ impl RequestBuilder {
         }
     }
 
+    /* TODO: Make with support anonymous objects: future work.
+             For more information, see https://github.com/rune-rs/rune/pull/819#discussion_r1740494742
     /// Set the request body from bytes.
     ///
     /// ```rune,no_run
@@ -1785,6 +1787,7 @@ impl RequestBuilder {
             request: self.request.form(&params),
         }
     }
+    */
 
     /* TODO: Make rune net module
     /// Set the request timeout.
