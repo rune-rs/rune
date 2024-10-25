@@ -68,10 +68,13 @@ cfg_if! {
     } else {
         #[inline(always)]
         pub(crate) unsafe fn sub_ptr<T>(from: *const T, to: *const T) -> usize {
-            let pointee_size = mem::size_of::<T>();
-            assert!(0 < pointee_size && pointee_size <= isize::MAX as usize);
+            const {
+                let pointee_size = mem::size_of::<T>();
+                assert!(0 < pointee_size && pointee_size <= isize::MAX as usize);
+            }
+
             debug_assert!(addr(from) >= addr(to));
-            addr(from).wrapping_sub(addr(to)).saturating_div(pointee_size)
+            addr(from).wrapping_sub(addr(to)).saturating_div(mem::size_of::<T>())
         }
     }
 }
