@@ -1,0 +1,36 @@
+// This ensures that unary operations do not clobber a slot.
+// https://github.com/rune-rs/rune/issues/838
+
+#[test]
+fn negation_simple() {
+    let b = -1;
+    let d = 0 + -b;
+    assert_eq!(d, 1);
+    assert_eq!(b, -1);
+}
+
+#[test]
+fn negation_simple_chain() {
+    let b = -1;
+    let d = 0 + -b;
+    d = 0 + -b;
+    d = 0 + -b;
+    d = 0 + -b;
+    assert_eq!(d, 1);
+    assert_eq!(b, -1);
+}
+
+#[test]
+fn negation() {
+    let a = 1;
+    let b = -2;
+    let c = -b;
+    let d = 1 < -b;
+    let e = 1 < -b;
+
+    assert!(d);
+    assert!(e);
+    assert_eq!(a, 1);
+    assert_eq!(b, -2);
+    assert_eq!(c, 2);
+}

@@ -168,3 +168,49 @@ fn match_enum2() {
 
     assert_eq!(out, Enum::Right);
 }
+
+#[test]
+fn match_extraction_vec() {
+    let v = [42];
+
+    fn inner(v) {
+        match v {
+            [a] => a,
+            _ => 0,
+        }
+    }
+
+    assert_eq!(inner(v), 42);
+}
+
+#[test]
+fn match_extraction_tuple() {
+    let v = (42,);
+
+    fn inner(v) {
+        match v {
+            (a,) => a,
+            _ => 0,
+        }
+    }
+
+    assert_eq!(inner(v), 42);
+}
+
+#[test]
+fn match_extraction_struct() {
+    struct Struct {
+        a,
+    }
+
+    fn inner(v) {
+        match v {
+            Struct { a, .. } => a,
+            _ => 0,
+        }
+    }
+
+    let v = Struct { a: 42 };
+
+    assert_eq!(inner(v), 42);
+}
