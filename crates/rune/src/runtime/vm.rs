@@ -3657,11 +3657,7 @@ impl Vm {
     where
         F: FnOnce() -> T,
     {
-        let _guard = crate::runtime::env::Guard::new(
-            NonNull::from(&self.context),
-            NonNull::from(&self.unit),
-            None,
-        );
+        let _guard = crate::runtime::env::Guard::new(self.context.clone(), self.unit.clone(), None);
         f()
     }
 
@@ -3679,11 +3675,8 @@ impl Vm {
 
         // NB: set up environment so that native function can access context and
         // unit.
-        let _guard = crate::runtime::env::Guard::new(
-            NonNull::from(&self.context),
-            NonNull::from(&self.unit),
-            diagnostics,
-        );
+        let _guard =
+            crate::runtime::env::Guard::new(self.context.clone(), self.unit.clone(), diagnostics);
 
         let mut budget = budget::acquire();
 
