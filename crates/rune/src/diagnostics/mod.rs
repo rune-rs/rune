@@ -45,7 +45,7 @@ use ::rust_alloc::boxed::Box;
 use rune_alloc::String;
 
 use crate::alloc::{self, Vec};
-use crate::ast::{Span, Spanned};
+use crate::ast::Spanned;
 use crate::{Hash, SourceId};
 
 #[cfg(feature = "emit")]
@@ -207,13 +207,13 @@ impl Diagnostics {
         &mut self,
         source_id: SourceId,
         span: &dyn Spanned,
-        context: Option<Span>,
+        context: Option<&dyn Spanned>,
     ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::NotUsed {
                 span: span.span(),
-                context,
+                context: context.map(Spanned::span),
             },
         )
     }
@@ -241,13 +241,13 @@ impl Diagnostics {
         &mut self,
         source_id: SourceId,
         span: &dyn Spanned,
-        context: Option<Span>,
+        context: Option<&dyn Spanned>,
     ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::LetPatternMightPanic {
                 span: span.span(),
-                context,
+                context: context.map(Spanned::span),
             },
         )
     }
@@ -260,13 +260,13 @@ impl Diagnostics {
         &mut self,
         source_id: SourceId,
         span: &dyn Spanned,
-        context: Option<Span>,
+        context: Option<&dyn Spanned>,
     ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::TemplateWithoutExpansions {
                 span: span.span(),
-                context,
+                context: context.map(Spanned::span),
             },
         )
     }
@@ -280,14 +280,14 @@ impl Diagnostics {
         source_id: SourceId,
         span: &dyn Spanned,
         variant: &dyn Spanned,
-        context: Option<Span>,
+        context: Option<&dyn Spanned>,
     ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::RemoveTupleCallParams {
                 span: span.span(),
                 variant: variant.span(),
-                context,
+                context: context.map(Spanned::span),
             },
         )
     }
@@ -309,14 +309,14 @@ impl Diagnostics {
         &mut self,
         source_id: SourceId,
         span: &dyn Spanned,
-        context: Option<Span>,
+        context: Option<&dyn Spanned>,
         message: String,
     ) -> alloc::Result<()> {
         self.warning(
             source_id,
             WarningDiagnosticKind::UsedDeprecated {
                 span: span.span(),
-                context,
+                context: context.map(Spanned::span),
                 message,
             },
         )

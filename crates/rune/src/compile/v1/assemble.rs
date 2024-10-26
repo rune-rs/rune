@@ -6,7 +6,7 @@ use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
 use crate::alloc::BTreeMap;
-use crate::ast::{self, Span, Spanned};
+use crate::ast::{self, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
@@ -58,7 +58,7 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     /// Scopes defined in the compiler.
     pub(crate) scopes: &'a Scopes<'hir>,
     /// Context for which to emit warnings.
-    pub(crate) contexts: Vec<Span>,
+    pub(crate) contexts: Vec<&'hir dyn Spanned>,
     /// The nesting of loop we are currently in.
     pub(crate) breaks: Breaks<'hir>,
     /// Enabled optimizations.
@@ -83,7 +83,7 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
     }
 
     /// Get the latest relevant warning context.
-    pub(crate) fn context(&self) -> Option<Span> {
+    pub(crate) fn context(&self) -> Option<&'hir dyn Spanned> {
         self.contexts.last().copied()
     }
 
@@ -940,7 +940,7 @@ fn block_without_scope<'a, 'hir>(
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let mut diverge = None;
-    cx.contexts.try_push(hir.span())?;
+    cx.contexts.try_push(hir)?;
 
     for stmt in hir.statements {
         let mut needs = Any::ignore(hir).with_name("statement ignore");
@@ -2817,7 +2817,7 @@ fn expr_select<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    cx.contexts.try_push(span.span())?;
+    cx.contexts.try_push(span)?;
     cx.select_branches.clear();
 
     let asm = expr_select_inner(cx, hir, span, needs)?;
