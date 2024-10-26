@@ -7,6 +7,7 @@
 //!
 //! See the corresponding function for documentation.
 
+use core::mem::ManuallyDrop;
 use core::ptr::NonNull;
 
 #[cfg_attr(feature = "std", path = "env/std.rs")]
@@ -39,9 +40,9 @@ where
     // Safety: context and unit can only be registered publicly through
     // [`Guard`], which makes sure that they are live for the duration of the
     // registration.
-    let context = unsafe { context.as_ref() };
-    let unit = unsafe { unit.as_ref() };
-    c(context, unit)
+    let context = unsafe { ManuallyDrop::new(Arc::from_raw(context.as_ptr().cast_const())) };
+    let unit = unsafe { ManuallyDrop::new(Arc::from_raw(unit.as_ptr().cast_const())) };
+    c(&context, &unit)
 }
 
 /// Call the given closure with access to the checked environment accessing it
@@ -69,14 +70,14 @@ where
     // Safety: context and unit can only be registered publicly through
     // [`Guard`], which makes sure that they are live for the duration of the
     // registration.
-    let context = unsafe { context.as_ref() };
-    let unit = unsafe { unit.as_ref() };
+    let context = unsafe { ManuallyDrop::new(Arc::from_raw(context.as_ptr().cast_const())) };
+    let unit = unsafe { ManuallyDrop::new(Arc::from_raw(unit.as_ptr().cast_const())) };
     let diagnostics = match guard.env.diagnostics {
         Some(mut d) => Some(unsafe { d.as_mut() }),
         None => None,
     };
 
-    c(context, unit, diagnostics)
+    c(&context, &unit, diagnostics)
 }
 
 pub(crate) struct Guard {
@@ -90,29 +91,42 @@ impl Guard {
     ///
     /// The returned guard must be dropped before the pointed to elements are.
     pub(crate) fn new(
-        context: NonNull<Arc<RuntimeContext>>,
-        unit: NonNull<Arc<Unit>>,
+        context: Arc<RuntimeContext>,
+        unit: Arc<Unit>,
         diagnostics: Option<NonNull<VmDiagnosticsObj>>,
     ) -> Guard {
-        let env = self::no_std::rune_env_replace(Env {
-            context: Some(context),
-            unit: Some(unit),
-            diagnostics,
-        });
+        let env = unsafe {
+            self::no_std::rune_env_replace(Env {
+                context: Some(NonNull::new_unchecked(Arc::into_raw(context).cast_mut())),
+                unit: Some(NonNull::new_unchecked(Arc::into_raw(unit).cast_mut())),
+                diagnostics,
+            })
+        };
+
         Guard { env }
     }
 }
 
 impl Drop for Guard {
     fn drop(&mut self) {
-        let _ = self::no_std::rune_env_replace(self.env);
+        let old_env = self::no_std::rune_env_replace(self.env);
+
+        unsafe {
+            if let Some(context) = old_env.context {
+                drop(Arc::from_raw(context.as_ptr().cast_const()));
+            }
+
+            if let Some(unit) = old_env.unit {
+                drop(Arc::from_raw(unit.as_ptr().cast_const()));
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 struct Env {
-    context: Option<NonNull<Arc<RuntimeContext>>>,
-    unit: Option<NonNull<Arc<Unit>>>,
+    context: Option<NonNull<RuntimeContext>>,
+    unit: Option<NonNull<Unit>>,
     diagnostics: Option<NonNull<VmDiagnosticsObj>>,
 }
 
