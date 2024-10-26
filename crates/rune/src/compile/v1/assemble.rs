@@ -2920,18 +2920,16 @@ fn expr_unary<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    converge!(expr(cx, &hir.expr, needs)?);
-
-    let Some(addr) = needs.try_as_addr()? else {
-        return Ok(Asm::new(span, ()));
-    };
+    let mut addr = cx.scopes.defer(span);
+    converge!(expr(cx, &hir.expr, &mut addr)?, free(addr));
+    let addr = addr.into_addr()?;
 
     match hir.op {
         ast::UnOp::Not(..) => {
             cx.asm.push(
                 Inst::Not {
                     addr: addr.addr(),
-                    out: addr.output(),
+                    out: needs.alloc_output()?,
                 },
                 span,
             )?;
@@ -2940,7 +2938,7 @@ fn expr_unary<'a, 'hir>(
             cx.asm.push(
                 Inst::Neg {
                     addr: addr.addr(),
-                    out: addr.output(),
+                    out: needs.alloc_output()?,
                 },
                 span,
             )?;
@@ -2953,6 +2951,7 @@ fn expr_unary<'a, 'hir>(
         }
     }
 
+    addr.free()?;
     Ok(Asm::new(span, ()))
 }
 
