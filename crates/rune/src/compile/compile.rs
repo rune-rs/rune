@@ -125,7 +125,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
     fn compiler1<'a, 'hir>(
         &'a mut self,
         location: Location,
-        span: &dyn Spanned,
+        span: &'hir dyn Spanned,
         asm: &'a mut Assembly,
         scopes: &'a mut v1::Scopes<'hir>,
     ) -> alloc::Result<v1::Ctxt<'a, 'hir, 'arena>> {
@@ -134,7 +134,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             q: self.q.borrow(),
             asm,
             scopes,
-            contexts: try_vec![span.span()],
+            contexts: try_vec![span],
             breaks: self::v1::Breaks::new(),
             options: self.options,
             select_branches: Vec::new(),
