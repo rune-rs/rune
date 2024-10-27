@@ -503,7 +503,7 @@ impl VecDeque {
         // SAFETY: We're holding onto the reference guard.
         let iter = unsafe { this.inner.raw_iter() };
         let (_, _guard) = Ref::into_raw(this);
-        Iter { iter, _guard }
+        Iter { iter, guard }
     }
 
     #[rune::function(keep, instance, protocol = INTO_ITER, path = Self)]
@@ -807,7 +807,8 @@ fn from(vec: Vec) -> VmResult<VecDeque> {
 pub(crate) struct Iter {
     iter: alloc::vec_deque::RawIter<Value>,
     // Drop must happen after the raw iterator.
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl Iter {

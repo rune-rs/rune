@@ -140,7 +140,8 @@ fn bug_344_async_inst_fn() -> Result<()> {
 }
 
 struct Guard {
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
     dropped: Rc<Cell<bool>>,
 }
 
@@ -208,7 +209,7 @@ impl UnsafeToRef for GuardCheck {
         let (output, guard) = Ref::into_raw(vm_try!(value.into_any_ref::<GuardCheck>()));
 
         let guard = Guard {
-            _guard: guard,
+            guard,
             // Regardless of what happens, the value is available here and the
             // refcounted value will be available even if the underlying value
             // *is* dropped prematurely because it's been cloned.

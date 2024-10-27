@@ -310,7 +310,7 @@ impl Object {
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
         let (_, _guard) = Ref::into_raw(this);
-        RuneIter { iter, _guard }
+        RuneIter { iter, guard }
     }
 
     /// An iterator visiting all keys in arbitrary order.
@@ -334,7 +334,7 @@ impl Object {
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
         let (_, _guard) = Ref::into_raw(this);
-        RuneIterKeys { iter, _guard }
+        RuneIterKeys { iter, guard }
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -358,7 +358,7 @@ impl Object {
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
         let (_, _guard) = Ref::into_raw(this);
-        RuneValues { iter, _guard }
+        RuneValues { iter, guard }
     }
 
     pub(crate) fn partial_eq_with(
@@ -542,7 +542,8 @@ impl fmt::Display for DebugStruct<'_> {
 #[rune(item = ::std::object, name = Iter)]
 pub struct RuneIter {
     iter: RawIter<(String, Value)>,
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl RuneIter {
@@ -585,7 +586,8 @@ impl iter::Iterator for RuneIter {
 #[rune(item = ::std::object, name = Keys)]
 pub struct RuneIterKeys {
     iter: RawIter<(String, Value)>,
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl RuneIterKeys {
@@ -628,7 +630,8 @@ impl iter::Iterator for RuneIterKeys {
 #[rune(item = ::std::object, name = Values)]
 pub struct RuneValues {
     iter: RawIter<(String, Value)>,
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl RuneValues {
