@@ -8,54 +8,99 @@ use crate::Any;
 
 use ::rust_alloc::sync::Arc;
 
-/// Type information about a value, that can be printed for human consumption
-/// through its [Display][fmt::Display] implementation.
 #[derive(Debug, TryClone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum TypeInfo {
+enum TypeInfoKind {
     /// The static type of a value.
     StaticType(&'static StaticType),
+    /// Reference to an external type.
+    Any(AnyTypeInfo),
     /// A named type.
     Typed(Arc<Rtti>),
     /// A variant.
     Variant(Arc<VariantRtti>),
-    /// Reference to an external type.
-    Any(AnyTypeInfo),
+}
+
+/// Diagnostical type information for a given type.
+///
+/// Has reasonable [`Debug`] and [`Display`] implementations to identify a given
+/// type.
+///
+/// [`Debug`]: core::fmt::Debug
+/// [`Display`]: core::fmt::Display
+#[derive(TryClone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TypeInfo {
+    kind: TypeInfoKind,
 }
 
 impl TypeInfo {
+    #[inline]
+    const fn new(kind: TypeInfoKind) -> Self {
+        Self { kind }
+    }
+
     /// Construct type info from an statically known [`Any`] type.
-    pub(crate) fn any<T>() -> Self
+    #[inline]
+    pub const fn any<T>() -> Self
     where
         T: Any,
     {
-        TypeInfo::Any(AnyTypeInfo::__private_new(T::BASE_NAME, T::type_hash()))
+        Self::any_type_info(T::INFO)
+    }
+
+    /// Construct type info from an statically known [`Any`] type.
+    #[doc(hidden)]
+    #[inline]
+    pub(crate) const fn any_type_info(type_info: AnyTypeInfo) -> Self {
+        Self::new(TypeInfoKind::Any(type_info))
+    }
+
+    #[doc(hidden)]
+    pub(crate) const fn static_type(ty: &'static StaticType) -> Self {
+        Self::new(TypeInfoKind::StaticType(ty))
+    }
+
+    #[inline]
+    pub(crate) const fn typed(rtti: Arc<Rtti>) -> Self {
+        Self::new(TypeInfoKind::Typed(rtti))
+    }
+
+    #[inline]
+    pub(crate) const fn variant(rtti: Arc<VariantRtti>) -> Self {
+        Self::new(TypeInfoKind::Variant(rtti))
     }
 
     #[cfg(feature = "emit")]
     pub(crate) fn type_hash(&self) -> Hash {
-        match self {
-            TypeInfo::StaticType(ty) => ty.hash,
-            TypeInfo::Typed(ty) => ty.hash,
-            TypeInfo::Variant(ty) => ty.hash,
-            TypeInfo::Any(ty) => ty.hash,
+        match &self.kind {
+            TypeInfoKind::StaticType(ty) => ty.hash,
+            TypeInfoKind::Typed(ty) => ty.hash,
+            TypeInfoKind::Variant(ty) => ty.hash,
+            TypeInfoKind::Any(ty) => ty.hash,
         }
+    }
+}
+
+impl fmt::Debug for TypeInfo {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
     }
 }
 
 impl fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::StaticType(ty) => {
+        match &self.kind {
+            TypeInfoKind::StaticType(ty) => {
                 write!(f, "{}", ty.name)?;
             }
-            Self::Typed(rtti) => {
+            TypeInfoKind::Typed(rtti) => {
                 write!(f, "{}", rtti.item)?;
             }
-            Self::Variant(rtti) => {
+            TypeInfoKind::Variant(rtti) => {
                 write!(f, "{}", rtti.item)?;
             }
-            Self::Any(info) => {
+            TypeInfoKind::Any(info) => {
                 write!(f, "{}", info.name)?;
             }
         }
@@ -67,18 +112,16 @@ impl fmt::Display for TypeInfo {
 /// Type information for the [`Any`][crate::Any] type.
 #[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
 #[try_clone(copy)]
-#[non_exhaustive]
 pub struct AnyTypeInfo {
     /// The name of the type.
-    pub name: RawStr,
+    pub(crate) name: RawStr,
     /// The type hash of the item.
-    pub hash: Hash,
+    pub(crate) hash: Hash,
 }
 
 impl AnyTypeInfo {
     /// Private constructor, use at your own risk.
-    #[doc(hidden)]
-    pub fn __private_new(name: RawStr, hash: Hash) -> Self {
+    pub(crate) const fn new(name: RawStr, hash: Hash) -> Self {
         Self { name, hash }
     }
 }

@@ -1664,7 +1664,7 @@ fn generics_parameters(
         .iter()
         .zip(parameters.parameters.iter_mut())
     {
-        if let &Some((_, generics)) = value {
+        if let &Some((span, generics)) = value {
             let mut builder = ParametersBuilder::new();
 
             for (s, _) in generics {
@@ -1672,7 +1672,7 @@ fn generics_parameters(
                     return Err(compile::Error::new(s, ErrorKind::UnsupportedGenerics));
                 };
 
-                builder.add(ty.into_hash());
+                builder = builder.add(ty.into_hash()).with_span(span)?;
             }
 
             *o = Some(builder.finish());
@@ -1872,7 +1872,7 @@ fn expr_field_access<'hir>(
                             return Err(compile::Error::new(s, ErrorKind::UnsupportedGenerics));
                         };
 
-                        builder.add(ty.into_hash());
+                        builder = builder.add(ty.into_hash()).with_span(s)?;
                     }
 
                     hir::ExprField::IdentGenerics(ident, builder.finish())

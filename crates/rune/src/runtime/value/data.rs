@@ -26,7 +26,7 @@ impl EmptyStruct {
 
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Typed(self.rtti.clone())
+        TypeInfo::typed(self.rtti.clone())
     }
 }
 
@@ -63,7 +63,7 @@ impl TupleStruct {
 
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Typed(self.rtti.clone())
+        TypeInfo::typed(self.rtti.clone())
     }
 
     /// Get the value at the given index in the tuple.
@@ -110,7 +110,7 @@ impl Struct {
 
     /// Get type info for the typed object.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Typed(self.rtti.clone())
+        TypeInfo::typed(self.rtti.clone())
     }
 
     /// Get the type hash of the object.

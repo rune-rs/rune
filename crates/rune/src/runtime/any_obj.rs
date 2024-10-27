@@ -9,8 +9,8 @@ use crate::alloc::{self, Box};
 use crate::{Any, Hash};
 
 use super::{
-    Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, Mut, RawAccessGuard, RawAnyGuard,
-    RawStr, Ref, RefVtable, Snapshot, TypeInfo, VmErrorKind,
+    Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, Mut, RawAccessGuard, RawAnyGuard, Ref,
+    RefVtable, Snapshot, TypeInfo, VmErrorKind,
 };
 
 /// Errors caused by casting an any reference.
@@ -82,8 +82,8 @@ impl AnyObj {
             kind: Kind::Own,
             type_id: TypeId::of::<T>,
             debug: debug_ref_impl::<T>,
-            type_name: type_name_impl::<T>,
-            type_hash: T::type_hash,
+            type_info: T::INFO,
+            type_hash: T::HASH,
             drop_value: const {
                 if needs_drop::<T>() {
                     Some(drop_value::<T>)
@@ -120,8 +120,8 @@ impl AnyObj {
             kind: Kind::Ref,
             type_id: TypeId::of::<T>,
             debug: debug_ref_impl::<T>,
-            type_name: type_name_impl::<T>,
-            type_hash: T::type_hash,
+            type_info: T::INFO,
+            type_hash: T::HASH,
             drop_value: None,
             drop: drop_box::<NonNull<T>>,
             clone: clone_ref::<T>,
@@ -152,8 +152,8 @@ impl AnyObj {
             kind: Kind::Mut,
             type_id: TypeId::of::<T>,
             debug: debug_mut_impl::<T>,
-            type_name: type_name_impl::<T>,
-            type_hash: T::type_hash,
+            type_info: T::INFO,
+            type_hash: T::HASH,
             drop_value: None,
             drop: drop_box::<NonNull<T>>,
             clone: clone_mut::<T>,
@@ -273,12 +273,12 @@ impl AnyObj {
         }
     }
 
-    /// Downcast into an owned value of type [`Ref<T>`].
+    /// Downcast into an owned value of type [`Mut<T>`].
     ///
     /// # Errors
     ///
     /// This errors in case the underlying value is not owned, non-owned
-    /// references cannot be coerced into [`Ref<T>`].
+    /// references cannot be coerced into [`Mut<T>`].
     pub(crate) fn downcast_mut<T>(self) -> Result<Mut<T>, AnyObjError>
     where
         T: Any,
@@ -472,12 +472,12 @@ impl AnyObj {
 
     /// Access the underlying type id for the data.
     pub(crate) fn type_hash(&self) -> Hash {
-        (vtable(self).type_hash)()
+        vtable(self).type_hash
     }
 
     /// Access full type info for type.
     pub(crate) fn type_info(&self) -> TypeInfo {
-        unsafe { self.shared.as_ref().type_info() }
+        TypeInfo::any_type_info(vtable(self).type_info)
     }
 }
 
@@ -531,12 +531,6 @@ type TypeIdFn = fn() -> TypeId;
 /// The signature of a descriptive type name function.
 type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
 
-/// Get the type name.
-type TypeNameFn = fn() -> RawStr;
-
-/// The signature of a type hash function.
-type TypeHashFn = fn() -> Hash;
-
 /// The kind of the stored value in the `AnyObj`.
 enum Kind {
     /// Underlying access is shared.
@@ -554,10 +548,10 @@ struct Vtable {
     type_id: TypeIdFn,
     /// Type information for diagnostics.
     debug: DebugFn,
-    /// Type name accessor.
-    type_name: TypeNameFn,
-    /// Get the type hash of the stored type.
-    type_hash: TypeHashFn,
+    /// Type information.
+    type_info: AnyTypeInfo,
+    /// Type hash of the interior type.
+    type_hash: Hash,
     /// Value drop implementation. Set to `None` if the underlying value does
     /// not need to be dropped.
     drop_value: Option<unsafe fn(NonNull<Shared>)>,
@@ -568,6 +562,11 @@ struct Vtable {
 }
 
 impl Vtable {
+    #[inline]
+    fn type_info(&self) -> TypeInfo {
+        TypeInfo::any_type_info(self.type_info)
+    }
+
     fn as_ptr<T>(&self, base: NonNull<Shared>) -> NonNull<T> {
         if matches!(self.kind, Kind::Own) {
             unsafe { base.byte_add(offset_of!(Shared<T>, data)).cast() }
@@ -578,14 +577,6 @@ impl Vtable {
                     .read()
             }
         }
-    }
-
-    /// Construct type information.
-    fn type_info(&self) -> TypeInfo {
-        TypeInfo::Any(AnyTypeInfo::__private_new(
-            (self.type_name)(),
-            (self.type_hash)(),
-        ))
     }
 }
 
@@ -602,11 +593,6 @@ struct Shared<T = ()> {
 }
 
 impl Shared {
-    /// Construct type information.
-    fn type_info(&self) -> TypeInfo {
-        self.vtable.type_info()
-    }
-
     /// Increment the reference count of the inner value.
     unsafe fn inc(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
@@ -670,13 +656,6 @@ where
     T: ?Sized + Any,
 {
     write!(f, "&mut {}", T::BASE_NAME)
-}
-
-fn type_name_impl<T>() -> RawStr
-where
-    T: ?Sized + Any,
-{
-    T::BASE_NAME
 }
 
 unsafe fn drop_value<T>(this: NonNull<Shared>) {

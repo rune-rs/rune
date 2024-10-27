@@ -297,7 +297,7 @@ impl FromValue for OwnedTuple {
 macro_rules! impl_tuple {
     // Skip conflicting implementation with `()`.
     (0) => {
-        impl_static_type!(() => crate::runtime::static_type::TUPLE);
+        impl_static_type!((), crate::runtime::static_type::TUPLE, crate::runtime::static_type::TUPLE_HASH);
 
         impl FromValue for () {
             fn from_value(value: Value) -> VmResult<Self> {
@@ -313,7 +313,7 @@ macro_rules! impl_tuple {
     };
 
     ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
-        impl_static_type!(impl <$($ty),*> ($($ty,)*) => crate::runtime::static_type::TUPLE);
+        impl_static_type!(impl <$($ty),*> ($($ty,)*), crate::runtime::static_type::TUPLE, crate::runtime::static_type::TUPLE_HASH);
 
         impl <$($ty,)*> FromValue for ($($ty,)*)
         where

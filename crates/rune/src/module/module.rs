@@ -191,8 +191,8 @@ impl Module {
         T: ?Sized + TypeOf + Named + InstallWith,
     {
         let item = ItemBuf::with_item([T::BASE_NAME])?;
-        let hash = T::type_hash();
-        let type_parameters = T::type_parameters();
+        let hash = T::HASH;
+        let type_parameters = T::PARAMETERS;
         let type_info = T::type_info();
 
         if !self.names.try_insert(Name::Item(hash))? {
@@ -239,7 +239,7 @@ impl Module {
     where
         T: ?Sized + TypeOf + Named,
     {
-        let type_hash = T::type_hash();
+        let type_hash = T::HASH;
 
         let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
             let full_name = String::try_from(T::full_name())?;
@@ -295,7 +295,7 @@ impl Module {
     where
         T: ?Sized + TypeOf + Named,
     {
-        let type_hash = T::type_hash();
+        let type_hash = T::HASH;
 
         let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
             let full_name = String::try_from(T::full_name())?;
@@ -1561,7 +1561,7 @@ impl Module {
         T: ?Sized + TypeOf + Named,
     {
         let item = ItemBuf::with_item([T::BASE_NAME])?;
-        let hash = T::type_hash();
+        let hash = T::HASH;
         let type_info = T::type_info();
         let trait_hash = Hash::type_hash(trait_item);
 

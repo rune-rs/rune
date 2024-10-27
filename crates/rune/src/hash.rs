@@ -1,3 +1,5 @@
+//! Utilities for working with hashes.
+
 use crate::alloc::HashMap;
 
 use core::hash::{BuildHasher, Hasher};
@@ -5,9 +7,7 @@ use core::hash::{BuildHasher, Hasher};
 const SEED: u64 = 18446744073709551557u64;
 
 #[doc(inline)]
-pub use rune_core::hash::{Hash, ToTypeHash};
-#[doc(inline)]
-pub(crate) use rune_core::hash::{IntoHash, ParametersBuilder};
+pub use rune_core::hash::{Hash, IntoHash, ParametersBuilder, ToTypeHash, TooManyParameters};
 
 /// A hash map suitable for storing values with hash keys.
 pub(crate) type Map<T> = HashMap<Hash, T, HashBuildHasher>;

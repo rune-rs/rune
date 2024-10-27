@@ -165,18 +165,18 @@ impl ConstValue {
     /// Get the type information of the value.
     pub fn type_info(&self) -> TypeInfo {
         match self {
-            Self::Unit => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
-            Self::Byte(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTE),
-            Self::Char(..) => TypeInfo::StaticType(crate::runtime::static_type::CHAR),
-            Self::Bool(..) => TypeInfo::StaticType(crate::runtime::static_type::BOOL),
-            Self::String(..) => TypeInfo::StaticType(crate::runtime::static_type::STRING),
-            Self::Bytes(..) => TypeInfo::StaticType(crate::runtime::static_type::BYTES),
-            Self::Integer(..) => TypeInfo::StaticType(crate::runtime::static_type::INTEGER),
-            Self::Float(..) => TypeInfo::StaticType(crate::runtime::static_type::FLOAT),
-            Self::Vec(..) => TypeInfo::StaticType(crate::runtime::static_type::VEC),
-            Self::Tuple(..) => TypeInfo::StaticType(crate::runtime::static_type::TUPLE),
-            Self::Object(..) => TypeInfo::StaticType(crate::runtime::static_type::OBJECT),
-            Self::Option(..) => TypeInfo::StaticType(crate::runtime::static_type::OPTION),
+            Self::Unit => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
+            Self::Byte(..) => TypeInfo::static_type(crate::runtime::static_type::BYTE),
+            Self::Char(..) => TypeInfo::static_type(crate::runtime::static_type::CHAR),
+            Self::Bool(..) => TypeInfo::static_type(crate::runtime::static_type::BOOL),
+            Self::String(..) => TypeInfo::static_type(crate::runtime::static_type::STRING),
+            Self::Bytes(..) => TypeInfo::static_type(crate::runtime::static_type::BYTES),
+            Self::Integer(..) => TypeInfo::static_type(crate::runtime::static_type::INTEGER),
+            Self::Float(..) => TypeInfo::static_type(crate::runtime::static_type::FLOAT),
+            Self::Vec(..) => TypeInfo::static_type(crate::runtime::static_type::VEC),
+            Self::Tuple(..) => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
+            Self::Object(..) => TypeInfo::static_type(crate::runtime::static_type::OBJECT),
+            Self::Option(..) => TypeInfo::static_type(crate::runtime::static_type::OPTION),
         }
     }
 }

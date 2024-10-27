@@ -58,7 +58,7 @@ impl Variant {
 
     /// Get type info for the variant.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::Variant(self.rtti.clone())
+        TypeInfo::variant(self.rtti.clone())
     }
 
     pub(crate) fn partial_eq_with(

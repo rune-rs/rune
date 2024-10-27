@@ -376,6 +376,9 @@ struct HashFlags {
     /// Generate a random hash.
     #[arg(long)]
     random: bool,
+    /// When generating a random hash, generate the given number of hashes.
+    #[arg(long)]
+    count: Option<usize>,
     /// Items to generate hashes for.
     item: Vec<String>,
 }
@@ -1039,8 +1042,10 @@ where
             use rand::prelude::*;
 
             if args.random {
-                let mut rand = rand::thread_rng();
-                writeln!(io.stdout, "{}", Hash::new(rand.gen::<u64>()))?;
+                for _ in 0..args.count.unwrap_or(1) {
+                    let mut rand = rand::thread_rng();
+                    writeln!(io.stdout, "{}", Hash::new(rand.gen::<u64>()))?;
+                }
             }
 
             for item in &args.item {

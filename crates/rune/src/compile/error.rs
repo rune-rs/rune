@@ -14,6 +14,7 @@ use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
 use crate::compile::{HasSpan, Location, MetaInfo, Visibility};
+use crate::hash::TooManyParameters;
 use crate::indexing::items::{GuardMismatch, MissingLastId};
 use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
@@ -105,6 +106,13 @@ where
 {
     fn from(spanned: HasSpan<S, E>) -> Self {
         Self::new(spanned.span(), spanned.into_inner())
+    }
+}
+
+impl From<TooManyParameters> for ErrorKind {
+    #[inline]
+    fn from(error: TooManyParameters) -> Self {
+        ErrorKind::TooManyParameters(error)
     }
 }
 
@@ -254,6 +262,7 @@ pub(crate) enum ErrorKind {
     PopError(PopError),
     UnescapeError(unescape::ErrorKind),
     Syntree(syntree::Error<alloc::Error>),
+    TooManyParameters(TooManyParameters),
     FormatError,
     #[cfg(feature = "std")]
     SourceError {
@@ -670,6 +679,9 @@ impl fmt::Display for ErrorKind {
                 error.fmt(f)?;
             }
             ErrorKind::Syntree(error) => {
+                error.fmt(f)?;
+            }
+            ErrorKind::TooManyParameters(error) => {
                 error.fmt(f)?;
             }
             ErrorKind::FormatError => {
