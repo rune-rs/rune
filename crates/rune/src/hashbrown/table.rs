@@ -129,7 +129,10 @@ impl<V> Table<V> {
         // SAFETY: Table will be alive and a reference to it held for as long as
         // `RawAnyGuard` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
-        IterRef { iter, _guard }
+        IterRef {
+            iter,
+            guard: _guard,
+        }
     }
 
     #[inline(always)]
@@ -143,7 +146,10 @@ impl<V> Table<V> {
         // SAFETY: Table will be alive and a reference to it held for as long as
         // `RawAnyGuard` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
-        KeysRef { iter, _guard }
+        KeysRef {
+            iter,
+            guard: _guard,
+        }
     }
 
     #[inline(always)]
@@ -152,7 +158,10 @@ impl<V> Table<V> {
         // SAFETY: Table will be alive and a reference to it held for as long as
         // `RawAnyGuard` is alive.
         let iter = unsafe { this.as_ref().table.iter() };
-        ValuesRef { iter, _guard }
+        ValuesRef {
+            iter,
+            guard: _guard,
+        }
     }
 }
 
@@ -195,7 +204,8 @@ impl<'a, V> iter::Iterator for Iter<'a, V> {
 
 pub(crate) struct IterRef<V> {
     iter: RawIter<(Value, V)>,
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl<V> iter::Iterator for IterRef<V>
@@ -228,7 +238,8 @@ where
 
 pub(crate) struct KeysRef<V> {
     iter: RawIter<(Value, V)>,
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl<V> iter::Iterator for KeysRef<V> {
@@ -248,7 +259,8 @@ impl<V> iter::Iterator for KeysRef<V> {
 
 pub(crate) struct ValuesRef<V> {
     iter: RawIter<(Value, V)>,
-    _guard: RawAnyGuard,
+    #[allow(unused)]
+    guard: RawAnyGuard,
 }
 
 impl<V> iter::Iterator for ValuesRef<V>
