@@ -166,7 +166,7 @@ where
     I::Item: AsRef<Path>,
 {
     let options =
-        zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     let out = fs::File::create(file)?;
     let mut zip = zip::ZipWriter::new(out);

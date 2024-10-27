@@ -191,6 +191,7 @@ async fn initialize(
 
     let mut rebuild = false;
 
+    #[allow(deprecated)]
     if let Some(root_uri) = &params.root_uri {
         let mut manifest_uri = root_uri.clone();
 

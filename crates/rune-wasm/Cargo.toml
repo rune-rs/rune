@@ -23,7 +23,7 @@ wasm-bindgen = { version = "0.2.85", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.35"
 js-sys = "0.3.62"
 anyhow = "1.0.71"
-gloo-utils = "0.1.6"
+gloo-utils = "0.2.0"
 
 [dependencies.web-sys]
 version = "0.3.62"
