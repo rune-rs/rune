@@ -20,6 +20,7 @@ pub mod support {
     pub use anyhow::Result;
 }
 
+#[cfg(feature = "rune-core")]
 pub mod runtime {
     use rune_core::hash::Hash;
 

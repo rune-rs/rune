@@ -70,10 +70,21 @@ impl core::error::Error for BuildError {
     }
 }
 
-/// Entry point to building [Sources] of Rune using the default unit storage.
+/// Entry point to building a collection [`Sources`] of Rune into a default
+/// executable [`Unit`].
 ///
-/// Uses the [Source::name](crate::Source::name) when generating diagnostics to
-/// reference the file.
+/// This returns a [`Build`] instance using a default configuration for a build
+/// that can be customized.
+///
+/// By default, if any error is encountered during compilation the error type
+/// [`BuildError`] doesn't provide any diagnostics on what went wrong. To get
+/// rich diagnostics you should instead associated a [`Diagnostics`] type
+/// through [`Build::with_diagnostics`] and examine it before handling any
+/// [`Err(BuildError)`] produced.
+///
+/// Uses the [Source::name] when generating diagnostics to reference the file.
+///
+/// [Source::name]: crate::Source::name
 ///
 /// # Examples
 ///
@@ -133,7 +144,11 @@ where
     }
 }
 
-/// High level helper for setting up a build of Rune sources into a [Unit].
+/// A builder for a [Unit].
+///
+/// See [`rune::prepare`] for more.
+///
+/// [`rune::prepare`]: prepare
 pub struct Build<'a, S> {
     sources: &'a mut Sources,
     context: Option<&'a Context>,
@@ -270,6 +285,10 @@ impl<'a, S> Build<'a, S> {
     }
 
     /// Build a [`Unit`] with the current configuration.
+    ///
+    /// See [`rune::prepare`] for more.
+    ///
+    /// [`rune::prepare`]: prepare
     pub fn build(mut self) -> Result<Unit<S>, BuildError>
     where
         S: Default + UnitEncoder,
