@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1729905375539,
+  "lastUpdate": 1729992190118,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -29025,6 +29025,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 374,
             "range": "± 7",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "b0876fbe6e78347b6594202ac7cfd9d3fe4b3ed5",
+          "message": "rune: Make miri happy about how environments are passed",
+          "timestamp": "2024-10-26T19:32:34Z",
+          "url": "https://github.com/rune-rs/rune/commit/b0876fbe6e78347b6594202ac7cfd9d3fe4b3ed5"
+        },
+        "date": 1729992188902,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10686129,
+            "range": "± 166688",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4808566,
+            "range": "± 39054",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 182594,
+            "range": "± 397",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1043179,
+            "range": "± 22678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 272650047,
+            "range": "± 2473687",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 258484193,
+            "range": "± 805997",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 657380,
+            "range": "± 3227",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7059930,
+            "range": "± 36561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 39927255,
+            "range": "± 389900",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5980530,
+            "range": "± 310143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 225676,
+            "range": "± 1514",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2490496,
+            "range": "± 13804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 382,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
