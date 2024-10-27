@@ -289,7 +289,7 @@ impl Function {
 
             for argument in arguments {
                 array.elems.push(syn::Expr::Verbatim(quote! {
-                    <#argument as rune::__private::CoreTypeOf>::type_hash()
+                    <#argument as rune::__private::TypeHash>::HASH
                 }));
             }
 

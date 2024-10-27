@@ -504,11 +504,9 @@ where
 
         let Tokens {
             alloc,
-            any_type_info,
             any,
             box_,
             context_error,
-            core_type_of,
             from_value,
             hash,
             install_with,
@@ -524,6 +522,7 @@ where
             ref_,
             static_type_mod,
             to_value,
+            type_hash_t,
             type_info,
             type_of,
             unsafe_to_mut,
@@ -579,39 +578,27 @@ where
             let type_hash = type_hash.into_inner();
 
             let make_hash = if !generic_names.is_empty() {
-                quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #core_type_of>::type_hash()),*])))
+                quote!(#hash::new_with_type_parameters(#type_hash, #hash::parameters([#(<#generic_names as #type_hash_t>::HASH),*])))
             } else {
                 quote!(#hash::new(#type_hash))
             };
 
-            let type_parameters = if !generic_names.is_empty() {
-                quote!(#hash::parameters([#(<#generic_names as #core_type_of>::type_hash()),*]))
-            } else {
-                quote!(#hash::EMPTY)
-            };
+            let type_parameters =
+                quote!(#hash::parameters([#(<#generic_names as #type_hash_t>::HASH),*]));
 
             Some(quote! {
                 #[automatically_derived]
-                impl #impl_generics #core_type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn type_hash() -> #hash {
-                        #make_hash
-                    }
+                impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
+                    const HASH: #hash = #make_hash;
                 }
 
                 #[automatically_derived]
                 impl #impl_generics #type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn type_parameters() -> #hash {
-                        #type_parameters
-                    }
+                    const PARAMETERS: #hash = #type_parameters;
 
                     #[inline]
                     fn type_info() -> #type_info {
-                        #type_info::Any(#any_type_info::__private_new(
-                            #raw_str::from_str(core::any::type_name::<Self>()),
-                            <Self as #core_type_of>::type_hash(),
-                        ))
+                        #type_info::any::<Self>()
                     }
                 }
 
@@ -620,27 +607,26 @@ where
                     #[inline]
                     fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
                         #meta::DocType::with_generics(
-                            <Self as #core_type_of>::type_hash(),
+                            <Self as #type_hash_t>::HASH,
                             [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
                         )
                     }
                 }
             })
         } else if let Some(ty) = attr.static_type {
+            let ty_hash = syn::Ident::new(&format!("{ty}_HASH"), ty.span());
+
             Some(quote! {
                 #[automatically_derived]
-                impl #impl_generics #core_type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn type_hash() -> #hash {
-                        #static_type_mod::#ty.hash
-                    }
+                impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
+                    const HASH: #hash = #static_type_mod::#ty_hash;
                 }
 
                 #[automatically_derived]
                 impl #impl_generics #type_of for #ident #type_generics #where_clause {
                     #[inline]
                     fn type_info() -> #type_info {
-                        #type_info::StaticType(#static_type_mod::#ty)
+                        #type_info::static_type(#static_type_mod::#ty)
                     }
                 }
 
@@ -649,7 +635,7 @@ where
                     #[inline]
                     fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
                         #meta::DocType::with_generics(
-                            <Self as #core_type_of>::type_hash(),
+                            <Self as #type_hash_t>::HASH,
                             [#(<#generic_names as #maybe_type_of>::maybe_type_of()),*]
                         )
                     }

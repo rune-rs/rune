@@ -502,7 +502,7 @@ impl VecDeque {
     fn iter(this: Ref<Self>) -> Iter {
         // SAFETY: We're holding onto the reference guard.
         let iter = unsafe { this.inner.raw_iter() };
-        let (_, _guard) = Ref::into_raw(this);
+        let (_, guard) = Ref::into_raw(this);
         Iter { iter, guard }
     }
 

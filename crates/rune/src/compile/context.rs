@@ -724,7 +724,7 @@ impl Context {
                             item: item.try_clone()?,
                             hash,
                             type_check: None,
-                            type_info: TypeInfo::Variant(Arc::new(VariantRtti {
+                            type_info: TypeInfo::variant(Arc::new(VariantRtti {
                                 enum_hash: ty.hash,
                                 hash,
                                 item: item.try_clone()?,

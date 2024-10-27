@@ -8,8 +8,8 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, CoreTypeOf, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToValue, TypeInfo,
-    TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToValue, TypeHash, TypeInfo, TypeOf,
+    UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
@@ -158,24 +158,18 @@ where
     }
 }
 
-impl<T> CoreTypeOf for Ref<T>
+impl<T> TypeHash for Ref<T>
 where
-    T: ?Sized + CoreTypeOf,
+    T: ?Sized + TypeHash,
 {
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
-    }
+    const HASH: Hash = T::HASH;
 }
 
 impl<T> TypeOf for Ref<T>
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_parameters() -> Hash {
-        T::type_parameters()
-    }
+    const PARAMETERS: Hash = T::PARAMETERS;
 
     #[inline]
     fn type_info() -> TypeInfo {
@@ -196,24 +190,18 @@ where
     }
 }
 
-impl<T> CoreTypeOf for Mut<T>
+impl<T> TypeHash for Mut<T>
 where
-    T: ?Sized + CoreTypeOf,
+    T: ?Sized + TypeHash,
 {
-    #[inline]
-    fn type_hash() -> Hash {
-        T::type_hash()
-    }
+    const HASH: Hash = T::HASH;
 }
 
 impl<T> TypeOf for Mut<T>
 where
     T: ?Sized + TypeOf,
 {
-    #[inline]
-    fn type_parameters() -> Hash {
-        T::type_parameters()
-    }
+    const PARAMETERS: Hash = T::PARAMETERS;
 
     #[inline]
     fn type_info() -> TypeInfo {

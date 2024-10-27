@@ -41,8 +41,8 @@ pub fn test_bug_700() -> Result<()> {
     assert_eq!(
         error.into_kind(),
         VmErrorKind::Expected {
-            expected: TypeInfo::StaticType(static_type::TUPLE),
-            actual: TypeInfo::StaticType(static_type::INTEGER)
+            expected: TypeInfo::static_type(static_type::TUPLE),
+            actual: TypeInfo::static_type(static_type::INTEGER)
         }
     );
 

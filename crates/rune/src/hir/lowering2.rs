@@ -2530,7 +2530,7 @@ fn generic_arguments(cx: &mut Ctxt<'_, '_, '_>, p: &mut Stream<'_>) -> Result<Ha
             return Err(Error::new(&*p, ErrorKind::UnsupportedGenerics));
         };
 
-        builder.add(ty.into_hash());
+        builder = builder.add(ty.into_hash()).with_span(&*p)?;
         comma = p.one(K![,]);
     }
 

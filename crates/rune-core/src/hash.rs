@@ -5,12 +5,24 @@ pub use self::to_type_hash::ToTypeHash;
 mod to_type_hash;
 
 use core::fmt;
-use core::hash::{self, BuildHasher, BuildHasherDefault, Hash as _, Hasher};
+use core::hash::{BuildHasher, BuildHasherDefault, Hash as _, Hasher};
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use twox_hash::XxHash64;
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct TooManyParameters;
+
+impl fmt::Display for TooManyParameters {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Only 32 type parameters are supported")
+    }
+}
+
+impl core::error::Error for TooManyParameters {}
 
 use crate::protocol::Protocol;
 
@@ -18,17 +30,50 @@ use crate::alloc;
 use crate::alloc::clone::TryClone;
 
 const SEP: u64 = 0x4bc94d6bd06053ad;
-const PARAMS: u64 = 0x19893cc8f39b1371;
 const TYPE: u64 = 0x2fac10b63a6cc57c;
 const ASSOCIATED_FUNCTION_HASH: u64 = 0x5ea77ffbcdf5f302;
 const OBJECT_KEYS: u64 = 0x4473d7017aef7645;
 const IDENT: u64 = 0x1a095090689d4647;
 const INDEX: u64 = 0xe1b2378d7a937035;
-
 // Salt for type parameters.
 const TYPE_PARAMETERS: u32 = 16;
 // Salt for function parameters.
 const FUNCTION_PARAMETERS: u32 = 48;
+// A bunch of random hashes to mix in when calculating type parameters.
+const PARAMETERS: [u64; 32] = [
+    0x2d859a05306ebe33,
+    0x75ac929aabdda742,
+    0x18f4e51cd6f60e86,
+    0x3b47f977015b002,
+    0xd7e3b9e36d59b900,
+    0xad75a1d63593d47c,
+    0x8fc37a65ac89ed71,
+    0x39eb9ab133d1cf22,
+    0xa287885efb6bf688,
+    0x9eeef0c7395ea8ca,
+    0x26a193328114c317,
+    0x9edc35591d044a28,
+    0xbfa4e9a8eca88b80,
+    0x94a626c6aa89a686,
+    0x95970296235c5b91,
+    0xa8ab16ceff9068b8,
+    0x153e675e2a27db85,
+    0xa873a7e51dfe4205,
+    0xde401d82396a7876,
+    0x9dbbae67606eddc3,
+    0x23d51f8018d09e74,
+    0xb5bfa5d588fedcc6,
+    0x9702480ba16eeb96,
+    0x58549fb39441505c,
+    0xd88078065e88667d,
+    0x38a1d4efb147fe18,
+    0xf712c95e9ffd1ba5,
+    0x73c2249b2845a5e0,
+    0x8079aff8b0833e20,
+    0x7e708fb5e906bbb5,
+    0x22d363b1d55a5eec,
+    0x9e2d56cbbd4459f1,
+];
 
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
@@ -164,18 +209,20 @@ impl Hash {
     }
 
     /// Hash type parameters.
-    pub fn parameters<I>(parameters: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: hash::Hash,
-    {
-        let mut hasher = ParametersBuilder::new();
+    pub const fn parameters<const N: usize>(params: [Hash; N]) -> Self {
+        let mut builder = ParametersBuilder::new();
 
-        for p in parameters {
-            hasher.add(p);
+        while builder.index < N {
+            let param = params[builder.index];
+
+            let Ok(b) = builder.add(param) else {
+                panic!("Only up to 32 type parameters are supported");
+            };
+
+            builder = b;
         }
 
-        hasher.finish()
+        builder.finish()
     }
 
     /// Construct a new hasher.
@@ -203,30 +250,65 @@ impl fmt::Debug for Hash {
 }
 
 /// Helper to build a parameters hash.
-#[doc(hidden)]
+///
+/// A collection of parameters are like the type parameters like `String` and
+/// `i64` in a signature like:
+///
+/// `::my_crate::Map<String, i64>`
+///
+/// # Examples
+///
+/// ```
+/// use rune::TypeHash;
+/// use rune::hash::ParametersBuilder;
+///
+/// let mut params = ParametersBuilder::new();
+///
+/// let params = params.add(String::HASH)?;
+/// let params = params.add(i64::HASH)?;
+///
+/// let hash = params.finish();
+/// # Ok::<_, rune::hash::TooManyParameters>(())
+/// ```
+#[derive(Default)]
 pub struct ParametersBuilder {
-    hasher: XxHash64,
+    base: u64,
+    index: usize,
+    shift: u32,
 }
 
 impl ParametersBuilder {
-    #[doc(hidden)]
-    pub fn new() -> Self {
-        let mut hasher = Hash::new_hasher();
-        PARAMS.hash(&mut hasher);
-        Self { hasher }
+    /// Construct a new collection of parameters.
+    pub const fn new() -> Self {
+        Self {
+            base: 0,
+            index: 0,
+            shift: 0,
+        }
     }
 
-    #[doc(hidden)]
-    pub fn add<P>(&mut self, p: P)
-    where
-        P: hash::Hash,
-    {
-        SEP.hash(&mut self.hasher);
-        p.hash(&mut self.hasher);
+    /// Add a hash to the collection of parameters.
+    ///
+    /// # Errors
+    ///
+    /// Errors if too many parameters are added.
+    pub const fn add(mut self, Hash(hash): Hash) -> Result<Self, TooManyParameters> {
+        if self.index >= PARAMETERS.len() {
+            self.shift += 8;
+            self.index = 0;
+
+            if self.shift >= u64::BITS {
+                return Err(TooManyParameters);
+            }
+        }
+
+        self.base ^= hash ^ PARAMETERS[self.index].wrapping_shl(self.shift);
+        self.index += 1;
+        Ok(self)
     }
 
-    #[doc(hidden)]
-    pub fn finish(&self) -> Hash {
-        Hash::new(self.hasher.finish())
+    /// Finish building the parameters hash.
+    pub const fn finish(self) -> Hash {
+        Hash::new(self.base)
     }
 }

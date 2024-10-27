@@ -613,12 +613,10 @@ impl Context {
 
         Tokens {
             alloc: path(m, ["alloc"]),
-            any_type_info: path(m, ["runtime", "AnyTypeInfo"]),
             any: path(m, ["Any"]),
             box_: path(m, ["__private", "Box"]),
             compile_error: path(m, ["compile", "Error"]),
             context_error: path(m, ["compile", "ContextError"]),
-            core_type_of: path(m, ["runtime", "CoreTypeOf"]),
             double_ended_iterator: path(&core, ["iter", "DoubleEndedIterator"]),
             from_value: path(m, ["runtime", "FromValue"]),
             hash: path(m, ["Hash"]),
@@ -656,6 +654,7 @@ impl Context {
             try_clone: path(m, ["alloc", "clone", "TryClone"]),
             try_from: path(&core, ["convert", "TryFrom"]),
             tuple: path(m, ["runtime", "Tuple"]),
+            type_hash_t: path(m, ["runtime", "TypeHash"]),
             type_info: path(m, ["runtime", "TypeInfo"]),
             type_name: path(&core, ["any", "type_name"]),
             type_of: path(m, ["runtime", "TypeOf"]),
@@ -705,12 +704,10 @@ fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path 
 
 pub(crate) struct Tokens {
     pub(crate) alloc: syn::Path,
-    pub(crate) any_type_info: syn::Path,
     pub(crate) any: syn::Path,
     pub(crate) box_: syn::Path,
     pub(crate) compile_error: syn::Path,
     pub(crate) context_error: syn::Path,
-    pub(crate) core_type_of: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
     pub(crate) from_value: syn::Path,
     pub(crate) hash: syn::Path,
@@ -748,6 +745,7 @@ pub(crate) struct Tokens {
     pub(crate) try_clone: syn::Path,
     pub(crate) try_from: syn::Path,
     pub(crate) tuple: syn::Path,
+    pub(crate) type_hash_t: syn::Path,
     pub(crate) type_info: syn::Path,
     pub(crate) type_name: syn::Path,
     pub(crate) type_of: syn::Path,

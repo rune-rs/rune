@@ -8,8 +8,8 @@ use crate::modules::collections::VecDeque;
 use crate::modules::collections::{HashMap, HashSet};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
-    CoreTypeOf, FromValue, Function, Inline, InstAddress, Mutable, Object, Output, OwnedTuple,
-    Protocol, Value, ValueBorrowRef, Vec, VmErrorKind, VmResult,
+    FromValue, Function, Inline, InstAddress, Mutable, Object, Output, OwnedTuple, Protocol,
+    TypeHash, Value, ValueBorrowRef, Vec, VmErrorKind, VmResult,
 };
 use crate::shared::Caller;
 use crate::{Any, ContextError, Module, Params};
@@ -369,19 +369,16 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
                 let size_hint = size_hint.clone();
 
-                cx.function(
-                    Params::new("collect", [Vec::type_hash()]),
-                    move |iter: Value| {
-                        let (cap, _) = vm_try!(size_hint.call((&iter,)));
-                        let mut vec = vm_try!(Vec::with_capacity(cap));
+                cx.function(Params::new("collect", [Vec::HASH]), move |iter: Value| {
+                    let (cap, _) = vm_try!(size_hint.call((&iter,)));
+                    let mut vec = vm_try!(Vec::with_capacity(cap));
 
-                        while let Some(value) = vm_try!(next.call((&iter,))) {
-                            vm_try!(vec.push(value));
-                        }
+                    while let Some(value) = vm_try!(next.call((&iter,))) {
+                        vm_try!(vec.push(value));
+                    }
 
-                        VmResult::Ok(vec)
-                    },
-                )?;
+                    VmResult::Ok(vec)
+                })?;
             }
 
             {
@@ -389,7 +386,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let size_hint = size_hint.clone();
 
                 cx.function(
-                    Params::new("collect", [VecDeque::type_hash()]),
+                    Params::new("collect", [VecDeque::HASH]),
                     move |iter: Value| {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut vec = vm_try!(Vec::with_capacity(cap));
@@ -408,7 +405,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let size_hint = size_hint.clone();
 
                 cx.function(
-                    Params::new("collect", [HashSet::type_hash()]),
+                    Params::new("collect", [HashSet::HASH]),
                     move |iter: Value| {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut set = vm_try!(HashSet::with_capacity(cap));
@@ -427,7 +424,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let size_hint = size_hint.clone();
 
                 cx.function(
-                    Params::new("collect", [HashMap::type_hash()]),
+                    Params::new("collect", [HashMap::HASH]),
                     move |iter: Value| {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut map = vm_try!(HashMap::with_capacity(cap));
@@ -446,7 +443,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let size_hint = size_hint.clone();
 
                 cx.function(
-                    Params::new("collect", [Object::type_hash()]),
+                    Params::new("collect", [Object::HASH]),
                     move |iter: Value| {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut map = vm_try!(Object::with_capacity(cap));
@@ -465,7 +462,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let size_hint = size_hint.clone();
 
                 cx.function(
-                    Params::new("collect", [OwnedTuple::type_hash()]),
+                    Params::new("collect", [OwnedTuple::HASH]),
                     move |iter: Value| {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut vec = vm_try!(alloc::Vec::try_with_capacity(cap));
@@ -483,7 +480,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 cx.function(
-                    Params::new("collect", [String::type_hash()]),
+                    Params::new("collect", [String::HASH]),
                     move |iter: Value| {
                         let mut string = String::new();
 
@@ -513,31 +510,28 @@ pub fn module() -> Result<Module, ContextError> {
 
             macro_rules! ops {
                 ($ty:ty) => {{
-                    cx.function(
-                        Params::new("product", [<$ty>::type_hash()]),
-                        |iter: Value| {
-                            let mut product = match vm_try!(iter.protocol_next()) {
-                                Some(init) => vm_try!(<$ty>::from_value(init)),
-                                None => <$ty>::ONE,
+                    cx.function(Params::new("product", [<$ty>::HASH]), |iter: Value| {
+                        let mut product = match vm_try!(iter.protocol_next()) {
+                            Some(init) => vm_try!(<$ty>::from_value(init)),
+                            None => <$ty>::ONE,
+                        };
+
+                        while let Some(v) = vm_try!(iter.protocol_next()) {
+                            let v = vm_try!(<$ty>::from_value(v));
+
+                            let Some(out) = product.checked_mul(v) else {
+                                return VmResult::err(VmErrorKind::Overflow);
                             };
 
-                            while let Some(v) = vm_try!(iter.protocol_next()) {
-                                let v = vm_try!(<$ty>::from_value(v));
+                            product = out;
+                        }
 
-                                let Some(out) = product.checked_mul(v) else {
-                                    return VmResult::err(VmErrorKind::Overflow);
-                                };
-
-                                product = out;
-                            }
-
-                            VmResult::Ok(product)
-                        },
-                    )?;
+                        VmResult::Ok(product)
+                    })?;
                 }
 
                 {
-                    cx.function(Params::new("sum", [<$ty>::type_hash()]), |iter: Value| {
+                    cx.function(Params::new("sum", [<$ty>::HASH]), |iter: Value| {
                         let mut sum = match vm_try!(iter.protocol_next()) {
                             Some(init) => vm_try!(<$ty>::from_value(init)),
                             None => <$ty>::ZERO,
@@ -1370,7 +1364,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         macro_rules! sum_ops {
             ($ty:ty) => {
-                t.function(Params::new("sum", [<$ty>::type_hash()]))?
+                t.function(Params::new("sum", [<$ty>::HASH]))?
                     .argument_types::<(Value,)>()?
                     .return_type::<$ty>()?
                     .docs(docstring! {
@@ -1409,7 +1403,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         macro_rules! integer_product_ops {
             ($ty:ty) => {
-                t.function(Params::new("product", [<$ty>::type_hash()]))?
+                t.function(Params::new("product", [<$ty>::HASH]))?
                     .argument_types::<(Value,)>()?
                     .return_type::<$ty>()?
                     .docs(docstring! {
@@ -1441,7 +1435,7 @@ pub fn module() -> Result<Module, ContextError> {
             };
         }
 
-        t.function(Params::new("collect", [Vec::type_hash()]))?
+        t.function(Params::new("collect", [Vec::HASH]))?
             .return_type::<Vec>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`Vec`].
@@ -1455,7 +1449,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// ```
             })?;
 
-        t.function(Params::new("collect", [VecDeque::type_hash()]))?
+        t.function(Params::new("collect", [VecDeque::HASH]))?
             .return_type::<VecDeque>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`VecDeque`].
@@ -1469,7 +1463,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// ```
             })?;
 
-        t.function(Params::new("collect", [HashSet::type_hash()]))?
+        t.function(Params::new("collect", [HashSet::HASH]))?
             .return_type::<HashSet>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`HashSet`].
@@ -1486,7 +1480,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// ```
             })?;
 
-        t.function(Params::new("collect", [HashMap::type_hash()]))?
+        t.function(Params::new("collect", [HashMap::HASH]))?
             .return_type::<HashMap>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`HashMap`].
@@ -1508,7 +1502,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// ```
             })?;
 
-        t.function(Params::new("collect", [Object::type_hash()]))?
+        t.function(Params::new("collect", [Object::HASH]))?
             .return_type::<HashMap>()?
             .docs(docstring! {
                 /// Collect the iterator as an [`Object`].
@@ -1520,7 +1514,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// ```
             })?;
 
-        t.function(Params::new("collect", [OwnedTuple::type_hash()]))?
+        t.function(Params::new("collect", [OwnedTuple::HASH]))?
             .return_type::<OwnedTuple>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`Tuple`].
@@ -1532,7 +1526,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// ```
             })?;
 
-        t.function(Params::new("collect", [String::type_hash()]))?
+        t.function(Params::new("collect", [String::HASH]))?
             .return_type::<String>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`String`].
@@ -1546,7 +1540,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         macro_rules! float_product_ops {
             ($ty:ty) => {
-                t.function(Params::new("product", [<$ty>::type_hash()]))?
+                t.function(Params::new("product", [<$ty>::HASH]))?
                     .argument_types::<(Value,)>()?
                     .return_type::<$ty>()?
                     .docs(docstring! {

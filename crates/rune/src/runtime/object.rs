@@ -309,7 +309,7 @@ impl Object {
         // SAFETY: we're holding onto the related reference guard, and making
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
-        let (_, _guard) = Ref::into_raw(this);
+        let (_, guard) = Ref::into_raw(this);
         RuneIter { iter, guard }
     }
 
@@ -333,7 +333,7 @@ impl Object {
         // SAFETY: we're holding onto the related reference guard, and making
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
-        let (_, _guard) = Ref::into_raw(this);
+        let (_, guard) = Ref::into_raw(this);
         RuneIterKeys { iter, guard }
     }
 
@@ -357,7 +357,7 @@ impl Object {
         // SAFETY: we're holding onto the related reference guard, and making
         // sure that it's dropped after the iterator.
         let iter = unsafe { this.inner.raw_table().iter() };
-        let (_, _guard) = Ref::into_raw(this);
+        let (_, guard) = Ref::into_raw(this);
         RuneValues { iter, guard }
     }
 

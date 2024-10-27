@@ -244,7 +244,7 @@ impl Associated {
     {
         Ok(Self {
             name,
-            container: T::type_hash(),
+            container: T::HASH,
             container_type_info: T::type_info(),
         })
     }

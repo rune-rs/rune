@@ -13,7 +13,7 @@ use crate::alloc::prelude::*;
 use crate::support::Result;
 use crate::Any;
 
-use super::{Access, AnyObj, Bytes, CoreTypeOf, Mut, Ref, Shared, Value, VmResult};
+use super::{Access, AnyObj, Bytes, Mut, Ref, Shared, TypeHash, Value, VmResult};
 
 #[derive(Debug, PartialEq, Eq, Any)]
 struct Thing(u32);
@@ -47,7 +47,7 @@ fn test_clone_take() -> Result<()> {
     assert_eq!(Thing(0), v2.into_any::<Thing>()?);
     assert!(v3.into_any::<Thing>().is_err());
     let any = v.into_any_obj()?;
-    assert_eq!(any.type_hash(), Thing::type_hash());
+    assert_eq!(any.type_hash(), Thing::HASH);
     Ok(())
 }
 

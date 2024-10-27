@@ -1,7 +1,7 @@
 use core::any;
 
 use crate::compile::Named;
-use crate::runtime::CoreTypeOf;
+use crate::runtime::{AnyTypeInfo, TypeHash};
 
 /// Macro to mark a value as external, which will implement all the appropriate
 /// traits.
@@ -110,7 +110,10 @@ pub use rune_macros::Any;
 ///     Ok(module)
 /// }
 /// ```
-pub trait Any: CoreTypeOf + Named + any::Any {}
+pub trait Any: TypeHash + Named + any::Any {
+    /// The compile-time type information know for the type.
+    const INFO: AnyTypeInfo = AnyTypeInfo::new(Self::BASE_NAME, Self::HASH);
+}
 
 // Internal any impls for useful types in the std library.
 
