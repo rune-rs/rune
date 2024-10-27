@@ -10,8 +10,9 @@ use crate::alloc::{self, String};
 use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, AccessErrorKind, BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf,
-    Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, BoxedPanic, CallFrame, DynArgsUsed,
+    ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit,
+    Vm, VmHaltInfo,
 };
 use crate::{Any, Hash, ItemBuf};
 
@@ -489,6 +490,18 @@ impl RuntimeError {
     /// Construct an expected any error.
     pub(crate) fn expected_any_obj(actual: TypeInfo) -> Self {
         Self::new(VmErrorKind::ExpectedAny { actual })
+    }
+}
+
+impl From<AnyObjError> for RuntimeError {
+    fn from(value: AnyObjError) -> Self {
+        match value.into_kind() {
+            AnyObjErrorKind::Cast(expected, actual) => Self::new(VmErrorKind::Expected {
+                expected: TypeInfo::any_type_info(expected),
+                actual,
+            }),
+            AnyObjErrorKind::AccessError(error) => Self::from(error),
+        }
     }
 }
 
@@ -975,6 +988,13 @@ impl From<RuntimeError> for VmErrorKind {
     #[inline]
     fn from(value: RuntimeError) -> Self {
         value.into_vm_error_kind()
+    }
+}
+
+impl From<AnyObjError> for VmErrorKind {
+    #[inline]
+    fn from(error: AnyObjError) -> Self {
+        Self::from(RuntimeError::from(error))
     }
 }
 

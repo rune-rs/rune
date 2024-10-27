@@ -86,7 +86,19 @@ pub fn module() -> Result<Module, ContextError> {
 
     {
         m.ty::<RangeFull>()?;
-        m.function_meta(RangeFull::contains)?;
+        m.function_meta(RangeFull::contains__meta)?;
+
+        m.function_meta(RangeFull::partial_eq__meta)?;
+        m.implement_trait::<RangeFull>(rune::item!(::std::cmp::PartialEq))?;
+
+        m.function_meta(RangeFull::eq__meta)?;
+        m.implement_trait::<RangeFull>(rune::item!(::std::cmp::Eq))?;
+
+        m.function_meta(RangeFull::partial_cmp__meta)?;
+        m.implement_trait::<RangeFull>(rune::item!(::std::cmp::PartialOrd))?;
+
+        m.function_meta(RangeFull::cmp__meta)?;
+        m.implement_trait::<RangeFull>(rune::item!(::std::cmp::Ord))?;
     }
 
     {

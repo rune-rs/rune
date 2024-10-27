@@ -504,7 +504,7 @@ where
 
         let Tokens {
             alloc,
-            any,
+            any_t,
             box_,
             context_error,
             from_value,
@@ -574,7 +574,35 @@ where
             }
         };
 
-        let impl_type_of = if attr.builtin.is_none() {
+        let impl_type_of = if let Some(ty) = attr.static_type {
+            let ty_hash = syn::Ident::new(&format!("{ty}_HASH"), ty.span());
+
+            Some(quote! {
+                #[automatically_derived]
+                impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
+                    const HASH: #hash = #static_type_mod::#ty_hash;
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn type_info() -> #type_info {
+                        #type_info::static_type(#static_type_mod::#ty)
+                    }
+                }
+
+                #[automatically_derived]
+                impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                        #meta::DocType::with_generics(
+                            <Self as #type_hash_t>::HASH,
+                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()),*]
+                        )
+                    }
+                }
+            })
+        } else if attr.builtin.is_none() {
             let type_hash = type_hash.into_inner();
 
             let make_hash = if !generic_names.is_empty() {
@@ -613,42 +641,14 @@ where
                     }
                 }
             })
-        } else if let Some(ty) = attr.static_type {
-            let ty_hash = syn::Ident::new(&format!("{ty}_HASH"), ty.span());
-
-            Some(quote! {
-                #[automatically_derived]
-                impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
-                    const HASH: #hash = #static_type_mod::#ty_hash;
-                }
-
-                #[automatically_derived]
-                impl #impl_generics #type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn type_info() -> #type_info {
-                        #type_info::static_type(#static_type_mod::#ty)
-                    }
-                }
-
-                #[automatically_derived]
-                impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
-                        #meta::DocType::with_generics(
-                            <Self as #type_hash_t>::HASH,
-                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()),*]
-                        )
-                    }
-                }
-            })
         } else {
             None
         };
 
-        let any = if attr.builtin.is_none() {
-            Some(quote! {
+        let non_builtin = attr.builtin.is_none().then(|| {
+            quote! {
                 #[automatically_derived]
-                impl #impl_generics #any for #ident #type_generics #where_clause {
+                impl #impl_generics #any_t for #ident #type_generics #where_clause {
                 }
 
                 #[automatically_derived]
@@ -698,10 +698,8 @@ where
                         Option::<&str>::None
                     }
                 }
-            })
-        } else {
-            None
-        };
+            }
+        });
 
         let impl_from_value = 'out: {
             if let Some(path) = attr.from_value {
@@ -793,7 +791,7 @@ where
             #impl_from_value
             #impl_from_value_ref
             #impl_from_value_mut
-            #any
+            #non_builtin
         }
     }
 }

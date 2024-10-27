@@ -57,8 +57,7 @@ use super::StepsBetween;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE)]
-#[rune(from_value = Value::into_range, from_value_ref = Value::into_range_ref, from_value_mut = Value::into_range_mut)]
+#[rune(constructor, static_type = RANGE)]
 pub struct Range {
     /// The start value of the range.
     #[rune(get, set)]
@@ -308,7 +307,7 @@ where
         let start = vm_try!(self.start.to_value());
         let end = vm_try!(self.end.to_value());
         let range = Range::new(start, end);
-        VmResult::Ok(vm_try!(Value::try_from(range)))
+        VmResult::Ok(vm_try!(Value::new(range)))
     }
 }
 
@@ -318,7 +317,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(value.into_range());
+        let range = vm_try!(value.into_any::<Range>());
         let start = vm_try!(Idx::from_value(range.start));
         let end = vm_try!(Idx::from_value(range.end));
         VmResult::Ok(ops::Range { start, end })

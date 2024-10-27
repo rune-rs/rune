@@ -23,11 +23,10 @@ use crate::compile::meta;
 use crate::runtime::static_type;
 use crate::runtime::vm::CallResultOnly;
 use crate::runtime::{
-    AccessError, AnyObj, AnyObjDrop, AnyObjError, BorrowMut, BorrowRef, Bytes, ConstValue,
-    ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue, Function, Future,
-    Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Stream, ToValue, Type,
+    AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, Bytes, ConstValue, ControlFlow,
+    DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue, Function, Future, Generator,
+    GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
+    ProtocolCaller, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Stream, ToValue, Type,
     TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
@@ -148,6 +147,17 @@ pub struct Value {
 }
 
 impl Value {
+    /// Construct a value from a type that implements [`Any`] which owns the
+    /// underlying value.
+    pub fn new<T>(data: T) -> alloc::Result<Self>
+    where
+        T: Any,
+    {
+        Ok(Self {
+            repr: Repr::Any(AnyObj::new(data)?),
+        })
+    }
+
     /// Construct an Any that wraps a pointer.
     ///
     /// # Safety
@@ -187,7 +197,7 @@ impl Value {
     ///
     /// unsafe {
     ///     let (any, guard) = Value::from_ref(&mut v)?;
-    ///     let b = any.downcast_borrow_ref::<Foo>().unwrap();
+    ///     let b = any.borrow_any_ref::<Foo>().unwrap();
     ///     assert_eq!(b.0, 1u32);
     /// }
     /// # Ok::<_, rune::support::Error>(())
@@ -248,12 +258,12 @@ impl Value {
     /// unsafe {
     ///     let (any, guard) = Value::from_mut(&mut v)?;
     ///
-    ///     if let Ok(mut v) = any.downcast_borrow_mut::<Foo>() {
+    ///     if let Ok(mut v) = any.borrow_any_mut::<Foo>() {
     ///         v.0 += 1;
     ///     }
     ///
     ///     drop(guard);
-    ///     assert!(any.downcast_borrow_mut::<Foo>().is_err());
+    ///     assert!(any.borrow_any_mut::<Foo>().is_err());
     ///     drop(any);
     /// }
     ///
@@ -423,16 +433,6 @@ impl Value {
                     Mutable::Vec(value) => Mutable::Vec(vm_try!(value.try_clone())),
                     Mutable::Tuple(value) => Mutable::Tuple(vm_try!(value.try_clone())),
                     Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
-                    Mutable::RangeFrom(value) => Mutable::RangeFrom(vm_try!(value.try_clone())),
-                    Mutable::RangeFull(value) => Mutable::RangeFull(vm_try!(value.try_clone())),
-                    Mutable::RangeInclusive(value) => {
-                        Mutable::RangeInclusive(vm_try!(value.try_clone()))
-                    }
-                    Mutable::RangeToInclusive(value) => {
-                        Mutable::RangeToInclusive(vm_try!(value.try_clone()))
-                    }
-                    Mutable::RangeTo(value) => Mutable::RangeTo(vm_try!(value.try_clone())),
-                    Mutable::Range(value) => Mutable::Range(vm_try!(value.try_clone())),
                     Mutable::ControlFlow(value) => Mutable::ControlFlow(vm_try!(value.try_clone())),
                     Mutable::Stream(value) => Mutable::Stream(vm_try!(value.try_clone())),
                     Mutable::Generator(value) => Mutable::Generator(vm_try!(value.try_clone())),
@@ -516,24 +516,6 @@ impl Value {
                     vm_write!(f, "{value:?}");
                 }
                 Mutable::Object(value) => {
-                    vm_write!(f, "{value:?}");
-                }
-                Mutable::RangeFrom(value) => {
-                    vm_write!(f, "{value:?}");
-                }
-                Mutable::RangeFull(value) => {
-                    vm_write!(f, "{value:?}");
-                }
-                Mutable::RangeInclusive(value) => {
-                    vm_write!(f, "{value:?}");
-                }
-                Mutable::RangeToInclusive(value) => {
-                    vm_write!(f, "{value:?}");
-                }
-                Mutable::RangeTo(value) => {
-                    vm_write!(f, "{value:?}");
-                }
-                Mutable::Range(value) => {
                     vm_write!(f, "{value:?}");
                 }
                 Mutable::ControlFlow(value) => {
@@ -973,66 +955,6 @@ impl Value {
     }
 
     into! {
-        /// Coerce into a [`RangeFrom`].
-        RangeFrom(RangeFrom),
-        into_range_from_ref,
-        into_range_from_mut,
-        borrow_range_from_ref,
-        borrow_range_from_mut,
-        into_range_from,
-    }
-
-    into! {
-        /// Coerce into a [`RangeFull`].
-        RangeFull(RangeFull),
-        into_range_full_ref,
-        into_range_full_mut,
-        borrow_range_full_ref,
-        borrow_range_full_mut,
-        into_range_full,
-    }
-
-    into! {
-        /// Coerce into a [`RangeToInclusive`].
-        RangeToInclusive(RangeToInclusive),
-        into_range_to_inclusive_ref,
-        into_range_to_inclusive_mut,
-        borrow_range_to_inclusive_ref,
-        borrow_range_to_inclusive_mut,
-        into_range_to_inclusive,
-    }
-
-    into! {
-        /// Coerce into a [`RangeInclusive`].
-        RangeInclusive(RangeInclusive),
-        into_range_inclusive_ref,
-        into_range_inclusive_mut,
-        borrow_range_inclusive_ref,
-        borrow_range_inclusive_mut,
-        into_range_inclusive,
-    }
-
-    into! {
-        /// Coerce into a [`RangeTo`].
-        RangeTo(RangeTo),
-        into_range_to_ref,
-        into_range_to_mut,
-        borrow_range_to_ref,
-        borrow_range_to_mut,
-        into_range_to,
-    }
-
-    into! {
-        /// Coerce into a [`Range`].
-        Range(Range),
-        into_range_ref,
-        into_range_mut,
-        borrow_range_ref,
-        borrow_range_mut,
-        into_range,
-    }
-
-    into! {
         /// Coerce into a [`Stream`].
         Stream(Stream<Vm>),
         into_stream_ref,
@@ -1099,13 +1021,7 @@ impl Value {
             ValueRepr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRepr::Any(value) => match value.downcast_ref() {
-                Ok(value) => Ok(value),
-                Err(AnyObjError::Cast(type_info)) => {
-                    Err(RuntimeError::expected_any::<T>(type_info))
-                }
-                Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-            },
+            ValueRepr::Any(value) => Ok(value.into_ref()?),
         }
     }
 
@@ -1125,16 +1041,11 @@ impl Value {
             ValueRepr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRepr::Any(value) => match value.downcast_borrow_ptr::<T>() {
-                Ok((ptr, guard)) => {
-                    let guard = RawValueGuard { guard };
-                    Ok((ptr, guard))
-                }
-                Err(AnyObjError::Cast(type_info)) => {
-                    Err(RuntimeError::expected_any::<T>(type_info))
-                }
-                Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-            },
+            ValueRepr::Any(value) => {
+                let (ptr, guard) = value.borrow_ref_ptr::<T>()?;
+                let guard = RawValueGuard { guard };
+                Ok((ptr, guard))
+            }
         }
     }
 
@@ -1149,13 +1060,7 @@ impl Value {
             ValueRepr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRepr::Any(value) => match value.downcast_mut() {
-                Ok(value) => Ok(value),
-                Err(AnyObjError::Cast(type_info)) => {
-                    Err(RuntimeError::expected_any::<T>(type_info))
-                }
-                Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-            },
+            ValueRepr::Any(value) => Ok(value.into_mut()?),
         }
     }
 
@@ -1175,22 +1080,17 @@ impl Value {
             ValueRepr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRepr::Any(value) => match value.downcast_borrow_mut_ptr::<T>() {
-                Ok((ptr, guard)) => {
-                    let guard = RawValueGuard { guard };
-                    Ok((ptr, guard))
-                }
-                Err(AnyObjError::Cast(type_info)) => {
-                    Err(RuntimeError::expected_any::<T>(type_info))
-                }
-                Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-            },
+            ValueRepr::Any(value) => {
+                let (ptr, guard) = value.borrow_mut_ptr::<T>()?;
+                let guard = RawValueGuard { guard };
+                Ok((ptr, guard))
+            }
         }
     }
 
     /// Borrow the value as a typed reference.
     #[inline]
-    pub fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
+    pub fn borrow_any_ref<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
     where
         T: Any,
     {
@@ -1199,19 +1099,13 @@ impl Value {
             ValueRef::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRef::Any(value) => match value.downcast_borrow_ref() {
-                Ok(value) => Ok(value),
-                Err(AnyObjError::Cast(type_info)) => {
-                    Err(RuntimeError::expected_any::<T>(type_info))
-                }
-                Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-            },
+            ValueRef::Any(value) => Ok(value.borrow_ref()?),
         }
     }
 
     /// Borrow the value as a mutable typed reference.
     #[inline]
-    pub fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, RuntimeError>
+    pub fn borrow_any_mut<T>(&self) -> Result<BorrowMut<'_, T>, RuntimeError>
     where
         T: Any,
     {
@@ -1220,13 +1114,7 @@ impl Value {
             ValueRef::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_mut()?.type_info(),
             )),
-            ValueRef::Any(value) => match value.downcast_borrow_mut() {
-                Ok(value) => Ok(value),
-                Err(AnyObjError::Cast(type_info)) => {
-                    Err(RuntimeError::expected_any::<T>(type_info))
-                }
-                Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-            },
+            ValueRef::Any(value) => Ok(value.borrow_mut()?),
         }
     }
 
@@ -1241,11 +1129,7 @@ impl Value {
             actual => return Err(RuntimeError::expected_any::<T>(actual.type_info())),
         };
 
-        match value.downcast::<T>() {
-            Ok(value) => Ok(value),
-            Err(AnyObjError::Cast(type_info)) => Err(RuntimeError::expected_any::<T>(type_info)),
-            Err(AnyObjError::AccessError(error)) => Err(RuntimeError::from(error)),
-        }
+        Ok(value.downcast::<T>()?)
     }
 
     /// Get the type hash for the current value.
@@ -1311,24 +1195,6 @@ impl Value {
                 (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b2)) => match (&**a, &*b2) {
                     (Mutable::Bytes(a), Mutable::Bytes(b)) => {
                         return VmResult::Ok(*a == *b);
-                    }
-                    (Mutable::RangeFrom(a), Mutable::RangeFrom(b)) => {
-                        return RangeFrom::partial_eq_with(a, b, caller);
-                    }
-                    (Mutable::RangeFull(a), Mutable::RangeFull(b)) => {
-                        return RangeFull::partial_eq_with(a, b, caller);
-                    }
-                    (Mutable::RangeInclusive(a), Mutable::RangeInclusive(b)) => {
-                        return RangeInclusive::partial_eq_with(a, b, caller);
-                    }
-                    (Mutable::RangeToInclusive(a), Mutable::RangeToInclusive(b)) => {
-                        return RangeToInclusive::partial_eq_with(a, b, caller);
-                    }
-                    (Mutable::RangeTo(a), Mutable::RangeTo(b)) => {
-                        return RangeTo::partial_eq_with(a, b, caller);
-                    }
-                    (Mutable::Range(a), Mutable::Range(b)) => {
-                        return Range::partial_eq_with(a, b, caller);
                     }
                     (Mutable::ControlFlow(a), Mutable::ControlFlow(b)) => {
                         return ControlFlow::partial_eq_with(a, b, caller);
@@ -1535,24 +1401,6 @@ impl Value {
                 (Mutable::Object(a), Mutable::Object(b)) => {
                     return Object::eq_with(a, b, Value::eq_with, caller);
                 }
-                (Mutable::RangeFrom(a), Mutable::RangeFrom(b)) => {
-                    return RangeFrom::eq_with(a, b, caller);
-                }
-                (Mutable::RangeFull(a), Mutable::RangeFull(b)) => {
-                    return RangeFull::eq_with(a, b, caller);
-                }
-                (Mutable::RangeInclusive(a), Mutable::RangeInclusive(b)) => {
-                    return RangeInclusive::eq_with(a, b, caller);
-                }
-                (Mutable::RangeToInclusive(a), Mutable::RangeToInclusive(b)) => {
-                    return RangeToInclusive::eq_with(a, b, caller);
-                }
-                (Mutable::RangeTo(a), Mutable::RangeTo(b)) => {
-                    return RangeTo::eq_with(a, b, caller);
-                }
-                (Mutable::Range(a), Mutable::Range(b)) => {
-                    return Range::eq_with(a, b, caller);
-                }
                 (Mutable::ControlFlow(a), Mutable::ControlFlow(b)) => {
                     return ControlFlow::eq_with(a, b, caller);
                 }
@@ -1659,24 +1507,6 @@ impl Value {
                 (Mutable::Object(a), Mutable::Object(b)) => {
                     return Object::partial_cmp_with(a, b, caller);
                 }
-                (Mutable::RangeFrom(a), Mutable::RangeFrom(b)) => {
-                    return RangeFrom::partial_cmp_with(a, b, caller);
-                }
-                (Mutable::RangeFull(a), Mutable::RangeFull(b)) => {
-                    return RangeFull::partial_cmp_with(a, b, caller);
-                }
-                (Mutable::RangeInclusive(a), Mutable::RangeInclusive(b)) => {
-                    return RangeInclusive::partial_cmp_with(a, b, caller);
-                }
-                (Mutable::RangeToInclusive(a), Mutable::RangeToInclusive(b)) => {
-                    return RangeToInclusive::partial_cmp_with(a, b, caller);
-                }
-                (Mutable::RangeTo(a), Mutable::RangeTo(b)) => {
-                    return RangeTo::partial_cmp_with(a, b, caller);
-                }
-                (Mutable::Range(a), Mutable::Range(b)) => {
-                    return Range::partial_cmp_with(a, b, caller);
-                }
                 (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
                         // NB: don't get any future ideas, this must fall through to
@@ -1774,24 +1604,6 @@ impl Value {
                 }
                 (Mutable::Object(a), Mutable::Object(b)) => {
                     return Object::cmp_with(a, b, caller);
-                }
-                (Mutable::RangeFrom(a), Mutable::RangeFrom(b)) => {
-                    return RangeFrom::cmp_with(a, b, caller);
-                }
-                (Mutable::RangeFull(a), Mutable::RangeFull(b)) => {
-                    return RangeFull::cmp_with(a, b, caller);
-                }
-                (Mutable::RangeInclusive(a), Mutable::RangeInclusive(b)) => {
-                    return RangeInclusive::cmp_with(a, b, caller);
-                }
-                (Mutable::RangeToInclusive(a), Mutable::RangeToInclusive(b)) => {
-                    return RangeToInclusive::cmp_with(a, b, caller);
-                }
-                (Mutable::RangeTo(a), Mutable::RangeTo(b)) => {
-                    return RangeTo::cmp_with(a, b, caller);
-                }
-                (Mutable::Range(a), Mutable::Range(b)) => {
-                    return Range::cmp_with(a, b, caller);
                 }
                 (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
@@ -1899,6 +1711,9 @@ impl Value {
         }
     }
 
+    /// Coerce into a checked [`Inline`] object.
+    ///
+    /// Any empty value will cause an access error.
     pub(crate) fn as_inline(&self) -> Result<Option<&Inline>, AccessError> {
         match &self.repr {
             Repr::Inline(value) => Ok(Some(value)),
@@ -1913,6 +1728,18 @@ impl Value {
             Repr::Inline(value) => Ok(Some(value)),
             Repr::Mutable(..) => Ok(None),
             Repr::Any(..) => Ok(None),
+            Repr::Empty => Err(AccessError::empty()),
+        }
+    }
+
+    /// Coerce into a checked [`AnyObj`] object.
+    ///
+    /// Any empty value will cause an access error.
+    pub(crate) fn as_any(&self) -> Result<Option<&AnyObj>, AccessError> {
+        match &self.repr {
+            Repr::Inline(..) => Ok(None),
+            Repr::Mutable(..) => Ok(None),
+            Repr::Any(value) => Ok(Some(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -2162,12 +1989,6 @@ from! {
     Tuple => OwnedTuple,
     Generator => Generator<Vm>,
     Format => Format,
-    RangeFrom => RangeFrom,
-    RangeFull => RangeFull,
-    RangeInclusive => RangeInclusive,
-    RangeToInclusive => RangeToInclusive,
-    RangeTo => RangeTo,
-    Range => Range,
     Future => Future,
     Stream => Stream<Vm>,
 }
@@ -2452,18 +2273,6 @@ pub(crate) enum Mutable {
     Tuple(OwnedTuple),
     /// An object.
     Object(Object),
-    /// A range `start..`
-    RangeFrom(RangeFrom),
-    /// A full range `..`
-    RangeFull(RangeFull),
-    /// A full range `start..=end`
-    RangeInclusive(RangeInclusive),
-    /// A full range `..=end`
-    RangeToInclusive(RangeToInclusive),
-    /// A full range `..end`
-    RangeTo(RangeTo),
-    /// A range `start..end`.
-    Range(Range),
     /// A control flow indicator.
     ControlFlow(ControlFlow),
     /// A stored future.
@@ -2500,12 +2309,6 @@ impl Mutable {
             Mutable::Vec(..) => TypeInfo::static_type(static_type::VEC),
             Mutable::Tuple(..) => TypeInfo::static_type(static_type::TUPLE),
             Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
-            Mutable::RangeFrom(..) => TypeInfo::static_type(static_type::RANGE_FROM),
-            Mutable::RangeFull(..) => TypeInfo::static_type(static_type::RANGE_FULL),
-            Mutable::RangeInclusive(..) => TypeInfo::static_type(static_type::RANGE_INCLUSIVE),
-            Mutable::RangeToInclusive(..) => TypeInfo::static_type(static_type::RANGE_TO_INCLUSIVE),
-            Mutable::RangeTo(..) => TypeInfo::static_type(static_type::RANGE_TO),
-            Mutable::Range(..) => TypeInfo::static_type(static_type::RANGE),
             Mutable::ControlFlow(..) => TypeInfo::static_type(static_type::CONTROL_FLOW),
             Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
             Mutable::Stream(..) => TypeInfo::static_type(static_type::STREAM),
@@ -2533,12 +2336,6 @@ impl Mutable {
             Mutable::Vec(..) => static_type::VEC.hash,
             Mutable::Tuple(..) => static_type::TUPLE.hash,
             Mutable::Object(..) => static_type::OBJECT.hash,
-            Mutable::RangeFrom(..) => static_type::RANGE_FROM.hash,
-            Mutable::RangeFull(..) => static_type::RANGE_FULL.hash,
-            Mutable::RangeInclusive(..) => static_type::RANGE_INCLUSIVE.hash,
-            Mutable::RangeToInclusive(..) => static_type::RANGE_TO_INCLUSIVE.hash,
-            Mutable::RangeTo(..) => static_type::RANGE_TO.hash,
-            Mutable::Range(..) => static_type::RANGE.hash,
             Mutable::ControlFlow(..) => static_type::CONTROL_FLOW.hash,
             Mutable::Future(..) => static_type::FUTURE.hash,
             Mutable::Stream(..) => static_type::STREAM.hash,

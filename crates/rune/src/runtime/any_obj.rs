@@ -13,19 +13,41 @@ use super::{
     RefVtable, Snapshot, TypeInfo, VmErrorKind,
 };
 
-/// Errors caused by casting an any reference.
-#[cfg_attr(test, derive(Debug, PartialEq))]
-pub(crate) enum AnyObjError {
-    Cast(TypeInfo),
+/// Errors caused when accessing or coercing an [`AnyObj`].
+#[cfg_attr(test, derive(PartialEq))]
+pub struct AnyObjError {
+    kind: AnyObjErrorKind,
+}
+
+impl AnyObjError {
+    fn new(kind: AnyObjErrorKind) -> Self {
+        Self { kind }
+    }
+
+    #[inline]
+    pub(super) fn into_kind(self) -> AnyObjErrorKind {
+        self.kind
+    }
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(super) enum AnyObjErrorKind {
+    Cast(AnyTypeInfo, TypeInfo),
     AccessError(AccessError),
 }
 
-impl<T> From<T> for AnyObjError
-where
-    AccessError: From<T>,
-{
-    fn from(value: T) -> Self {
-        AnyObjError::AccessError(AccessError::from(value))
+impl fmt::Debug for AnyObjError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl From<AccessError> for AnyObjError {
+    #[inline]
+    fn from(error: AccessError) -> Self {
+        Self::new(AnyObjErrorKind::AccessError(error))
     }
 }
 
@@ -178,11 +200,14 @@ impl AnyObj {
         let vtable = vtable(&self);
 
         if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::AccessError(AccessError::not_owned(
+            return Err(AnyObjError::from(AccessError::not_owned(
                 vtable.type_info(),
             )));
         }
@@ -238,18 +263,21 @@ impl AnyObj {
     ///
     /// This errors in case the underlying value is not owned, non-owned
     /// references cannot be coerced into [`Ref<T>`].
-    pub(crate) fn downcast_ref<T>(self) -> Result<Ref<T>, AnyObjError>
+    pub(crate) fn into_ref<T>(self) -> Result<Ref<T>, AnyObjError>
     where
         T: Any,
     {
         let vtable = vtable(&self);
 
         if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::AccessError(AccessError::not_owned(
+            return Err(AnyObjError::from(AccessError::not_owned(
                 vtable.type_info(),
             )));
         }
@@ -279,18 +307,21 @@ impl AnyObj {
     ///
     /// This errors in case the underlying value is not owned, non-owned
     /// references cannot be coerced into [`Mut<T>`].
-    pub(crate) fn downcast_mut<T>(self) -> Result<Mut<T>, AnyObjError>
+    pub(crate) fn into_mut<T>(self) -> Result<Mut<T>, AnyObjError>
     where
         T: Any,
     {
         let vtable = vtable(&self);
 
         if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::AccessError(AccessError::not_owned(
+            return Err(AnyObjError::from(AccessError::not_owned(
                 vtable.type_info(),
             )));
         }
@@ -318,14 +349,17 @@ impl AnyObj {
     ///
     /// This prevents other exclusive accesses from being performed while the
     /// guard returned from this function is live.
-    pub(crate) fn downcast_borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AnyObjError>
+    pub fn borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, AnyObjError>
     where
         T: Any,
     {
         let vtable = vtable(self);
 
         if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         // SAFETY: We've checked for the appropriate type just above.
@@ -336,18 +370,50 @@ impl AnyObj {
         }
     }
 
+    /// Returns some mutable reference to the boxed value if it is of type `T`.
+    pub fn borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AnyObjError>
+    where
+        T: Any,
+    {
+        let vtable = vtable(self);
+
+        if (vtable.type_id)() != TypeId::of::<T>() {
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
+        }
+
+        if matches!(vtable.kind, Kind::Ref) {
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
+        }
+
+        // SAFETY: We've checked for the appropriate type just above.
+        unsafe {
+            let guard = self.shared.as_ref().access.exclusive()?;
+            let data = vtable.as_ptr(self.shared);
+            Ok(BorrowMut::new(data, guard))
+        }
+    }
+
     /// Get a reference to the interior value while checking for shared access.
     ///
     /// This prevents other exclusive accesses from being performed while the
     /// guard returned from this function is live.
-    pub(crate) fn downcast_borrow_ptr<T>(self) -> Result<(NonNull<T>, RawAnyObjGuard), AnyObjError>
+    pub(crate) fn borrow_ref_ptr<T>(self) -> Result<(NonNull<T>, RawAnyObjGuard), AnyObjError>
     where
         T: Any,
     {
         let vtable = vtable(&self);
 
         if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         // SAFETY: We've checked for the appropriate type just above.
@@ -369,43 +435,24 @@ impl AnyObj {
     }
 
     /// Returns some mutable reference to the boxed value if it is of type `T`.
-    pub(crate) fn downcast_borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, AnyObjError>
-    where
-        T: Any,
-    {
-        let vtable = vtable(self);
-
-        if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
-        }
-
-        if matches!(vtable.kind, Kind::Ref) {
-            return Err(AnyObjError::Cast(vtable.type_info()));
-        }
-
-        // SAFETY: We've checked for the appropriate type just above.
-        unsafe {
-            let guard = self.shared.as_ref().access.exclusive()?;
-            let data = vtable.as_ptr(self.shared);
-            Ok(BorrowMut::new(data, guard))
-        }
-    }
-
-    /// Returns some mutable reference to the boxed value if it is of type `T`.
-    pub(crate) fn downcast_borrow_mut_ptr<T>(
-        self,
-    ) -> Result<(NonNull<T>, RawAnyObjGuard), AnyObjError>
+    pub(crate) fn borrow_mut_ptr<T>(self) -> Result<(NonNull<T>, RawAnyObjGuard), AnyObjError>
     where
         T: Any,
     {
         let vtable = vtable(&self);
 
         if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         if matches!(vtable.kind, Kind::Ref) {
-            return Err(AnyObjError::Cast(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::INFO,
+                vtable.type_info(),
+            )));
         }
 
         // SAFETY: We've checked for the appropriate type just above.

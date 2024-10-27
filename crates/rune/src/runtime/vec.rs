@@ -12,11 +12,12 @@ use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
 #[cfg(feature = "alloc")]
 use crate::runtime::Hasher;
-use crate::runtime::{
-    Formatter, FromValue, Mutable, ProtocolCaller, RawAnyGuard, Ref, ToValue, UnsafeToRef, Value,
-    ValueBorrowRef, VmErrorKind, VmResult,
+use crate::{Any, TypeHash};
+
+use super::{
+    Formatter, FromValue, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, RawAnyGuard, Ref, ToValue, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
-use crate::Any;
 
 /// Struct representing a dynamic vector.
 ///
@@ -352,27 +353,35 @@ impl Vec {
     /// types, such as vectors and tuples.
     pub(crate) fn index_get(this: &[Value], index: Value) -> VmResult<Option<Value>> {
         let slice: Option<&[Value]> = 'out: {
-            if let ValueBorrowRef::Mutable(value) = vm_try!(index.borrow_ref()) {
-                match &*value {
-                    Mutable::RangeFrom(range) => {
+            if let Some(value) = vm_try!(index.as_any()) {
+                match value.type_hash() {
+                    RangeFrom::HASH => {
+                        let range = vm_try!(value.borrow_ref::<RangeFrom>());
                         let start = vm_try!(range.start.as_usize());
                         break 'out this.get(start..);
                     }
-                    Mutable::RangeFull(..) => break 'out this.get(..),
-                    Mutable::RangeInclusive(range) => {
+                    RangeFull::HASH => {
+                        _ = vm_try!(value.borrow_ref::<RangeFull>());
+                        break 'out this.get(..);
+                    }
+                    RangeInclusive::HASH => {
+                        let range = vm_try!(value.borrow_ref::<RangeInclusive>());
                         let start = vm_try!(range.start.as_usize());
                         let end = vm_try!(range.end.as_usize());
                         break 'out this.get(start..=end);
                     }
-                    Mutable::RangeToInclusive(range) => {
+                    RangeToInclusive::HASH => {
+                        let range = vm_try!(value.borrow_ref::<RangeToInclusive>());
                         let end = vm_try!(range.end.as_usize());
                         break 'out this.get(..=end);
                     }
-                    Mutable::RangeTo(range) => {
+                    RangeTo::HASH => {
+                        let range = vm_try!(value.borrow_ref::<RangeTo>());
                         let end = vm_try!(range.end.as_usize());
                         break 'out this.get(..end);
                     }
-                    Mutable::Range(range) => {
+                    Range::HASH => {
+                        let range = vm_try!(value.borrow_ref::<Range>());
                         let start = vm_try!(range.start.as_usize());
                         let end = vm_try!(range.end.as_usize());
                         break 'out this.get(start..end);

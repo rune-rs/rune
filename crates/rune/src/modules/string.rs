@@ -11,10 +11,11 @@ use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, FromValue, Function, Inline, MaybeTypeOf, Mutable, Panic, Ref, ToValue, TypeOf, Value,
-    ValueBorrowRef, VmErrorKind, VmResult,
+    Bytes, FromValue, Function, Inline, MaybeTypeOf, Mutable, Panic, Range, RangeFrom, RangeFull,
+    RangeInclusive, RangeTo, RangeToInclusive, Ref, ToValue, TypeOf, Value, ValueBorrowRef,
+    VmErrorKind, VmResult,
 };
-use crate::{Any, ContextError, Module};
+use crate::{Any, ContextError, Module, TypeHash};
 
 /// Strings.
 ///
@@ -1022,42 +1023,50 @@ fn chars(s: Ref<str>) -> Chars {
 fn get(this: &str, key: Value) -> VmResult<Option<String>> {
     use crate::runtime::TypeOf;
 
-    let slice = match vm_try!(key.borrow_ref()) {
-        ValueBorrowRef::Mutable(value) => match &*value {
-            Mutable::RangeFrom(range) => {
+    let slice = match vm_try!(key.as_any()) {
+        Some(value) => match value.type_hash() {
+            RangeFrom::HASH => {
+                let range = vm_try!(value.borrow_ref::<RangeFrom>());
                 let start = vm_try!(range.start.as_usize());
                 this.get(start..)
             }
-            Mutable::RangeFull(..) => this.get(..),
-            Mutable::RangeInclusive(range) => {
+            RangeFull::HASH => {
+                _ = vm_try!(value.borrow_ref::<RangeFull>());
+                this.get(..)
+            }
+            RangeInclusive::HASH => {
+                let range = vm_try!(value.borrow_ref::<RangeInclusive>());
                 let start = vm_try!(range.start.as_usize());
                 let end = vm_try!(range.end.as_usize());
                 this.get(start..=end)
             }
-            Mutable::RangeToInclusive(range) => {
+            RangeToInclusive::HASH => {
+                let range = vm_try!(value.borrow_ref::<RangeToInclusive>());
                 let end = vm_try!(range.end.as_usize());
                 this.get(..=end)
             }
-            Mutable::RangeTo(range) => {
+            RangeTo::HASH => {
+                let range = vm_try!(value.borrow_ref::<RangeTo>());
                 let end = vm_try!(range.end.as_usize());
                 this.get(..end)
             }
-            Mutable::Range(range) => {
+            Range::HASH => {
+                let range = vm_try!(value.borrow_ref::<Range>());
                 let start = vm_try!(range.start.as_usize());
                 let end = vm_try!(range.end.as_usize());
                 this.get(start..end)
             }
-            index => {
+            _ => {
                 return VmResult::err(VmErrorKind::UnsupportedIndexGet {
                     target: String::type_info(),
-                    index: index.type_info(),
+                    index: value.type_info(),
                 })
             }
         },
-        index => {
+        _ => {
             return VmResult::err(VmErrorKind::UnsupportedIndexGet {
                 target: String::type_info(),
-                index: index.type_info(),
+                index: vm_try!(key.type_info()),
             })
         }
     };

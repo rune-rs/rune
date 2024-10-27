@@ -2817,28 +2817,28 @@ impl Vm {
         let value = match range {
             InstRange::RangeFrom { start } => {
                 let s = vm_try!(self.stack.at(start)).clone();
-                vm_try!(Value::try_from(RangeFrom::new(s.clone())))
+                vm_try!(Value::new(RangeFrom::new(s.clone())))
             }
             InstRange::RangeFull => {
-                vm_try!(Value::try_from(RangeFull::new()))
+                vm_try!(Value::new(RangeFull::new()))
             }
             InstRange::RangeInclusive { start, end } => {
                 let s = vm_try!(self.stack.at(start)).clone();
                 let e = vm_try!(self.stack.at(end)).clone();
-                vm_try!(Value::try_from(RangeInclusive::new(s.clone(), e.clone())))
+                vm_try!(Value::new(RangeInclusive::new(s.clone(), e.clone())))
             }
             InstRange::RangeToInclusive { end } => {
                 let e = vm_try!(self.stack.at(end)).clone();
-                vm_try!(Value::try_from(RangeToInclusive::new(e.clone())))
+                vm_try!(Value::new(RangeToInclusive::new(e.clone())))
             }
             InstRange::RangeTo { end } => {
                 let e = vm_try!(self.stack.at(end)).clone();
-                vm_try!(Value::try_from(RangeTo::new(e.clone())))
+                vm_try!(Value::new(RangeTo::new(e.clone())))
             }
             InstRange::Range { start, end } => {
                 let s = vm_try!(self.stack.at(start)).clone();
                 let e = vm_try!(self.stack.at(end)).clone();
-                vm_try!(Value::try_from(Range::new(s.clone(), e.clone())))
+                vm_try!(Value::new(Range::new(s.clone(), e.clone())))
             }
         };
 

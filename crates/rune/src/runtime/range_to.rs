@@ -42,8 +42,7 @@ use crate::Any;
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
 #[rune(crate)]
-#[rune(builtin, constructor, static_type = RANGE_TO)]
-#[rune(from_value = Value::into_range_to, from_value_ref = Value::into_range_to_ref, from_value_mut = Value::into_range_to_mut)]
+#[rune(constructor, static_type = RANGE_TO)]
 pub struct RangeTo {
     /// The end value of the range.
     #[rune(get, set)]
@@ -191,7 +190,7 @@ where
 {
     fn to_value(self) -> VmResult<Value> {
         let end = vm_try!(self.end.to_value());
-        VmResult::Ok(vm_try!(Value::try_from(RangeTo::new(end))))
+        VmResult::Ok(vm_try!(Value::new(RangeTo::new(end))))
     }
 }
 
@@ -201,7 +200,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(value.into_range_to());
+        let range = vm_try!(value.into_any::<RangeTo>());
         let end = vm_try!(Idx::from_value(range.end));
         VmResult::Ok(ops::RangeTo { end })
     }
