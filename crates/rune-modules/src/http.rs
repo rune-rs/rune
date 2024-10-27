@@ -50,7 +50,8 @@
 
 use rune::alloc::fmt::TryWrite;
 use rune::runtime::{Bytes, Formatter, Ref, VmResult};
-use rune::{docstring, Any, ContextError, Module, Value};
+use rune::{Any, ContextError, Module, Value};
+use rune::alloc::prelude::*;
 
 /// A simple HTTP module for Rune.
 ///
@@ -110,7 +111,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.implement_trait::<StatusCode>(rune::item!(::std::cmp::PartialOrd))?;
     module.implement_trait::<StatusCode>(rune::item!(::std::cmp::Ord))?;
 
-    module.function_meta(Version::string_display)?;
+    module.function_meta(Version::string_debug)?;
 
     module.implement_trait::<Version>(rune::item!(::std::cmp::PartialEq))?;
     module.implement_trait::<Version>(rune::item!(::std::cmp::Eq))?;
@@ -170,10 +171,12 @@ impl Response {
     ///
     /// let response = response.text().await?;
     /// ```
-    #[rune::function]
+    #[rune::function(vm_result)]
     async fn text(self) -> Result<String, Error> {
         let text = self.response.text().await?;
-        Ok(text)
+        // NB: We simply take ownership of the string here, raising an error in
+        // case we reach a memory limit.
+        Ok(String::try_from(text).vm?)
     }
 
     /// Get the response as a Rune value decoded from JSON.
@@ -205,24 +208,27 @@ impl Response {
     /// let response = response.bytes().await?;
     /// ```
     #[rune::function(vm_result)]
-    async fn bytes(self) -> Result<Bytes, Error> {
-        let bytes = self.response.bytes().await?.to_vec().into_boxed_slice();
-        let bytes = Bytes::from_slice(bytes).vm?;
-        Ok(bytes)
+    async fn bytes(mut self) -> Result<Bytes, Error> {
+        let len = self.response.content_length().unwrap_or(0) as usize;
+        let mut bytes = Vec::try_with_capacity(len).vm?;
+
+        while let Some(chunk) = self.response.chunk().await? {
+            bytes.try_extend_from_slice(chunk.as_ref()).vm?;
+        }
+
+        Ok(Bytes::from_vec(bytes))
     }
 
     /// Get the status code of the response.
     #[rune::function(instance)]
     fn status(&self) -> StatusCode {
-        let inner = self.response.status();
-        StatusCode { inner }
+        StatusCode { inner: self.response.status() }
     }
 
     /// Get the version of the response.
     #[rune::function(instance)]
     fn version(&self) -> Version {
-        let inner = self.response.version();
-        Version { inner }
+        Version { inner: self.response.version() }
     }
 
     /// Get the content-length of this response, if known.
@@ -246,27 +252,62 @@ pub struct StatusCode {
 }
 
 impl StatusCode {
-    #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner);
-        VmResult::Ok(())
-    }
-
-    /// Returns the `Integer` corresponding to this `StatusCode`.
+    /// Returns the `u16` corresponding to this `StatusCode`.
+    ///
+    /// # Note
+    ///
+    /// This is the same as the `From<StatusCode>` implementation, but included
+    /// as an inherent method because that implementation doesn't appear in
+    /// rustdocs, as well as a way to force the type instead of relying on
+    /// inference.
+    ///
+    /// # Example
+    ///
+    /// ```rune
+    /// let status = http::StatusCode::OK;
+    /// assert_eq!(status.as_u16(), 200);
+    /// ```
     #[rune::function(instance)]
     #[inline]
     fn as_u16(&self) -> u16 {
         self.inner.as_u16()
     }
 
-    /// Returns a String representation of the `StatusCode`.
-    #[rune::function(instance)]
+    /// Returns a &str representation of the `StatusCode`
+    ///
+    /// The return value only includes a numerical representation of the status
+    /// code. The canonical reason is not included.
+    ///
+    /// # Example
+    ///
+    /// ```rune
+    /// let status = http::StatusCode::OK;
+    /// assert_eq!(status.as_str(), "200");
+    /// ```
+    #[rune::function(instance, vm_result)]
     #[inline]
     fn as_str(&self) -> String {
-        self.inner.as_str().to_owned()
+        self.inner.as_str().try_to_owned().vm?
     }
 
     /// Get the standardised `reason-phrase` for this status code.
+    ///
+    /// This is mostly here for servers writing responses, but could potentially
+    /// have application at other times.
+    ///
+    /// The reason phrase is defined as being exclusively for human readers. You
+    /// should avoid deriving any meaning from it at all costs.
+    ///
+    /// Bear in mind also that in HTTP/2.0 and HTTP/3.0 the reason phrase is
+    /// abolished from transmission, and so this canonical reason phrase really
+    /// is the only reason phrase you’ll find.
+    ///
+    /// # Example
+    ///
+    /// ```rune
+    /// let status = http::StatusCode::OK;
+    /// assert_eq!(status.canonical_reason(), Some("OK"));
+    /// ```
     #[inline]
     #[rune::function(instance)]
     fn canonical_reason(&self) -> Option<&'static str> {
@@ -307,6 +348,12 @@ impl StatusCode {
     fn is_server_error(&self) -> bool {
         self.inner.is_server_error()
     }
+
+    #[rune::function(instance, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        rune::vm_write!(f, "{}", self.inner);
+        VmResult::Ok(())
+    }
 }
 
 /// Represents a version of the HTTP spec.
@@ -317,8 +364,8 @@ pub struct Version {
 }
 
 impl Version {
-    #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(instance, protocol = STRING_DEBUG)]
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{:?}", self.inner);
         VmResult::Ok(())
     }
