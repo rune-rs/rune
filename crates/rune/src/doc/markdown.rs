@@ -1,13 +1,12 @@
 use core::fmt;
-use std::io;
 
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::{try_vec, HashMap, String, Vec};
+use crate::alloc::{self, try_vec, HashMap, String, Vec};
 use crate::doc::TestParams;
 
 use anyhow::Result;
-use pulldown_cmark::escape::{escape_href, escape_html, StrWrite};
-use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
+use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag, TagEnd};
+use pulldown_cmark_escape::{escape_href, escape_html, StrWrite};
 use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 
@@ -26,15 +25,14 @@ struct StringWriter<'a> {
 }
 
 impl StrWrite for StringWriter<'_> {
-    fn write_str(&mut self, s: &str) -> io::Result<()> {
-        self.string
-            .try_push_str(s)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error))
+    type Error = alloc::Error;
+
+    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+        self.string.try_push_str(s)
     }
 
-    fn write_fmt(&mut self, args: fmt::Arguments) -> io::Result<()> {
+    fn write_fmt(&mut self, args: fmt::Arguments) -> Result<(), Self::Error> {
         TryWrite::write_fmt(self.string, args)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error))
     }
 }
 
@@ -119,6 +117,19 @@ where
                 TaskListMarker(false) => {
                     self.write("<input disabled=\"\" type=\"checkbox\"/>")?;
                 }
+                InlineMath(text) => {
+                    self.write(r#"<span class="math math-inline">"#)?;
+                    escape_html(&mut self.out, &text)?;
+                    self.write("</span>")?;
+                }
+                DisplayMath(text) => {
+                    self.write(r#"<span class="math math-display">"#)?;
+                    escape_html(&mut self.out, &text)?;
+                    self.write("</span>")?;
+                }
+                InlineHtml(text) => {
+                    self.write(&text)?;
+                }
             }
         }
 
@@ -130,14 +141,16 @@ where
             Tag::Paragraph => {
                 self.write("<p>")?;
             }
-            Tag::Heading(level, id, classes) => {
+            Tag::Heading {
+                level, id, classes, ..
+            } => {
                 self.write("<")?;
 
                 write!(&mut self.out, "{}", level)?;
 
                 if let Some(id) = id {
                     self.write(" id=\"")?;
-                    escape_html(&mut self.out, id)?;
+                    escape_html(&mut self.out, &id)?;
                     self.write("\"")?;
                 }
 
@@ -193,7 +206,7 @@ where
                     }
                 }
             }
-            Tag::BlockQuote => {
+            Tag::BlockQuote(..) => {
                 self.write("<blockquote>")?;
             }
             Tag::CodeBlock(kind) => {
@@ -226,27 +239,36 @@ where
             Tag::Strikethrough => {
                 self.write("<del>")?;
             }
-            Tag::Link(LinkType::Email, dest, title) => {
+            Tag::Link {
+                link_type: LinkType::Email,
+                dest_url,
+                title,
+                ..
+            } => {
                 self.write("<a href=\"mailto:")?;
-                escape_href(&mut self.out, &dest)?;
+                escape_href(&mut self.out, &dest_url)?;
                 if !title.is_empty() {
                     self.write("\" title=\"")?;
                     escape_html(&mut self.out, &title)?;
                 }
                 self.write("\">")?;
             }
-            Tag::Link(_link_type, dest, title) => {
+            Tag::Link {
+                dest_url, title, ..
+            } => {
                 self.write("<a href=\"")?;
-                escape_href(&mut self.out, &dest)?;
+                escape_href(&mut self.out, &dest_url)?;
                 if !title.is_empty() {
                     self.write("\" title=\"")?;
                     escape_html(&mut self.out, &title)?;
                 }
                 self.write("\">")?;
             }
-            Tag::Image(_link_type, dest, title) => {
+            Tag::Image {
+                dest_url, title, ..
+            } => {
                 self.write("<img src=\"")?;
-                escape_href(&mut self.out, &dest)?;
+                escape_href(&mut self.out, &dest_url)?;
                 self.write("\" alt=\"")?;
                 self.raw_text()?;
 
@@ -266,6 +288,17 @@ where
                 write!(&mut self.out, "{}", number)?;
                 self.write("</sup>")?;
             }
+            Tag::HtmlBlock => {}
+            Tag::DefinitionList => {
+                self.write("<dl>")?;
+            }
+            Tag::DefinitionListTitle => {
+                self.write("<dt>")?;
+            }
+            Tag::DefinitionListDefinition => {
+                self.write("<dd>")?;
+            }
+            Tag::MetadataBlock(..) => {}
         }
 
         Ok(())
@@ -320,27 +353,27 @@ where
         (RUNE_TOKEN, syntax, Some(params))
     }
 
-    fn end_tag(&mut self, tag: Tag) -> Result<()> {
+    fn end_tag(&mut self, tag: TagEnd) -> Result<()> {
         match tag {
-            Tag::Paragraph => {
+            TagEnd::Paragraph => {
                 self.write("</p>")?;
             }
-            Tag::Heading(level, _id, _classes) => {
+            TagEnd::Heading(level) => {
                 self.write("</")?;
                 write!(&mut self.out, "{}", level)?;
                 self.write(">")?;
             }
-            Tag::Table(_) => {
+            TagEnd::Table => {
                 self.write("</tbody></table>")?;
             }
-            Tag::TableHead => {
+            TagEnd::TableHead => {
                 self.write("</tr></thead><tbody>")?;
                 self.table_state = TableState::Body;
             }
-            Tag::TableRow => {
+            TagEnd::TableRow => {
                 self.write("</tr>")?;
             }
-            Tag::TableCell => {
+            TagEnd::TableCell => {
                 match self.table_state {
                     TableState::Head => {
                         self.write("</th>")?;
@@ -351,39 +384,51 @@ where
                 }
                 self.table_cell_index += 1;
             }
-            Tag::BlockQuote => {
+            TagEnd::BlockQuote(_) => {
                 self.write("</blockquote>")?;
             }
-            Tag::CodeBlock(..) => {
+            TagEnd::CodeBlock => {
                 self.write("</code></pre>")?;
                 self.codeblock = None;
             }
-            Tag::List(Some(_)) => {
+            TagEnd::List(true) => {
                 self.write("</ol>")?;
             }
-            Tag::List(None) => {
+            TagEnd::List(false) => {
                 self.write("</ul>")?;
             }
-            Tag::Item => {
+            TagEnd::Item => {
                 self.write("</li>")?;
             }
-            Tag::Emphasis => {
+            TagEnd::Emphasis => {
                 self.write("</em>")?;
             }
-            Tag::Strong => {
+            TagEnd::Strong => {
                 self.write("</strong>")?;
             }
-            Tag::Strikethrough => {
+            TagEnd::Strikethrough => {
                 self.write("</del>")?;
             }
-            Tag::Link(_, _, _) => {
+            TagEnd::Link { .. } => {
                 self.write("</a>")?;
             }
-            Tag::Image(_, _, _) => (),
-            Tag::FootnoteDefinition(_) => {
+            TagEnd::Image { .. } => (),
+            TagEnd::FootnoteDefinition => {
                 self.write("</div>")?;
             }
+            TagEnd::HtmlBlock => {}
+            TagEnd::DefinitionList => {
+                self.write("</dl>")?;
+            }
+            TagEnd::DefinitionListTitle => {
+                self.write("</dt>")?;
+            }
+            TagEnd::DefinitionListDefinition => {
+                self.write("</dd>")?;
+            }
+            TagEnd::MetadataBlock(..) => {}
         }
+
         Ok(())
     }
 
@@ -399,7 +444,8 @@ where
                     }
                     nest -= 1;
                 }
-                Html(text) | Code(text) | Text(text) => {
+                Html(text) | Code(text) | Text(text) | InlineMath(text) | DisplayMath(text)
+                | InlineHtml(text) => {
                     escape_html(&mut self.out, &text).map_err(|_| fmt::Error)?;
                 }
                 SoftBreak | HardBreak | Rule => {

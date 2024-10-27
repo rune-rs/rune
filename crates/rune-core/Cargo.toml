@@ -25,9 +25,9 @@ alloc = ["serde/alloc", "rune-alloc/alloc"]
 [dependencies]
 rune-alloc = { version = "0.14.0", path = "../rune-alloc", default-features = false, features = ["serde"] }
 
-twox-hash = { version = "1.6.3", default-features = false }
+twox-hash = { version = "2.0.0", default-features = false, features = ["xxhash64"] }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
-musli = { version = "0.0.121", default-features = false, optional = true }
+musli = { version = "0.0.124", default-features = false, optional = true }
 
 [dev-dependencies]
 rune = { package = "rune-shim", path = "../rune-shim", features = ["core", "alloc"] }
