@@ -36,7 +36,9 @@ pub type DefaultStorage = ArrayUnit;
 #[cfg(rune_byte_code)]
 pub type DefaultStorage = ByteCodeUnit;
 
-/// Instructions and debug info from a single source file.
+/// Instructions and debug info from a single compilation.
+///
+/// See [`rune::prepare`] for more.
 #[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
 #[try_clone(bound = {S: TryClone})]
