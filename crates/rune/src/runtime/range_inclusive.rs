@@ -58,8 +58,7 @@ use super::StepsBetween;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE_INCLUSIVE)]
-#[rune(from_value = Value::into_range_inclusive, from_value_ref = Value::into_range_inclusive_ref, from_value_mut = Value::into_range_inclusive_mut)]
+#[rune(constructor, static_type = RANGE_INCLUSIVE)]
 pub struct RangeInclusive {
     /// The start value of the range.
     #[rune(get, set)]
@@ -309,7 +308,7 @@ where
         let (start, end) = self.into_inner();
         let start = vm_try!(start.to_value());
         let end = vm_try!(end.to_value());
-        VmResult::Ok(vm_try!(Value::try_from(RangeInclusive::new(start, end))))
+        VmResult::Ok(vm_try!(Value::new(RangeInclusive::new(start, end))))
     }
 }
 
@@ -319,7 +318,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(value.into_range_inclusive());
+        let range = vm_try!(value.into_any::<RangeInclusive>());
         let start = vm_try!(Idx::from_value(range.start));
         let end = vm_try!(Idx::from_value(range.end));
         VmResult::Ok(start..=end)

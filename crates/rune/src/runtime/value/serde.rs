@@ -88,20 +88,6 @@ impl ser::Serialize for Value {
                 Mutable::Format(..) => {
                     Err(ser::Error::custom("cannot serialize format specifications"))
                 }
-                Mutable::RangeFrom(..) => {
-                    Err(ser::Error::custom("cannot serialize `start..` ranges"))
-                }
-                Mutable::RangeFull(..) => Err(ser::Error::custom("cannot serialize `..` ranges")),
-                Mutable::RangeInclusive(..) => {
-                    Err(ser::Error::custom("cannot serialize `start..=end` ranges"))
-                }
-                Mutable::RangeToInclusive(..) => {
-                    Err(ser::Error::custom("cannot serialize `..=end` ranges"))
-                }
-                Mutable::RangeTo(..) => Err(ser::Error::custom("cannot serialize `..end` ranges")),
-                Mutable::Range(..) => {
-                    Err(ser::Error::custom("cannot serialize `start..end` ranges"))
-                }
                 Mutable::ControlFlow(..) => {
                     Err(ser::Error::custom("cannot serialize `start..end` ranges"))
                 }

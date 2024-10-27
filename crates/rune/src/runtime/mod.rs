@@ -21,8 +21,9 @@ mod borrow_ref;
 pub use self::borrow_ref::BorrowRef;
 
 mod any_obj;
-pub use self::any_obj::AnyObj;
-pub(crate) use self::any_obj::{AnyObjDrop, AnyObjError, RawAnyObjGuard};
+use self::any_obj::AnyObjErrorKind;
+pub use self::any_obj::{AnyObj, AnyObjError};
+pub(crate) use self::any_obj::{AnyObjDrop, RawAnyObjGuard};
 
 mod args;
 pub use self::args::{Args, FixedArgs};

@@ -57,13 +57,13 @@ fn test_from_ref() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_ref(&value)?;
-        assert!(value.downcast_borrow_mut::<Thing>().is_err());
-        assert_eq!(10u32, value.downcast_borrow_ref::<Thing>()?.0);
+        assert!(value.borrow_any_mut::<Thing>().is_err());
+        assert_eq!(10u32, value.borrow_any_ref::<Thing>()?.0);
 
         drop(guard);
 
-        assert!(value.downcast_borrow_mut::<Thing>().is_err());
-        assert!(value.downcast_borrow_ref::<Thing>().is_err());
+        assert!(value.borrow_any_mut::<Thing>().is_err());
+        assert!(value.borrow_any_ref::<Thing>().is_err());
     }
 
     Ok(())
@@ -75,15 +75,15 @@ fn test_from_mut() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_mut(&mut value)?;
-        value.downcast_borrow_mut::<Thing>()?.0 = 20;
+        value.borrow_any_mut::<Thing>()?.0 = 20;
 
-        assert_eq!(20u32, value.downcast_borrow_mut::<Thing>()?.0);
-        assert_eq!(20u32, value.downcast_borrow_ref::<Thing>()?.0);
+        assert_eq!(20u32, value.borrow_any_mut::<Thing>()?.0);
+        assert_eq!(20u32, value.borrow_any_ref::<Thing>()?.0);
 
         drop(guard);
 
-        assert!(value.downcast_borrow_mut::<Thing>().is_err());
-        assert!(value.downcast_borrow_ref::<Thing>().is_err());
+        assert!(value.borrow_any_mut::<Thing>().is_err());
+        assert!(value.borrow_any_ref::<Thing>().is_err());
     }
 
     Ok(())
@@ -338,18 +338,18 @@ fn any_ref_from_own() {
     let v = Thing(1u32);
 
     let any = AnyObj::new(v).unwrap();
-    let b = any.downcast_borrow_ref::<Thing>().unwrap();
+    let b = any.borrow_ref::<Thing>().unwrap();
     assert_eq!(b.0, 1u32);
     drop(b);
 
-    let mut b = any.downcast_borrow_mut::<Thing>().unwrap();
+    let mut b = any.borrow_mut::<Thing>().unwrap();
     b.0 += 1;
     assert_eq!(b.0, 2u32);
 
-    assert!(any.downcast_borrow_ref::<Thing>().is_err());
+    assert!(any.borrow_ref::<Thing>().is_err());
     drop(b);
 
-    let b = any.downcast_borrow_ref::<Thing>().unwrap();
+    let b = any.borrow_ref::<Thing>().unwrap();
     assert_eq!(b.0, 2u32);
     drop(b);
 
@@ -363,18 +363,18 @@ fn any_ref_from_own_boxed() {
     let v = Boxed(Box::new(1u32));
 
     let any = AnyObj::new(v).unwrap();
-    let b = any.downcast_borrow_ref::<Boxed>().unwrap();
+    let b = any.borrow_ref::<Boxed>().unwrap();
     assert_eq!(*b.0, 1u32);
     drop(b);
 
-    let mut b = any.downcast_borrow_mut::<Boxed>().unwrap();
+    let mut b = any.borrow_mut::<Boxed>().unwrap();
     *b.0 += 1;
     assert_eq!(*b.0, 2u32);
 
-    assert!(any.downcast_borrow_ref::<Boxed>().is_err());
+    assert!(any.borrow_ref::<Boxed>().is_err());
     drop(b);
 
-    let b = any.downcast_borrow_ref::<Boxed>().unwrap();
+    let b = any.borrow_ref::<Boxed>().unwrap();
     assert_eq!(*b.0, 2u32);
     drop(b);
 
@@ -387,7 +387,7 @@ fn any_ref_from_ref() {
     let v = Thing(1u32);
 
     let any = unsafe { AnyObj::from_ref(&v).unwrap() };
-    let b = any.downcast_borrow_ref::<Thing>().unwrap();
+    let b = any.borrow_ref::<Thing>().unwrap();
     assert_eq!(b.0, 1u32);
     drop(b);
 
@@ -400,10 +400,7 @@ fn any_ref_downcast_borrow_ref() {
 
     let any = unsafe { AnyObj::from_ref(&t).unwrap() };
 
-    assert_eq!(
-        Ok(&Thing(1u32)),
-        any.downcast_borrow_ref::<Thing>().as_deref()
-    );
+    assert_eq!(Ok(&Thing(1u32)), any.borrow_ref::<Thing>().as_deref());
 
     assert!(any.downcast::<Thing>().is_err());
 }
@@ -413,7 +410,7 @@ fn any_ref_from_mut() {
     let mut v = Thing(1u32);
 
     let any = unsafe { AnyObj::from_mut(&mut v).unwrap() };
-    any.downcast_borrow_mut::<Thing>().unwrap().0 += 1;
+    any.borrow_mut::<Thing>().unwrap().0 += 1;
 
     assert_eq!(v.0, 2);
 
@@ -425,12 +422,9 @@ fn any_ref_downcast_borrow_mut() {
     let mut t = Thing(1u32);
 
     let any = unsafe { AnyObj::from_mut(&mut t).unwrap() };
-    any.downcast_borrow_mut::<Thing>().unwrap().0 = 2;
+    any.borrow_mut::<Thing>().unwrap().0 = 2;
 
-    assert_eq!(
-        Ok(&Thing(2u32)),
-        any.downcast_borrow_ref::<Thing>().as_deref()
-    );
+    assert_eq!(Ok(&Thing(2u32)), any.borrow_ref::<Thing>().as_deref());
 
     assert!(any.downcast::<Thing>().is_err());
 }
@@ -442,12 +436,12 @@ fn value_from_mut() {
     unsafe {
         let (any, guard) = Value::from_mut(&mut v).unwrap();
 
-        if let Ok(mut v) = any.downcast_borrow_mut::<Count>() {
+        if let Ok(mut v) = any.borrow_any_mut::<Count>() {
             v.0 += 1;
         }
 
         drop(guard);
-        assert!(any.downcast_borrow_mut::<Count>().is_err());
+        assert!(any.borrow_any_mut::<Count>().is_err());
         drop(any);
     }
 

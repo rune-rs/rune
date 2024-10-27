@@ -4,7 +4,7 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{FromValue, ProtocolCaller, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, ToValue, Value, VmResult};
 use crate::Any;
 
 /// Type for a full range expression `..`.
@@ -32,38 +32,13 @@ use crate::Any;
 /// ```
 #[derive(Any, Default, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(builtin, constructor, static_type = RANGE_FULL)]
-#[rune(from_value = Value::into_range_full, from_value_ref = Value::into_range_full_ref, from_value_mut = Value::into_range_full_mut)]
+#[rune(constructor, static_type = RANGE_FULL)]
 pub struct RangeFull;
 
 impl RangeFull {
-    /// Construct a new range.
+    /// Construct a new full range.
     pub const fn new() -> Self {
         Self
-    }
-
-    pub(crate) fn partial_eq_with(
-        _: &Self,
-        _: &Self,
-        _: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
-        VmResult::Ok(true)
-    }
-
-    pub(crate) fn eq_with(_: &Self, _: &Self, _: &mut dyn ProtocolCaller) -> VmResult<bool> {
-        VmResult::Ok(true)
-    }
-
-    pub(crate) fn partial_cmp_with(
-        _: &Self,
-        _: &Self,
-        _: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
-        VmResult::Ok(Some(Ordering::Equal))
-    }
-
-    pub(crate) fn cmp_with(_: &Self, _: &Self, _: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
-        VmResult::Ok(Ordering::Equal)
     }
 
     /// Test if the range contains the given value.
@@ -82,9 +57,65 @@ impl RangeFull {
     ///
     /// assert!(range is std::ops::RangeFull);
     /// ```
-    #[rune::function]
+    #[rune::function(keep)]
     pub(crate) fn contains(&self, _: Value) -> VmResult<bool> {
         VmResult::Ok(true)
+    }
+
+    /// Test the full range for partial equality.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// let range = ..;
+    /// assert!(range == ..);
+    /// ```
+    #[rune::function(keep, protocol = PARTIAL_EQ)]
+    pub fn partial_eq(&self, _: &Self) -> VmResult<bool> {
+        VmResult::Ok(true)
+    }
+
+    /// Test the full range for total equality.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::ops::eq;
+    ///
+    /// let range = ..;
+    /// assert!(eq(range, ..));
+    /// ```
+    #[rune::function(keep, protocol = EQ)]
+    pub fn eq(&self, _: &Self) -> VmResult<bool> {
+        VmResult::Ok(true)
+    }
+
+    /// Test the full range for partial ordering.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// assert!(!((..) < (..)));
+    /// assert!(!((..) > (..)));
+    /// ```
+    #[rune::function(keep, protocol = PARTIAL_CMP)]
+    pub fn partial_cmp(&self, _: &Self) -> VmResult<Option<Ordering>> {
+        VmResult::Ok(Some(Ordering::Equal))
+    }
+
+    /// Test the full range for total ordering.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::ops::cmp;
+    /// use std::cmp::Ordering;
+    ///
+    /// assert_eq!(cmp(.., ..), Ordering::Equal);
+    /// ```
+    #[rune::function(keep, protocol = CMP)]
+    pub fn cmp(&self, _: &Self) -> VmResult<Ordering> {
+        VmResult::Ok(Ordering::Equal)
     }
 }
 
@@ -97,14 +128,14 @@ impl fmt::Debug for RangeFull {
 impl ToValue for ops::RangeFull {
     fn to_value(self) -> VmResult<Value> {
         let range = RangeFull::new();
-        VmResult::Ok(vm_try!(Value::try_from(range)))
+        VmResult::Ok(vm_try!(Value::new(range)))
     }
 }
 
 impl FromValue for ops::RangeFull {
     #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        let RangeFull = vm_try!(value.into_range_full());
+        let RangeFull = vm_try!(value.into_any::<RangeFull>());
         VmResult::Ok(ops::RangeFull)
     }
 }
