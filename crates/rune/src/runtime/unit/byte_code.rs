@@ -97,7 +97,7 @@ impl UnitStorage for ByteCodeUnit {
     }
 
     fn get(&self, ip: usize) -> Result<Option<(Inst, usize)>, BadInstruction> {
-        let Some(mut bytes) = self.bytes.get(ip..) else {
+        let Some(bytes) = self.bytes.get(ip..) else {
             return Ok(None);
         };
 
