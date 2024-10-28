@@ -7,8 +7,7 @@ use crate::ast::{self, Span, Spanned};
 use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek, Peeker};
-use crate::runtime::format;
-use crate::runtime::{Inline, Mutable, OwnedValue};
+use crate::runtime::{format, Inline};
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
@@ -49,14 +48,7 @@ impl FormatArgs {
             }
         }
 
-        let format = format.take_value().with_span(&self.format)?;
-
-        let OwnedValue::Mutable(Mutable::String(format)) = format else {
-            return Err(compile::Error::msg(
-                &self.format,
-                "format argument must be a string",
-            ));
-        };
+        let format = format.into_any::<String>().with_span(&self.format)?;
 
         let mut unused_pos = (0..pos.len()).try_collect::<BTreeSet<_>>()?;
         let mut unused_named = named

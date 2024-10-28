@@ -205,7 +205,8 @@ enum EncodeErrorKind {
 
 /// Error indicating that a bad instruction was located at the given instruction
 /// pointer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct BadInstruction {
     pub(crate) ip: usize,
 }
@@ -221,7 +222,8 @@ impl core::error::Error for BadInstruction {}
 
 /// Error indicating that a bad instruction was located at the given instruction
 /// pointer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct BadJump {
     pub(crate) jump: usize,
 }

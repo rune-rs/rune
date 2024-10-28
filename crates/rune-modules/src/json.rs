@@ -30,7 +30,7 @@
 //! ```
 
 use rune::{ContextError, Module, vm_write, Any};
-use rune::runtime::{Bytes, Value, Formatter};
+use rune::runtime::{Bytes, Formatter, Value, VmResult};
 use rune::alloc::{Vec, String};
 use rune::alloc::fmt::TryWrite;
 
@@ -64,14 +64,14 @@ struct Error {
 }
 
 impl Error {
-    #[rune::function(vm_result, protocol = STRING_DISPLAY)]
-    pub(crate) fn display(&self, f: &mut Formatter) {
-        vm_write!(f, "{}", self.error);
+    #[rune::function(protocol = STRING_DISPLAY)]
+    pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{}", self.error)
     }
 
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    pub(crate) fn debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self.error);
+    #[rune::function(protocol = STRING_DEBUG)]
+    pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{:?}", self.error)
     }
 }
 

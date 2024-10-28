@@ -108,8 +108,7 @@ impl From<reqwest::Error> for Error {
 impl Error {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
     fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner);
-        VmResult::Ok(())
+        rune::vm_write!(f, "{}", self.inner)
     }
 }
 
@@ -189,8 +188,7 @@ pub struct StatusCode {
 impl StatusCode {
     #[rune::function(instance, protocol = STRING_DISPLAY)]
     fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner);
-        VmResult::Ok(())
+        rune::vm_write!(f, "{}", self.inner)
     }
 }
 

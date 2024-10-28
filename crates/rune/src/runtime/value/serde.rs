@@ -3,6 +3,7 @@ use core::fmt;
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::runtime::{Bytes, Inline, Mutable, Object, ValueBorrowRef, Vec};
+use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
 use serde::ser::{self, Error as _, SerializeMap as _, SerializeSeq as _};
@@ -37,7 +38,6 @@ impl ser::Serialize for Value {
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
             ValueBorrowRef::Mutable(value) => match &*value {
-                Mutable::String(string) => serializer.serialize_str(string),
                 Mutable::Bytes(bytes) => serializer.serialize_bytes(bytes),
                 Mutable::Vec(vec) => {
                     let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
@@ -92,9 +92,13 @@ impl ser::Serialize for Value {
                     Err(ser::Error::custom("cannot serialize `start..end` ranges"))
                 }
             },
-            ValueBorrowRef::Any(..) => {
-                Err(ser::Error::custom("cannot serialize external references"))
-            }
+            ValueBorrowRef::Any(value) => match value.type_hash() {
+                String::HASH => {
+                    let string = value.borrow_ref::<String>().map_err(S::Error::custom)?;
+                    serializer.serialize_str(string.as_str())
+                }
+                _ => Err(ser::Error::custom("cannot serialize external references")),
+            },
         }
     }
 }

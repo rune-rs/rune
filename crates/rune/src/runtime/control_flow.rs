@@ -41,14 +41,14 @@ impl ControlFlow {
     ) -> VmResult<()> {
         match self {
             ControlFlow::Continue(value) => {
-                vm_write!(f, "Continue(");
+                vm_try!(vm_write!(f, "Continue("));
                 vm_try!(Value::string_debug_with(value, f, caller));
-                vm_write!(f, ")");
+                vm_try!(vm_write!(f, ")"));
             }
             ControlFlow::Break(value) => {
-                vm_write!(f, "Break(");
+                vm_try!(vm_write!(f, "Break("));
                 vm_try!(Value::string_debug_with(value, f, caller));
-                vm_write!(f, ")");
+                vm_try!(vm_write!(f, ")"));
             }
         }
 

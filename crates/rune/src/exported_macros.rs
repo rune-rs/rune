@@ -53,7 +53,7 @@ macro_rules! vm_panic {
 macro_rules! vm_write {
     ($($tt:tt)*) => {
         match core::write!($($tt)*) {
-            Ok(()) => (),
+            Ok(()) => $crate::runtime::VmResult::Ok(()),
             Err(err) => {
                 return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err));
             }

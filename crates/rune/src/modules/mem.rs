@@ -86,14 +86,12 @@ impl Snapshot {
 
     #[rune::function(protocol = STRING_DISPLAY)]
     fn display(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{}", self.inner);
-        VmResult::Ok(())
+        vm_write!(f, "{}", self.inner)
     }
 
     #[rune::function(protocol = STRING_DEBUG)]
     fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner);
-        VmResult::Ok(())
+        vm_write!(f, "{:?}", self.inner)
     }
 }
 

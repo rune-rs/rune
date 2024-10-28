@@ -9,7 +9,8 @@ use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Output, Value, VmErrorKind};
 
 /// An error raised when accessing an address on the stack.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
 pub struct StackError {
     addr: InstAddress,
@@ -25,7 +26,8 @@ impl fmt::Display for StackError {
 impl core::error::Error for StackError {}
 
 /// An error raised when accessing a slice on the stack.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
 pub struct SliceError {
     addr: InstAddress,

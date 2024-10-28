@@ -297,6 +297,5 @@ fn ordering_eq(this: Ordering, other: Ordering) -> bool {
 /// ```
 #[rune::function(instance, protocol = STRING_DEBUG)]
 fn ordering_string_debug(this: Ordering, s: &mut Formatter) -> VmResult<()> {
-    vm_write!(s, "{:?}", this);
-    VmResult::Ok(())
+    vm_write!(s, "{:?}", this)
 }

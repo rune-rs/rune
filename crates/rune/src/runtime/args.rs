@@ -3,7 +3,8 @@ use core::fmt;
 use crate::alloc::Vec;
 use crate::runtime::{GuardedArgs, Stack, ToValue, Value, VmResult};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct DynArgsUsed;
 
 impl fmt::Display for DynArgsUsed {

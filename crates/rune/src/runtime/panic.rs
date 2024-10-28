@@ -42,6 +42,7 @@ impl From<PanicReason> for Panic {
     }
 }
 
+#[cfg(test)]
 impl PartialEq for Panic {
     #[inline]
     fn eq(&self, _: &Self) -> bool {

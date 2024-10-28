@@ -10,9 +10,8 @@ mod steps_between;
 use self::steps_between::StepsBetween;
 
 mod access;
-pub(crate) use self::access::{
-    Access, AccessError, AccessErrorKind, AccessGuard, RawAccessGuard, Snapshot,
-};
+pub use self::access::AccessError;
+pub(crate) use self::access::{Access, AccessErrorKind, AccessGuard, RawAccessGuard, Snapshot};
 
 mod borrow_mut;
 pub use self::borrow_mut::BorrowMut;
@@ -165,12 +164,14 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
+#[cfg(any(test, feature = "cli"))]
+pub(crate) use self::value::OwnedValue;
 pub use self::value::{
     EmptyStruct, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value, ValueMutGuard,
     ValueRefGuard, VariantRtti,
 };
 pub(crate) use self::value::{
-    Inline, Mutable, OwnedValue, ValueBorrowRef, ValueMut, ValueRef, ValueRepr, ValueShared,
+    Inline, Mutable, ValueBorrowRef, ValueMut, ValueRef, ValueRepr, ValueShared,
 };
 
 mod variant;

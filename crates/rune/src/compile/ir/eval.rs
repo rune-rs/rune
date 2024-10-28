@@ -7,7 +7,8 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ir::{self};
 use crate::compile::{self, WithSpan};
 use crate::query::Used;
-use crate::runtime::{Inline, Mutable, Object, OwnedTuple, Value, ValueBorrowRef};
+use crate::runtime::{Inline, Object, OwnedTuple, Value, ValueBorrowRef};
+use crate::TypeHash;
 
 /// The outcome of a constant evaluation.
 pub enum EvalOutcome {
@@ -139,18 +140,22 @@ fn eval_ir_binary(
 
             return Ok(Value::from(out));
         }
-        (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b)) => {
-            let out = 'out: {
-                if let (Mutable::String(a), Mutable::String(b)) = (&*a, &*b) {
+        (ValueBorrowRef::Any(a), ValueBorrowRef::Any(b)) => {
+            let value = 'out: {
+                if let (String::HASH, String::HASH) = (a.type_hash(), b.type_hash()) {
+                    let a = a.borrow_ref::<String>().with_span(span)?;
+                    let b = b.borrow_ref::<String>().with_span(span)?;
+
                     if let ir::IrBinaryOp::Add = ir.op {
-                        break 'out Mutable::String(add_strings(a, b).with_span(span)?);
+                        let string = add_strings(&a, &b).with_span(span)?;
+                        break 'out Value::new(string).with_span(span)?;
                     }
                 }
 
                 return Err(EvalOutcome::not_const(span));
             };
 
-            return Ok(Value::try_from(out).with_span(span)?);
+            return Ok(value);
         }
         _ => (),
     }
@@ -366,15 +371,16 @@ fn eval_ir_template(
                             return Err(EvalOutcome::not_const(ir));
                         }
                     },
-                    ValueBorrowRef::Mutable(value) => match &*value {
-                        Mutable::String(s) => {
-                            buf.try_push_str(s)?;
+                    ValueBorrowRef::Any(value) => match value.type_hash() {
+                        String::HASH => {
+                            let s = value.borrow_ref::<String>().with_span(ir)?;
+                            buf.try_push_str(&s)?;
                         }
                         _ => {
                             return Err(EvalOutcome::not_const(ir));
                         }
                     },
-                    ValueBorrowRef::Any(..) => {
+                    ValueBorrowRef::Mutable(..) => {
                         return Err(EvalOutcome::not_const(ir));
                     }
                 }

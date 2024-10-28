@@ -451,7 +451,7 @@ impl From<Panic> for VmErrorKind {
 }
 
 /// An opaque simple runtime error.
-#[derive(Debug, PartialEq)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct RuntimeError {
     error: VmErrorKind,
 }
@@ -490,6 +490,13 @@ impl RuntimeError {
     /// Construct an expected any error.
     pub(crate) fn expected_any_obj(actual: TypeInfo) -> Self {
         Self::new(VmErrorKind::ExpectedAny { actual })
+    }
+}
+
+impl fmt::Debug for RuntimeError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(f)
     }
 }
 
@@ -540,8 +547,8 @@ impl fmt::Display for RuntimeError {
 impl core::error::Error for RuntimeError {}
 
 /// The kind of error encountered.
-#[derive(Debug, PartialEq)]
-#[non_exhaustive]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 #[doc(hidden)]
 pub(crate) enum VmErrorKind {
     AllocError {

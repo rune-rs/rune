@@ -67,14 +67,12 @@ pub mod de {
     impl Error {
         #[rune::function(protocol = STRING_DISPLAY)]
         pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
-            vm_write!(f, "{}", self.error);
-            VmResult::Ok(())
+            vm_write!(f, "{}", self.error)
         }
 
         #[rune::function(protocol = STRING_DEBUG)]
         pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-            vm_write!(f, "{:?}", self.error);
-            VmResult::Ok(())
+            vm_write!(f, "{:?}", self.error)
         }
     }
 
@@ -89,7 +87,7 @@ pub mod ser {
     //! Serializer types for the toml module.
 
     use rune::{Any, Module, ContextError, vm_write};
-    use rune::runtime::Formatter;
+    use rune::runtime::{Formatter, VmResult};
     use rune::alloc::fmt::TryWrite;
 
     pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -107,14 +105,14 @@ pub mod ser {
     }
 
     impl Error {
-        #[rune::function(vm_result, protocol = STRING_DISPLAY)]
-        pub(crate) fn display(&self, f: &mut Formatter) {
-            vm_write!(f, "{}", self.error);
+        #[rune::function(protocol = STRING_DISPLAY)]
+        pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
+            vm_write!(f, "{}", self.error)
         }
 
-        #[rune::function(vm_result, protocol = STRING_DEBUG)]
-        pub(crate) fn debug(&self, f: &mut Formatter) {
-            vm_write!(f, "{:?}", self.error);
+        #[rune::function(protocol = STRING_DEBUG)]
+        pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
+            vm_write!(f, "{:?}", self.error)
         }
     }
 

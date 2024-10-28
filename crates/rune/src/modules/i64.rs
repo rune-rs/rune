@@ -606,7 +606,7 @@ fn partial_cmp(this: i64, rhs: i64) -> Option<Ordering> {
     this.partial_cmp(&rhs)
 }
 
-/// Perform a partial ordered comparison between two integers.
+/// Perform a totally ordered comparison between two integers.
 ///
 /// # Examples
 ///
