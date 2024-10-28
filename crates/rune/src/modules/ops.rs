@@ -179,6 +179,17 @@ pub fn module() -> Result<Module, ContextError> {
 
     {
         m.ty::<ControlFlow>()?;
+
+        m.function_meta(ControlFlow::partial_eq__meta)?;
+        m.implement_trait::<ControlFlow>(rune::item!(::std::cmp::PartialEq))?;
+
+        m.function_meta(ControlFlow::eq__meta)?;
+        m.implement_trait::<ControlFlow>(rune::item!(::std::cmp::Eq))?;
+
+        m.function_meta(ControlFlow::string_debug__meta)?;
+
+        m.function_meta(ControlFlow::clone__meta)?;
+        m.implement_trait::<ControlFlow>(rune::item!(::std::clone::Clone))?;
     }
 
     m.ty::<Function>()?;

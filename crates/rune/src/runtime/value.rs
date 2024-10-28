@@ -414,7 +414,6 @@ impl Value {
                     Mutable::Vec(value) => Mutable::Vec(vm_try!(value.try_clone())),
                     Mutable::Tuple(value) => Mutable::Tuple(vm_try!(value.try_clone())),
                     Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
-                    Mutable::ControlFlow(value) => Mutable::ControlFlow(vm_try!(value.try_clone())),
                     Mutable::Stream(value) => Mutable::Stream(vm_try!(value.try_clone())),
                     Mutable::Generator(value) => Mutable::Generator(vm_try!(value.try_clone())),
                     Mutable::GeneratorState(value) => {
@@ -491,9 +490,6 @@ impl Value {
                 }
                 Mutable::Object(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::ControlFlow(value) => {
-                    vm_try!(ControlFlow::string_debug_with(value, f, caller));
                 }
                 Mutable::Future(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
@@ -822,16 +818,6 @@ impl Value {
     }
 
     into! {
-        /// Coerce into a [`ControlFlow`].
-        ControlFlow(ControlFlow),
-        into_control_flow_ref,
-        into_control_flow_mut,
-        borrow_control_flow_ref,
-        borrow_control_flow_mut,
-        into_control_flow,
-    }
-
-    into! {
         /// Coerce into a [`Function`].
         Function(Function),
         into_function_ref,
@@ -1142,9 +1128,6 @@ impl Value {
                     });
                 }
                 (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b2)) => match (&**a, &*b2) {
-                    (Mutable::ControlFlow(a), Mutable::ControlFlow(b)) => {
-                        return ControlFlow::partial_eq_with(a, b, caller);
-                    }
                     (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                         if a.rtti.hash == b.rtti.hash {
                             // NB: don't get any future ideas, this must fall through to
@@ -1335,9 +1318,6 @@ impl Value {
                 }
                 (Mutable::Object(a), Mutable::Object(b)) => {
                     return Object::eq_with(a, b, Value::eq_with, caller);
-                }
-                (Mutable::ControlFlow(a), Mutable::ControlFlow(b)) => {
-                    return ControlFlow::eq_with(a, b, caller);
                 }
                 (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
@@ -1940,7 +1920,6 @@ inline_from! {
 }
 
 from! {
-    ControlFlow => ControlFlow,
     Function => Function,
     GeneratorState => GeneratorState,
     Vec => Vec,
@@ -1959,6 +1938,7 @@ any_from! {
     String,
     Bytes,
     Format,
+    ControlFlow,
 }
 
 from_container! {
@@ -2237,8 +2217,6 @@ pub(crate) enum Mutable {
     Tuple(OwnedTuple),
     /// An object.
     Object(Object),
-    /// A control flow indicator.
-    ControlFlow(ControlFlow),
     /// A stored future.
     Future(Future),
     /// A Stream.
@@ -2269,7 +2247,6 @@ impl Mutable {
             Mutable::Vec(..) => TypeInfo::static_type(static_type::VEC),
             Mutable::Tuple(..) => TypeInfo::static_type(static_type::TUPLE),
             Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
-            Mutable::ControlFlow(..) => TypeInfo::static_type(static_type::CONTROL_FLOW),
             Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
             Mutable::Stream(..) => TypeInfo::static_type(static_type::STREAM),
             Mutable::Generator(..) => TypeInfo::static_type(static_type::GENERATOR),
@@ -2293,7 +2270,6 @@ impl Mutable {
             Mutable::Vec(..) => static_type::VEC.hash,
             Mutable::Tuple(..) => static_type::TUPLE.hash,
             Mutable::Object(..) => static_type::OBJECT.hash,
-            Mutable::ControlFlow(..) => static_type::CONTROL_FLOW.hash,
             Mutable::Future(..) => static_type::FUTURE.hash,
             Mutable::Stream(..) => static_type::STREAM.hash,
             Mutable::Generator(..) => static_type::GENERATOR.hash,
