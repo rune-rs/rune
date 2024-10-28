@@ -1905,6 +1905,42 @@ impl TryFrom<Mutable> for Value {
     }
 }
 
+impl TryFrom<&str> for Value {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Value::new(String::try_from(value)?)
+    }
+}
+
+impl IntoOutput for &str {
+    type Output = String;
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(vm_try!(String::try_from(self)))
+    }
+}
+
+impl TryFrom<&[u8]> for Value {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Value::new(Bytes::try_from(value)?)
+    }
+}
+
+impl IntoOutput for &[u8] {
+    type Output = Bytes;
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(vm_try!(Bytes::try_from(self)))
+    }
+}
+
 impl IntoOutput for Mutable {
     type Output = Mutable;
 
