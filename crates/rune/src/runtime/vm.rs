@@ -2966,7 +2966,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, addr: InstAddress, spec: FormatSpec, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr)).clone();
-        vm_try!(out.store(&mut self.stack, Mutable::Format(Format { value, spec })));
+        vm_try!(out.store(&mut self.stack, || Format { value, spec }));
         VmResult::Ok(())
     }
 

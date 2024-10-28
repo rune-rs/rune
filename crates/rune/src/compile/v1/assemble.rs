@@ -984,7 +984,7 @@ fn block_without_scope<'a, 'hir>(
     Ok(Asm::new(hir, ()))
 }
 
-/// Assemble #[builtin] format_args!(...) macro.
+/// Assemble #[builtin] format!(...) macro.
 #[instrument_ast(span = format)]
 fn builtin_format<'a, 'hir>(
     cx: &mut Ctxt<'a, 'hir, '_>,

@@ -84,9 +84,6 @@ impl ser::Serialize for Value {
                 Mutable::Function(..) => {
                     Err(ser::Error::custom("cannot serialize function pointers"))
                 }
-                Mutable::Format(..) => {
-                    Err(ser::Error::custom("cannot serialize format specifications"))
-                }
                 Mutable::ControlFlow(..) => {
                     Err(ser::Error::custom("cannot serialize `start..end` ranges"))
                 }

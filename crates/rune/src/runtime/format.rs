@@ -41,15 +41,14 @@ impl fmt::Display for AlignmentFromStrError {
 
 /// A format specification, wrapping an inner value.
 #[derive(Any, Debug, Clone, TryClone)]
-#[rune(builtin, static_type = FORMAT)]
+#[rune(static_type = FORMAT)]
 pub struct Format {
     /// The value being formatted.
     pub(crate) value: Value,
     /// The specification.
+    #[try_clone(copy)]
     pub(crate) spec: FormatSpec,
 }
-
-from_value2!(Format, into_format_ref, into_format_mut, into_format);
 
 /// A format specification.
 #[derive(Debug, Clone, Copy, TryClone, Serialize, Deserialize, Decode, Encode)]
