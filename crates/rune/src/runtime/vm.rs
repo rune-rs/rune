@@ -14,7 +14,7 @@ use crate::modules::{option, result};
 use crate::runtime::future::SelectFuture;
 use crate::runtime::unit::{UnitFn, UnitStorage};
 use crate::runtime::{
-    self, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, EmptyStruct,
+    self, Args, Awaited, BorrowMut, Call, ControlFlow, DynArgs, DynGuardedArgs, EmptyStruct,
     Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inline,
     Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant,
     Mutable, Object, Output, OwnedTuple, Pair, Panic, Protocol, Range, RangeFrom, RangeFull,
@@ -2931,14 +2931,14 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string(&mut self, slot: usize, out: Output) -> VmResult<()> {
         let string = vm_try!(self.unit.lookup_string(slot));
-        vm_try!(out.store(&mut self.stack, || String::try_from(string.as_str())));
+        vm_try!(out.store(&mut self.stack, string.as_str()));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_bytes(&mut self, slot: usize, out: Output) -> VmResult<()> {
         let bytes = vm_try!(self.unit.lookup_bytes(slot));
-        vm_try!(out.store(&mut self.stack, || Bytes::try_from(bytes)));
+        vm_try!(out.store(&mut self.stack, bytes));
         VmResult::Ok(())
     }
 
