@@ -8,6 +8,7 @@ use std::path::Path;
 
 use crate::alloc::borrow::Cow;
 use crate::alloc::{String, Vec};
+use crate::runtime::Protocol;
 use crate::ItemBuf;
 
 use anyhow::{Context as _, Error, Result};
@@ -27,10 +28,22 @@ pub(crate) struct TestParams {
     pub(crate) ignore: bool,
 }
 
+/// The kind of a test.
+#[derive(Default, Debug, Clone, Copy)]
+pub(crate) enum TestKind {
+    /// The test originates from a free function.
+    #[default]
+    Free,
+    /// The test originates from a protocol function.
+    Protocol(Protocol),
+}
+
 /// A discovered test.
 pub(crate) struct Test {
     /// Item of the test.
     pub(crate) item: ItemBuf,
+    /// The kind of a test.
+    pub(crate) kind: TestKind,
     /// Lines that make up the tests.
     pub(crate) content: String,
     /// Test parameters.

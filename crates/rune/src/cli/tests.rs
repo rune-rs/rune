@@ -12,13 +12,13 @@ use crate::alloc::prelude::*;
 use crate::cli::naming::Naming;
 use crate::cli::visitor;
 use crate::cli::{
-    AssetKind, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, Options, SharedFlags,
+    AssetKind, Color, CommandBase, Config, Entry, EntryPoint, ExitCode, Io, Options, SharedFlags,
+    Stream,
 };
 use crate::compile::FileSourceLoader;
-use crate::doc::TestParams;
+use crate::doc::{TestKind, TestParams};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Mutable, OwnedRepr, Value, Vm, VmError, VmResult};
-use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, Unit};
 
 mod cli {
@@ -103,8 +103,6 @@ pub(super) async fn run<'p, I>(
 where
     I: IntoIterator<Item = EntryPoint<'p>>,
 {
-    let colors = Colors::new();
-
     let start = Instant::now();
 
     let mut executed = 0usize;
@@ -189,6 +187,7 @@ where
             cases.try_push(TestCase::new(
                 hash,
                 item,
+                TestKind::Free,
                 unit.clone(),
                 sources.clone(),
                 TestParams::default(),
@@ -261,26 +260,28 @@ where
             .iter()
             .all(|case| case.filtered || case.params.no_run);
 
+        let mut section = None;
+
         if shared.verbose {
             if all_ignored {
-                io.stdout.set_color(&colors.ignored)?;
-                write!(io.stdout, "{:>12}", "Ignoring")?;
-                io.stdout.reset()?;
+                section = Some(("Ignoring", Color::Ignore));
             } else {
-                io.stdout.set_color(&colors.highlight)?;
-                write!(io.stdout, "{:>12}", "Running")?;
-                io.stdout.reset()?;
+                section = Some(("Running", Color::Highlight));
             }
         }
 
-        if !flags.quiet && !all_ignored {
-            write!(io.stdout, " {} {}", batch.cases.len(), batch.kind)?;
+        if let Some((title, color)) = section {
+            let mut section = io.section(title, Stream::Stdout, color)?;
 
-            if let Some(entry) = batch.entry {
-                write!(io.stdout, " from {entry}")?;
+            if !flags.quiet && !all_ignored {
+                section.append(format_args!(" {} {}", batch.cases.len(), batch.kind))?;
+
+                if let Some(entry) = batch.entry {
+                    section.append(format_args!(" from {entry}"))?;
+                }
             }
 
-            writeln!(io.stdout)?;
+            section.close()?;
         }
 
         for mut case in batch.cases {
@@ -301,7 +302,7 @@ where
                 if flags.quiet {
                     write!(io.stdout, ".")?;
                 } else {
-                    case.emit(io, &colors)?;
+                    case.emit(io)?;
                 }
 
                 continue;
@@ -326,47 +327,43 @@ where
     let failures = failed.len();
 
     for case in failed {
-        case.emit(io, &colors)?;
+        case.emit(io)?;
     }
 
     let elapsed = start.elapsed();
 
-    io.stdout.set_color(&colors.highlight)?;
-    write!(io.stdout, "{:>12}", "Executed")?;
-    io.stdout.reset()?;
+    let mut section = io.section("Executed", Stream::Stdout, Color::Highlight)?;
 
-    write!(io.stdout, " {executed} tests")?;
+    section.append(format_args!(" {executed} tests"))?;
 
     let any = failures > 0 || build_errors > 0 || skipped > 0;
 
     if any {
-        write!(io.stdout, " with")?;
+        section.append(" with")?;
 
         let mut first = true;
 
-        let mut emit = |color: &ColorSpec, count: usize, singular: &str, plural: &str| {
+        let mut emit = |color: Color, count: usize, singular: &str, plural: &str| {
             if count == 0 {
                 return Ok::<_, anyhow::Error>(());
             }
 
             if !take(&mut first) {
-                write!(io.stdout, ", ")?;
+                section.append(", ")?;
             } else {
-                write!(io.stdout, " ")?;
+                section.append(" ")?;
             }
 
             let what = if count == 1 { singular } else { plural };
 
-            write!(io.stdout, "{count} ")?;
-            io.stdout.set_color(color)?;
-            write!(io.stdout, "{what}")?;
-            io.stdout.reset()?;
+            section.append(format_args!("{count} "))?;
+            section.append_with(what, color)?;
             Ok::<_, anyhow::Error>(())
         };
 
-        emit(&colors.error, failures, "failure", "failures")?;
-        emit(&colors.error, build_errors, "build error", "build errors")?;
-        emit(&colors.ignored, skipped, "ignored", "ignored")?;
+        emit(Color::Error, failures, "failure", "failures")?;
+        emit(Color::Error, build_errors, "build error", "build errors")?;
+        emit(Color::Ignore, skipped, "ignored", "ignored")?;
     }
 
     writeln!(io.stdout, " in {:.3} seconds", elapsed.as_secs_f64())?;
@@ -432,6 +429,7 @@ fn populate_doc_tests(
             cases.try_push(TestCase::new(
                 Hash::EMPTY,
                 test.item.try_clone()?,
+                test.kind,
                 unit.clone(),
                 sources.clone(),
                 test.params,
@@ -460,6 +458,7 @@ impl Outcome {
 struct TestCase {
     hash: Hash,
     item: ItemBuf,
+    kind: TestKind,
     unit: Arc<Unit>,
     sources: Arc<Sources>,
     params: TestParams,
@@ -472,6 +471,7 @@ impl TestCase {
     fn new(
         hash: Hash,
         item: ItemBuf,
+        kind: TestKind,
         unit: Arc<Unit>,
         sources: Arc<Sources>,
         params: TestParams,
@@ -480,6 +480,7 @@ impl TestCase {
         Self {
             hash,
             item,
+            kind,
             unit,
             sources,
             params,
@@ -523,46 +524,40 @@ impl TestCase {
         Ok(())
     }
 
-    fn emit(self, io: &mut Io<'_>, colors: &Colors) -> Result<()> {
-        io.stdout.set_color(&colors.highlight)?;
-        write!(io.stdout, "{:>12}", "Test")?;
-        io.stdout.reset()?;
+    fn emit(self, io: &mut Io<'_>) -> Result<()> {
+        let mut section = io.section("Test", Stream::Stdout, Color::Highlight)?;
 
-        write!(io.stdout, " {}: ", self.item)?;
+        match self.kind {
+            TestKind::Free => {
+                section.append(format_args!(" {}: ", self.item))?;
+            }
+            TestKind::Protocol(protocol) => {
+                section.append(format_args!(" {}", self.item))?;
+                section.append_with(format_args!(" {}: ", protocol.name), Color::Important)?;
+            }
+        }
 
         match &self.outcome {
             Outcome::Panic(error) => {
-                io.stdout.set_color(&colors.error)?;
-                writeln!(io.stdout, "panicked")?;
-                io.stdout.reset()?;
-
-                error.emit(io.stdout, &self.sources)?;
+                section.error("panicked")?;
+                error.emit(section.io, &self.sources)?;
             }
             Outcome::ExpectedPanic => {
-                io.stdout.set_color(&colors.error)?;
-                writeln!(
-                    io.stdout,
-                    "expected panic because of `should_panic`, but ran without issue"
-                )?;
-                io.stdout.reset()?;
+                section.error("expected panic because of `should_panic`, but ran without issue")?;
             }
             Outcome::Err(error) => {
-                io.stdout.set_color(&colors.error)?;
-                write!(io.stdout, "err: ")?;
-                io.stdout.reset()?;
-                writeln!(io.stdout, "{:?}", error)?;
+                section.error("err: ")?;
+                section.append(format_args!("{error:?}"))?;
             }
             Outcome::None => {
-                io.stdout.set_color(&colors.error)?;
-                writeln!(io.stdout, "returned none")?;
-                io.stdout.reset()?;
+                section.error("returned none")?;
             }
             Outcome::Ok => {
-                io.stdout.set_color(&colors.passed)?;
-                writeln!(io.stdout, "ok")?;
-                io.stdout.reset()?;
+                section.passed("ok")?;
             }
         }
+
+        section.close()?;
 
         if !self.outcome.is_ok() && !self.output.is_empty() {
             writeln!(io.stdout, "-- output --")?;
@@ -571,31 +566,5 @@ impl TestCase {
         }
 
         Ok(())
-    }
-}
-
-struct Colors {
-    error: ColorSpec,
-    passed: ColorSpec,
-    highlight: ColorSpec,
-    ignored: ColorSpec,
-}
-
-impl Colors {
-    fn new() -> Self {
-        let mut this = Self {
-            error: ColorSpec::new(),
-            passed: ColorSpec::new(),
-            highlight: ColorSpec::new(),
-            ignored: ColorSpec::new(),
-        };
-
-        this.error.set_fg(Some(Color::Red));
-        this.passed.set_fg(Some(Color::Green));
-        this.highlight.set_fg(Some(Color::Green));
-        this.highlight.set_bold(true);
-        this.ignored.set_fg(Some(Color::Yellow));
-        this.ignored.set_bold(true);
-        this
     }
 }
