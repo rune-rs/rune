@@ -7,7 +7,7 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ir::{self};
 use crate::compile::{self, WithSpan};
 use crate::query::Used;
-use crate::runtime::{Inline, Object, OwnedTuple, Value, ValueBorrowRef};
+use crate::runtime::{BorrowRefRepr, Inline, Object, OwnedTuple, Value};
 use crate::TypeHash;
 
 /// The outcome of a constant evaluation.
@@ -72,11 +72,11 @@ fn eval_ir_binary(
     let a = eval_ir(&ir.lhs, interp, used)?;
     let b = eval_ir(&ir.rhs, interp, used)?;
 
-    let a = a.borrow_ref().with_span(ir)?;
-    let b = b.borrow_ref().with_span(ir)?;
+    let a = a.borrow_ref_repr().with_span(ir)?;
+    let b = b.borrow_ref_repr().with_span(ir)?;
 
     match (a, b) {
-        (ValueBorrowRef::Inline(a), ValueBorrowRef::Inline(b)) => {
+        (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
             let out = 'out: {
                 match (a, b) {
                     (Inline::Integer(a), Inline::Integer(b)) => match ir.op {
@@ -140,7 +140,7 @@ fn eval_ir_binary(
 
             return Ok(Value::from(out));
         }
-        (ValueBorrowRef::Any(a), ValueBorrowRef::Any(b)) => {
+        (BorrowRefRepr::Any(a), BorrowRefRepr::Any(b)) => {
             let value = 'out: {
                 if let (String::HASH, String::HASH) = (a.type_hash(), b.type_hash()) {
                     let a = a.borrow_ref::<String>().with_span(span)?;
@@ -353,10 +353,10 @@ fn eval_ir_template(
             }
             ir::IrTemplateComponent::Ir(ir) => {
                 let const_value = eval_ir(ir, interp, used)?;
-                let value = const_value.borrow_ref().with_span(ir)?;
+                let value = const_value.borrow_ref_repr().with_span(ir)?;
 
                 match value {
-                    ValueBorrowRef::Inline(value) => match value {
+                    BorrowRefRepr::Inline(value) => match value {
                         Inline::Integer(integer) => {
                             write!(buf, "{integer}")?;
                         }
@@ -371,7 +371,7 @@ fn eval_ir_template(
                             return Err(EvalOutcome::not_const(ir));
                         }
                     },
-                    ValueBorrowRef::Any(value) => match value.type_hash() {
+                    BorrowRefRepr::Any(value) => match value.type_hash() {
                         String::HASH => {
                             let s = value.borrow_ref::<String>().with_span(ir)?;
                             buf.try_push_str(&s)?;
@@ -380,7 +380,7 @@ fn eval_ir_template(
                             return Err(EvalOutcome::not_const(ir));
                         }
                     },
-                    ValueBorrowRef::Mutable(..) => {
+                    BorrowRefRepr::Mutable(..) => {
                         return Err(EvalOutcome::not_const(ir));
                     }
                 }

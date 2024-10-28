@@ -10,7 +10,7 @@ use crate::function;
 use crate::runtime::vm::Isolated;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, GuardedArgs, InstAddress, Mutable, Output,
-    OwnedTuple, Rtti, RuntimeContext, Stack, Unit, Value, ValueRef, VariantRtti, Vm, VmCall,
+    OwnedTuple, RefRepr, Rtti, RuntimeContext, Stack, Unit, Value, VariantRtti, Vm, VmCall,
     VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
@@ -576,7 +576,7 @@ where
             let value: Value = vm_try!(self.call(args));
 
             let value = 'out: {
-                if let ValueRef::Mutable(value) = vm_try!(value.value_ref()) {
+                if let RefRepr::Mutable(value) = vm_try!(value.as_ref_repr()) {
                     let mut value = vm_try!(value.borrow_mut());
 
                     if let Mutable::Future(future) = &mut *value {

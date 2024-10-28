@@ -12,9 +12,9 @@ use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Mutable, Panic, Range,
-    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, ToValue, TypeOf, Value,
-    ValueBorrowRef, VmErrorKind, VmResult,
+    BorrowRefRepr, Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Mutable,
+    Panic, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, ToValue,
+    TypeOf, Value, VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module, TypeHash};
 
@@ -889,11 +889,11 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 /// [`split_whitespace`]: str::split_whitespace
 #[rune::function(instance, deprecated = "Use String::split instead")]
 fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
-    let split = match vm_try!(value.borrow_ref()) {
-        ValueBorrowRef::Inline(Inline::Char(c)) => {
+    let split = match vm_try!(value.borrow_ref_repr()) {
+        BorrowRefRepr::Inline(Inline::Char(c)) => {
             vm_try!(rune::to_value(Split::new(this, *c)))
         }
-        ValueBorrowRef::Mutable(value) => match &*value {
+        BorrowRefRepr::Mutable(value) => match &*value {
             Mutable::Function(ref f) => {
                 vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))))
             }
@@ -904,7 +904,7 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
                 ])
             }
         },
-        ValueBorrowRef::Any(value) => match value.type_hash() {
+        BorrowRefRepr::Any(value) => match value.type_hash() {
             String::HASH => {
                 let s = vm_try!(value.borrow_ref::<String>());
 
@@ -944,9 +944,9 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
 /// ```
 #[rune::function(instance)]
 fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
-    let outcome = match vm_try!(value.borrow_ref()) {
-        ValueBorrowRef::Inline(Inline::Char(pat)) => this.split_once(*pat),
-        ValueBorrowRef::Mutable(value) => match &*value {
+    let outcome = match vm_try!(value.borrow_ref_repr()) {
+        BorrowRefRepr::Inline(Inline::Char(pat)) => this.split_once(*pat),
+        BorrowRefRepr::Mutable(value) => match &*value {
             Mutable::Function(f) => {
                 let mut err = None;
 
@@ -974,7 +974,7 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
                 ])
             }
         },
-        ValueBorrowRef::Any(value) => match value.type_hash() {
+        BorrowRefRepr::Any(value) => match value.type_hash() {
             String::HASH => {
                 let s = vm_try!(value.borrow_ref::<String>());
                 this.split_once(s.as_str())

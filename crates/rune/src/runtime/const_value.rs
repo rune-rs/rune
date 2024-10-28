@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, HashMap, String, Vec};
 use crate::runtime::{
-    self, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, TypeInfo, Value,
-    ValueBorrowRef, VmErrorKind, VmResult,
+    self, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, TypeInfo,
+    Value, VmErrorKind, VmResult,
 };
 use crate::TypeHash;
 
@@ -40,8 +40,8 @@ pub enum ConstValue {
 impl ConstValue {
     /// Construct a constant value from a reference to a value..
     pub(crate) fn from_value_ref(value: &Value) -> VmResult<ConstValue> {
-        VmResult::Ok(match vm_try!(value.borrow_ref()) {
-            ValueBorrowRef::Inline(value) => match *value {
+        VmResult::Ok(match vm_try!(value.borrow_ref_repr()) {
+            BorrowRefRepr::Inline(value) => match *value {
                 Inline::Unit => Self::Unit,
                 Inline::Byte(value) => Self::Byte(value),
                 Inline::Char(value) => Self::Char(value),
@@ -54,7 +54,7 @@ impl ConstValue {
                     })
                 }
             },
-            ValueBorrowRef::Mutable(value) => match &*value {
+            BorrowRefRepr::Mutable(value) => match &*value {
                 Mutable::Option(option) => Self::Option(match option {
                     Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value_ref(some))))),
                     None => None,
@@ -94,7 +94,7 @@ impl ConstValue {
                     })
                 }
             },
-            ValueBorrowRef::Any(value) => match value.type_hash() {
+            BorrowRefRepr::Any(value) => match value.type_hash() {
                 String::HASH => {
                     let s = vm_try!(value.borrow_ref::<String>());
                     Self::String(vm_try!(s.try_to_owned()))

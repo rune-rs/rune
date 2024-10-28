@@ -17,7 +17,7 @@ use crate::cli::{
 use crate::compile::FileSourceLoader;
 use crate::doc::TestParams;
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Mutable, OwnedValue, Value, Vm, VmError, VmResult};
+use crate::runtime::{Mutable, OwnedRepr, Value, Vm, VmError, VmResult};
 use crate::termcolor::{Color, ColorSpec, WriteColor};
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, Unit};
 
@@ -498,12 +498,12 @@ impl TestCase {
         capture_io.drain_into(&mut self.output)?;
 
         self.outcome = match result {
-            VmResult::Ok(v) => match v.take_value()? {
-                OwnedValue::Mutable(Mutable::Result(result)) => match result {
+            VmResult::Ok(v) => match v.take_repr()? {
+                OwnedRepr::Mutable(Mutable::Result(result)) => match result {
                     Ok(..) => Outcome::Ok,
                     Err(error) => Outcome::Err(error),
                 },
-                OwnedValue::Mutable(Mutable::Option(option)) => match option {
+                OwnedRepr::Mutable(Mutable::Option(option)) => match option {
                     Some(..) => Outcome::Ok,
                     None => Outcome::None,
                 },

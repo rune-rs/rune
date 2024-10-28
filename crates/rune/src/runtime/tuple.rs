@@ -6,8 +6,8 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::runtime::{
-    ConstValue, FromValue, Mut, Mutable, RawAnyGuard, Ref, ToValue, UnsafeToMut, UnsafeToRef,
-    Value, ValueRepr, ValueShared, VmErrorKind, VmResult,
+    ConstValue, FromValue, Mut, Mutable, OwnedRepr, RawAnyGuard, Ref, ToValue, UnsafeToMut,
+    UnsafeToRef, Value, ValueShared, VmErrorKind, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, ProtocolCaller};
@@ -280,16 +280,10 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 
 impl FromValue for OwnedTuple {
     fn from_value(value: Value) -> VmResult<Self> {
-        match vm_try!(value.into_repr()) {
-            ValueRepr::Inline(value) => match value {
-                Inline::Unit => VmResult::Ok(Self::new()),
-                actual => VmResult::expected::<Self>(actual.type_info()),
-            },
-            ValueRepr::Mutable(value) => match vm_try!(value.take()) {
-                Mutable::Tuple(tuple) => VmResult::Ok(tuple),
-                actual => VmResult::expected::<Self>(actual.type_info()),
-            },
-            ValueRepr::Any(value) => VmResult::expected::<Self>(value.type_info()),
+        match vm_try!(value.take_repr()) {
+            OwnedRepr::Inline(Inline::Unit) => VmResult::Ok(Self::new()),
+            OwnedRepr::Mutable(Mutable::Tuple(tuple)) => VmResult::Ok(tuple),
+            value => VmResult::expected::<Self>(value.type_info()),
         }
     }
 }

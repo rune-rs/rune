@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Bytes, Inline, Mutable, Object, ValueBorrowRef, Vec};
+use crate::runtime::{BorrowRefRepr, Bytes, Inline, Mutable, Object, Vec};
 use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
@@ -26,8 +26,8 @@ impl ser::Serialize for Value {
     where
         S: ser::Serializer,
     {
-        match self.borrow_ref().map_err(S::Error::custom)? {
-            ValueBorrowRef::Inline(value) => match value {
+        match self.borrow_ref_repr().map_err(S::Error::custom)? {
+            BorrowRefRepr::Inline(value) => match value {
                 Inline::Unit => serializer.serialize_unit(),
                 Inline::Bool(b) => serializer.serialize_bool(*b),
                 Inline::Char(c) => serializer.serialize_char(*c),
@@ -37,7 +37,7 @@ impl ser::Serialize for Value {
                 Inline::Type(..) => Err(ser::Error::custom("cannot serialize types")),
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
-            ValueBorrowRef::Mutable(value) => match &*value {
+            BorrowRefRepr::Mutable(value) => match &*value {
                 Mutable::Vec(vec) => {
                     let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
@@ -91,7 +91,7 @@ impl ser::Serialize for Value {
                     Err(ser::Error::custom("cannot serialize `start..end` ranges"))
                 }
             },
-            ValueBorrowRef::Any(value) => match value.type_hash() {
+            BorrowRefRepr::Any(value) => match value.type_hash() {
                 String::HASH => {
                     let string = value.borrow_ref::<String>().map_err(S::Error::custom)?;
                     serializer.serialize_str(string.as_str())

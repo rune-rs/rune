@@ -7,7 +7,7 @@ use crate::compile::meta;
 use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
 use crate::hir;
 use crate::query::{Query, Used};
-use crate::runtime::{ConstValue, Mutable, Object, OwnedTuple, Value, ValueBorrowRef, ValueRef};
+use crate::runtime::{BorrowRefRepr, ConstValue, Mutable, Object, OwnedTuple, RefRepr, Value};
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
 pub struct Interpreter<'a, 'arena> {
@@ -184,10 +184,10 @@ impl ir::Scopes {
             ir::IrTargetKind::Name(name) => Ok(self.get_name(name, ir_target)?.clone()),
             ir::IrTargetKind::Field(ir_target, field) => {
                 let value = self.get_target(ir_target)?;
-                let value = value.borrow_ref().with_span(ir_target)?;
+                let value = value.borrow_ref_repr().with_span(ir_target)?;
 
                 let value = match value {
-                    ValueBorrowRef::Mutable(value) => value,
+                    BorrowRefRepr::Mutable(value) => value,
                     actual => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
@@ -219,10 +219,10 @@ impl ir::Scopes {
             }
             ir::IrTargetKind::Index(target, index) => {
                 let value = self.get_target(target)?;
-                let target = value.borrow_ref().with_span(ir_target)?;
+                let target = value.borrow_ref_repr().with_span(ir_target)?;
 
                 match target {
-                    ValueBorrowRef::Mutable(value) => {
+                    BorrowRefRepr::Mutable(value) => {
                         match &*value {
                             Mutable::Vec(vec) => {
                                 if let Some(value) = vec.get(*index) {
@@ -272,8 +272,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Field(target, field) => {
                 let target = self.get_target(target)?;
 
-                let mut target = match target.value_ref().with_span(ir_target)? {
-                    ValueRef::Mutable(current) => current.borrow_mut().with_span(ir_target)?,
+                let mut target = match target.as_ref_repr().with_span(ir_target)? {
+                    RefRepr::Mutable(current) => current.borrow_mut().with_span(ir_target)?,
                     actual => {
                         return Err(compile::Error::expected_type::<Object>(
                             ir_target,
@@ -300,8 +300,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let target = self.get_target(target)?;
 
-                let mut target = match target.value_ref().with_span(ir_target)? {
-                    ValueRef::Mutable(current) => current.borrow_mut().with_span(ir_target)?,
+                let mut target = match target.as_ref_repr().with_span(ir_target)? {
+                    RefRepr::Mutable(current) => current.borrow_mut().with_span(ir_target)?,
                     actual => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
@@ -350,8 +350,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Field(target, field) => {
                 let value = self.get_target(target)?;
 
-                let mut value = match value.value_ref().with_span(ir_target)? {
-                    ValueRef::Mutable(value) => value.borrow_mut().with_span(ir_target)?,
+                let mut value = match value.as_ref_repr().with_span(ir_target)? {
+                    RefRepr::Mutable(value) => value.borrow_mut().with_span(ir_target)?,
                     actual => {
                         return Err(compile::Error::expected_type::<Object>(
                             ir_target,
@@ -382,8 +382,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let current = self.get_target(target)?;
 
-                let mut value = match current.value_ref().with_span(ir_target)? {
-                    ValueRef::Mutable(value) => value.borrow_mut().with_span(ir_target)?,
+                let mut value = match current.as_ref_repr().with_span(ir_target)? {
+                    RefRepr::Mutable(value) => value.borrow_mut().with_span(ir_target)?,
                     actual => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
