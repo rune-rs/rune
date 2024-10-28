@@ -11,20 +11,18 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
-use crate::runtime::future::SelectFuture;
-use crate::runtime::unit::{UnitFn, UnitStorage};
-use crate::runtime::{
-    self, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, EmptyStruct,
-    Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GuardedArgs, Inline,
-    Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant,
-    Mutable, Object, Output, OwnedTuple, Pair, Panic, Protocol, Range, RangeFrom, RangeFull,
-    RangeInclusive, RangeTo, RangeToInclusive, RuntimeContext, Select, Stack, Stream, Struct, Type,
-    TypeCheck, TypeOf, Unit, Value, ValueBorrowRef, ValueMut, ValueRef, Variant, VariantData, Vec,
-    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
-};
-use crate::runtime::{budget, ProtocolCaller};
 
-use super::{VmDiagnostics, VmDiagnosticsObj};
+use super::{
+    budget, static_type, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs,
+    DynGuardedArgs, EmptyStruct, Format, FormatSpec, Formatter, FromValue, Function, Future,
+    Generator, GuardedArgs, Inline, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget,
+    InstValue, InstVariant, Mutable, Object, Output, OwnedTuple, Pair, Panic, Protocol,
+    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+    RuntimeContext, Select, SelectFuture, Stack, Stream, Struct, Type, TypeCheck, TypeOf, Unit,
+    UnitFn, UnitStorage, Value, ValueBorrowRef, ValueMut, ValueRef, Variant, VariantData, Vec,
+    VmDiagnostics, VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    VmResult, VmSendExecution,
+};
 
 /// Helper to take a value, replacing the old one with empty.
 #[inline(always)]
@@ -1238,9 +1236,9 @@ impl Vm {
         macro_rules! convert {
             ($from:ty, $value:expr) => {
                 match ty.into_hash() {
-                    runtime::static_type::FLOAT_HASH => Value::from($value as f64),
-                    runtime::static_type::BYTE_HASH => Value::from($value as u8),
-                    runtime::static_type::INTEGER_HASH => Value::from($value as i64),
+                    static_type::FLOAT_HASH => Value::from($value as f64),
+                    static_type::BYTE_HASH => Value::from($value as u8),
+                    static_type::INTEGER_HASH => Value::from($value as i64),
                     ty => {
                         return err(VmErrorKind::UnsupportedAs {
                             value: <$from as TypeOf>::type_info(),
@@ -2931,14 +2929,14 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string(&mut self, slot: usize, out: Output) -> VmResult<()> {
         let string = vm_try!(self.unit.lookup_string(slot));
-        vm_try!(out.store(&mut self.stack, || String::try_from(string.as_str())));
+        vm_try!(out.store(&mut self.stack, string.as_str()));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_bytes(&mut self, slot: usize, out: Output) -> VmResult<()> {
         let bytes = vm_try!(self.unit.lookup_bytes(slot));
-        vm_try!(out.store(&mut self.stack, || Bytes::try_from(bytes)));
+        vm_try!(out.store(&mut self.stack, bytes));
         VmResult::Ok(())
     }
 
