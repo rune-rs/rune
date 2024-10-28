@@ -118,23 +118,23 @@ impl_copy!(i128);
 impl_copy!(f32);
 impl_copy!(f64);
 
-impl_copy!(::core::num::NonZeroUsize);
-impl_copy!(::core::num::NonZeroIsize);
-impl_copy!(::core::num::NonZeroU8);
-impl_copy!(::core::num::NonZeroU16);
-impl_copy!(::core::num::NonZeroU32);
-impl_copy!(::core::num::NonZeroU64);
-impl_copy!(::core::num::NonZeroU128);
-impl_copy!(::core::num::NonZeroI8);
-impl_copy!(::core::num::NonZeroI16);
-impl_copy!(::core::num::NonZeroI32);
-impl_copy!(::core::num::NonZeroI64);
-impl_copy!(::core::num::NonZeroI128);
+impl_copy!(core::num::NonZeroUsize);
+impl_copy!(core::num::NonZeroIsize);
+impl_copy!(core::num::NonZeroU8);
+impl_copy!(core::num::NonZeroU16);
+impl_copy!(core::num::NonZeroU32);
+impl_copy!(core::num::NonZeroU64);
+impl_copy!(core::num::NonZeroU128);
+impl_copy!(core::num::NonZeroI8);
+impl_copy!(core::num::NonZeroI16);
+impl_copy!(core::num::NonZeroI32);
+impl_copy!(core::num::NonZeroI64);
+impl_copy!(core::num::NonZeroI128);
 
 #[cfg(feature = "std")]
 impl_copy!(::std::process::ExitStatus);
 
-impl<T, E> TryClone for ::core::result::Result<T, E>
+impl<T, E> TryClone for core::result::Result<T, E>
 where
     T: TryClone,
     E: TryClone,
@@ -148,7 +148,7 @@ where
     }
 }
 
-impl<T> TryClone for ::core::option::Option<T>
+impl<T> TryClone for core::option::Option<T>
 where
     T: TryClone,
 {

@@ -87,8 +87,8 @@ impl core::error::Error for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        ::core::fmt::Display::fmt(&self.kind, f)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.kind, f)
     }
 }
 

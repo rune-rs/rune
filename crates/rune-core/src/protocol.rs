@@ -510,8 +510,8 @@ define! {
     /// Note that it uses the `Result` like [`Try`] uses [`ControlFlow`] i.e.,
     /// for `Result::<T, E>` it should return `Result<T, Result<(), E>>`
     ///
-    /// [`Try`]: ::core::ops::Try
-    /// [`ControlFlow`]: ::core::ops::ControlFlow
+    /// [`Try`]: core::ops::Try
+    /// [`ControlFlow`]: core::ops::ControlFlow
     pub const [TRY, TRY_HASH]: Protocol = Protocol {
         name: "try",
         hash: 0x5da1a80787003354u64,
