@@ -19,7 +19,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashSet, VecDeque};
 use crate::compile::meta;
-use crate::doc::artifacts::Test;
+use crate::doc::artifacts::{Test, TestKind};
 use crate::doc::context::{Function, Kind, Meta, Signature};
 use crate::doc::templating;
 use crate::doc::{Artifacts, Context, Visitor};
@@ -340,6 +340,8 @@ pub(crate) struct State<'m> {
     path: RelativePathBuf,
     #[try_clone(copy)]
     item: &'m Item,
+    #[try_clone(copy)]
+    kind: TestKind,
 }
 
 pub(crate) struct Ctxt<'a, 'm> {
@@ -375,6 +377,7 @@ impl<'m> Ctxt<'_, 'm> {
             kind => bail!("Cannot set path for {kind:?}"),
         };
 
+        self.state.kind = TestKind::default();
         self.state.path = RelativePathBuf::new();
         self.state.item = meta.item;
 
@@ -514,6 +517,7 @@ impl<'m> Ctxt<'_, 'm> {
         for (content, params) in tests {
             self.tests.try_push(Test {
                 item: self.state.item.try_to_owned()?,
+                kind: self.state.kind,
                 content,
                 params,
             })?;

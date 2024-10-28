@@ -7,6 +7,7 @@ use serde::Serialize;
 use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
+use crate::doc::artifacts::TestKind;
 use crate::doc::context::{Assoc, AssocFnKind, Kind, Meta};
 use crate::item::ComponentRef;
 use crate::{Hash, Item};
@@ -218,11 +219,15 @@ fn associated_for_hash<'m>(
                         }
                     };
 
+                    let kind = replace(&mut cx.state.kind, TestKind::Protocol(protocol));
+
                     let doc = if assoc.docs.is_empty() {
                         cx.render_docs(meta, protocol.doc, false)?
                     } else {
                         cx.render_docs(meta, assoc.docs, capture_tests)?
                     };
+
+                    cx.state.kind = kind;
 
                     let repr = if let Some(repr) = protocol.repr {
                         Some(cx.render_code([repr.replace("$value", value.as_ref())])?)

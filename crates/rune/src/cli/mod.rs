@@ -14,6 +14,7 @@ mod format;
 mod languageserver;
 mod loader;
 mod naming;
+mod out;
 mod run;
 mod tests;
 mod visitor;
@@ -36,8 +37,10 @@ use tracing_subscriber::filter::EnvFilter;
 
 use crate::compile::ParseOptionError;
 use crate::modules::capture_io::CaptureIo;
-use crate::termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use crate::termcolor::{ColorChoice, StandardStream};
 use crate::{Context, ContextError, Hash, ItemBuf, Options};
+
+use self::out::{Color, Io, Stream};
 
 /// Default about splash.
 const DEFAULT_ABOUT: &str = "The Rune Language Interpreter";
@@ -135,7 +138,7 @@ impl<'a> Entry<'a> {
             Err(error) => {
                 let o = std::io::stderr();
                 // ignore error because stdout / stderr might've been closed.
-                let _ = format_errors(o.lock(), &error);
+                let _ = format_errors(&mut o.lock(), &error);
                 std::process::exit(ExitCode::Failure as i32);
             }
         }
@@ -152,7 +155,7 @@ impl<'a> Entry<'a> {
             Err(error) => {
                 let o = std::io::stderr();
                 // ignore error because stdout / stderr might've been closed.
-                let _ = format_errors(o.lock(), &error);
+                let _ = format_errors(&mut o.lock(), &error);
                 std::process::exit(ExitCode::Failure as i32);
             }
         }
@@ -213,10 +216,7 @@ impl<'a> Entry<'a> {
         let mut stdout = StandardStream::stdout(choice);
         let mut stderr = StandardStream::stderr(choice);
 
-        let mut io = Io {
-            stdout: &mut stdout,
-            stderr: &mut stderr,
-        };
+        let mut io = Io::new(&mut stdout, &mut stderr);
 
         tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
@@ -225,11 +225,9 @@ impl<'a> Entry<'a> {
         match main_with_out(&mut io, &mut self, args).await {
             Ok(code) => Ok(code),
             Err(error) => {
-                let mut o = io.stdout.lock();
-                o.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
-                let result = format_errors(&mut o, &error);
-                o.set_color(&ColorSpec::new())?;
-                result?;
+                let o = io.with_color(Stream::Stdout, Color::Error)?;
+                format_errors(o, &error)?;
+                o.close()?;
                 Ok(ExitCode::Failure)
             }
         }
@@ -283,11 +281,6 @@ impl fmt::Display for EntryPoint<'_> {
             }
         }
     }
-}
-
-struct Io<'a> {
-    stdout: &'a mut StandardStream,
-    stderr: &'a mut StandardStream,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -722,9 +715,9 @@ enum ExitCode {
 }
 
 /// Format the given error.
-fn format_errors<O>(mut o: O, error: &Error) -> io::Result<()>
+fn format_errors<O>(o: &mut O, error: &Error) -> io::Result<()>
 where
-    O: io::Write,
+    O: ?Sized + io::Write,
 {
     writeln!(o, "Error: {}", error)?;
 
@@ -839,22 +832,19 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
                     writeln!(io.stdout)?;
                 }
 
-                io.stdout
-                    .set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
-                write!(io.stdout, "{}", option.key)?;
-                io.stdout.reset()?;
+                io.write(
+                    format_args!("{}", option.key),
+                    Stream::Stdout,
+                    Color::Highlight,
+                )?;
 
                 write!(io.stdout, "={}", option.default)?;
 
                 if option.unstable {
-                    io.stdout
-                        .set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
-                    write!(io.stdout, " (unstable)")?;
-                    io.stdout.reset()?;
+                    io.write(" (unstable)", Stream::Stdout, Color::Error)?;
                 }
 
                 writeln!(io.stdout, ":")?;
-
                 writeln!(io.stdout, "    Options: {}", option.options)?;
                 writeln!(io.stdout)?;
 
@@ -884,19 +874,16 @@ async fn main_with_out(io: &mut Io<'_>, entry: &mut Entry<'_>, mut args: Args) -
                 }
                 BuildPath::Package(p) => {
                     if verbose {
-                        let mut o = io.stderr.lock();
-                        o.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
-                        let result = write!(o, "{:>12}", what);
-                        o.set_color(&ColorSpec::new())?;
-                        o.flush()?;
-                        result?;
-                        writeln!(
-                            o,
+                        let mut section = io.section(what, Stream::Stderr, Color::Highlight)?;
+
+                        section.append(format_args!(
                             " {} `{}` (from {})",
                             p.found.kind,
                             p.found.path.display(),
                             p.package.name
-                        )?;
+                        ))?;
+
+                        section.close()?;
                     }
 
                     entries.try_push(EntryPoint::Package(p))?;

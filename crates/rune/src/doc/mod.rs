@@ -8,7 +8,7 @@ pub(crate) use self::context::{Context, Function, Kind, Meta, Signature};
 #[cfg(feature = "cli")]
 mod artifacts;
 #[cfg(feature = "cli")]
-pub(crate) use self::artifacts::{Artifacts, TestParams};
+pub(crate) use self::artifacts::{Artifacts, TestKind, TestParams};
 
 #[cfg(feature = "cli")]
 mod templating;
