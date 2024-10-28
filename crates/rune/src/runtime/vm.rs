@@ -32,6 +32,7 @@ fn take(value: &mut Value) -> Value {
     replace(value, Value::empty())
 }
 
+#[inline(always)]
 fn consume(value: &mut Value) {
     *value = Value::empty();
 }
