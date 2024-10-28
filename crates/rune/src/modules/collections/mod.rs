@@ -23,16 +23,19 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 
+    #[cfg(feature = "alloc")]
     m.reexport(
         ["HashMap"],
         rune::item!(::std::collections::hash_map::HashMap),
     )?;
 
+    #[cfg(feature = "alloc")]
     m.reexport(
         ["HashSet"],
         rune::item!(::std::collections::hash_set::HashSet),
     )?;
 
+    #[cfg(feature = "alloc")]
     m.reexport(
         ["VecDeque"],
         rune::item!(::std::collections::vec_deque::VecDeque),

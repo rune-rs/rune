@@ -303,17 +303,20 @@ impl Context {
     pub fn with_config(#[allow(unused)] stdio: bool) -> Result<Self, ContextError> {
         let mut this = Self::new();
 
-        this.install(crate::modules::iter::module()?)?;
-        // This must go first, because it includes types which are used in other modules.
-        this.install(crate::modules::core::module()?)?;
+        // NB: Order is important, since later modules might use types defined
+        // in previous modules.
 
+        this.install(crate::modules::iter::module()?)?;
+        this.install(crate::modules::core::module()?)?;
+        this.install(crate::modules::cmp::module()?)?;
+        this.install(crate::modules::any::module()?)?;
         this.install(crate::modules::clone::module()?)?;
         this.install(crate::modules::num::module()?)?;
-        this.install(crate::modules::any::module()?)?;
-        this.install(crate::modules::bytes::module()?)?;
-        this.install(crate::modules::char::module()?)?;
         this.install(crate::modules::hash::module()?)?;
-        this.install(crate::modules::cmp::module()?)?;
+
+        this.install(crate::modules::string::module()?)?;
+        this.install(crate::modules::bytes::module()?)?;
+
         this.install(crate::modules::collections::module()?)?;
         #[cfg(feature = "alloc")]
         this.install(crate::modules::collections::hash_map::module()?)?;
@@ -321,6 +324,8 @@ impl Context {
         this.install(crate::modules::collections::hash_set::module()?)?;
         #[cfg(feature = "alloc")]
         this.install(crate::modules::collections::vec_deque::module()?)?;
+
+        this.install(crate::modules::char::module()?)?;
         this.install(crate::modules::f64::module()?)?;
         this.install(crate::modules::tuple::module()?)?;
         this.install(crate::modules::fmt::module()?)?;
@@ -336,7 +341,6 @@ impl Context {
         this.install(crate::modules::option::module()?)?;
         this.install(crate::modules::result::module()?)?;
         this.install(crate::modules::stream::module()?)?;
-        this.install(crate::modules::string::module()?)?;
         this.install(crate::modules::test::module()?)?;
         this.install(crate::modules::vec::module()?)?;
         this.install(crate::modules::slice::module()?)?;

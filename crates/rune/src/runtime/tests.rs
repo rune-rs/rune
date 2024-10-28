@@ -549,7 +549,7 @@ fn test_clone_issue() {
     let shared = Value::try_from(Bytes::new()).unwrap();
 
     let _ = {
-        let shared = shared.into_bytes_ref().unwrap();
+        let shared = shared.into_any_ref::<Bytes>().unwrap();
         let out = shared.try_clone().unwrap();
         out
     };

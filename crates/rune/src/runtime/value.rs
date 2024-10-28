@@ -425,7 +425,6 @@ impl Value {
                     });
                 }
                 ValueBorrowRef::Mutable(value) => match &*value {
-                    Mutable::Bytes(value) => Mutable::Bytes(vm_try!(value.try_clone())),
                     Mutable::Vec(value) => Mutable::Vec(vm_try!(value.try_clone())),
                     Mutable::Tuple(value) => Mutable::Tuple(vm_try!(value.try_clone())),
                     Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
@@ -499,9 +498,6 @@ impl Value {
             };
 
             match &*vm_try!(value.borrow_ref()) {
-                Mutable::Bytes(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
                 Mutable::Vec(value) => {
                     vm_try!(Vec::string_debug_with(value, f, caller));
                 }
@@ -844,16 +840,6 @@ impl Value {
     }
 
     into! {
-        /// Coerce into [`Bytes`].
-        Bytes(Bytes),
-        into_bytes_ref,
-        into_bytes_mut,
-        borrow_bytes_ref,
-        borrow_bytes_mut,
-        into_bytes,
-    }
-
-    into! {
         /// Coerce into a [`ControlFlow`].
         ControlFlow(ControlFlow),
         into_control_flow_ref,
@@ -1184,9 +1170,6 @@ impl Value {
                     });
                 }
                 (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b2)) => match (&**a, &*b2) {
-                    (Mutable::Bytes(a), Mutable::Bytes(b)) => {
-                        return VmResult::Ok(*a == *b);
-                    }
                     (Mutable::ControlFlow(a), Mutable::ControlFlow(b)) => {
                         return ControlFlow::partial_eq_with(a, b, caller);
                     }
@@ -1313,10 +1296,6 @@ impl Value {
                 }
             },
             ValueBorrowRef::Mutable(value) => match &*value {
-                Mutable::Bytes(bytes) => {
-                    hasher.write(bytes);
-                    return VmResult::Ok(());
-                }
                 Mutable::Tuple(tuple) => {
                     return Tuple::hash_with(tuple, hasher, caller);
                 }
@@ -1373,9 +1352,6 @@ impl Value {
                 });
             }
             (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Bytes(a), Mutable::Bytes(b)) => {
-                    return VmResult::Ok(*a == *b);
-                }
                 (Mutable::Vec(a), Mutable::Vec(b)) => {
                     return Vec::eq_with(a, b, Value::eq_with, caller);
                 }
@@ -1476,9 +1452,6 @@ impl Value {
                 })
             }
             (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Bytes(a), Mutable::Bytes(b)) => {
-                    return VmResult::Ok(a.partial_cmp(b));
-                }
                 (Mutable::Vec(a), Mutable::Vec(b)) => {
                     return Vec::partial_cmp_with(a, b, caller);
                 }
@@ -1571,9 +1544,6 @@ impl Value {
         match (vm_try!(self.borrow_ref()), vm_try!(b.borrow_ref())) {
             (ValueBorrowRef::Inline(a), ValueBorrowRef::Inline(b)) => return a.cmp(b),
             (ValueBorrowRef::Mutable(a), ValueBorrowRef::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Bytes(a), Mutable::Bytes(b)) => {
-                    return VmResult::Ok(a.cmp(b));
-                }
                 (Mutable::Vec(a), Mutable::Vec(b)) => {
                     return Vec::cmp_with(a, b, caller);
                 }
@@ -1962,7 +1932,6 @@ inline_from! {
 }
 
 from! {
-    Bytes => Bytes,
     ControlFlow => ControlFlow,
     Function => Function,
     GeneratorState => GeneratorState,
@@ -1981,6 +1950,7 @@ from! {
 
 any_from! {
     String,
+    Bytes,
 }
 
 from_container! {
@@ -2253,8 +2223,6 @@ impl Inline {
 }
 
 pub(crate) enum Mutable {
-    /// A byte string.
-    Bytes(Bytes),
     /// A vector containing any values.
     Vec(Vec),
     /// A tuple.
@@ -2292,7 +2260,6 @@ pub(crate) enum Mutable {
 impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Mutable::Bytes(..) => TypeInfo::static_type(static_type::BYTES),
             Mutable::Vec(..) => TypeInfo::static_type(static_type::VEC),
             Mutable::Tuple(..) => TypeInfo::static_type(static_type::TUPLE),
             Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
@@ -2318,7 +2285,6 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::Bytes(..) => static_type::BYTES.hash,
             Mutable::Vec(..) => static_type::VEC.hash,
             Mutable::Tuple(..) => static_type::TUPLE.hash,
             Mutable::Object(..) => static_type::OBJECT.hash,
