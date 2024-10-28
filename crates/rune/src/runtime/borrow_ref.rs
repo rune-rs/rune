@@ -41,7 +41,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_ref()?;
+    /// let bytes = bytes.borrow_any_ref::<Bytes>()?;
     ///
     /// let bytes: BorrowRef<[u8]> = BorrowRef::map(bytes, |bytes| &bytes[0..2]);
     ///
@@ -67,7 +67,7 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_ref()?;
+    /// let bytes = bytes.borrow_any_ref::<Bytes>()?;
     ///
     /// let Ok(bytes) = BorrowRef::try_map(bytes, |bytes| bytes.get(0..2)) else {
     ///     panic!("Conversion failed");

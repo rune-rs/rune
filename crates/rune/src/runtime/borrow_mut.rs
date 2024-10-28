@@ -44,9 +44,9 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_mut()?;
+    /// let bytes = bytes.borrow_any_mut::<Bytes>()?;
     ///
-    /// let mut bytes: BorrowMut<[u8]> = BorrowMut::map(bytes, |bytes| &mut bytes[0..2]);
+    /// let mut bytes = BorrowMut::map(bytes, |bytes| &mut bytes[0..2]);
     ///
     /// assert_eq!(&mut bytes[..], &mut [1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
@@ -71,7 +71,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
-    /// let bytes = bytes.borrow_bytes_mut()?;
+    /// let bytes = bytes.borrow_any_mut::<Bytes>()?;
     ///
     /// let Ok(mut bytes) = BorrowMut::try_map(bytes, |bytes| bytes.get_mut(0..2)) else {
     ///     panic!("Conversion failed");

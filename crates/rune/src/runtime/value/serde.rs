@@ -38,7 +38,6 @@ impl ser::Serialize for Value {
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
             ValueBorrowRef::Mutable(value) => match &*value {
-                Mutable::Bytes(bytes) => serializer.serialize_bytes(bytes),
                 Mutable::Vec(vec) => {
                     let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
@@ -96,6 +95,10 @@ impl ser::Serialize for Value {
                 String::HASH => {
                     let string = value.borrow_ref::<String>().map_err(S::Error::custom)?;
                     serializer.serialize_str(string.as_str())
+                }
+                Bytes::HASH => {
+                    let bytes = value.borrow_ref::<Bytes>().map_err(S::Error::custom)?;
+                    serializer.serialize_bytes(bytes.as_slice())
                 }
                 _ => Err(ser::Error::custom("cannot serialize external references")),
             },

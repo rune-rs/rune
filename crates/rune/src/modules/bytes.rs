@@ -1,9 +1,12 @@
 //! The bytes module.
 
+use core::cmp::Ordering;
+
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::Vec;
-use crate::runtime::{Bytes, VmResult};
+use crate::runtime::{Bytes, Formatter, Hasher, VmResult};
 use crate::{ContextError, Module};
 
 /// The bytes module.
@@ -31,6 +34,22 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.function_meta(clone__meta)?;
     m.implement_trait::<Bytes>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<Bytes>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<Bytes>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<Bytes>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<Bytes>(rune::item!(::std::cmp::Ord))?;
+
+    m.function_meta(hash__meta)?;
+
+    m.function_meta(string_debug__meta)?;
 
     Ok(m)
 }
@@ -315,6 +334,114 @@ fn reserve_exact(this: &mut Bytes, additional: usize) -> VmResult<()> {
 #[rune::function(keep, instance, protocol = CLONE)]
 fn clone(this: &Bytes) -> VmResult<Bytes> {
     VmResult::Ok(vm_try!(this.try_clone()))
+}
+
+/// Test two byte arrays for partial equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::partial_eq;
+///
+/// assert_eq!(partial_eq(b"a", b"a"), true);
+/// assert_eq!(partial_eq(b"a", b"ab"), false);
+/// assert_eq!(partial_eq(b"ab", b"a"), false);
+/// ```
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
+#[inline]
+fn partial_eq(this: &[u8], rhs: &[u8]) -> bool {
+    this.eq(rhs)
+}
+
+/// Test two byte arrays for total equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// assert_eq!(eq(b"a", b"a"), true);
+/// assert_eq!(eq(b"a", b"ab"), false);
+/// assert_eq!(eq(b"ab", b"a"), false);
+/// ```
+#[rune::function(keep, instance, protocol = EQ)]
+#[inline]
+fn eq(this: &[u8], rhs: &[u8]) -> bool {
+    this.eq(rhs)
+}
+
+/// Perform a partial ordered comparison between two byte arrays.
+///
+/// # Examples
+///
+/// ```rune
+/// assert!(b"a" < b"ab");
+/// assert!(b"ab" > b"a");
+/// assert!(b"a" == b"a");
+/// ```
+///
+/// Using explicit functions:
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::partial_cmp;
+///
+/// assert_eq!(partial_cmp(b"a", b"ab"), Some(Ordering::Less));
+/// assert_eq!(partial_cmp(b"ab", b"a"), Some(Ordering::Greater));
+/// assert_eq!(partial_cmp(b"a", b"a"), Some(Ordering::Equal));
+/// ```
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
+#[inline]
+fn partial_cmp(this: &[u8], rhs: &[u8]) -> Option<Ordering> {
+    this.partial_cmp(rhs)
+}
+
+/// Perform a totally ordered comparison between two byte arrays.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::cmp;
+///
+/// assert_eq!(cmp(b"a", b"ab"), Ordering::Less);
+/// assert_eq!(cmp(b"ab", b"a"), Ordering::Greater);
+/// assert_eq!(cmp(b"a", b"a"), Ordering::Equal);
+/// ```
+#[rune::function(keep, instance, protocol = CMP)]
+#[inline]
+fn cmp(this: &[u8], rhs: &[u8]) -> Ordering {
+    this.cmp(rhs)
+}
+
+/// Hash the string.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::hash;
+///
+/// let a = "hello";
+/// let b = "hello";
+///
+/// assert_eq!(hash(a), hash(b));
+/// ```
+#[rune::function(keep, instance, protocol = HASH)]
+fn hash(this: &[u8], hasher: &mut Hasher) {
+    hasher.write(this);
+}
+
+/// Write a debug representation of a byte array.
+///
+/// # Examples
+///
+/// ```rune
+/// println!("{:?}", b"Hello");
+/// ```
+#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[inline]
+fn string_debug(this: &[u8], f: &mut Formatter) -> VmResult<()> {
+    rune::vm_write!(f, "{this:?}")
 }
 
 /// Shrinks the capacity of the byte array as much as possible.

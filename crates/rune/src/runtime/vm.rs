@@ -3095,16 +3095,12 @@ impl Vm {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = 'out: {
-            let ValueBorrowRef::Mutable(value) = vm_try!(v.borrow_ref()) else {
-                break 'out false;
-            };
-
-            let Mutable::Bytes(actual) = &*value else {
+            let Some(value) = vm_try!(v.try_borrow_ref::<Bytes>()) else {
                 break 'out false;
             };
 
             let bytes = vm_try!(self.unit.lookup_bytes(slot));
-            *actual == *bytes
+            value.as_slice() == bytes
         };
 
         vm_try!(out.store(&mut self.stack, is_match));

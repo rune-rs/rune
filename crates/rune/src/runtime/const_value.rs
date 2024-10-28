@@ -59,7 +59,6 @@ impl ConstValue {
                     Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value_ref(some))))),
                     None => None,
                 }),
-                Mutable::Bytes(ref bytes) => Self::Bytes(vm_try!(bytes.try_clone())),
                 Mutable::Vec(ref vec) => {
                     let mut const_vec = vm_try!(Vec::try_with_capacity(vec.len()));
 
@@ -99,6 +98,10 @@ impl ConstValue {
                 String::HASH => {
                     let s = vm_try!(value.borrow_ref::<String>());
                     Self::String(vm_try!(s.try_to_owned()))
+                }
+                Bytes::HASH => {
+                    let s = vm_try!(value.borrow_ref::<Bytes>());
+                    Self::Bytes(vm_try!(s.try_to_owned()))
                 }
                 _ => {
                     return VmResult::err(VmErrorKind::ConstNotSupported {

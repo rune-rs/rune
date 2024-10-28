@@ -2,7 +2,6 @@
 //!
 //! [Value::Bytes]: crate::Value::Bytes.
 
-use core::cmp;
 use core::fmt;
 use core::ops;
 
@@ -12,16 +11,14 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::{
-    Mutable, RawAnyGuard, Ref, UnsafeToRef, Value, ValueRepr, VmErrorKind, VmResult,
-};
+use crate::runtime::{RawAnyGuard, Ref, UnsafeToRef, Value, VmResult};
 use crate::Any;
 
 /// A vector of bytes.
 #[derive(Default, Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[rune(builtin, static_type = BYTES)]
+#[rune(static_type = BYTES)]
 pub struct Bytes {
-    pub(crate) bytes: Vec<u8>,
+    bytes: Vec<u8>,
 }
 
 impl Bytes {
@@ -266,6 +263,7 @@ impl Bytes {
 }
 
 impl TryClone for Bytes {
+    #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             bytes: self.bytes.try_clone()?,
@@ -355,73 +353,51 @@ impl AsRef<[u8]> for Bytes {
     }
 }
 
-from_value2!(Bytes, into_bytes_ref, into_bytes_mut, into_bytes);
-
 impl UnsafeToRef for [u8] {
     type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let value = match vm_try!(value.into_repr()) {
-            ValueRepr::Inline(value) => {
-                return VmResult::expected::<Bytes>(value.type_info());
-            }
-            ValueRepr::Mutable(value) => vm_try!(value.into_ref()),
-            ValueRepr::Any(value) => {
-                return VmResult::expected::<Bytes>(value.type_info());
-            }
-        };
-
-        let result = Ref::try_map(value, |value| match value {
-            Mutable::Bytes(bytes) => Some(bytes.as_slice()),
-            _ => None,
-        });
-
-        match result {
-            Ok(bytes) => {
-                let (value, guard) = Ref::into_raw(bytes);
-                VmResult::Ok((value.as_ref(), guard))
-            }
-            Err(actual) => VmResult::err(VmErrorKind::expected::<Bytes>(actual.type_info())),
-        }
+        let (value, guard) = Ref::into_raw(vm_try!(value.into_any_ref::<Bytes>()));
+        VmResult::Ok((value.as_ref().as_slice(), guard))
     }
 }
 
-impl<const N: usize> cmp::PartialEq<[u8; N]> for Bytes {
+impl<const N: usize> PartialEq<[u8; N]> for Bytes {
     #[inline]
     fn eq(&self, other: &[u8; N]) -> bool {
         self.bytes == other[..]
     }
 }
 
-impl<const N: usize> cmp::PartialEq<&[u8; N]> for Bytes {
+impl<const N: usize> PartialEq<&[u8; N]> for Bytes {
     #[inline]
     fn eq(&self, other: &&[u8; N]) -> bool {
         self.bytes == other[..]
     }
 }
 
-impl<const N: usize> cmp::PartialEq<Bytes> for [u8; N] {
+impl<const N: usize> PartialEq<Bytes> for [u8; N] {
     #[inline]
     fn eq(&self, other: &Bytes) -> bool {
         self[..] == other.bytes
     }
 }
 
-impl<const N: usize> cmp::PartialEq<Bytes> for &[u8; N] {
+impl<const N: usize> PartialEq<Bytes> for &[u8; N] {
     #[inline]
     fn eq(&self, other: &Bytes) -> bool {
         self[..] == other.bytes
     }
 }
 
-impl cmp::PartialEq<[u8]> for Bytes {
+impl PartialEq<[u8]> for Bytes {
     #[inline]
     fn eq(&self, other: &[u8]) -> bool {
         self.bytes == other
     }
 }
 
-impl cmp::PartialEq<Bytes> for [u8] {
+impl PartialEq<Bytes> for [u8] {
     #[inline]
     fn eq(&self, other: &Bytes) -> bool {
         self == other.bytes
