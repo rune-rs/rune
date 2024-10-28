@@ -26,7 +26,7 @@ pub(crate) mod no_std {
     ///
     /// For errors which aren't automatically captures, you should map them
     /// using [`Error::msg`].
-    pub type Result<T, E = Error> = ::core::result::Result<T, E>;
+    pub type Result<T, E = Error> = core::result::Result<T, E>;
 
     /// Error kind which supports capturing any toplevel errors produced by
     /// Rune.

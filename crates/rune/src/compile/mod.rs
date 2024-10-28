@@ -78,4 +78,4 @@ mod compile;
 pub(crate) use self::compile::compile;
 
 /// Helper alias for compile results.
-pub type Result<T, E = Error> = ::core::result::Result<T, E>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;

@@ -176,8 +176,8 @@ use crate::vec::Vec;
 #[test]
 fn ensure_niche_size() {
     assert_eq!(
-        ::core::mem::size_of::<Option<Box<u32>>>(),
-        ::core::mem::size_of::<Box<u32>>()
+        core::mem::size_of::<Option<Box<u32>>>(),
+        core::mem::size_of::<Box<u32>>()
     );
 }
 
