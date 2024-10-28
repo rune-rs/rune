@@ -13,7 +13,7 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
-use crate::runtime::{Formatter, Inline, ProtocolCaller, Value, ValueRef, VmErrorKind, VmResult};
+use crate::runtime::{Formatter, Inline, ProtocolCaller, RefRepr, Value, VmErrorKind, VmResult};
 use crate::{Any, TypeHash};
 
 /// Error raised when trying to parse a type string and it fails.
@@ -209,8 +209,8 @@ impl FormatSpec {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         'fallback: {
-            match vm_try!(value.value_ref()) {
-                ValueRef::Inline(value) => match value {
+            match vm_try!(value.as_ref_repr()) {
+                RefRepr::Inline(value) => match value {
                     Inline::Char(c) => {
                         vm_try!(f.buf_mut().try_push(*c));
                         vm_try!(self.format_fill(f, self.align, self.fill, None));
@@ -229,10 +229,10 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
-                ValueRef::Mutable(..) => {
+                RefRepr::Mutable(..) => {
                     break 'fallback;
                 }
-                ValueRef::Any(value) => match value.type_hash() {
+                RefRepr::Any(value) => match value.type_hash() {
                     String::HASH => {
                         let s = vm_try!(value.borrow_ref::<String>());
                         vm_try!(f.buf_mut().try_push_str(&s));
@@ -257,8 +257,8 @@ impl FormatSpec {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         'fallback: {
-            match vm_try!(value.value_ref()) {
-                ValueRef::Inline(value) => match value {
+            match vm_try!(value.as_ref_repr()) {
+                RefRepr::Inline(value) => match value {
                     Inline::Integer(n) => {
                         let (n, align, fill, sign) = self.int_traits(*n);
                         vm_try!(self.format_number(f.buf_mut(), n));
@@ -273,10 +273,10 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
-                ValueRef::Mutable(..) => {
+                RefRepr::Mutable(..) => {
                     break 'fallback;
                 }
-                ValueRef::Any(value) => match value.type_hash() {
+                RefRepr::Any(value) => match value.type_hash() {
                     String::HASH => {
                         let s = vm_try!(value.borrow_ref::<String>());
                         vm_try!(vm_write!(f, "{s:?}"));

@@ -5,7 +5,7 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ToValue, Value, ValueRef, VmErrorKind,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, RefRepr, ToValue, Value, VmErrorKind,
     VmResult,
 };
 use crate::Any;
@@ -95,16 +95,16 @@ impl Range {
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
         let value = match (
-            &vm_try!(self.start.value_ref()),
-            vm_try!(self.end.value_ref()),
+            &vm_try!(self.start.as_ref_repr()),
+            vm_try!(self.end.as_ref_repr()),
         ) {
-            (ValueRef::Inline(Inline::Byte(start)), ValueRef::Inline(Inline::Byte(end))) => {
+            (RefRepr::Inline(Inline::Byte(start)), RefRepr::Inline(Inline::Byte(end))) => {
                 vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
-            (ValueRef::Inline(Inline::Char(start)), ValueRef::Inline(Inline::Char(end))) => {
+            (RefRepr::Inline(Inline::Char(start)), RefRepr::Inline(Inline::Char(end))) => {
                 vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
-            (ValueRef::Inline(Inline::Integer(start)), ValueRef::Inline(Inline::Integer(end))) => {
+            (RefRepr::Inline(Inline::Integer(start)), RefRepr::Inline(Inline::Integer(end))) => {
                 vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
             (start, end) => {

@@ -57,13 +57,13 @@ fn test_from_ref() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_ref(&value)?;
-        assert!(value.borrow_any_mut::<Thing>().is_err());
-        assert_eq!(10u32, value.borrow_any_ref::<Thing>()?.0);
+        assert!(value.borrow_mut::<Thing>().is_err());
+        assert_eq!(10u32, value.borrow_ref::<Thing>()?.0);
 
         drop(guard);
 
-        assert!(value.borrow_any_mut::<Thing>().is_err());
-        assert!(value.borrow_any_ref::<Thing>().is_err());
+        assert!(value.borrow_mut::<Thing>().is_err());
+        assert!(value.borrow_ref::<Thing>().is_err());
     }
 
     Ok(())
@@ -75,15 +75,15 @@ fn test_from_mut() -> Result<()> {
 
     unsafe {
         let (value, guard) = Value::from_mut(&mut value)?;
-        value.borrow_any_mut::<Thing>()?.0 = 20;
+        value.borrow_mut::<Thing>()?.0 = 20;
 
-        assert_eq!(20u32, value.borrow_any_mut::<Thing>()?.0);
-        assert_eq!(20u32, value.borrow_any_ref::<Thing>()?.0);
+        assert_eq!(20u32, value.borrow_mut::<Thing>()?.0);
+        assert_eq!(20u32, value.borrow_ref::<Thing>()?.0);
 
         drop(guard);
 
-        assert!(value.borrow_any_mut::<Thing>().is_err());
-        assert!(value.borrow_any_ref::<Thing>().is_err());
+        assert!(value.borrow_mut::<Thing>().is_err());
+        assert!(value.borrow_ref::<Thing>().is_err());
     }
 
     Ok(())
@@ -436,12 +436,12 @@ fn value_from_mut() {
     unsafe {
         let (any, guard) = Value::from_mut(&mut v).unwrap();
 
-        if let Ok(mut v) = any.borrow_any_mut::<Count>() {
+        if let Ok(mut v) = any.borrow_mut::<Count>() {
             v.0 += 1;
         }
 
         drop(guard);
-        assert!(any.borrow_any_mut::<Count>().is_err());
+        assert!(any.borrow_mut::<Count>().is_err());
         drop(any);
     }
 

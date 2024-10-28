@@ -35,8 +35,8 @@ fn test_function() {
     assert!(function.call::<Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(
-        value.take_value().unwrap(),
-        OwnedValue::Mutable(Mutable::Variant(..))
+        value.take_repr().unwrap(),
+        OwnedRepr::Mutable(Mutable::Variant(..))
     ));
 
     // ptr to dynamic function.
@@ -48,8 +48,8 @@ fn test_function() {
     assert!(function.call::<Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(
-        value.take_value().unwrap(),
-        OwnedValue::Mutable(Mutable::TupleStruct(..))
+        value.take_repr().unwrap(),
+        OwnedRepr::Mutable(Mutable::TupleStruct(..))
     ));
 
     // non-capturing closure == free function
