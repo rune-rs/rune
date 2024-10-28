@@ -380,7 +380,10 @@ fn round(this: f64) -> f64 {
     this.round()
 }
 
-/// Test two integers for partial equality.
+/// Clone a `f64`.
+///
+/// Note that since the type is copy, cloning has the same effect as assigning
+/// it.
 ///
 /// # Examples
 ///
@@ -392,7 +395,7 @@ fn round(this: f64) -> f64 {
 /// a += 1.0;
 ///
 /// assert_eq!(a, 6.0);
-/// assert_eq!(b, 6.0);
+/// assert_eq!(b, 5.0);
 /// assert_eq!(c, 5.0);
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]

@@ -132,7 +132,8 @@ pub(crate) fn build(
     css.try_push(runedoc_css)?;
 
     // Collect an ordered set of modules, so we have a baseline of what to render when.
-    let mut initial = VecDeque::new();
+    let mut initial = Vec::new();
+    let mut initial_seen = HashSet::new();
 
     for item in context.iter_modules() {
         let item = item?;
@@ -143,8 +144,14 @@ pub(crate) fn build(
             .find(|m| matches!(&m.kind, Kind::Module))
             .with_context(|| anyhow!("Missing meta for {item}"))?;
 
-        initial.try_push_back((Build::Module, meta))?;
+        if !initial_seen.try_insert(meta.hash)? {
+            continue;
+        }
+
+        initial.try_push((Build::Module, meta))?;
     }
+
+    initial.sort_by_key(|(_, meta)| meta.item);
 
     let search_index = RelativePath::new("index.js");
     let root_index = RelativePath::new("index.html");
@@ -172,49 +179,46 @@ pub(crate) fn build(
 
     let mut modules = Vec::new();
     let mut builders = Vec::new();
-
     let mut visited = HashSet::new();
 
     while let Some((build, meta)) = queue.pop_front() {
-        if !visited.try_insert(meta.hash)? {
+        if !visited.try_insert((build, meta.hash))? {
+            tracing::error!(?build, ?meta.item, "Already visited");
             continue;
         }
 
+        cx.set_path(meta)?;
+
+        tracing::trace!(?build, ?meta.item, ?cx.state.path, "Building");
+
         match build {
             Build::Type => {
-                cx.set_path(meta)?;
                 let (builder, items) = self::type_::build(&mut cx, "Type", "type", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(items)?;
             }
             Build::Trait => {
-                cx.set_path(meta)?;
                 let (builder, items) = self::type_::build(&mut cx, "Trait", "trait", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(items)?;
             }
             Build::Struct => {
-                cx.set_path(meta)?;
                 let (builder, index) = self::type_::build(&mut cx, "Struct", "struct", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(index)?;
             }
             Build::Enum => {
-                cx.set_path(meta)?;
                 let (builder, index) = self::type_::build(&mut cx, "Enum", "enum", meta)?;
                 builders.try_push(builder)?;
                 cx.index.try_extend(index)?;
             }
             Build::Macro => {
-                cx.set_path(meta)?;
                 builders.try_push(build_macro(&mut cx, meta)?)?;
             }
             Build::Function => {
-                cx.set_path(meta)?;
                 builders.try_push(build_function(&mut cx, meta)?)?;
             }
             Build::Module => {
-                cx.set_path(meta)?;
                 builders.try_push(module(&mut cx, meta, &mut queue)?)?;
                 modules.try_push((meta.item, cx.state.path.clone()))?;
             }
@@ -813,6 +817,7 @@ impl<'m> Ctxt<'_, 'm> {
     }
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 enum Build {
     Type,
     Struct,
@@ -999,9 +1004,12 @@ fn module<'m>(
     let mut traits = Vec::new();
 
     for (_, name) in cx.context.iter_components(meta.item)? {
-        let lookup_item = meta.item.join([name])?;
+        let item = meta.item.join([name])?;
+        tracing::trace!(?item, "Looking up");
 
-        for m in cx.context.meta(&lookup_item)? {
+        for m in cx.context.meta(&item)? {
+            tracing::trace!(?item, ?m.kind, "Found");
+
             match m.kind {
                 Kind::Type { .. } => {
                     queue.try_push_front((Build::Type, m))?;

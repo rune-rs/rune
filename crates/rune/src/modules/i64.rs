@@ -530,7 +530,10 @@ fn is_negative(this: i64) -> bool {
     i64::is_negative(this)
 }
 
-/// Test two integers for partial equality.
+/// Clone a `i64`.
+///
+/// Note that since the type is copy, cloning has the same effect as assigning
+/// it.
 ///
 /// # Examples
 ///
@@ -542,7 +545,7 @@ fn is_negative(this: i64) -> bool {
 /// a += 1;
 ///
 /// assert_eq!(a, 6);
-/// assert_eq!(b, 6);
+/// assert_eq!(b, 5);
 /// assert_eq!(c, 5);
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
