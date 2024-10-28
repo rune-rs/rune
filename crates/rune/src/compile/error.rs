@@ -20,7 +20,7 @@ use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{AccessError, RuntimeError, TypeInfo, TypeOf, VmError};
+use crate::runtime::{AccessError, AnyObjError, RuntimeError, TypeInfo, TypeOf, VmError};
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, Item, ItemBuf, SourceId};
@@ -1304,6 +1304,13 @@ impl From<RuntimeError> for ErrorKind {
     #[inline]
     fn from(error: RuntimeError) -> Self {
         ErrorKind::VmError(VmError::new(error.into_vm_error_kind()))
+    }
+}
+
+impl From<AnyObjError> for ErrorKind {
+    #[inline]
+    fn from(error: AnyObjError) -> Self {
+        Self::from(RuntimeError::from(error))
     }
 }
 

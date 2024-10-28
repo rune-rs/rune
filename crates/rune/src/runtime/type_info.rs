@@ -101,7 +101,7 @@ impl fmt::Display for TypeInfo {
                 write!(f, "{}", rtti.item)?;
             }
             TypeInfoKind::Any(info) => {
-                write!(f, "{}", info.name)?;
+                write!(f, "{info}")?;
             }
         }
 
@@ -123,5 +123,12 @@ impl AnyTypeInfo {
     /// Private constructor, use at your own risk.
     pub(crate) const fn new(name: RawStr, hash: Hash) -> Self {
         Self { name, hash }
+    }
+}
+
+impl fmt::Display for AnyTypeInfo {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
     }
 }

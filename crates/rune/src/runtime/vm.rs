@@ -2480,15 +2480,11 @@ impl Vm {
         let value = vm_try!(self.stack.at(value));
 
         'fallback: {
-            let ValueBorrowRef::Mutable(field) = vm_try!(index.borrow_ref()) else {
+            let Some(field) = vm_try!(index.try_borrow_ref::<String>()) else {
                 break 'fallback;
             };
 
-            let Mutable::String(field) = &*field else {
-                break 'fallback;
-            };
-
-            if vm_try!(Self::try_object_slot_index_set(target, field, value)) {
+            if vm_try!(Self::try_object_slot_index_set(target, &field, value)) {
                 return VmResult::Ok(());
             }
         };
@@ -2634,24 +2630,21 @@ impl Vm {
             let index = vm_try!(self.stack.at(index));
             let target = vm_try!(self.stack.at(target));
 
-            match vm_try!(index.borrow_ref()) {
-                ValueBorrowRef::Inline(value) => {
-                    if let Inline::Integer(index) = value {
-                        let Ok(index) = usize::try_from(*index) else {
-                            return err(VmErrorKind::MissingIndexInteger {
-                                target: vm_try!(target.type_info()),
-                                index: VmIntegerRepr::from(*index),
-                            });
-                        };
+            match vm_try!(index.value_ref()) {
+                ValueRef::Inline(Inline::Integer(index)) => {
+                    let Ok(index) = usize::try_from(*index) else {
+                        return err(VmErrorKind::MissingIndexInteger {
+                            target: vm_try!(target.type_info()),
+                            index: VmIntegerRepr::from(*index),
+                        });
+                    };
 
-                        if let Some(value) = vm_try!(Self::try_tuple_like_index_get(target, index))
-                        {
-                            break 'store value;
-                        }
+                    if let Some(value) = vm_try!(Self::try_tuple_like_index_get(target, index)) {
+                        break 'store value;
                     }
                 }
-                ValueBorrowRef::Mutable(value) => {
-                    if let Mutable::String(index) = &*value {
+                ValueRef::Any(value) => {
+                    if let Some(index) = vm_try!(value.try_borrow_ref::<String>()) {
                         if let Some(value) =
                             vm_try!(Self::try_object_like_index_get(target, index.as_str()))
                         {
@@ -2659,7 +2652,7 @@ impl Vm {
                         }
                     }
                 }
-                ValueBorrowRef::Any(..) => (),
+                _ => {}
             }
 
             let target = target.clone();
@@ -2967,7 +2960,7 @@ impl Vm {
             vm_try!(value.string_display_with(&mut f, &mut *self));
         }
 
-        vm_try!(out.store(&mut self.stack, Mutable::String(f.string)));
+        vm_try!(out.store(&mut self.stack, f.string));
         VmResult::Ok(())
     }
 
@@ -3083,11 +3076,7 @@ impl Vm {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = 'out: {
-            let ValueBorrowRef::Mutable(value) = vm_try!(v.borrow_ref()) else {
-                break 'out false;
-            };
-
-            let Mutable::String(actual) = &*value else {
+            let Some(actual) = vm_try!(v.try_borrow_ref::<String>()) else {
                 break 'out false;
             };
 

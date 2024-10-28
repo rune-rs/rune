@@ -516,21 +516,21 @@ impl HashMap {
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
-        vm_write!(f, "{{");
+        vm_try!(vm_write!(f, "{{"));
 
         let mut it = self.table.iter().peekable();
 
         while let Some((key, value)) = it.next() {
             vm_try!(key.string_debug_with(f, caller));
-            vm_write!(f, ": ");
+            vm_try!(vm_write!(f, ": "));
             vm_try!(value.string_debug_with(f, caller));
 
             if it.peek().is_some() {
-                vm_write!(f, ", ");
+                vm_try!(vm_write!(f, ", "));
             }
         }
 
-        vm_write!(f, "}}");
+        vm_try!(vm_write!(f, "}}"));
         VmResult::Ok(())
     }
 

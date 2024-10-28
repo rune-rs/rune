@@ -9,9 +9,7 @@ pub struct NativeStructWithProtocol;
 impl NativeStructWithProtocol {
     #[rune::function(protocol = STRING_DEBUG)]
     fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self);
-
-        VmResult::Ok(())
+        vm_write!(f, "{self:?}")
     }
 }
 

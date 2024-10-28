@@ -12,11 +12,17 @@ const MOVED: usize = 1usize.rotate_right(1);
 /// Mask indicating if the value is exclusively set or moved.
 const MASK: usize = EXCLUSIVE | MOVED;
 
-/// An error raised while downcasting.
-#[derive(Debug, PartialEq)]
-#[allow(missing_docs)]
+/// An error raised when failing to access a value.
+///
+/// Access errors can be raised for various reasons, such as:
+/// * The value you are trying to access is an empty placeholder.
+/// * The value is already being accessed in an incompatible way, such as trying
+///   to access a value exclusively twice.
+/// * The value has been taken and is no longer present.
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
-pub(crate) struct AccessError {
+pub struct AccessError {
     kind: AccessErrorKind,
 }
 
@@ -64,7 +70,8 @@ impl From<AccessErrorKind> for AccessError {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) enum AccessErrorKind {
     Empty,
     NotAccessibleRef(Snapshot),

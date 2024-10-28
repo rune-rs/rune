@@ -1,5 +1,6 @@
 use core::any;
 
+use crate::alloc::String;
 use crate::compile::Named;
 use crate::runtime::{AnyTypeInfo, TypeHash};
 
@@ -124,3 +125,5 @@ cfg_std! {
 }
 
 crate::__internal_impl_any!(::std::error, anyhow::Error);
+
+impl Any for String {}

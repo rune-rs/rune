@@ -366,7 +366,7 @@ impl Value {
                         vm_try!(f.push_str(buffer.format(*float)));
                     }
                     Inline::Bool(bool) => {
-                        vm_write!(f, "{bool}");
+                        vm_try!(vm_write!(f, "{bool}"));
                     }
                     Inline::Byte(byte) => {
                         let mut buffer = itoa::Buffer::new();
@@ -380,14 +380,11 @@ impl Value {
                     Mutable::Format(format) => {
                         vm_try!(format.spec.format(&format.value, f, caller));
                     }
-                    Mutable::String(string) => {
-                        vm_try!(f.push_str(string));
-                    }
                     _ => {
                         break 'fallback;
                     }
                 },
-                ValueBorrowRef::Any(..) => {
+                _ => {
                     break 'fallback;
                 }
             }
@@ -428,7 +425,6 @@ impl Value {
                     });
                 }
                 ValueBorrowRef::Mutable(value) => match &*value {
-                    Mutable::String(value) => Mutable::String(vm_try!(value.try_clone())),
                     Mutable::Bytes(value) => Mutable::Bytes(vm_try!(value.try_clone())),
                     Mutable::Vec(value) => Mutable::Vec(vm_try!(value.try_clone())),
                     Mutable::Tuple(value) => Mutable::Tuple(vm_try!(value.try_clone())),
@@ -491,11 +487,11 @@ impl Value {
         'fallback: {
             let value = match self.repr {
                 Repr::Empty => {
-                    vm_write!(f, "<empty>");
+                    vm_try!(vm_write!(f, "<empty>"));
                     return VmResult::Ok(());
                 }
                 Repr::Inline(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                     return VmResult::Ok(());
                 }
                 Repr::Mutable(ref value) => value,
@@ -503,59 +499,56 @@ impl Value {
             };
 
             match &*vm_try!(value.borrow_ref()) {
-                Mutable::String(value) => {
-                    vm_write!(f, "{value:?}");
-                }
                 Mutable::Bytes(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Vec(value) => {
                     vm_try!(Vec::string_debug_with(value, f, caller));
                 }
                 Mutable::Tuple(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Object(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::ControlFlow(value) => {
                     vm_try!(ControlFlow::string_debug_with(value, f, caller));
                 }
                 Mutable::Future(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Stream(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Generator(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::GeneratorState(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Option(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Result(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::EmptyStruct(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::TupleStruct(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Struct(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Variant(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Function(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Format(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
             };
 
@@ -572,18 +565,18 @@ impl Value {
             }
             CallResultOnly::Unsupported(value) => match &value.repr {
                 Repr::Empty => {
-                    vm_write!(f, "<empty>");
+                    vm_try!(vm_write!(f, "<empty>"));
                 }
                 Repr::Inline(value) => {
-                    vm_write!(f, "{value:?}");
+                    vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Repr::Mutable(value) => {
                     let ty = vm_try!(value.borrow_ref()).type_info();
-                    vm_write!(f, "<{ty} object at {value:p}>");
+                    vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
                 }
                 Repr::Any(value) => {
                     let ty = value.type_info();
-                    vm_write!(f, "<{ty} object at {value:p}>");
+                    vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
                 }
             },
         }
@@ -725,31 +718,17 @@ impl Value {
         self.borrow_string_ref()
     }
 
-    /// Borrow the value of a string as a reference.
+    /// Borrow the interior value as a string reference.
     pub fn borrow_string_ref(&self) -> Result<BorrowRef<'_, str>, RuntimeError> {
-        let value = match self.borrow_ref()? {
-            ValueBorrowRef::Mutable(value) => value,
-            actual => {
-                return Err(RuntimeError::expected::<str>(actual.type_info()));
-            }
-        };
-
-        let result = BorrowRef::try_map(value, |kind| match kind {
-            Mutable::String(string) => Some(string.as_str()),
-            _ => None,
-        });
-
-        match result {
-            Ok(s) => Ok(s),
-            Err(actual) => Err(RuntimeError::expected::<str>(actual.type_info())),
-        }
+        let string = self.borrow_any_ref::<String>()?;
+        Ok(BorrowRef::map(string, String::as_str))
     }
 
     /// Take the current value as a string.
     #[inline]
     pub fn into_string(self) -> Result<String, RuntimeError> {
         match self.take_value()? {
-            OwnedValue::Mutable(Mutable::String(string)) => Ok(string),
+            OwnedValue::Any(value) => Ok(value.downcast()?),
             actual => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
@@ -978,9 +957,12 @@ impl Value {
     /// This consumes the underlying value.
     #[inline]
     pub fn into_any_obj(self) -> Result<AnyObj, RuntimeError> {
-        match self.take_value()? {
-            OwnedValue::Any(value) => Ok(value),
-            ref actual => Err(RuntimeError::expected_any_obj(actual.type_info())),
+        match self.into_repr()? {
+            ValueRepr::Inline(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
+            ValueRepr::Mutable(value) => Err(RuntimeError::expected_any_obj(
+                value.borrow_ref()?.type_info(),
+            )),
+            ValueRepr::Any(value) => Ok(value),
         }
     }
 
@@ -1016,12 +998,13 @@ impl Value {
     where
         T: Any,
     {
-        match self.into_repr()? {
-            ValueRepr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
-            ValueRepr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
+        match self.repr {
+            Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
+            Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRepr::Any(value) => Ok(value.into_ref()?),
+            Repr::Any(value) => Ok(value.into_ref()?),
+            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
         }
     }
 
@@ -1055,12 +1038,13 @@ impl Value {
     where
         T: Any,
     {
-        match self.into_repr()? {
-            ValueRepr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
-            ValueRepr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
+        match self.repr {
+            Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
+            Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            ValueRepr::Any(value) => Ok(value.into_mut()?),
+            Repr::Any(value) => Ok(value.into_mut()?),
+            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
         }
     }
 
@@ -1124,9 +1108,16 @@ impl Value {
     where
         T: Any,
     {
-        let value = match self.take_value()? {
-            OwnedValue::Any(any) => any,
-            actual => return Err(RuntimeError::expected_any::<T>(actual.type_info())),
+        let value = match self.into_repr()? {
+            ValueRepr::Inline(value) => {
+                return Err(RuntimeError::expected_any::<T>(value.type_info()))
+            }
+            ValueRepr::Mutable(value) => {
+                return Err(RuntimeError::expected_any::<T>(
+                    value.borrow_ref()?.type_info(),
+                ))
+            }
+            ValueRepr::Any(any) => any,
         };
 
         Ok(value.downcast::<T>()?)
@@ -1237,9 +1228,6 @@ impl Value {
 
                         break 'fallback;
                     }
-                    (Mutable::String(a), Mutable::String(b)) => {
-                        return VmResult::Ok(*a == *b);
-                    }
                     (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
                         (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
                         (None, None) => return VmResult::Ok(true),
@@ -1325,10 +1313,6 @@ impl Value {
                 }
             },
             ValueBorrowRef::Mutable(value) => match &*value {
-                Mutable::String(string) => {
-                    hasher.write_str(string);
-                    return VmResult::Ok(());
-                }
                 Mutable::Bytes(bytes) => {
                     hasher.write(bytes);
                     return VmResult::Ok(());
@@ -1341,7 +1325,7 @@ impl Value {
                 }
                 _ => {}
             },
-            ValueBorrowRef::Any(..) => {}
+            _ => {}
         }
 
         let mut args = DynGuardedArgs::new((hasher,));
@@ -1428,9 +1412,6 @@ impl Value {
                     if a.rtti().enum_hash == b.rtti().enum_hash {
                         return Variant::eq_with(a, b, caller);
                     }
-                }
-                (Mutable::String(a), Mutable::String(b)) => {
-                    return VmResult::Ok(*a == *b);
                 }
                 (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
                     (Some(a), Some(b)) => return Value::eq_with(a, b, caller),
@@ -1532,9 +1513,6 @@ impl Value {
                         return Variant::partial_cmp_with(a, b, caller);
                     }
                 }
-                (Mutable::String(a), Mutable::String(b)) => {
-                    return VmResult::Ok(a.partial_cmp(b));
-                }
                 (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
                     (Some(a), Some(b)) => return Value::partial_cmp_with(a, b, caller),
                     (None, None) => return VmResult::Ok(Some(Ordering::Equal)),
@@ -1630,9 +1608,6 @@ impl Value {
                         return Variant::cmp_with(a, b, caller);
                     }
                 }
-                (Mutable::String(a), Mutable::String(b)) => {
-                    return VmResult::Ok(a.cmp(b));
-                }
                 (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
                     (Some(a), Some(b)) => return Value::cmp_with(a, b, caller),
                     (None, None) => return VmResult::Ok(Ordering::Equal),
@@ -1681,7 +1656,7 @@ impl Value {
     ///
     /// let value = rune::to_value(u32::MAX)?;
     ///
-    /// assert_eq!(value.try_as_integer::<u64>(), Ok(u32::MAX as u64));
+    /// assert_eq!(value.try_as_integer::<u64>()?, u32::MAX as u64);
     /// assert!(value.try_as_integer::<i32>().is_err());
     ///
     /// # Ok::<(), rune::support::Error>(())
@@ -1767,6 +1742,18 @@ impl Value {
             Repr::Inline(value) => Ok(ValueBorrowRef::Inline(value)),
             Repr::Mutable(value) => Ok(ValueBorrowRef::Mutable(value.borrow_ref()?)),
             Repr::Any(value) => Ok(ValueBorrowRef::Any(value)),
+            Repr::Empty => Err(AccessError::empty()),
+        }
+    }
+
+    pub(crate) fn try_borrow_ref<T>(&self) -> Result<Option<BorrowRef<'_, T>>, AccessError>
+    where
+        T: Any,
+    {
+        match &self.repr {
+            Repr::Inline(..) => Ok(None),
+            Repr::Mutable(..) => Ok(None),
+            Repr::Any(value) => value.try_borrow_ref(),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
@@ -1975,7 +1962,6 @@ inline_from! {
 }
 
 from! {
-    String => String,
     Bytes => Bytes,
     ControlFlow => ControlFlow,
     Function => Function,
@@ -1991,6 +1977,10 @@ from! {
     Format => Format,
     Future => Future,
     Stream => Stream<Vm>,
+}
+
+any_from! {
+    String,
 }
 
 from_container! {
@@ -2263,8 +2253,6 @@ impl Inline {
 }
 
 pub(crate) enum Mutable {
-    /// A UTF-8 string.
-    String(String),
     /// A byte string.
     Bytes(Bytes),
     /// A vector containing any values.
@@ -2304,7 +2292,6 @@ pub(crate) enum Mutable {
 impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Mutable::String(..) => TypeInfo::static_type(static_type::STRING),
             Mutable::Bytes(..) => TypeInfo::static_type(static_type::BYTES),
             Mutable::Vec(..) => TypeInfo::static_type(static_type::VEC),
             Mutable::Tuple(..) => TypeInfo::static_type(static_type::TUPLE),
@@ -2331,7 +2318,6 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::String(..) => static_type::STRING.hash,
             Mutable::Bytes(..) => static_type::BYTES.hash,
             Mutable::Vec(..) => static_type::VEC.hash,
             Mutable::Tuple(..) => static_type::TUPLE.hash,

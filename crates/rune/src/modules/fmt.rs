@@ -35,8 +35,7 @@ pub fn module() -> Result<Module, ContextError> {
 
 #[rune::function(instance, protocol = STRING_DISPLAY)]
 fn fmt_error_string_display(error: &fmt::Error, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{}", error);
-    VmResult::Ok(())
+    vm_write!(f, "{error}")
 }
 
 /// Format a string using a format specifier.

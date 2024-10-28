@@ -13,6 +13,13 @@ use super::{
     RefVtable, Snapshot, TypeInfo, VmErrorKind,
 };
 
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(super) enum AnyObjErrorKind {
+    Cast(AnyTypeInfo, TypeInfo),
+    AccessError(AccessError),
+}
+
 /// Errors caused when accessing or coercing an [`AnyObj`].
 #[cfg_attr(test, derive(PartialEq))]
 pub struct AnyObjError {
@@ -30,11 +37,17 @@ impl AnyObjError {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(super) enum AnyObjErrorKind {
-    Cast(AnyTypeInfo, TypeInfo),
-    AccessError(AccessError),
+impl core::error::Error for AnyObjError {}
+
+impl fmt::Display for AnyObjError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            AnyObjErrorKind::Cast(expected, actual) => {
+                write!(f, "Expected type `{expected}` but found `{actual}`")
+            }
+            AnyObjErrorKind::AccessError(error) => error.fmt(f),
+        }
+    }
 }
 
 impl fmt::Debug for AnyObjError {
@@ -367,6 +380,31 @@ impl AnyObj {
             let guard = self.shared.as_ref().access.shared()?;
             let data = vtable.as_ptr(self.shared);
             Ok(BorrowRef::new(data, guard))
+        }
+    }
+
+    /// Try to borrow a reference to the interior value while checking for
+    /// shared access.
+    ///
+    /// Returns `None` if the interior type is not `T`.
+    ///
+    /// This prevents other exclusive accesses from being performed while the
+    /// guard returned from this function is live.
+    pub fn try_borrow_ref<T>(&self) -> Result<Option<BorrowRef<'_, T>>, AccessError>
+    where
+        T: Any,
+    {
+        let vtable = vtable(self);
+
+        if (vtable.type_id)() != TypeId::of::<T>() {
+            return Ok(None);
+        }
+
+        // SAFETY: We've checked for the appropriate type just above.
+        unsafe {
+            let guard = self.shared.as_ref().access.shared()?;
+            let data = vtable.as_ptr(self.shared);
+            Ok(Some(BorrowRef::new(data, guard)))
         }
     }
 

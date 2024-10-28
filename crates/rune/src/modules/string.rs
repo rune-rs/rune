@@ -6,14 +6,15 @@ use core::num::{ParseFloatError, ParseIntError};
 use core::str::Utf8Error;
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, FromValue, Function, Inline, MaybeTypeOf, Mutable, Panic, Range, RangeFrom, RangeFull,
-    RangeInclusive, RangeTo, RangeToInclusive, Ref, ToValue, TypeOf, Value, ValueBorrowRef,
-    VmErrorKind, VmResult,
+    Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Mutable, Panic, Range,
+    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, ToValue, TypeOf, Value,
+    ValueBorrowRef, VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module, TypeHash};
 
@@ -39,7 +40,6 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(string_from_str)?;
     m.function_meta(string_new)?;
     m.function_meta(string_with_capacity)?;
-    m.function_meta(cmp)?;
     m.function_meta(len)?;
     m.function_meta(starts_with)?;
     m.function_meta(ends_with)?;
@@ -75,6 +75,23 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.function_meta(clone__meta)?;
     m.implement_trait::<String>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<String>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<String>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<String>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<String>(rune::item!(::std::cmp::Ord))?;
+
+    m.function_meta(hash__meta)?;
+
+    m.function_meta(string_display__meta)?;
+    m.function_meta(string_debug__meta)?;
 
     m.ty::<Chars>()?;
     m.function_meta(Chars::next__meta)?;
@@ -164,7 +181,6 @@ fn from_utf8(bytes: &[u8]) -> VmResult<Result<String, FromUtf8Error>> {
 ///
 /// ```rune
 /// let s = "hello";
-///
 /// assert_eq!(b"hello", s.as_bytes());
 /// assert!(is_readable(s));
 /// ```
@@ -256,11 +272,6 @@ fn string_new() -> String {
 #[rune::function(free, path = String::with_capacity)]
 fn string_with_capacity(capacity: usize) -> VmResult<String> {
     VmResult::Ok(vm_try!(String::try_with_capacity(capacity)))
-}
-
-#[rune::function(instance)]
-fn cmp(lhs: &str, rhs: &str) -> Ordering {
-    lhs.cmp(rhs)
 }
 
 /// Returns the length of `self`.
@@ -548,7 +559,7 @@ fn reserve_exact(this: &mut String, additional: usize) -> VmResult<()> {
 /// ```rune
 /// let s = "hello";
 /// assert_eq!(b"hello", s.into_bytes());
-/// assert!(is_readable(s));
+/// assert!(!is_readable(s));
 /// ```
 #[rune::function(instance)]
 fn into_bytes(s: String) -> Bytes {
@@ -624,8 +635,129 @@ fn char_at(s: &str, index: usize) -> Option<char> {
 /// assert_ne!(a, c);
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
-fn clone(s: &String) -> VmResult<String> {
-    VmResult::Ok(vm_try!(s.try_clone()))
+fn clone(this: &String) -> VmResult<String> {
+    VmResult::Ok(vm_try!(this.try_clone()))
+}
+
+/// Test two strings for partial equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::partial_eq;
+///
+/// assert_eq!(partial_eq("a", "a"), true);
+/// assert_eq!(partial_eq("a", "ab"), false);
+/// assert_eq!(partial_eq("ab", "a"), false);
+/// ```
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
+#[inline]
+fn partial_eq(this: &str, rhs: &str) -> bool {
+    this.eq(rhs)
+}
+
+/// Test two strings for total equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// assert_eq!(eq("a", "a"), true);
+/// assert_eq!(eq("a", "ab"), false);
+/// assert_eq!(eq("ab", "a"), false);
+/// ```
+#[rune::function(keep, instance, protocol = EQ)]
+#[inline]
+fn eq(this: &str, rhs: &str) -> bool {
+    this.eq(rhs)
+}
+
+/// Perform a partial ordered comparison between two strings.
+///
+/// # Examples
+///
+/// ```rune
+/// assert!("a" < "ab");
+/// assert!("ab" > "a");
+/// assert!("a" == "a");
+/// ```
+///
+/// Using explicit functions:
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::partial_cmp;
+///
+/// assert_eq!(partial_cmp("a", "ab"), Some(Ordering::Less));
+/// assert_eq!(partial_cmp("ab", "a"), Some(Ordering::Greater));
+/// assert_eq!(partial_cmp("a", "a"), Some(Ordering::Equal));
+/// ```
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
+#[inline]
+fn partial_cmp(this: &str, rhs: &str) -> Option<Ordering> {
+    this.partial_cmp(rhs)
+}
+
+/// Perform a totally ordered comparison between two strings.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::cmp;
+///
+/// assert_eq!(cmp("a", "ab"), Ordering::Less);
+/// assert_eq!(cmp("ab", "a"), Ordering::Greater);
+/// assert_eq!(cmp("a", "a"), Ordering::Equal);
+/// ```
+#[rune::function(keep, instance, protocol = CMP)]
+#[inline]
+fn cmp(this: &str, rhs: &str) -> Ordering {
+    this.cmp(rhs)
+}
+
+/// Hash the string.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::hash;
+///
+/// let a = "hello";
+/// let b = "hello";
+///
+/// assert_eq!(hash(a), hash(b));
+/// ```
+#[rune::function(keep, instance, protocol = HASH)]
+fn hash(this: &str, hasher: &mut Hasher) {
+    hasher.write_str(this);
+}
+
+/// Write a display representation of a string.
+///
+/// # Examples
+///
+/// ```rune
+/// println!("{}", "Hello");
+/// ```
+#[rune::function(keep, instance, protocol = STRING_DISPLAY)]
+#[inline]
+fn string_display(this: &str, f: &mut Formatter) -> VmResult<()> {
+    rune::vm_write!(f, "{this}")
+}
+
+/// Write a debug representation of a string.
+///
+/// # Examples
+///
+/// ```rune
+/// println!("{:?}", "Hello");
+/// ```
+#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[inline]
+fn string_debug(this: &str, f: &mut Formatter) -> VmResult<()> {
+    rune::vm_write!(f, "{this:?}")
 }
 
 /// Shrinks the capacity of this `String` to match its length.
@@ -762,12 +894,6 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
             vm_try!(rune::to_value(Split::new(this, *c)))
         }
         ValueBorrowRef::Mutable(value) => match &*value {
-            Mutable::String(ref s) => {
-                vm_try!(rune::to_value(Split::new(
-                    this,
-                    vm_try!(Box::try_from(s.as_str()))
-                )))
-            }
             Mutable::Function(ref f) => {
                 vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))))
             }
@@ -778,11 +904,27 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
                 ])
             }
         },
-        actual => {
+        ValueBorrowRef::Any(value) => match value.type_hash() {
+            String::HASH => {
+                let s = vm_try!(value.borrow_ref::<String>());
+
+                vm_try!(rune::to_value(Split::new(
+                    this,
+                    vm_try!(Box::try_from(s.as_str()))
+                )))
+            }
+            _ => {
+                return VmResult::err([
+                    VmErrorKind::expected::<String>(value.type_info()),
+                    VmErrorKind::bad_argument(0),
+                ]);
+            }
+        },
+        value => {
             return VmResult::err([
-                VmErrorKind::expected::<String>(actual.type_info()),
+                VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
-            ])
+            ]);
         }
     };
 
@@ -805,7 +947,6 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
     let outcome = match vm_try!(value.borrow_ref()) {
         ValueBorrowRef::Inline(Inline::Char(pat)) => this.split_once(*pat),
         ValueBorrowRef::Mutable(value) => match &*value {
-            Mutable::String(s) => this.split_once(s.as_str()),
             Mutable::Function(f) => {
                 let mut err = None;
 
@@ -831,6 +972,18 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
                     VmErrorKind::expected::<String>(actual.type_info()),
                     VmErrorKind::bad_argument(0),
                 ])
+            }
+        },
+        ValueBorrowRef::Any(value) => match value.type_hash() {
+            String::HASH => {
+                let s = vm_try!(value.borrow_ref::<String>());
+                this.split_once(s.as_str())
+            }
+            _ => {
+                return VmResult::err([
+                    VmErrorKind::expected::<String>(value.type_info()),
+                    VmErrorKind::bad_argument(0),
+                ]);
             }
         },
         ref actual => {

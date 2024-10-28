@@ -428,19 +428,19 @@ impl HashSet {
     }
 
     fn string_debug_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> VmResult<()> {
-        vm_write!(f, "{{");
+        vm_try!(vm_write!(f, "{{"));
 
         let mut it = self.table.iter().peekable();
 
         while let Some(value) = it.next() {
-            vm_write!(f, "{:?}", value);
+            vm_try!(vm_write!(f, "{:?}", value));
 
             if it.peek().is_some() {
-                vm_write!(f, ", ");
+                vm_try!(vm_write!(f, ", "));
             }
         }
 
-        vm_write!(f, "}}");
+        vm_try!(vm_write!(f, "}}"));
         VmResult::Ok(())
     }
 

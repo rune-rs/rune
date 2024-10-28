@@ -277,6 +277,30 @@ macro_rules! from {
     };
 }
 
+macro_rules! any_from {
+    ($($ty:ty),* $(,)*) => {
+        $(
+            impl TryFrom<$ty> for Value {
+                type Error = alloc::Error;
+
+                #[inline]
+                fn try_from(value: $ty) -> Result<Self, Self::Error> {
+                    Value::new(value)
+                }
+            }
+
+            impl IntoOutput for $ty {
+                type Output = $ty;
+
+                #[inline]
+                fn into_output(self) -> VmResult<Self::Output> {
+                    VmResult::Ok(self)
+                }
+            }
+        )*
+    };
+}
+
 macro_rules! inline_from {
     ($($variant:ident => $ty:ty),* $(,)*) => {
         $(

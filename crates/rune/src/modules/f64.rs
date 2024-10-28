@@ -461,7 +461,7 @@ fn partial_cmp(this: f64, rhs: f64) -> Option<Ordering> {
     this.partial_cmp(&rhs)
 }
 
-/// Perform a partial ordered comparison between two floats.
+/// Perform a totally ordered comparison between two floats.
 ///
 /// # Examples
 ///

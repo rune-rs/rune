@@ -52,8 +52,7 @@ fn type_of_val(value: Value) -> VmResult<Type> {
 /// ```
 #[rune::function(instance, protocol = STRING_DISPLAY)]
 fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{:?}", ty);
-    VmResult::Ok(())
+    vm_write!(f, "{:?}", ty)
 }
 
 /// Get the type name of a value.

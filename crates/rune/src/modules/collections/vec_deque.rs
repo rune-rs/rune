@@ -588,17 +588,17 @@ impl VecDeque {
     ) -> VmResult<()> {
         let mut it = self.inner.iter().peekable();
 
-        vm_write!(f, "[");
+        vm_try!(vm_write!(f, "["));
 
         while let Some(value) = it.next() {
             vm_try!(value.string_debug_with(f, caller));
 
             if it.peek().is_some() {
-                vm_write!(f, ", ");
+                vm_try!(vm_write!(f, ", "));
             }
         }
 
-        vm_write!(f, "]");
+        vm_try!(vm_write!(f, "]"));
         VmResult::Ok(())
     }
 

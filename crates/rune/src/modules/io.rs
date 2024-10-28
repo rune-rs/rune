@@ -40,6 +40,8 @@ pub fn module(
     module.ty::<io::Error>()?;
     #[cfg(feature = "std")]
     module.function_meta(io_error_string_display)?;
+    #[cfg(feature = "std")]
+    module.function_meta(io_error_string_debug)?;
 
     #[cfg(feature = "std")]
     if stdio {
@@ -81,8 +83,13 @@ pub fn module(
 #[rune::function(instance, protocol = STRING_DISPLAY)]
 #[cfg(feature = "std")]
 fn io_error_string_display(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{error}");
-    VmResult::Ok(())
+    vm_write!(f, "{error}")
+}
+
+#[rune::function(instance, protocol = STRING_DEBUG)]
+#[cfg(feature = "std")]
+fn io_error_string_debug(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
+    vm_write!(f, "{error:?}")
 }
 
 #[cfg(feature = "std")]

@@ -6,6 +6,7 @@ use crate::runtime::{
     self, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, TypeInfo, Value,
     ValueBorrowRef, VmErrorKind, VmResult,
 };
+use crate::TypeHash;
 
 /// A constant value.
 #[derive(Debug, Deserialize, Serialize)]
@@ -54,7 +55,6 @@ impl ConstValue {
                 }
             },
             ValueBorrowRef::Mutable(value) => match &*value {
-                Mutable::String(s) => Self::String(vm_try!(s.try_to_owned())),
                 Mutable::Option(option) => Self::Option(match option {
                     Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value_ref(some))))),
                     None => None,
@@ -95,11 +95,17 @@ impl ConstValue {
                     })
                 }
             },
-            value => {
-                return VmResult::err(VmErrorKind::ConstNotSupported {
-                    actual: value.type_info(),
-                })
-            }
+            ValueBorrowRef::Any(value) => match value.type_hash() {
+                String::HASH => {
+                    let s = vm_try!(value.borrow_ref::<String>());
+                    Self::String(vm_try!(s.try_to_owned()))
+                }
+                _ => {
+                    return VmResult::err(VmErrorKind::ConstNotSupported {
+                        actual: value.type_info(),
+                    });
+                }
+            },
         })
     }
 

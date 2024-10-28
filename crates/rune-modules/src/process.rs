@@ -148,8 +148,7 @@ struct ExitStatus {
 impl ExitStatus {
     #[rune::function(protocol = STRING_DISPLAY)]
     fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.status);
-        VmResult::Ok(())
+        rune::vm_write!(f, "{}", self.status)
     }
 
     #[rune::function]
