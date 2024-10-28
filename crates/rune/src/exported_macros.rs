@@ -54,9 +54,7 @@ macro_rules! vm_write {
     ($($tt:tt)*) => {
         match core::write!($($tt)*) {
             Ok(()) => $crate::runtime::VmResult::Ok(()),
-            Err(err) => {
-                return $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err));
-            }
+            Err(err) => $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err)),
         }
     };
 }
