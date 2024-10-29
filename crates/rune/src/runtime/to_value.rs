@@ -1,7 +1,8 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
-use crate::runtime::{AnyObj, Object, RuntimeError, Value, VmResult};
 use crate::Any;
+
+use super::{AnyObj, Object, RuntimeError, Value, VmResult};
 
 /// Derive macro for the [`ToValue`] trait for converting types into the dynamic
 /// `Value` container.
@@ -66,11 +67,8 @@ pub use rune_macros::ToValue;
 /// assert_eq!(foo, 43);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-pub fn to_value<T>(value: T) -> Result<Value, RuntimeError>
-where
-    T: ToValue,
-{
-    T::to_value(value)
+pub fn to_value(value: impl ToValue) -> Result<Value, RuntimeError> {
+    value.to_value()
 }
 
 /// Trait for converting types into the dynamic [`Value`] container.

@@ -48,13 +48,13 @@
 //! }
 //! ```
 
-use core::hash::Hash;
 use core::cmp::Ordering;
+use core::hash::Hash;
 
 use rune::alloc::fmt::TryWrite;
-use rune::runtime::{Bytes, Formatter, Hasher, Ref, VmResult};
-use rune::{docstring, item, Any, ContextError, Module, Value, ToConstValue};
 use rune::alloc::prelude::*;
+use rune::runtime::{Bytes, Formatter, Hasher, Ref, VmResult};
+use rune::{docstring, item, Any, ContextError, Module, ToConstValue, Value};
 
 /// A simple HTTP module for Rune.
 ///
@@ -115,8 +115,6 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(StatusCode::hash__meta)?;
     module.function_meta(StatusCode::string_debug__meta)?;
     module.function_meta(StatusCode::string_display__meta)?;
-
-
 
     module
         .constant(
@@ -1534,13 +1532,17 @@ impl Response {
     /// Get the status code of the response.
     #[rune::function(keep, instance)]
     fn status(&self) -> StatusCode {
-        StatusCode { inner: self.response.status() }
+        StatusCode {
+            inner: self.response.status(),
+        }
     }
 
     /// Get the version of the response.
     #[rune::function(keep, instance)]
     fn version(&self) -> Version {
-        Version { inner: self.response.version() }
+        Version {
+            inner: self.response.version(),
+        }
     }
 
     /// Get the content-length of this response, if known.
@@ -1662,7 +1664,7 @@ impl StatusCode {
         self.inner.is_server_error()
     }
 
-    /// Test two byte arrays for partial equality.
+    /// Test two status codes for partial equality.
     ///
     /// # Examples
     ///
@@ -1684,7 +1686,7 @@ impl StatusCode {
         PartialEq::eq(&self.inner, &rhs.inner)
     }
 
-    /// Test two byte arrays for total equality.
+    /// Test two status codes for total equality.
     ///
     /// # Examples
     ///
@@ -1706,7 +1708,7 @@ impl StatusCode {
         PartialEq::eq(&self.inner, &rhs.inner)
     }
 
-    /// Perform a partial ordered comparison between two byte arrays.
+    /// Perform a partial ordered comparison between two status codes.
     ///
     /// # Examples
     ///
@@ -1742,7 +1744,7 @@ impl StatusCode {
         PartialOrd::partial_cmp(&self.inner, &rhs.inner)
     }
 
-    /// Perform a totally ordered comparison between two byte arrays.
+    /// Perform a totally ordered comparison between two status codes.
     ///
     /// # Examples
     ///
@@ -1765,7 +1767,7 @@ impl StatusCode {
         Ord::cmp(&self.inner, &rhs.inner)
     }
 
-    /// Hash the string.
+    /// Hash the status code.
     ///
     /// # Examples
     ///
@@ -1844,7 +1846,7 @@ pub struct Version {
 }
 
 impl Version {
-    /// Test two byte arrays for partial equality.
+    /// Test two versions for partial equality.
     ///
     /// # Examples
     ///
@@ -1866,7 +1868,7 @@ impl Version {
         PartialEq::eq(&self.inner, &rhs.inner)
     }
 
-    /// Test two byte arrays for total equality.
+    /// Test two versions for total equality.
     ///
     /// # Examples
     ///
@@ -1888,7 +1890,7 @@ impl Version {
         PartialEq::eq(&self.inner, &rhs.inner)
     }
 
-    /// Perform a partial ordered comparison between two byte arrays.
+    /// Perform a partial ordered comparison between two versions.
     ///
     /// # Examples
     ///
@@ -1924,7 +1926,7 @@ impl Version {
         PartialOrd::partial_cmp(&self.inner, &rhs.inner)
     }
 
-    /// Perform a totally ordered comparison between two byte arrays.
+    /// Perform a totally ordered comparison between two versions.
     ///
     /// # Examples
     ///
@@ -1947,7 +1949,7 @@ impl Version {
         Ord::cmp(&self.inner, &rhs.inner)
     }
 
-    /// Hash the string.
+    /// Hash the version.
     ///
     /// # Examples
     ///
@@ -2286,7 +2288,7 @@ async fn get(url: Ref<str>) -> Result<Response, Error> {
 }
 
 mod const_version {
-    use rune::runtime::{RuntimeError, ConstValue, Value};
+    use rune::runtime::{ConstValue, RuntimeError, Value};
 
     #[inline]
     pub(super) fn to_const_value(version: reqwest::Version) -> Result<ConstValue, RuntimeError> {
@@ -2296,24 +2298,20 @@ mod const_version {
             reqwest::Version::HTTP_11 => Ok(ConstValue::from(3i64)),
             reqwest::Version::HTTP_2 => Ok(ConstValue::from(4i64)),
             reqwest::Version::HTTP_3 => Ok(ConstValue::from(5i64)),
-            version => Err(RuntimeError::panic(format!("Unsupported reqwest version {version:?}"))),
+            version => Err(RuntimeError::panic(format!(
+                "Unsupported reqwest version {version:?}"
+            ))),
         }
     }
 
     #[inline]
     pub(super) fn from_const_value(version: &ConstValue) -> Result<reqwest::Version, RuntimeError> {
-        let Some(value) = version.as_i64() else {
-            return Err(RuntimeError::panic(format!("Unsupported reqwest version {version:?}")));
-        };
-
-        from_i64(value)
+        from_i64(rune::from_const_value(version)?)
     }
 
     #[inline]
     pub(super) fn from_value(version: Value) -> Result<reqwest::Version, RuntimeError> {
-        let value = version.as_integer()?;
-
-        from_i64(value)
+        from_i64(rune::from_value(version)?)
     }
 
     #[inline]
@@ -2324,13 +2322,15 @@ mod const_version {
             3i64 => Ok(reqwest::Version::HTTP_11),
             4i64 => Ok(reqwest::Version::HTTP_2),
             5i64 => Ok(reqwest::Version::HTTP_3),
-            value => Err(RuntimeError::panic(format!("unsupported reqwest version {value}"))),
+            value => Err(RuntimeError::panic(format!(
+                "unsupported reqwest version {value}"
+            ))),
         }
     }
 }
 
 mod const_status_code {
-    use rune::runtime::{RuntimeError, ConstValue, Value};
+    use rune::runtime::{ConstValue, RuntimeError, Value};
 
     #[inline]
     pub(super) fn to_const_value(status: reqwest::StatusCode) -> Result<ConstValue, RuntimeError> {
@@ -2338,12 +2338,10 @@ mod const_status_code {
     }
 
     #[inline]
-    pub(super) fn from_const_value(status: &ConstValue) -> Result<reqwest::StatusCode, RuntimeError> {
-        let Some(value) = status.as_i64() else {
-            return Err(RuntimeError::panic(format!("Unsupported reqwest status {status:?}")));
-        };
-
-        match reqwest::StatusCode::from_u16(value as u16) {
+    pub(super) fn from_const_value(
+        status: &ConstValue,
+    ) -> Result<reqwest::StatusCode, RuntimeError> {
+        match reqwest::StatusCode::from_u16(rune::from_const_value(status)?) {
             Ok(status) => Ok(status),
             Err(error) => Err(RuntimeError::panic(error)),
         }

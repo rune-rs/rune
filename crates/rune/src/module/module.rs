@@ -516,7 +516,7 @@ impl Module {
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> ModuleConstantBuilder<'_, N, V>
     where
-        V: ToConstValue,
+        V: TypeHash + TypeOf + ToConstValue,
     {
         ModuleConstantBuilder {
             module: self,

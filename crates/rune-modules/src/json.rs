@@ -29,10 +29,10 @@
 //! }
 //! ```
 
-use rune::{ContextError, Module, vm_write, Any};
-use rune::runtime::{Bytes, Formatter, Value, VmResult};
-use rune::alloc::{Vec, String};
 use rune::alloc::fmt::TryWrite;
+use rune::alloc::{String, Vec};
+use rune::runtime::{Bytes, Formatter, Value, VmResult};
+use rune::{vm_write, Any, ContextError, Module};
 
 #[rune::module(::json)]
 /// Module for processing JSON.
@@ -82,9 +82,9 @@ impl From<serde_json::Error> for Error {
 }
 
 /// Convert JSON bytes into a rune value.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rune
 /// let object = json::from_bytes(b"{\"number\": 42, \"string\": \"Hello World\"}")?;
 /// assert_eq!(object, #{"number": 42, "string": "Hello World"});
@@ -95,9 +95,9 @@ fn from_bytes(bytes: &[u8]) -> Result<Value, Error> {
 }
 
 /// Convert a JSON string into a rune value.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rune
 /// let object = json::from_string("{\"number\": 42, \"string\": \"Hello World\"}")?;
 /// assert_eq!(object, #{"number": 42, "string": "Hello World"});
@@ -108,9 +108,9 @@ fn from_string(string: &str) -> Result<Value, Error> {
 }
 
 /// Convert any value to a json string.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rune
 /// let object = #{"number": 42, "string": "Hello World"};
 /// let object = json::from_string(json::to_string(object)?)?;
@@ -122,9 +122,9 @@ fn to_string(value: Value) -> Result<String, Error> {
 }
 
 /// Convert any value to json bytes.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rune
 /// let object = #{"number": 42, "string": "Hello World"};
 /// let object = json::from_bytes(json::to_bytes(object)?)?;
@@ -132,5 +132,7 @@ fn to_string(value: Value) -> Result<String, Error> {
 /// ```
 #[rune::function(vm_result)]
 fn to_bytes(value: Value) -> Result<Bytes, Error> {
-    Ok(Bytes::from_vec(Vec::try_from(serde_json::to_vec(&value)?).vm?))
+    Ok(Bytes::from_vec(
+        Vec::try_from(serde_json::to_vec(&value)?).vm?,
+    ))
 }

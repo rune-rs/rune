@@ -27,9 +27,9 @@
 //! }
 //! ```
 
+use rune::{ContextError, Module};
 use std::io;
 use tokio::fs;
-use rune::{Module, ContextError};
 
 /// Construct the `fs` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {

@@ -29,11 +29,11 @@
 //! }
 //! ```
 
-use rune::{Any, Module, ContextError, vm_try};
-use rune::runtime::{Bytes, Value, VmResult, Formatter};
 use rune::alloc::clone::TryClone;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::Vec;
+use rune::runtime::{Bytes, Formatter, Value, VmResult};
+use rune::{vm_try, Any, ContextError, Module};
 
 use std::io;
 use tokio::process;
@@ -121,7 +121,9 @@ impl Child {
         let output = inner.wait_with_output().await?;
 
         Ok(Output {
-            status: ExitStatus { status: output.status },
+            status: ExitStatus {
+                status: output.status,
+            },
             stdout: Bytes::from_vec(Vec::try_from(output.stdout).vm?),
             stderr: Bytes::from_vec(Vec::try_from(output.stderr).vm?),
         })

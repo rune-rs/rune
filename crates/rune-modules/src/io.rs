@@ -5,7 +5,7 @@
 //! Note: **this has been deprecated**, all functions in this module have been
 //! moved into the [`rune` crate][rune::modules].
 
-use rune::{Module, ContextError};
+use rune::{ContextError, Module};
 
 /// Construct the supplemental `std::io` module.
 #[deprecated = "all functions in this module have been included in the rune crate, see https://github.com/rune-rs/rune/issues/456"]

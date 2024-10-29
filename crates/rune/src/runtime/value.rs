@@ -1592,8 +1592,6 @@ impl Value {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Value, VmResult};
-    ///
     /// let value = rune::to_value(u32::MAX)?;
     ///
     /// assert_eq!(value.try_as_integer::<u64>()?, u32::MAX as u64);

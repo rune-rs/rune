@@ -3,28 +3,9 @@ use core::cmp::Ordering;
 use crate::alloc::{self, String};
 use crate::Any;
 
-use super::{AnyObj, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult};
-
-/// Cheap conversion trait to convert something infallibly into a dynamic [`Value`].
-pub trait IntoValue {
-    /// Convert into a dynamic [`Value`].
-    #[doc(hidden)]
-    fn into_value(self) -> Value;
-}
-
-impl IntoValue for Value {
-    #[inline]
-    fn into_value(self) -> Value {
-        self
-    }
-}
-
-impl IntoValue for &Value {
-    #[inline]
-    fn into_value(self) -> Value {
-        self.clone()
-    }
-}
+use super::{
+    AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult,
+};
 
 /// Derive macro for the [`FromValue`] trait for converting types from the
 /// dynamic `Value` container.
@@ -58,6 +39,27 @@ impl IntoValue for &Value {
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 pub use rune_macros::FromValue;
+
+/// Cheap conversion trait to convert something infallibly into a dynamic [`Value`].
+pub trait IntoValue {
+    /// Convert into a dynamic [`Value`].
+    #[doc(hidden)]
+    fn into_value(self) -> Value;
+}
+
+impl IntoValue for Value {
+    #[inline]
+    fn into_value(self) -> Value {
+        self
+    }
+}
+
+impl IntoValue for &Value {
+    #[inline]
+    fn into_value(self) -> Value {
+        self.clone()
+    }
+}
 
 /// Convert something into the dynamic [`Value`].
 ///
@@ -349,9 +351,23 @@ impl FromValue for u8 {
     }
 }
 
+impl FromConstValue for u8 {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+        value.as_byte()
+    }
+}
+
 impl FromValue for bool {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_bool()
+    }
+}
+
+impl FromConstValue for bool {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
         value.as_bool()
     }
 }
@@ -363,9 +379,23 @@ impl FromValue for char {
     }
 }
 
+impl FromConstValue for char {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+        value.as_char()
+    }
+}
+
 impl FromValue for i64 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_integer()
+    }
+}
+
+impl FromConstValue for i64 {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
         value.as_integer()
     }
 }
@@ -375,6 +405,13 @@ macro_rules! impl_number {
         impl FromValue for $ty {
             #[inline]
             fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                value.try_as_integer()
+            }
+        }
+
+        impl FromConstValue for $ty {
+            #[inline]
+            fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
                 value.try_as_integer()
             }
         }
