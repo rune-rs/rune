@@ -155,7 +155,7 @@ where
         .into_result()
         .map_err(TestError::VmError)?;
 
-    crate::from_value(output).map_err(TestError::VmError)
+    crate::from_value(output).map_err(|error| TestError::VmError(error.into()))
 }
 
 #[doc(hidden)]

@@ -4,7 +4,9 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{EnvProtocolCaller, FromValue, ProtocolCaller, ToValue, Value, VmResult};
+use crate::runtime::{
+    EnvProtocolCaller, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmResult,
+};
 use crate::Any;
 
 /// Type for an inclusive range expression `..end`.
@@ -199,9 +201,9 @@ where
     Idx: FromValue,
 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(value.into_any::<RangeTo>());
-        let end = vm_try!(Idx::from_value(range.end));
-        VmResult::Ok(ops::RangeTo { end })
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let range = value.into_any::<RangeTo>()?;
+        let end = Idx::from_value(range.end)?;
+        Ok(ops::RangeTo { end })
     }
 }

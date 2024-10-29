@@ -236,7 +236,7 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.iter() {
-            out.try_push(value.to_value(&EmptyConstContext)?)?;
+            out.try_push(value.to_value_with(&EmptyConstContext)?)?;
         }
 
         Ok(Self {
@@ -269,7 +269,7 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.iter() {
-            out.try_push(value.to_value(&EmptyConstContext)?)?;
+            out.try_push(value.to_value_with(&EmptyConstContext)?)?;
         }
 
         Ok(Self {
@@ -279,11 +279,11 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 }
 
 impl FromValue for OwnedTuple {
-    fn from_value(value: Value) -> VmResult<Self> {
-        match vm_try!(value.take_repr()) {
-            OwnedRepr::Inline(Inline::Unit) => VmResult::Ok(Self::new()),
-            OwnedRepr::Mutable(Mutable::Tuple(tuple)) => VmResult::Ok(tuple),
-            value => VmResult::expected::<Self>(value.type_info()),
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        match value.take_repr()? {
+            OwnedRepr::Inline(Inline::Unit) => Ok(Self::new()),
+            OwnedRepr::Mutable(Mutable::Tuple(tuple)) => Ok(tuple),
+            value => Err(RuntimeError::expected::<Self>(value.type_info())),
         }
     }
 }
@@ -294,8 +294,8 @@ macro_rules! impl_tuple {
         impl_static_type!((), crate::runtime::static_type::TUPLE, crate::runtime::static_type::TUPLE_HASH);
 
         impl FromValue for () {
-            fn from_value(value: Value) -> VmResult<Self> {
-                VmResult::Ok(vm_try!(value.into_unit()))
+            fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                value.into_unit()
             }
         }
 
@@ -313,17 +313,17 @@ macro_rules! impl_tuple {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> VmResult<Self> {
-                let tuple = vm_try!(value.into_tuple_ref());
+            fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                let tuple = value.into_tuple_ref()?;
 
                 let [$($var,)*] = &tuple[..] else {
-                    return VmResult::err(VmErrorKind::ExpectedTupleLength {
+                    return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {
                         actual: tuple.len(),
                         expected: $count,
-                    });
+                    }));
                 };
 
-                VmResult::Ok(($(vm_try!(<$ty>::from_value($var.clone())),)*))
+                Ok(($(<$ty as FromValue>::from_value($var.clone())?,)*))
             }
         }
 
@@ -345,14 +345,14 @@ macro_rules! impl_tuple {
 repeat_macro!(impl_tuple);
 
 impl FromValue for Ref<Tuple> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let result = match vm_try!(value.into_value_shared()) {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let result = match value.into_value_shared()? {
             ValueShared::Inline(value) => match value {
                 Inline::Unit => Ok(Ref::from_static(Tuple::new(&[]))),
                 actual => Err(actual.type_info()),
             },
             ValueShared::Mutable(value) => {
-                let value = vm_try!(value.into_ref());
+                let value = value.into_ref()?;
 
                 let result = Ref::try_map(value, |value| match value {
                     Mutable::Tuple(tuple) => Some(&**tuple),
@@ -368,21 +368,21 @@ impl FromValue for Ref<Tuple> {
         };
 
         match result {
-            Ok(tuple) => VmResult::Ok(tuple),
-            Err(actual) => VmResult::expected::<Self>(actual),
+            Ok(tuple) => Ok(tuple),
+            Err(actual) => Err(RuntimeError::expected::<Self>(actual)),
         }
     }
 }
 
 impl FromValue for Mut<Tuple> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let result = match vm_try!(value.into_value_shared()) {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let result = match value.into_value_shared()? {
             ValueShared::Inline(value) => match value {
                 Inline::Unit => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
                 actual => Err(actual.type_info()),
             },
             ValueShared::Mutable(value) => {
-                let value = vm_try!(value.clone().into_mut());
+                let value = value.into_mut()?;
 
                 let result = Mut::try_map(value, |kind| match kind {
                     Mutable::Tuple(tuple) => Some(&mut **tuple),
@@ -398,8 +398,8 @@ impl FromValue for Mut<Tuple> {
         };
 
         match result {
-            Ok(tuple) => VmResult::Ok(tuple),
-            Err(actual) => VmResult::expected::<Self>(actual),
+            Ok(tuple) => Ok(tuple),
+            Err(actual) => Err(RuntimeError::expected::<Self>(actual)),
         }
     }
 }

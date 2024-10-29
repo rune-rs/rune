@@ -278,6 +278,7 @@ fn expand_enum_install_with(
 ) -> Result<(), ()> {
     let Tokens {
         protocol,
+        runtime_error,
         to_value,
         type_of,
         vm_result,
@@ -422,7 +423,7 @@ fn expand_enum_install_with(
             module.field_function(#protocol::GET, #field, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::__rune_macros__unsupported_object_field_get(<Self as #type_of>::type_info()),
+                    _ => return #vm_result::err(#runtime_error::__rune_macros__unsupported_object_field_get(<Self as #type_of>::type_info())),
                 }
             })?;
         });
@@ -433,7 +434,7 @@ fn expand_enum_install_with(
             module.index_function(#protocol::GET, #index, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info(), #index),
+                    _ => return #vm_result::err(#runtime_error::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info(), #index)),
                 }
             })?;
         });
@@ -533,6 +534,8 @@ where
             value,
             vm_result,
             vm_try,
+            runtime_error,
+            result,
             ..
         } = &tokens;
 
@@ -711,9 +714,8 @@ where
 
                 Some(quote! {
                     impl #from_value for #ty {
-                        fn from_value(value: Value) -> #vm_result<Self> {
-                            let value = #vm_try!(#path(value));
-                            #vm_result::Ok(value)
+                        fn from_value(value: Value) -> #result<Self, #runtime_error> {
+                            #path(value)
                         }
                     }
                 })
@@ -742,9 +744,8 @@ where
                     }
 
                     impl #from_value for #ref_<#ty> {
-                        fn from_value(value: Value) -> #vm_result<Self> {
-                            let value = #vm_try!(#path(value));
-                            #vm_result::Ok(value)
+                        fn from_value(value: #value) -> #result<Self, #runtime_error> {
+                            #path(value)
                         }
                     }
                 })
@@ -773,9 +774,8 @@ where
                     }
 
                     impl #from_value for #mut_<#ty> {
-                        fn from_value(value: Value) -> #vm_result<Self> {
-                            let value = #vm_try!(#path(value));
-                            #vm_result::Ok(value)
+                        fn from_value(value: #value) -> #result<Self, #runtime_error> {
+                            #path(value)
                         }
                     }
                 })

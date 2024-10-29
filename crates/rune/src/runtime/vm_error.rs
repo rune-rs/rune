@@ -268,7 +268,7 @@ impl<T> VmResult<T> {
 
     /// Construct a new error from a type that can be converted into a
     /// [`VmError`].
-    pub(crate) fn err<E>(error: E) -> Self
+    pub fn err<E>(error: E) -> Self
     where
         VmError: From<E>,
     {
@@ -313,53 +313,6 @@ impl<T> VmResult<T> {
                 Self::Err(err)
             }
         }
-    }
-}
-
-#[allow(non_snake_case)]
-impl<T> VmResult<T> {
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_struct_field(target: &'static str, name: &'static str) -> Self {
-        Self::err(VmErrorKind::MissingStructField { target, name })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_variant(name: &str) -> alloc::Result<Self> {
-        Ok(Self::err(VmErrorKind::MissingVariant {
-            name: name.try_to_owned()?,
-        }))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__expected_variant(actual: TypeInfo) -> Self {
-        Self::err(VmErrorKind::ExpectedVariant { actual })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_variant_name() -> Self {
-        Self::err(VmErrorKind::MissingVariantName)
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_tuple_index(target: &'static str, index: usize) -> Self {
-        Self::err(VmErrorKind::MissingTupleIndex { target, index })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__unsupported_object_field_get(target: TypeInfo) -> Self {
-        Self::err(VmErrorKind::UnsupportedObjectFieldGet { target })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__unsupported_tuple_index_get(target: TypeInfo, index: usize) -> Self {
-        Self::err(VmErrorKind::UnsupportedTupleIndexGet { target, index })
     }
 }
 
@@ -478,7 +431,7 @@ impl RuntimeError {
     }
 
     /// Construct an expected error.
-    pub(crate) fn expected<T>(actual: TypeInfo) -> Self
+    pub fn expected<T>(actual: TypeInfo) -> Self
     where
         T: ?Sized + TypeOf,
     {
@@ -507,6 +460,53 @@ impl RuntimeError {
     /// Indicate that a constant constructor is missing.
     pub(crate) fn missing_constant_constructor(hash: Hash) -> Self {
         Self::new(VmErrorKind::MissingConstantConstructor { hash })
+    }
+}
+
+#[allow(non_snake_case)]
+impl RuntimeError {
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__missing_struct_field(target: &'static str, name: &'static str) -> Self {
+        Self::new(VmErrorKind::MissingStructField { target, name })
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__missing_variant(name: &str) -> alloc::Result<Self> {
+        Ok(Self::new(VmErrorKind::MissingVariant {
+            name: name.try_to_owned()?,
+        }))
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__expected_variant(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedVariant { actual })
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__missing_variant_name() -> Self {
+        Self::new(VmErrorKind::MissingVariantName)
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__missing_tuple_index(target: &'static str, index: usize) -> Self {
+        Self::new(VmErrorKind::MissingTupleIndex { target, index })
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__unsupported_object_field_get(target: TypeInfo) -> Self {
+        Self::new(VmErrorKind::UnsupportedObjectFieldGet { target })
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn __rune_macros__unsupported_tuple_index_get(target: TypeInfo, index: usize) -> Self {
+        Self::new(VmErrorKind::UnsupportedTupleIndexGet { target, index })
     }
 }
 

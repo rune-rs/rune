@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{RawStr, VmResult};
+use crate::runtime::{RawStr, RuntimeError};
 use crate::{FromValue, Hash, Value};
 
 /// A value representing a type in the virtual machine.
@@ -32,8 +32,8 @@ impl InstallWith for Type {}
 
 impl FromValue for Type {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_type()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_type()
     }
 }
 

@@ -393,7 +393,7 @@ impl Value {
         let result =
             vm_try!(caller.call_protocol_fn(Protocol::STRING_DISPLAY, self.clone(), &mut args));
 
-        <()>::from_value(result)
+        VmResult::Ok(vm_try!(<()>::from_value(result)))
     }
 
     /// Perform a shallow clone of the value using the [`CLONE`] protocol.
@@ -933,18 +933,19 @@ impl Value {
     /// a future without the use of a [`Vm`] and one is not provided through the
     /// environment.
     #[inline]
-    pub fn into_future(self) -> VmResult<Future> {
-        let target = match vm_try!(self.take_repr()) {
-            OwnedRepr::Mutable(Mutable::Future(future)) => return VmResult::Ok(future),
+    pub fn into_future(self) -> Result<Future, RuntimeError> {
+        let target = match self.take_repr()? {
+            OwnedRepr::Mutable(Mutable::Future(future)) => return Ok(future),
             OwnedRepr::Inline(value) => Value::from(value),
-            OwnedRepr::Mutable(value) => vm_try!(Value::try_from(value)),
+            OwnedRepr::Mutable(value) => Value::try_from(value)?,
             OwnedRepr::Any(value) => Value::from(value),
         };
 
-        let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::INTO_FUTURE, target, &mut ()));
+        let value = EnvProtocolCaller
+            .call_protocol_fn(Protocol::INTO_FUTURE, target, &mut ())
+            .into_result()?;
 
-        VmResult::Ok(vm_try!(Future::from_value(value)))
+        Future::from_value(value)
     }
 
     /// Try to coerce value into a typed reference.
@@ -1208,7 +1209,7 @@ impl Value {
             self.clone(),
             &mut Some((b.clone(),))
         )) {
-            return <_>::from_value(value);
+            return VmResult::Ok(vm_try!(<_>::from_value(value)));
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1277,7 +1278,7 @@ impl Value {
         if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), &mut args))
         {
-            return <_>::from_value(value);
+            return VmResult::Ok(vm_try!(<_>::from_value(value)));
         }
 
         err(VmErrorKind::UnsupportedUnaryOperation {
@@ -1374,7 +1375,7 @@ impl Value {
             self.clone(),
             &mut Some((b.clone(),))
         )) {
-            return <_>::from_value(value);
+            return VmResult::Ok(vm_try!(<_>::from_value(value)));
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1476,7 +1477,7 @@ impl Value {
             self.clone(),
             &mut Some((b.clone(),))
         )) {
-            return <_>::from_value(value);
+            return VmResult::Ok(vm_try!(<_>::from_value(value)));
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1578,7 +1579,7 @@ impl Value {
             self.clone(),
             &mut Some((b.clone(),))
         )) {
-            return <_>::from_value(value);
+            return VmResult::Ok(vm_try!(<_>::from_value(value)));
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1725,14 +1726,14 @@ impl Value {
         let value =
             vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::NEXT, self.clone(), &mut ()));
 
-        FromValue::from_value(value)
+        VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_next_back(&self) -> VmResult<Option<Value>> {
         let value =
             vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::NEXT_BACK, self.clone(), &mut ()));
 
-        FromValue::from_value(value)
+        VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_nth_back(&self, n: usize) -> VmResult<Option<Value>> {
@@ -1742,21 +1743,21 @@ impl Value {
             &mut Some((n,))
         ));
 
-        FromValue::from_value(value)
+        VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_len(&self) -> VmResult<usize> {
         let value =
             vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::LEN, self.clone(), &mut ()));
 
-        FromValue::from_value(value)
+        VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_size_hint(&self) -> VmResult<(usize, Option<usize>)> {
         let value =
             vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::SIZE_HINT, self.clone(), &mut ()));
 
-        FromValue::from_value(value)
+        VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 }
 

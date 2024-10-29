@@ -21,7 +21,7 @@ use super::{AnyTypeInfo, RuntimeError};
 ///
 /// Do not implement manually, this is provided when deriving
 /// [`ToConstValue`](derive@ToConstValue).
-pub trait ConstConstruct {
+pub trait ConstConstruct: 'static + Send + Sync {
     /// Construct from values.
     #[doc(hidden)]
     fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
@@ -179,25 +179,31 @@ impl ConstValue {
         Ok(Self { kind: inner })
     }
 
+    #[inline]
+    #[cfg(test)]
+    pub(crate) fn to_value(&self) -> Result<Value, RuntimeError> {
+        self.to_value_with(&EmptyConstContext)
+    }
+
     /// Convert into virtual machine value.
     ///
     /// We provide this associated method since a constant value can be
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
-    pub(crate) fn to_value(&self, cx: &dyn ConstContext) -> Result<Value, RuntimeError> {
+    pub(crate) fn to_value_with(&self, cx: &dyn ConstContext) -> Result<Value, RuntimeError> {
         match &self.kind {
             ConstValueKind::Inline(value) => Ok(Value::from(*value)),
             ConstValueKind::String(string) => Ok(Value::try_from(string.try_clone()?)?),
             ConstValueKind::Bytes(b) => Ok(Value::try_from(b.try_clone()?)?),
             ConstValueKind::Option(option) => Ok(Value::try_from(match option {
-                Some(some) => Some(Self::to_value(some, cx)?),
+                Some(some) => Some(Self::to_value_with(some, cx)?),
                 None => None,
             })?),
             ConstValueKind::Vec(vec) => {
                 let mut v = runtime::Vec::with_capacity(vec.len())?;
 
                 for value in vec {
-                    v.push(Self::to_value(value, cx)?)?;
+                    v.push(Self::to_value_with(value, cx)?)?;
                 }
 
                 Ok(Value::try_from(v)?)
@@ -206,7 +212,7 @@ impl ConstValue {
                 let mut t = Vec::try_with_capacity(tuple.len())?;
 
                 for value in tuple.iter() {
-                    t.try_push(Self::to_value(value, cx)?)?;
+                    t.try_push(Self::to_value_with(value, cx)?)?;
                 }
 
                 Ok(Value::try_from(OwnedTuple::try_from(t)?)?)
@@ -216,7 +222,7 @@ impl ConstValue {
 
                 for (key, value) in object {
                     let key = key.try_clone()?;
-                    let value = Self::to_value(value, cx)?;
+                    let value = Self::to_value_with(value, cx)?;
                     o.insert(key, value)?;
                 }
 
@@ -282,15 +288,18 @@ impl TryClone for ConstValue {
 
 impl FromValue for ConstValue {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(ConstValue::from_value_ref(&value)))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        ConstValue::from_value_ref(&value)
     }
 }
 
 impl ToValue for ConstValue {
     #[inline]
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(ConstValue::to_value(&self, &EmptyConstContext)))
+        VmResult::Ok(vm_try!(ConstValue::to_value_with(
+            &self,
+            &EmptyConstContext
+        )))
     }
 }
 

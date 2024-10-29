@@ -5,7 +5,9 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::Any;
 
-use super::{EnvProtocolCaller, Formatter, FromValue, ProtocolCaller, ToValue, Value, VmResult};
+use super::{
+    EnvProtocolCaller, Formatter, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmResult,
+};
 
 /// Used to tell an operation whether it should exit early or go on as usual.
 ///
@@ -188,14 +190,12 @@ where
     C: FromValue,
 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(match &*vm_try!(value.borrow_ref::<ControlFlow>()) {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        Ok(match &*value.borrow_ref::<ControlFlow>()? {
             ControlFlow::Continue(value) => {
-                ops::ControlFlow::Continue(vm_try!(C::from_value(value.clone())))
+                ops::ControlFlow::Continue(C::from_value(value.clone())?)
             }
-            ControlFlow::Break(value) => {
-                ops::ControlFlow::Break(vm_try!(B::from_value(value.clone())))
-            }
+            ControlFlow::Break(value) => ops::ControlFlow::Break(B::from_value(value.clone())?),
         })
     }
 }

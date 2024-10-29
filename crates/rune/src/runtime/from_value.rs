@@ -1,8 +1,9 @@
 use core::cmp::Ordering;
 
 use crate::alloc::{self, String};
-use crate::runtime::{AnyObj, Mut, RawAnyGuard, Ref, Value, VmError, VmResult};
 use crate::Any;
+
+use super::{AnyObj, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult};
 
 /// Cheap conversion trait to convert something infallibly into a dynamic [`Value`].
 pub trait IntoValue {
@@ -88,11 +89,11 @@ pub use rune_macros::FromValue;
 /// assert_eq!(foo, 43);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-pub fn from_value<T>(value: impl IntoValue) -> Result<T, VmError>
+pub fn from_value<T>(value: impl IntoValue) -> Result<T, RuntimeError>
 where
     T: FromValue,
 {
-    T::from_value(value.into_value()).into_result()
+    T::from_value(value.into_value())
 }
 
 /// Trait for converting types from the dynamic [Value] container.
@@ -123,7 +124,7 @@ where
 /// ```
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.
-    fn from_value(value: Value) -> VmResult<Self>;
+    fn from_value(value: Value) -> Result<Self, RuntimeError>;
 }
 
 /// Unsafe to mut coercion.
@@ -200,9 +201,8 @@ impl<T> FromValue for T
 where
     T: Any,
 {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let value = vm_try!(value.into_any());
-        VmResult::Ok(value)
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_any()
     }
 }
 
@@ -211,8 +211,8 @@ where
     T: Any,
 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.into_any_mut()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_any_mut()
     }
 }
 
@@ -221,21 +221,21 @@ where
     T: Any,
 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.into_any_ref()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_any_ref()
     }
 }
 
 impl FromValue for AnyObj {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.into_any_obj()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_any_obj()
     }
 }
 
 impl FromValue for Value {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(value)
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        Ok(value)
     }
 }
 
@@ -245,9 +245,9 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(match &*vm_try!(value.into_option_ref()) {
-            Some(some) => Some(vm_try!(T::from_value(some.clone()))),
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        Ok(match &*value.into_option_ref()? {
+            Some(some) => Some(T::from_value(some.clone())?),
             None => None,
         })
     }
@@ -256,36 +256,33 @@ where
 from_value_ref!(Option<Value>, into_option_ref, into_option_mut, into_option);
 
 impl FromValue for ::rust_alloc::string::String {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let string = vm_try!(String::from_value(value));
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let string = String::from_value(value)?;
         let string = ::rust_alloc::string::String::from(string);
-        VmResult::Ok(string)
+        Ok(string)
     }
 }
 
 impl FromValue for alloc::Box<str> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let string = vm_try!(value.borrow_string_ref());
-        let string = vm_try!(alloc::Box::try_from(string.as_ref()));
-        VmResult::Ok(string)
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let string = value.borrow_string_ref()?;
+        let string = alloc::Box::try_from(string.as_ref())?;
+        Ok(string)
     }
 }
 
 #[cfg(feature = "alloc")]
 impl FromValue for ::rust_alloc::boxed::Box<str> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let string = vm_try!(value.borrow_string_ref());
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let string = value.borrow_string_ref()?;
         let string = ::rust_alloc::boxed::Box::<str>::from(string.as_ref());
-        VmResult::Ok(string)
+        Ok(string)
     }
 }
 
 impl FromValue for Ref<str> {
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(Ref::map(
-            vm_try!(Ref::<String>::from_value(value)),
-            String::as_str,
-        ))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        Ok(Ref::map(Ref::<String>::from_value(value)?, String::as_str))
     }
 }
 
@@ -335,10 +332,10 @@ where
     E: FromValue,
 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(match &*vm_try!(value.into_result_ref()) {
-            Ok(ok) => Result::Ok(vm_try!(T::from_value(ok.clone()))),
-            Err(err) => Result::Err(vm_try!(E::from_value(err.clone()))),
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        Ok(match &*value.into_result_ref()? {
+            Ok(ok) => Result::Ok(T::from_value(ok.clone())?),
+            Err(err) => Result::Err(E::from_value(err.clone())?),
         })
     }
 }
@@ -347,29 +344,29 @@ from_value_ref!(Result<Value, Value>, into_result_ref, into_result_mut, into_res
 
 impl FromValue for u8 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_byte()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_byte()
     }
 }
 
 impl FromValue for bool {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_bool()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_bool()
     }
 }
 
 impl FromValue for char {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_char()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_char()
     }
 }
 
 impl FromValue for i64 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_integer()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_integer()
     }
 }
 
@@ -377,8 +374,8 @@ macro_rules! impl_number {
     ($ty:ty) => {
         impl FromValue for $ty {
             #[inline]
-            fn from_value(value: Value) -> VmResult<Self> {
-                VmResult::Ok(vm_try!(value.try_as_integer()))
+            fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                value.try_as_integer()
             }
         }
     };
@@ -397,15 +394,15 @@ impl_number!(isize);
 
 impl FromValue for f64 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_float()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_float()
     }
 }
 
 impl FromValue for f32 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_float()) as f32)
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        Ok(value.as_float()? as f32)
     }
 }
 
@@ -416,18 +413,18 @@ cfg_std! {
             where
                 T: FromValue,
             {
-                fn from_value(value: Value) -> VmResult<Self> {
-                    let object = vm_try!(value.into_object());
+                fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                    let object = value.into_object()?;
 
                     let mut output = <$ty>::with_capacity(object.len());
 
                     for (key, value) in object {
-                        let key = vm_try!(<$key>::try_from(key));
-                        let value = vm_try!(<T>::from_value(value));
+                        let key = <$key>::try_from(key)?;
+                        let value = <T>::from_value(value)?;
                         output.insert(key, value);
                     }
 
-                    VmResult::Ok(output)
+                    Ok(output)
                 }
             }
         };
@@ -443,18 +440,18 @@ macro_rules! impl_try_map {
         where
             T: FromValue,
         {
-            fn from_value(value: Value) -> VmResult<Self> {
-                let object = vm_try!(value.into_object());
+            fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                let object = value.into_object()?;
 
-                let mut output = vm_try!(<$ty>::try_with_capacity(object.len()));
+                let mut output = <$ty>::try_with_capacity(object.len())?;
 
                 for (key, value) in object {
-                    let key = vm_try!(<$key>::try_from(key));
-                    let value = vm_try!(<T>::from_value(value));
-                    vm_try!(output.try_insert(key, value));
+                    let key = <$key>::try_from(key)?;
+                    let value = <T>::from_value(value)?;
+                    output.try_insert(key, value)?;
                 }
 
-                VmResult::Ok(output)
+                Ok(output)
             }
         }
     };
@@ -466,7 +463,7 @@ impl_try_map!(alloc::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::str
 
 impl FromValue for Ordering {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(value.as_ordering()))
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_ordering()
     }
 }

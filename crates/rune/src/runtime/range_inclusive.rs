@@ -5,8 +5,8 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, RefRepr, ToValue, Value, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, RefRepr, RuntimeError, ToValue, Value,
+    VmErrorKind, VmResult,
 };
 use crate::Any;
 
@@ -317,11 +317,11 @@ where
     Idx: FromValue,
 {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        let range = vm_try!(value.into_any::<RangeInclusive>());
-        let start = vm_try!(Idx::from_value(range.start));
-        let end = vm_try!(Idx::from_value(range.end));
-        VmResult::Ok(start..=end)
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let range = value.into_any::<RangeInclusive>()?;
+        let start = Idx::from_value(range.start)?;
+        let end = Idx::from_value(range.end)?;
+        Ok(start..=end)
     }
 }
 

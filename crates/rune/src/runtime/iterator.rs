@@ -1,7 +1,7 @@
 use crate::alloc;
 use crate::compile::meta;
 
-use super::{FromValue, MaybeTypeOf, Value, VmResult};
+use super::{FromValue, MaybeTypeOf, RuntimeError, Value, VmResult};
 
 /// An owning iterator.
 #[derive(Debug)]
@@ -27,8 +27,8 @@ impl Iterator {
 
 impl FromValue for Iterator {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        value.into_iter()
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_iter().into_result().map_err(RuntimeError::from)
     }
 }
 

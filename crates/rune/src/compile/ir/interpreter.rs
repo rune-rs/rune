@@ -105,7 +105,7 @@ impl Interpreter<'_, '_> {
                 .alloc_item(base.extended(name.try_to_string()?)?)?;
 
             if let Some(const_value) = self.q.consts.get(item) {
-                return Ok(const_value.to_value(self.q.context).with_span(span)?);
+                return Ok(const_value.to_value_with(self.q.context).with_span(span)?);
             }
 
             if let Some(meta) = self.q.query_meta(span, item, used)? {
@@ -118,7 +118,7 @@ impl Interpreter<'_, '_> {
                             ));
                         };
 
-                        return Ok(const_value.to_value(self.q.context).with_span(span)?);
+                        return Ok(const_value.to_value_with(self.q.context).with_span(span)?);
                     }
                     _ => {
                         return Err(compile::Error::new(

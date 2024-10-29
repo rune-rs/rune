@@ -4,7 +4,7 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{FromValue, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, RuntimeError, ToValue, Value, VmResult};
 use crate::Any;
 
 /// Type for a full range expression `..`.
@@ -134,8 +134,8 @@ impl ToValue for ops::RangeFull {
 
 impl FromValue for ops::RangeFull {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        let RangeFull = vm_try!(value.into_any::<RangeFull>());
-        VmResult::Ok(ops::RangeFull)
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let RangeFull = value.into_any::<RangeFull>()?;
+        Ok(ops::RangeFull)
     }
 }
