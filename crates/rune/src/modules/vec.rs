@@ -582,6 +582,20 @@ fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 /// vec.resize(2, 0);
 /// assert_eq!(vec, [1, 2]);
 /// ```
+///
+/// Resizing calls `CLONE` each new element, which means they are not
+/// structurally shared:
+///
+/// ```rune
+/// let inner = [1];
+/// let vec = [2];
+/// vec.resize(3, inner);
+///
+/// inner.push(3);
+/// vec[1].push(4);
+///
+/// assert_eq!(vec, [2, [1, 4], [1]]);
+/// ```
 #[rune::function(instance)]
 fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
     Vec::resize(this, new_len, value)

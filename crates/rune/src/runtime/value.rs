@@ -1617,6 +1617,11 @@ impl Value {
         }
     }
 
+    /// Test if the value is inline.
+    pub(crate) fn is_inline(&self) -> bool {
+        matches!(self.repr, Repr::Any(..) | Repr::Inline(..))
+    }
+
     /// Coerce into a checked [`Inline`] object.
     ///
     /// Any empty value will cause an access error.

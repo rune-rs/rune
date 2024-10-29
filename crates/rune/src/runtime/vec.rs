@@ -14,6 +14,7 @@ use crate::runtime::slice::Iter;
 use crate::runtime::Hasher;
 use crate::{Any, TypeHash};
 
+use super::EnvProtocolCaller;
 use super::{
     Formatter, FromValue, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, RawAnyGuard, Ref, ToValue, UnsafeToRef, Value, VmErrorKind, VmResult,
@@ -132,7 +133,21 @@ impl Vec {
     /// difference, with each additional slot filled with `value`. If `new_len`
     /// is less than `len`, the `Vec` is simply truncated.
     pub fn resize(&mut self, new_len: usize, value: Value) -> VmResult<()> {
-        vm_try!(self.inner.try_resize(new_len, value));
+        if value.is_inline() {
+            vm_try!(self.inner.try_resize(new_len, value));
+        } else {
+            let len = self.inner.len();
+
+            if new_len > len {
+                for _ in 0..new_len - len {
+                    let value = vm_try!(value.clone_with(&mut EnvProtocolCaller));
+                    vm_try!(self.inner.try_push(value));
+                }
+            } else {
+                self.inner.truncate(new_len);
+            }
+        }
+
         VmResult::Ok(())
     }
 
