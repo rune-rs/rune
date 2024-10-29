@@ -179,7 +179,7 @@ where
                                 #(#members: #from_const_fields,)*
                             };
 
-                            #result::Ok(Value::new(value)?)
+                            #result::Ok(#value::new(value)?)
                         }
 
                         #[inline]
@@ -192,7 +192,7 @@ where
                                 #(#members: #from_value_fields,)*
                             };
 
-                            #result::Ok(Value::new(value)?)
+                            #result::Ok(#value::new(value)?)
                         }
                     }
 

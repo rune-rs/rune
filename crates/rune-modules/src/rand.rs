@@ -39,14 +39,22 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::with_crate("rand")?;
 
     module.ty::<WyRand>()?;
-    module.function("new", WyRand::new).build_associated::<WyRand>()?;
-    module.function("new_seed", WyRand::new_seed).build_associated::<WyRand>()?;
+    module
+        .function("new", WyRand::new)
+        .build_associated::<WyRand>()?;
+    module
+        .function("new_seed", WyRand::new_seed)
+        .build_associated::<WyRand>()?;
     module.associated_function("int", WyRand::int)?;
     module.associated_function("int_range", WyRand::int_range)?;
 
     module.ty::<Pcg64>()?;
-    module.function("new", Pcg64::new).build_associated::<Pcg64>()?;
-    module.function("new_seed", Pcg64::new_seed).build_associated::<Pcg64>()?;
+    module
+        .function("new", Pcg64::new)
+        .build_associated::<Pcg64>()?;
+    module
+        .function("new_seed", Pcg64::new_seed)
+        .build_associated::<Pcg64>()?;
     module.associated_function("int", Pcg64::int)?;
     module.associated_function("int_range", Pcg64::int_range)?;
 
@@ -120,15 +128,11 @@ impl Pcg64 {
 }
 
 fn int() -> rune::support::Result<i64> {
-    Ok(
-        nanorand::WyRand::new().generate::<u64>() as i64
-    )
+    Ok(nanorand::WyRand::new().generate::<u64>() as i64)
 }
 
 fn int_range(lower: i64, upper: i64) -> rune::support::Result<i64> {
-    Ok(
-        nanorand::WyRand::new().generate_range(0..(upper - lower) as u64) as i64 + lower,
-    )
+    Ok(nanorand::WyRand::new().generate_range(0..(upper - lower) as u64) as i64 + lower)
 }
 
 #[cfg(test)]

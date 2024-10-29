@@ -5,15 +5,15 @@ use core::slice;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
-use crate::runtime::{
-    ConstValue, EmptyConstContext, FromValue, Mut, Mutable, OwnedRepr, RawAnyGuard, Ref,
-    RuntimeError, ToValue, UnsafeToMut, UnsafeToRef, Value, ValueShared, VmErrorKind, VmResult,
-};
-#[cfg(feature = "alloc")]
-use crate::runtime::{Hasher, ProtocolCaller};
 use crate::Any;
 
-use super::Inline;
+use super::{
+    ConstValue, EmptyConstContext, FromConstValue, FromValue, Inline, Mut, Mutable, OwnedRepr,
+    RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue, UnsafeToMut, UnsafeToRef, Value,
+    ValueShared, VmErrorKind, VmResult,
+};
+#[cfg(feature = "alloc")]
+use super::{Hasher, ProtocolCaller};
 
 /// The type of a tuple slice.
 #[derive(Any)]
@@ -329,6 +329,27 @@ macro_rules! impl_tuple {
             }
         }
 
+        impl <$($ty,)*> FromConstValue for ($($ty,)*)
+        where
+            $($ty: FromConstValue,)*
+        {
+            fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+                let tuple = value.into_tuple()?;
+
+                let [$($var,)*] = match <Box<[ConstValue; $count]>>::try_from(tuple) {
+                    Ok(tuple) => Box::into_inner(tuple),
+                    Err(tuple) => {
+                        return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {
+                            actual: tuple.len(),
+                            expected: $count,
+                        }));
+                    }
+                };
+
+                Ok(($(<$ty as FromConstValue>::from_const_value($var)?,)*))
+            }
+        }
+
         impl <$($ty,)*> ToValue for ($($ty,)*)
         where
             $($ty: ToValue,)*
@@ -340,6 +361,20 @@ macro_rules! impl_tuple {
                 $(vec.try_push($var)?;)*
                 let tuple = OwnedTuple::try_from(vec)?;
                 Ok(Value::try_from(tuple)?)
+            }
+        }
+
+        impl <$($ty,)*> ToConstValue for ($($ty,)*)
+        where
+            $($ty: ToConstValue,)*
+        {
+            fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+                let ($($var,)*) = self;
+                $(let $var = $var.to_const_value()?;)*
+                let mut vec = alloc::Vec::try_with_capacity($count)?;
+                $(vec.try_push($var)?;)*
+                let tuple = Box::<[ConstValue]>::try_from(vec)?;
+                Ok(ConstValue::tuple(tuple))
             }
         }
     };

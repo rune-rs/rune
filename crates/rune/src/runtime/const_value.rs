@@ -1,4 +1,10 @@
+#[macro_use]
+mod macros;
+
+use core::any;
+use core::cmp::Ordering;
 use core::fmt;
+
 use rust_alloc::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -6,42 +12,72 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
-use crate::runtime::{
-    self, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, RawStr, ToValue,
-    TypeInfo, Value, VmErrorKind,
-};
 use crate::{Hash, TypeHash};
+
+use super::{
+    BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, RawStr, ToValue, Tuple,
+    Type, TypeInfo, Value, VmErrorKind,
+};
 
 /// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
 pub use rune_macros::ToConstValue;
 
-use super::{AnyTypeInfo, RuntimeError};
+use super::{AnyTypeInfo, RuntimeError, VmIntegerRepr};
 
-/// Implementation of a constant constructor.
-///
-/// Do not implement manually, this is provided when deriving
-/// [`ToConstValue`](derive@ToConstValue).
-pub trait ConstConstruct: 'static + Send + Sync {
-    /// Construct from values.
+/// Cheap conversion trait to convert something infallibly into a [`ConstValue`].
+pub trait IntoConstValue {
+    /// Convert into a dynamic [`ConstValue`].
     #[doc(hidden)]
-    fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
-
-    /// Construct from values.
-    #[doc(hidden)]
-    fn runtime_construct(&self, fields: &mut [Value]) -> Result<Value, RuntimeError>;
+    fn into_const_value(self) -> alloc::Result<ConstValue>;
 }
 
-pub(crate) trait ConstContext {
-    fn get(&self, hash: Hash) -> Option<&dyn ConstConstruct>;
-}
-
-pub(crate) struct EmptyConstContext;
-
-impl ConstContext for EmptyConstContext {
+impl IntoConstValue for ConstValue {
     #[inline]
-    fn get(&self, _: Hash) -> Option<&dyn ConstConstruct> {
-        None
+    fn into_const_value(self) -> alloc::Result<ConstValue> {
+        Ok(self)
     }
+}
+
+impl IntoConstValue for &ConstValue {
+    #[inline]
+    fn into_const_value(self) -> alloc::Result<ConstValue> {
+        self.try_clone()
+    }
+}
+
+/// Convert something into a [`ConstValue`].
+///
+/// # Examples
+///
+/// ```
+/// let value = rune::to_const_value((1u32, 2u64))?;
+/// let (a, b) = rune::from_const_value::<(1u32, 2u64)>(value)?;
+///
+/// assert_eq!(a, 1);
+/// assert_eq!(b, 2);
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+pub fn from_const_value<T>(value: impl IntoConstValue) -> Result<T, RuntimeError>
+where
+    T: FromConstValue,
+{
+    T::from_const_value(value.into_const_value()?)
+}
+
+/// Convert something into a [`ConstValue`].
+///
+/// # Examples
+///
+/// ```
+/// let value = rune::to_const_value((1u32, 2u64))?;
+/// let (a, b) = rune::from_const_value::<(1u32, 2u64)>(value)?;
+///
+/// assert_eq!(a, 1);
+/// assert_eq!(b, 2);
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+pub fn to_const_value(value: impl ToConstValue) -> Result<ConstValue, RuntimeError> {
+    value.to_const_value()
 }
 
 /// Convert a value into a constant value.
@@ -90,6 +126,30 @@ pub(crate) enum ConstValueKind {
     Struct(Hash, Box<[ConstValue]>),
 }
 
+impl ConstValueKind {
+    fn type_info(&self) -> TypeInfo {
+        match self {
+            ConstValueKind::Inline(value) => value.type_info(),
+            ConstValueKind::String(..) => {
+                TypeInfo::static_type(crate::runtime::static_type::STRING)
+            }
+            ConstValueKind::Bytes(..) => TypeInfo::static_type(crate::runtime::static_type::BYTES),
+            ConstValueKind::Vec(..) => TypeInfo::static_type(crate::runtime::static_type::VEC),
+            ConstValueKind::Tuple(..) => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
+            ConstValueKind::Object(..) => {
+                TypeInfo::static_type(crate::runtime::static_type::OBJECT)
+            }
+            ConstValueKind::Option(..) => {
+                TypeInfo::static_type(crate::runtime::static_type::OPTION)
+            }
+            ConstValueKind::Struct(hash, ..) => TypeInfo::any_type_info(AnyTypeInfo::new(
+                RawStr::from_str("constant struct"),
+                *hash,
+            )),
+        }
+    }
+}
+
 /// A constant value.
 #[derive(Deserialize, Serialize)]
 #[serde(transparent)]
@@ -98,6 +158,13 @@ pub struct ConstValue {
 }
 
 impl ConstValue {
+    /// Construct a new tuple constant value.
+    pub fn tuple(values: Box<[ConstValue]>) -> ConstValue {
+        ConstValue {
+            kind: ConstValueKind::Tuple(values),
+        }
+    }
+
     /// Construct a constant value for a struct.
     pub fn for_struct<const N: usize>(
         hash: Hash,
@@ -108,6 +175,47 @@ impl ConstValue {
         Ok(ConstValue {
             kind: ConstValueKind::Struct(hash, fields),
         })
+    }
+
+    /// Try to coerce the current value as the specified integer `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let value = rune::to_const_value(u32::MAX)?;
+    ///
+    /// assert_eq!(value.try_as_integer::<u64>()?, u32::MAX as u64);
+    /// assert!(value.try_as_integer::<i32>().is_err());
+    ///
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
+    where
+        T: TryFrom<i64>,
+        VmIntegerRepr: From<i64>,
+    {
+        let integer = self.as_integer()?;
+
+        match integer.try_into() {
+            Ok(number) => Ok(number),
+            Err(..) => Err(RuntimeError::new(
+                VmErrorKind::ValueToIntegerCoercionError {
+                    from: VmIntegerRepr::from(integer),
+                    to: any::type_name::<T>(),
+                },
+            )),
+        }
+    }
+
+    inline_macros!(inline_into);
+
+    /// Coerce into tuple.
+    #[inline]
+    pub fn into_tuple(self) -> Result<Box<[ConstValue]>, RuntimeError> {
+        match self.kind {
+            ConstValueKind::Tuple(tuple) => Ok(tuple),
+            kind => Err(RuntimeError::expected::<Tuple>(kind.type_info())),
+        }
     }
 
     /// Access the interior value.
@@ -200,7 +308,7 @@ impl ConstValue {
                 None => None,
             })?),
             ConstValueKind::Vec(vec) => {
-                let mut v = runtime::Vec::with_capacity(vec.len())?;
+                let mut v = super::Vec::with_capacity(vec.len())?;
 
                 for value in vec {
                     v.push(Self::to_value_with(value, cx)?)?;
@@ -238,43 +346,9 @@ impl ConstValue {
         }
     }
 
-    /// Try to coerce into boolean.
-    pub fn as_bool(&self) -> Option<bool> {
-        match self.kind {
-            ConstValueKind::Inline(Inline::Bool(value)) => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Try to coerce into an integer.
-    pub fn as_i64(&self) -> Option<i64> {
-        match self.kind {
-            ConstValueKind::Inline(Inline::Integer(value)) => Some(value),
-            _ => None,
-        }
-    }
-
     /// Get the type information of the value.
     pub(crate) fn type_info(&self) -> TypeInfo {
-        match &self.kind {
-            ConstValueKind::Inline(value) => value.type_info(),
-            ConstValueKind::String(..) => {
-                TypeInfo::static_type(crate::runtime::static_type::STRING)
-            }
-            ConstValueKind::Bytes(..) => TypeInfo::static_type(crate::runtime::static_type::BYTES),
-            ConstValueKind::Vec(..) => TypeInfo::static_type(crate::runtime::static_type::VEC),
-            ConstValueKind::Tuple(..) => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
-            ConstValueKind::Object(..) => {
-                TypeInfo::static_type(crate::runtime::static_type::OBJECT)
-            }
-            ConstValueKind::Option(..) => {
-                TypeInfo::static_type(crate::runtime::static_type::OPTION)
-            }
-            ConstValueKind::Struct(hash, ..) => TypeInfo::any_type_info(AnyTypeInfo::new(
-                RawStr::from_str("constant struct"),
-                *hash,
-            )),
-        }
+        self.kind.type_info()
     }
 }
 
@@ -364,5 +438,45 @@ impl fmt::Debug for ConstValue {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.kind.fmt(f)
+    }
+}
+
+/// Convert a value from a constant value.
+pub trait FromConstValue: Sized {
+    /// Convert from a constant value.
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError>;
+}
+
+impl FromConstValue for ConstValue {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+        Ok(value)
+    }
+}
+
+/// Implementation of a constant constructor.
+///
+/// Do not implement manually, this is provided when deriving
+/// [`ToConstValue`](derive@ToConstValue).
+pub trait ConstConstruct: 'static + Send + Sync {
+    /// Construct from values.
+    #[doc(hidden)]
+    fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
+
+    /// Construct from values.
+    #[doc(hidden)]
+    fn runtime_construct(&self, fields: &mut [Value]) -> Result<Value, RuntimeError>;
+}
+
+pub(crate) trait ConstContext {
+    fn get(&self, hash: Hash) -> Option<&dyn ConstConstruct>;
+}
+
+pub(crate) struct EmptyConstContext;
+
+impl ConstContext for EmptyConstContext {
+    #[inline]
+    fn get(&self, _: Hash) -> Option<&dyn ConstConstruct> {
+        None
     }
 }

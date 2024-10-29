@@ -40,7 +40,9 @@ mod call;
 pub use self::call::Call;
 
 mod const_value;
-pub use self::const_value::{ConstConstruct, ConstValue, ToConstValue};
+pub use self::const_value::{
+    from_const_value, to_const_value, ConstConstruct, ConstValue, FromConstValue, ToConstValue,
+};
 pub(crate) use self::const_value::{ConstContext, ConstValueKind, EmptyConstContext};
 
 pub mod debug;

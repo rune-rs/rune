@@ -29,9 +29,9 @@
 //! }
 //! ```
 
-use rune::{ContextError, Module};
-use rune::runtime::{Bytes, Value};
 use rune::alloc::String;
+use rune::runtime::{Bytes, Value};
+use rune::{ContextError, Module};
 
 /// Construct the `toml` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -46,9 +46,9 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 pub mod de {
     //! Deserializer types for the toml module.
 
-    use rune::{Any, Module, ContextError, vm_write};
-    use rune::runtime::{Formatter, VmResult};
     use rune::alloc::fmt::TryWrite;
+    use rune::runtime::{Formatter, VmResult};
+    use rune::{vm_write, Any, ContextError, Module};
 
     pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         let mut module = Module::with_crate_item("toml", ["de"])?;
@@ -86,9 +86,9 @@ pub mod de {
 pub mod ser {
     //! Serializer types for the toml module.
 
-    use rune::{Any, Module, ContextError, vm_write};
-    use rune::runtime::{Formatter, VmResult};
     use rune::alloc::fmt::TryWrite;
+    use rune::runtime::{Formatter, VmResult};
+    use rune::{vm_write, Any, ContextError, Module};
 
     pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         let mut module = Module::with_crate_item("toml", ["ser"])?;

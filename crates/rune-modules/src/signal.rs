@@ -29,7 +29,7 @@
 
 use std::io;
 
-use rune::{Module, ContextError};
+use rune::{ContextError, Module};
 
 /// Construct the `signal` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -49,10 +49,10 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// either `Future::poll` or `.await`.
 ///
 /// # Tokio
-/// 
+///
 /// This function is implemented using [Tokio], and requires the Tokio runtime
 /// to be in scope.
-/// 
+///
 /// [Tokio]: https://tokio.rs
 ///
 /// # Caveats
