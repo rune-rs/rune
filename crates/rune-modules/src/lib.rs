@@ -33,6 +33,7 @@
 //! * [io]
 //! * [json]
 //! * [macros]
+//! * [net]
 //! * [process]
 //! * [rand]
 //! * [signal]
@@ -52,6 +53,7 @@
 //! * `io` for the [io module][io]
 //! * `json` for the [json module][json]
 //! * `macros` for the [macros module][macros]
+//! * `net` for the [net module][net]
 //! * `process` for the [process module][process]
 //! * `rand` for the [rand module][rand]
 //! * `signal` for the [signal module][signal]
@@ -66,6 +68,7 @@
 //! [io]: https://docs.rs/rune-modules/0/rune_modules/io/
 //! [json]: https://docs.rs/rune-modules/0/rune_modules/json/
 //! [macros]: https://docs.rs/rune-modules/0/rune_modules/macros/
+//! [net]: https://docs.rs/rune-modules/0/rune_modules/net/
 //! [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 //! [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
 //! [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
@@ -119,6 +122,7 @@ modules! {
     {io, "io"},
     {json, "json"},
     {macros, "macros"},
+    {net, "net"},
     {process, "process"},
     {rand, "rand"},
     {signal, "signal"},
