@@ -304,11 +304,11 @@ impl<Idx> ToValue for ops::RangeInclusive<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
+    fn to_value(self) -> Result<Value, RuntimeError> {
         let (start, end) = self.into_inner();
-        let start = vm_try!(start.to_value());
-        let end = vm_try!(end.to_value());
-        VmResult::Ok(vm_try!(Value::new(RangeInclusive::new(start, end))))
+        let start = start.to_value()?;
+        let end = end.to_value()?;
+        Ok(Value::new(RangeInclusive::new(start, end))?)
     }
 }
 

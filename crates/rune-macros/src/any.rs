@@ -282,6 +282,7 @@ fn expand_enum_install_with(
         to_value,
         type_of,
         vm_result,
+        vm_try,
         ..
     } = tokens;
 
@@ -337,9 +338,9 @@ fn expand_enum_install_with(
                         let fields = field_fns.entry(f_name).or_default();
 
                         let value = if attrs.copy {
-                            quote!(#to_value::to_value(*#f_ident))
+                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(*#f_ident))))
                         } else {
-                            quote!(#to_value::to_value(#f_ident.clone()))
+                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(#f_ident.clone()))))
                         };
 
                         fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #value));
@@ -365,9 +366,9 @@ fn expand_enum_install_with(
                         let n = syn::LitInt::new(&n.to_string(), span);
 
                         let value = if attrs.copy {
-                            quote!(#to_value::to_value(*value))
+                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(*value))))
                         } else {
-                            quote!(#to_value::to_value(value.clone()))
+                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(value.clone()))))
                         };
 
                         fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #value));

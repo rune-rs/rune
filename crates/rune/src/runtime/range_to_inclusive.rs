@@ -188,9 +188,9 @@ impl<Idx> ToValue for ops::RangeToInclusive<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
-        let end = vm_try!(self.end.to_value());
-        VmResult::Ok(vm_try!(Value::new(RangeToInclusive::new(end))))
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let end = self.end.to_value()?;
+        Ok(Value::new(RangeToInclusive::new(end))?)
     }
 }
 

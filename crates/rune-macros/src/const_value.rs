@@ -89,7 +89,7 @@ impl Derive {
                         });
 
                         from_value_fields.push(quote! {
-                            <#ty as #from_value>::from_value(#value::take(#var)).into_result()?
+                            <#ty as #from_value>::from_value(#value::take(#var))?
                         });
                     }
 
@@ -98,7 +98,7 @@ impl Derive {
                 }
 
                 body = quote! {
-                    #const_value::for_struct(<Self as #type_hash_t>::HASH, [#(#fields),*])?
+                    #const_value::for_struct(<Self as #type_hash_t>::HASH, [#(#fields),*])
                 };
             }
             syn::Data::Enum(..) => {
@@ -161,7 +161,7 @@ where
             impl #to_const_value_t for #ident {
                 #[inline]
                 fn to_const_value(self) -> #result<#const_value, #runtime_error> {
-                    #result::Ok(#body)
+                    #body
                 }
 
                 #[inline]

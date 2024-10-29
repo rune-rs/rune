@@ -264,7 +264,7 @@ macro_rules! from {
     ($($variant:ident => $ty:ty),* $(,)*) => {
         $(
             impl TryFrom<$ty> for Value {
-                type Error = alloc::Error;
+                type Error = $crate::alloc::Error;
 
                 #[inline]
                 fn try_from(value: $ty) -> Result<Self, Self::Error> {
@@ -276,15 +276,15 @@ macro_rules! from {
                 type Output = $ty;
 
                 #[inline]
-                fn into_output(self) -> VmResult<Self::Output> {
-                    VmResult::Ok(self)
+                fn into_output(self) -> $crate::runtime::VmResult<Self::Output> {
+                    $crate::runtime::VmResult::Ok(self)
                 }
             }
 
-            impl ToValue for $ty {
+            impl $crate::runtime::ToValue for $ty {
                 #[inline]
-                fn to_value(self) -> VmResult<Value> {
-                    VmResult::Ok(vm_try!(Value::try_from(self)))
+                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
+                    Ok($crate::runtime::Value::try_from(self)?)
                 }
             }
         )*
@@ -343,8 +343,8 @@ macro_rules! inline_from {
 
             impl $crate::runtime::ToValue for $ty {
                 #[inline]
-                fn to_value(self) -> $crate::runtime::VmResult<Value> {
-                    $crate::runtime::VmResult::Ok($crate::runtime::Value::from(self))
+                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
+                    Ok($crate::runtime::Value::from(self))
                 }
             }
 
@@ -387,8 +387,8 @@ macro_rules! number_value_trait {
         $(
             impl $crate::runtime::ToValue for $ty {
                 #[inline]
-                fn to_value(self) -> $crate::runtime::VmResult<Value> {
-                    $crate::runtime::VmResult::Ok(vm_try!(Value::try_from(self)))
+                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
+                    Value::try_from(self)
                 }
             }
 
@@ -439,8 +439,8 @@ macro_rules! float_value_trait {
         $(
             impl $crate::runtime::ToValue for $ty {
                 #[inline]
-                fn to_value(self) -> $crate::runtime::VmResult<$crate::runtime::Value> {
-                    $crate::runtime::VmResult::Ok($crate::runtime::Value::from(self as f64))
+                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
+                    Ok($crate::runtime::Value::from(self as f64))
                 }
             }
 

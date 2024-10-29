@@ -126,9 +126,9 @@ impl fmt::Debug for RangeFull {
 }
 
 impl ToValue for ops::RangeFull {
-    fn to_value(self) -> VmResult<Value> {
+    fn to_value(self) -> Result<Value, RuntimeError> {
         let range = RangeFull::new();
-        VmResult::Ok(vm_try!(Value::new(range)))
+        Ok(Value::new(range)?)
     }
 }
 

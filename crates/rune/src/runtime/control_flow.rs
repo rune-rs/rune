@@ -172,15 +172,13 @@ where
     C: ToValue,
 {
     #[inline]
-    fn to_value(self) -> VmResult<Value> {
+    fn to_value(self) -> Result<Value, RuntimeError> {
         let value = match self {
-            ops::ControlFlow::Continue(value) => {
-                ControlFlow::Continue(vm_try!(ToValue::to_value(value)))
-            }
-            ops::ControlFlow::Break(value) => ControlFlow::Break(vm_try!(ToValue::to_value(value))),
+            ops::ControlFlow::Continue(value) => ControlFlow::Continue(C::to_value(value)?),
+            ops::ControlFlow::Break(value) => ControlFlow::Break(B::to_value(value)?),
         };
 
-        VmResult::Ok(vm_try!(Value::try_from(value)))
+        Ok(Value::try_from(value)?)
     }
 }
 

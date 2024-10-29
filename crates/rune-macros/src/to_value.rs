@@ -20,15 +20,16 @@ impl Expander {
 
         let Tokens {
             value,
-            vm_result,
             to_value,
+            result,
+            runtime_error,
             ..
         } = &self.tokens;
 
         Ok(quote! {
             #[automatically_derived]
             impl #to_value for #ident {
-                fn to_value(self) -> #vm_result<#value> {
+                fn to_value(self) -> #result<#value, #runtime_error> {
                     #inner
                 }
             }
@@ -58,8 +59,7 @@ impl Expander {
             to_value,
             value,
             owned_tuple,
-            vm_result,
-            vm_try,
+            result,
             try_from,
             vec,
             ..
@@ -68,16 +68,16 @@ impl Expander {
         for (index, f) in unnamed.unnamed.iter().enumerate() {
             let _ = self.cx.field_attrs(&f.attrs)?;
             let index = syn::Index::from(index);
-            to_values.push(quote!(#vm_try!(#vec::try_push(&mut tuple, #vm_try!(#to_value::to_value(self.#index))))));
+            to_values.push(quote!(#vec::try_push(&mut tuple, #to_value::to_value(self.#index)?)?));
         }
 
         let cap = unnamed.unnamed.len();
 
         Ok(quote! {
-            let mut tuple = #vm_try!(#vec::try_with_capacity(#cap));
+            let mut tuple = #vec::try_with_capacity(#cap)?;
             #(#to_values;)*
-            let tuple = #vm_try!(<#owned_tuple as #try_from<_>>::try_from(tuple));
-            #vm_result::Ok(#vm_try!(<#value as #try_from<_>>::try_from(tuple)))
+            let tuple = <#owned_tuple as #try_from<_>>::try_from(tuple)?;
+            #result::Ok(<#value as #try_from<_>>::try_from(tuple)?)
         })
     }
 
@@ -87,8 +87,7 @@ impl Expander {
             to_value,
             value,
             object,
-            vm_result,
-            vm_try,
+            result,
             string,
             try_from,
             ..
@@ -103,14 +102,14 @@ impl Expander {
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
             to_values.push(quote! {
-                object.insert(#vm_try!(<#string as #try_from<_>>::try_from(#name)), #vm_try!(#to_value::to_value(self.#ident)))
+                object.insert(<#string as #try_from<_>>::try_from(#name)?, #to_value::to_value(self.#ident)?)
             });
         }
 
         Ok(quote! {
             let mut object = <#object>::new();
             #(#to_values;)*
-            #vm_result::Ok(#vm_try!(<#value as #try_from<_>>::try_from(object)))
+            #result::Ok(<#value as #try_from<_>>::try_from(object)?)
         })
     }
 }

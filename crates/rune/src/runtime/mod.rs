@@ -149,7 +149,7 @@ mod stream;
 pub use self::stream::Stream;
 
 mod to_value;
-pub use self::to_value::{to_value, ToValue, UnsafeToValue};
+pub use self::to_value::{to_value, ToReturn, ToValue, UnsafeToValue};
 
 mod tuple;
 pub use self::tuple::{OwnedTuple, Tuple};

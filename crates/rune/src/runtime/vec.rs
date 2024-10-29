@@ -566,14 +566,15 @@ impl<T> ToValue for alloc::Vec<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
-        let mut inner = vm_try!(alloc::Vec::try_with_capacity(self.len()));
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let mut inner = alloc::Vec::try_with_capacity(self.len())?;
 
         for value in self {
-            vm_try!(inner.try_push(vm_try!(value.to_value())));
+            let value = value.to_value()?;
+            inner.try_push(value)?;
         }
 
-        VmResult::Ok(vm_try!(Value::try_from(Vec { inner })))
+        Ok(Value::try_from(Vec { inner })?)
     }
 }
 
@@ -582,13 +583,14 @@ impl<T> ToValue for ::rust_alloc::vec::Vec<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
-        let mut inner = vm_try!(alloc::Vec::try_with_capacity(self.len()));
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let mut inner = alloc::Vec::try_with_capacity(self.len())?;
 
         for value in self {
-            vm_try!(inner.try_push(vm_try!(value.to_value())));
+            let value = value.to_value()?;
+            inner.try_push(value)?;
         }
 
-        VmResult::Ok(vm_try!(Value::try_from(Vec { inner })))
+        Ok(Value::try_from(Vec { inner })?)
     }
 }

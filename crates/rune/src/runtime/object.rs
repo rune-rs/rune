@@ -10,7 +10,9 @@ use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::alloc::{hash_map, HashMap};
-use crate::runtime::{FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmResult};
+use crate::runtime::{
+    FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError, VmResult,
+};
 use crate::{Any, ItemBuf};
 
 /// An owning iterator over the entries of a `Object`.
@@ -548,17 +550,15 @@ pub struct RuneIter {
 
 impl RuneIter {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub fn next(&mut self) -> Option<VmResult<(String, Value)>> {
+    pub fn next(&mut self) -> VmResult<Option<(String, Value)>> {
         unsafe {
-            let bucket = self.iter.next()?;
-            let (key, value) = bucket.as_ref();
-
-            let key = match key.try_clone() {
-                Ok(key) => key,
-                Err(err) => return Some(VmResult::err(err)),
+            let Some(bucket) = self.iter.next() else {
+                return VmResult::Ok(None);
             };
 
-            Some(VmResult::Ok((key, value.clone())))
+            let (key, value) = bucket.as_ref();
+            let key = vm_try!(key.try_clone());
+            VmResult::Ok(Some((key, value.clone())))
         }
     }
 
@@ -574,11 +574,15 @@ impl RuneIter {
 }
 
 impl iter::Iterator for RuneIter {
-    type Item = VmResult<(String, Value)>;
+    type Item = Result<(String, Value), VmError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        RuneIter::next(self)
+        match RuneIter::next(self) {
+            VmResult::Ok(Some(value)) => Some(Ok(value)),
+            VmResult::Ok(None) => None,
+            VmResult::Err(err) => Some(Err(err)),
+        }
     }
 }
 
@@ -592,17 +596,15 @@ pub struct RuneIterKeys {
 
 impl RuneIterKeys {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub fn next(&mut self) -> Option<VmResult<String>> {
+    pub fn next(&mut self) -> VmResult<Option<String>> {
         unsafe {
-            let bucket = self.iter.next()?;
-            let (key, _) = bucket.as_ref();
-
-            let key = match key.try_clone() {
-                Ok(key) => key,
-                Err(err) => return Some(VmResult::err(err)),
+            let Some(bucket) = self.iter.next() else {
+                return VmResult::Ok(None);
             };
 
-            Some(VmResult::Ok(key))
+            let (key, _) = bucket.as_ref();
+            let key = vm_try!(key.try_clone());
+            VmResult::Ok(Some(key))
         }
     }
 
@@ -618,11 +620,15 @@ impl RuneIterKeys {
 }
 
 impl iter::Iterator for RuneIterKeys {
-    type Item = VmResult<String>;
+    type Item = Result<String, VmError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        RuneIterKeys::next(self)
+        match RuneIterKeys::next(self) {
+            VmResult::Ok(Some(value)) => Some(Ok(value)),
+            VmResult::Ok(None) => None,
+            VmResult::Err(err) => Some(Err(err)),
+        }
     }
 }
 
@@ -636,11 +642,14 @@ pub struct RuneValues {
 
 impl RuneValues {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub fn next(&mut self) -> Option<VmResult<Value>> {
+    pub fn next(&mut self) -> VmResult<Option<Value>> {
         unsafe {
-            let bucket = self.iter.next()?;
+            let Some(bucket) = self.iter.next() else {
+                return VmResult::Ok(None);
+            };
+
             let (_, value) = bucket.as_ref();
-            Some(VmResult::Ok(value.clone()))
+            VmResult::Ok(Some(value.clone()))
         }
     }
 
@@ -656,10 +665,14 @@ impl RuneValues {
 }
 
 impl iter::Iterator for RuneValues {
-    type Item = VmResult<Value>;
+    type Item = Result<Value, VmError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        RuneValues::next(self)
+        match RuneValues::next(self) {
+            VmResult::Ok(Some(value)) => Some(Ok(value)),
+            VmResult::Ok(None) => None,
+            VmResult::Err(err) => Some(Err(err)),
+        }
     }
 }

@@ -1,6 +1,6 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
-use crate::runtime::{AnyObj, Object, Value, VmError, VmResult};
+use crate::runtime::{AnyObj, Object, RuntimeError, Value, VmResult};
 use crate::Any;
 
 /// Derive macro for the [`ToValue`] trait for converting types into the dynamic
@@ -66,11 +66,11 @@ pub use rune_macros::ToValue;
 /// assert_eq!(foo, 43);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-pub fn to_value<T>(value: T) -> Result<Value, VmError>
+pub fn to_value<T>(value: T) -> Result<Value, RuntimeError>
 where
     T: ToValue,
 {
-    T::to_value(value).into_result()
+    T::to_value(value)
 }
 
 /// Trait for converting types into the dynamic [`Value`] container.
@@ -105,7 +105,43 @@ where
 /// ```
 pub trait ToValue: Sized {
     /// Convert into a value.
-    fn to_value(self) -> VmResult<Value>;
+    fn to_value(self) -> Result<Value, RuntimeError>;
+}
+
+/// Trait governing things that can be returned from native functions.
+pub trait ToReturn: Sized {
+    /// Convert something into a return value.
+    fn to_return(self) -> VmResult<Value>;
+}
+
+impl<T> ToReturn for VmResult<T>
+where
+    T: ToValue,
+{
+    #[inline]
+    fn to_return(self) -> VmResult<Value> {
+        match self {
+            VmResult::Ok(value) => VmResult::Ok(vm_try!(value.to_value())),
+            VmResult::Err(error) => VmResult::Err(error),
+        }
+    }
+}
+
+impl<T> ToReturn for T
+where
+    T: ToValue,
+{
+    #[inline]
+    fn to_return(self) -> VmResult<Value> {
+        VmResult::Ok(vm_try!(T::to_value(self)))
+    }
+}
+
+impl ToValue for Value {
+    #[inline]
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        Ok(self)
+    }
 }
 
 /// Trait for converting types into values.
@@ -131,8 +167,8 @@ where
     T: Any,
 {
     #[inline]
-    fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(vm_try!(AnyObj::new(self))))
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        Ok(Value::from(AnyObj::new(self)?))
     }
 }
 
@@ -153,8 +189,8 @@ where
 
 impl ToValue for &Value {
     #[inline]
-    fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(self.clone())
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        Ok(self.clone())
     }
 }
 
@@ -164,59 +200,45 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
+    fn to_value(self) -> Result<Value, RuntimeError> {
         let option = match self {
-            Some(some) => Some(vm_try!(some.to_value())),
+            Some(some) => Some(some.to_value()?),
             None => None,
         };
 
-        VmResult::Ok(vm_try!(Value::try_from(option)))
+        Ok(Value::try_from(option)?)
     }
 }
 
 // String impls
 
 impl ToValue for alloc::Box<str> {
-    fn to_value(self) -> VmResult<Value> {
+    fn to_value(self) -> Result<Value, RuntimeError> {
         let this = alloc::String::from(self);
-        VmResult::Ok(vm_try!(Value::try_from(this)))
+        Ok(Value::new(this)?)
     }
 }
 
 impl ToValue for &str {
-    fn to_value(self) -> VmResult<Value> {
-        let this = vm_try!(alloc::String::try_from(self));
-        VmResult::Ok(vm_try!(Value::try_from(this)))
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let this = alloc::String::try_from(self)?;
+        Ok(Value::new(this)?)
     }
 }
 
 #[cfg(feature = "alloc")]
 impl ToValue for ::rust_alloc::boxed::Box<str> {
-    fn to_value(self) -> VmResult<Value> {
-        let this = vm_try!(self.try_to_string());
-        VmResult::Ok(vm_try!(Value::try_from(this)))
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let this = self.try_to_string()?;
+        Ok(Value::new(this)?)
     }
 }
 
 #[cfg(feature = "alloc")]
 impl ToValue for ::rust_alloc::string::String {
-    fn to_value(self) -> VmResult<Value> {
-        let string = vm_try!(alloc::String::try_from(self));
-        let value = vm_try!(Value::try_from(string));
-        VmResult::Ok(value)
-    }
-}
-
-impl<T> ToValue for VmResult<T>
-where
-    T: ToValue,
-{
-    #[inline]
-    fn to_value(self) -> VmResult<Value> {
-        match self {
-            VmResult::Ok(value) => value.to_value(),
-            VmResult::Err(error) => VmResult::Err(error),
-        }
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let string = alloc::String::try_from(self)?;
+        Ok(Value::new(string)?)
     }
 }
 
@@ -225,13 +247,13 @@ where
     T: ToValue,
     E: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
+    fn to_value(self) -> Result<Value, RuntimeError> {
         let result = match self {
-            Ok(ok) => Ok(vm_try!(ok.to_value())),
-            Err(err) => Err(vm_try!(err.to_value())),
+            Ok(ok) => Ok(ok.to_value()?),
+            Err(err) => Err(err.to_value()?),
         };
 
-        VmResult::Ok(vm_try!(Value::try_from(result)))
+        Ok(Value::try_from(result)?)
     }
 }
 
@@ -243,15 +265,16 @@ macro_rules! impl_map {
         where
             T: ToValue,
         {
-            fn to_value(self) -> VmResult<Value> {
-                let mut output = vm_try!(Object::with_capacity(self.len()));
+            fn to_value(self) -> Result<Value, RuntimeError> {
+                let mut output = Object::with_capacity(self.len())?;
 
                 for (key, value) in self {
-                    let key = vm_try!(alloc::String::try_from(key));
-                    vm_try!(output.insert(key, vm_try!(value.to_value())));
+                    let key = alloc::String::try_from(key)?;
+                    let value = value.to_value()?;
+                    output.insert(key, value)?;
                 }
 
-                VmResult::Ok(vm_try!(Value::try_from(output)))
+                Ok(Value::try_from(output)?)
             }
         }
     };
