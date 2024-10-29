@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1730078464703,
+  "lastUpdate": 1730164769040,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -29225,6 +29225,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 455,
             "range": "± 2",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "be2c7ddd83441d3b1ad1cdcf290932594e1cc7c8",
+          "message": "rune::cli: Unify coloring and improve test naming",
+          "timestamp": "2024-10-28T21:42:53Z",
+          "url": "https://github.com/rune-rs/rune/commit/be2c7ddd83441d3b1ad1cdcf290932594e1cc7c8"
+        },
+        "date": 1730164768366,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10571887,
+            "range": "± 94352",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5786845,
+            "range": "± 204155",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 194997,
+            "range": "± 728",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1047846,
+            "range": "± 25476",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 280971598,
+            "range": "± 1663494",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 260497936,
+            "range": "± 1117497",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 695716,
+            "range": "± 3473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7369230,
+            "range": "± 76007",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 40545715,
+            "range": "± 1574554",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6296776,
+            "range": "± 47869",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 248352,
+            "range": "± 1159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2753043,
+            "range": "± 13970",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 473,
+            "range": "± 16",
             "unit": "ns/iter"
           }
         ]
