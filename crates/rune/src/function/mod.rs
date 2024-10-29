@@ -8,8 +8,8 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToValue, TypeHash, TypeInfo, TypeOf,
-    UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToReturn, TypeHash, TypeInfo,
+    TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
@@ -242,7 +242,7 @@ macro_rules! impl_function_traits {
         impl<T, U, $($ty,)*> Function<($($place,)*), Plain> for T
         where
             T: 'static + Send + Sync + Fn($($($mut)* $ty),*) -> U,
-            U: ToValue,
+            U: ToReturn,
             $($ty: $($trait)*,)*
         {
             type Return = U;
@@ -260,7 +260,7 @@ macro_rules! impl_function_traits {
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let value = vm_try!(ToValue::to_value(ret));
+                let value = vm_try!(ToReturn::to_return(ret));
                 vm_try!(out.store(memory, value));
                 VmResult::Ok(())
             }
@@ -270,7 +270,7 @@ macro_rules! impl_function_traits {
         where
             T: 'static + Send + Sync + Fn($($($mut)* $ty),*) -> U,
             U: 'static + Future,
-            U::Output: ToValue,
+            U::Output: ToReturn,
             $($ty: $($trait)*,)*
         {
             type Return = U::Output;
@@ -292,7 +292,7 @@ macro_rules! impl_function_traits {
 
                 let ret = vm_try!(runtime::Future::new(async move {
                     let output = fut.await;
-                    VmResult::Ok(vm_try!(output.to_value()))
+                    VmResult::Ok(vm_try!(ToReturn::to_return(output)))
                 }));
 
                 let value = vm_try!(Value::try_from(ret));

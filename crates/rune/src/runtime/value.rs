@@ -32,7 +32,7 @@ use super::{
     ConstValueKind, ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue,
     Function, Future, Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object,
     OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot,
-    Stream, ToValue, Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
+    Stream, Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, Tuple};
@@ -623,17 +623,15 @@ impl Value {
     }
 
     /// Construct a vector.
-    pub fn vec(vec: alloc::Vec<Value>) -> VmResult<Self> {
+    pub fn vec(vec: alloc::Vec<Value>) -> alloc::Result<Self> {
         let data = Vec::from(vec);
-
-        VmResult::Ok(vm_try!(Value::try_from(data)))
+        Value::try_from(data)
     }
 
     /// Construct a tuple.
-    pub fn tuple(vec: alloc::Vec<Value>) -> VmResult<Self> {
-        let data = vm_try!(OwnedTuple::try_from(vec));
-
-        VmResult::Ok(vm_try!(Value::try_from(data)))
+    pub fn tuple(vec: alloc::Vec<Value>) -> alloc::Result<Self> {
+        let data = OwnedTuple::try_from(vec)?;
+        Value::try_from(data)
     }
 
     /// Construct an empty.
@@ -1914,13 +1912,6 @@ impl IntoOutput for Mutable {
 
     #[inline]
     fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
-    }
-}
-
-impl ToValue for Value {
-    #[inline]
-    fn to_value(self) -> VmResult<Value> {
         VmResult::Ok(self)
     }
 }

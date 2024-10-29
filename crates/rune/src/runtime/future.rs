@@ -45,7 +45,10 @@ impl Future {
                 poll: |future, cx| unsafe {
                     match Pin::new_unchecked(&mut *future.cast::<T>()).poll(cx) {
                         Poll::Pending => Poll::Pending,
-                        Poll::Ready(VmResult::Ok(result)) => Poll::Ready(result.to_value()),
+                        Poll::Ready(VmResult::Ok(result)) => match result.to_value() {
+                            Ok(value) => Poll::Ready(VmResult::Ok(value)),
+                            Err(err) => Poll::Ready(VmResult::Err(err.into())),
+                        },
                         Poll::Ready(VmResult::Err(err)) => Poll::Ready(VmResult::Err(err)),
                     }
                 },

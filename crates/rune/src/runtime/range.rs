@@ -303,11 +303,11 @@ impl<Idx> ToValue for ops::Range<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
-        let start = vm_try!(self.start.to_value());
-        let end = vm_try!(self.end.to_value());
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let start = self.start.to_value()?;
+        let end = self.end.to_value()?;
         let range = Range::new(start, end);
-        VmResult::Ok(vm_try!(Value::new(range)))
+        Ok(Value::new(range)?)
     }
 }
 

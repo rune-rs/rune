@@ -274,10 +274,10 @@ impl<Idx> ToValue for ops::RangeFrom<Idx>
 where
     Idx: ToValue,
 {
-    fn to_value(self) -> VmResult<Value> {
-        let start = vm_try!(self.start.to_value());
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let start = self.start.to_value()?;
         let range = RangeFrom::new(start);
-        VmResult::Ok(vm_try!(Value::new(range)))
+        Ok(Value::new(range)?)
     }
 }
 

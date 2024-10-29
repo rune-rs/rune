@@ -8,7 +8,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
 use crate::runtime::{
     self, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, RawStr, ToValue,
-    TypeInfo, Value, VmErrorKind, VmResult,
+    TypeInfo, Value, VmErrorKind,
 };
 use crate::{Hash, TypeHash};
 
@@ -295,11 +295,8 @@ impl FromValue for ConstValue {
 
 impl ToValue for ConstValue {
     #[inline]
-    fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(ConstValue::to_value_with(
-            &self,
-            &EmptyConstContext
-        )))
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        ConstValue::to_value_with(&self, &EmptyConstContext)
     }
 }
 

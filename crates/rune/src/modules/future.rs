@@ -110,15 +110,21 @@ async fn join(value: Value) -> VmResult<Value> {
             ]),
         },
         BorrowRefRepr::Mutable(value) => match *value {
-            Mutable::Tuple(ref tuple) => VmResult::Ok(vm_try!(
-                try_join_impl(tuple.iter(), tuple.len(), |vec| VmResult::Ok(vm_try!(
-                    Value::tuple(vec)
-                )))
-                .await
-            )),
-            Mutable::Vec(ref vec) => VmResult::Ok(vm_try!(
-                try_join_impl(vec.iter(), vec.len(), Value::vec).await
-            )),
+            Mutable::Tuple(ref tuple) => {
+                let result = try_join_impl(tuple.iter(), tuple.len(), |vec| {
+                    VmResult::Ok(vm_try!(Value::tuple(vec)))
+                })
+                .await;
+
+                VmResult::Ok(vm_try!(result))
+            }
+            Mutable::Vec(ref vec) => {
+                let result = try_join_impl(vec.iter(), vec.len(), |vec| {
+                    VmResult::Ok(vm_try!(Value::vec(vec)))
+                })
+                .await;
+                VmResult::Ok(vm_try!(result))
+            }
             ref value => VmResult::err([
                 VmErrorKind::bad_argument(0),
                 VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),

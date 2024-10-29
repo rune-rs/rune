@@ -294,14 +294,16 @@ macro_rules! impl_tuple {
         impl_static_type!((), crate::runtime::static_type::TUPLE, crate::runtime::static_type::TUPLE_HASH);
 
         impl FromValue for () {
+            #[inline]
             fn from_value(value: Value) -> Result<Self, RuntimeError> {
                 value.into_unit()
             }
         }
 
         impl ToValue for () {
-            fn to_value(self) -> VmResult<Value> {
-                VmResult::Ok(Value::unit())
+            #[inline]
+            fn to_value(self) -> Result<Value, RuntimeError> {
+                Ok(Value::unit())
             }
         }
     };
@@ -331,12 +333,13 @@ macro_rules! impl_tuple {
         where
             $($ty: ToValue,)*
         {
-            fn to_value(self) -> VmResult<Value> {
+            fn to_value(self) -> Result<Value, RuntimeError> {
                 let ($($var,)*) = self;
-                $(let $var = vm_try!($var.to_value());)*
-                let mut vec = vm_try!(alloc::Vec::try_with_capacity($count));
-                $(vm_try!(vec.try_push($var));)*
-                VmResult::Ok(vm_try!(Value::try_from(vm_try!(OwnedTuple::try_from(vec)))))
+                $(let $var = $var.to_value()?;)*
+                let mut vec = alloc::Vec::try_with_capacity($count)?;
+                $(vec.try_push($var)?;)*
+                let tuple = OwnedTuple::try_from(vec)?;
+                Ok(Value::try_from(tuple)?)
             }
         }
     };
