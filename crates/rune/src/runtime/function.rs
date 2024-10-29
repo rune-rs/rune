@@ -319,7 +319,7 @@ impl Function {
     /// let pony: Function = rune::from_value(pony)?;
     ///
     /// // This is fine, since `pony` is a free function.
-    /// let pony = pony.into_sync().into_result()?;
+    /// let pony = pony.into_sync()?;
     ///
     /// assert_eq!(pony.type_hash(), Hash::type_hash(["pony"]));
     /// # Ok::<_, rune::support::Error>(())

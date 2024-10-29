@@ -5,7 +5,7 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash;
-use crate::runtime::{ConstValue, InstAddress, Memory, Output, VmResult};
+use crate::runtime::{ConstConstruct, ConstValue, InstAddress, Memory, Output, VmResult};
 use crate::Hash;
 
 /// A type-reduced function handler.
@@ -24,16 +24,20 @@ pub struct RuntimeContext {
     functions: hash::Map<Arc<FunctionHandler>>,
     /// Named constant values
     constants: hash::Map<ConstValue>,
+    /// Constant constructors.
+    construct: hash::Map<Arc<dyn ConstConstruct>>,
 }
 
 impl RuntimeContext {
     pub(crate) fn new(
         functions: hash::Map<Arc<FunctionHandler>>,
         constants: hash::Map<ConstValue>,
+        construct: hash::Map<Arc<dyn ConstConstruct>>,
     ) -> Self {
         Self {
             functions,
             constants,
+            construct,
         }
     }
 
@@ -42,9 +46,14 @@ impl RuntimeContext {
         self.functions.get(&hash)
     }
 
-    /// Read a constant value from the unit.
+    /// Read a constant value.
     pub fn constant(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
+    }
+
+    /// Read a constant constructor.
+    pub(crate) fn construct(&self, hash: Hash) -> Option<&dyn ConstConstruct> {
+        Some(&**self.construct.get(&hash)?)
     }
 }
 

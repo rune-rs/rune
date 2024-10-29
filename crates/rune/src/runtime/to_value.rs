@@ -1,8 +1,6 @@
-use core::any;
-
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
-use crate::runtime::{AnyObj, Object, Value, VmError, VmErrorKind, VmIntegerRepr, VmResult};
+use crate::runtime::{AnyObj, Object, Value, VmError, VmResult};
 use crate::Any;
 
 /// Derive macro for the [`ToValue`] trait for converting types into the dynamic
@@ -234,43 +232,6 @@ where
         };
 
         VmResult::Ok(vm_try!(Value::try_from(result)))
-    }
-}
-
-// number impls
-
-macro_rules! number_value_trait {
-    ($ty:ty) => {
-        impl ToValue for $ty {
-            fn to_value(self) -> VmResult<Value> {
-                match <i64>::try_from(self) {
-                    Ok(number) => VmResult::Ok(vm_try!(Value::try_from(number))),
-                    #[allow(unreachable_patterns)]
-                    Err(..) => VmResult::err(VmErrorKind::IntegerToValueCoercionError {
-                        from: VmIntegerRepr::from(self),
-                        to: any::type_name::<i64>(),
-                    }),
-                }
-            }
-        }
-    };
-}
-
-number_value_trait!(u16);
-number_value_trait!(u32);
-number_value_trait!(u64);
-number_value_trait!(u128);
-number_value_trait!(usize);
-number_value_trait!(i8);
-number_value_trait!(i16);
-number_value_trait!(i32);
-number_value_trait!(i128);
-number_value_trait!(isize);
-
-impl ToValue for f32 {
-    #[inline]
-    fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(Value::from(self as f64))
     }
 }
 

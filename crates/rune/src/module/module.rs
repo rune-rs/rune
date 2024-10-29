@@ -4,7 +4,7 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{Box, HashMap, HashSet, String, Vec};
+use crate::alloc::{self, HashMap, HashSet};
 use crate::compile::context::{AttributeMacroHandler, MacroHandler};
 use crate::compile::{self, meta, ContextError, Docs, Named};
 use crate::function::{Async, Function, FunctionKind, InstanceFunction, Plain};
@@ -17,8 +17,8 @@ use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
-    ConstValue, FromValue, GeneratorState, InstAddress, MaybeTypeOf, Memory, Output, Protocol,
-    ToValue, TypeCheck, TypeOf, Value, VmResult,
+    ConstConstruct, GeneratorState, InstAddress, MaybeTypeOf, Memory, Output, Protocol,
+    ToConstValue, TypeCheck, TypeHash, TypeInfo, TypeOf, Value, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -70,6 +70,10 @@ pub struct Module {
     pub(crate) trait_impls: Vec<ModuleTraitImpl>,
     /// A re-export in the current module.
     pub(crate) reexports: Vec<ModuleReexport>,
+    /// Constant constructors.
+    pub(crate) construct: Vec<(Hash, TypeInfo, Arc<dyn ConstConstruct>)>,
+    /// Defines construct hashes.
+    pub(crate) construct_hash: HashSet<Hash>,
     /// Module level metadata.
     pub(crate) common: ModuleItemCommon,
 }
@@ -129,6 +133,8 @@ impl Module {
             trait_impls: Vec::new(),
             types_hash: HashMap::new(),
             reexports: Vec::new(),
+            construct: Vec::new(),
+            construct_hash: HashSet::new(),
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
                 deprecated: None,
@@ -468,8 +474,10 @@ impl Module {
         N: IntoComponent,
         T: ?Sized + TypeOf,
     {
+        let item = self.item.join([name])?;
+
         self.items.try_push(ModuleItem {
-            item: ItemBuf::with_item([name])?,
+            item,
             common: ModuleItemCommon::default(),
             kind: ModuleItemKind::InternalEnum(enum_),
         })?;
@@ -508,7 +516,7 @@ impl Module {
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> ModuleConstantBuilder<'_, N, V>
     where
-        V: ToValue,
+        V: ToConstValue,
     {
         ModuleConstantBuilder {
             module: self,
@@ -517,25 +525,18 @@ impl Module {
         }
     }
 
-    pub(super) fn insert_constant<V>(
+    pub(super) fn insert_constant<N, V>(
         &mut self,
-        item: ItemBuf,
+        name: N,
         value: V,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        V: ToValue,
+        N: IntoComponent,
+        V: TypeHash + TypeOf + ToConstValue,
     {
-        let value = match value.to_value() {
-            VmResult::Ok(v) => v,
-            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
-        };
-
-        let value = match <ConstValue as FromValue>::from_value(value) {
-            VmResult::Ok(v) => v,
-            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
-        };
-
+        let item = self.item.join([name])?;
         let hash = Hash::type_hash(&item);
+        let value = value.to_const_value()?;
 
         if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingConstantName { item, hash });
@@ -549,6 +550,8 @@ impl Module {
             },
             kind: ModuleItemKind::Constant(value),
         })?;
+
+        self.insert_const_construct::<V>()?;
 
         let c = self.items.last_mut().unwrap();
 
@@ -565,17 +568,9 @@ impl Module {
         value: V,
     ) -> Result<ItemMut<'_>, ContextError>
     where
-        V: ToValue,
+        V: TypeHash + TypeOf + ToConstValue,
     {
-        let value = match value.to_value() {
-            VmResult::Ok(v) => v,
-            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
-        };
-
-        let value = match <ConstValue as FromValue>::from_value(value) {
-            VmResult::Ok(v) => v,
-            VmResult::Err(error) => return Err(ContextError::ValueError { error }),
-        };
+        let value = value.to_const_value()?;
 
         self.insert_associated_name(&associated)?;
 
@@ -590,6 +585,8 @@ impl Module {
             kind: ModuleAssociatedKind::Constant(value),
         })?;
 
+        self.insert_const_construct::<V>()?;
+
         let last = self.associated.last_mut().unwrap();
 
         Ok(ItemMut {
@@ -597,6 +594,20 @@ impl Module {
             #[cfg(feature = "doc")]
             deprecated: &mut last.common.deprecated,
         })
+    }
+
+    fn insert_const_construct<V>(&mut self) -> alloc::Result<()>
+    where
+        V: TypeHash + TypeOf + ToConstValue,
+    {
+        if self.construct_hash.try_insert(V::HASH)? {
+            if let Some(construct) = V::construct() {
+                self.construct
+                    .try_push((V::HASH, V::type_info(), construct))?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Register a native macro handler through its meta.
@@ -645,20 +656,18 @@ impl Module {
 
         let item = match meta.kind {
             MacroMetaKind::Function(data) => {
-                let hash = Hash::type_hash(&data.item);
+                let item = self.item.join(&data.item)?;
+                let hash = Hash::type_hash(&item);
 
                 if !self.names.try_insert(Name::Macro(hash))? {
-                    return Err(ContextError::ConflictingMacroName {
-                        item: data.item,
-                        hash,
-                    });
+                    return Err(ContextError::ConflictingMacroName { item, hash });
                 }
 
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
 
                 self.items.try_push(ModuleItem {
-                    item: data.item,
+                    item,
                     common: ModuleItemCommon {
                         docs,
                         deprecated: None,
@@ -671,20 +680,18 @@ impl Module {
                 self.items.last_mut().unwrap()
             }
             MacroMetaKind::Attribute(data) => {
-                let hash = Hash::type_hash(&data.item);
+                let item = self.item.join(&data.item)?;
+                let hash = Hash::type_hash(&item);
 
                 if !self.names.try_insert(Name::AttributeMacro(hash))? {
-                    return Err(ContextError::ConflictingMacroName {
-                        item: data.item,
-                        hash,
-                    });
+                    return Err(ContextError::ConflictingMacroName { item, hash });
                 }
 
                 let mut docs = Docs::EMPTY;
                 docs.set_docs(meta.docs)?;
 
                 self.items.try_push(ModuleItem {
-                    item: data.item,
+                    item,
                     common: ModuleItemCommon {
                         docs,
                         deprecated: None,
@@ -741,7 +748,7 @@ impl Module {
             + Fn(&mut MacroContext<'_, '_, '_>, &TokenStream) -> compile::Result<TokenStream>,
         N: IntoComponent,
     {
-        let item = ItemBuf::with_item([name])?;
+        let item = self.item.join([name])?;
         let hash = Hash::type_hash(&item);
 
         if !self.names.try_insert(Name::Macro(hash))? {
@@ -805,7 +812,7 @@ impl Module {
             ) -> compile::Result<TokenStream>,
         N: IntoComponent,
     {
-        let item = ItemBuf::with_item([name])?;
+        let item = self.item.join([name])?;
         let hash = Hash::type_hash(&item);
 
         if !self.names.try_insert(Name::AttributeMacro(hash))? {
@@ -1384,17 +1391,15 @@ impl Module {
         docs: Docs,
         #[allow(unused)] deprecated: Option<Box<str>>,
     ) -> Result<ItemFnMut<'_>, ContextError> {
-        let hash = Hash::type_hash(&data.item);
+        let item = self.item.join(&data.item)?;
+        let hash = Hash::type_hash(&item);
 
         if !self.names.try_insert(Name::Item(hash))? {
-            return Err(ContextError::ConflictingFunctionName {
-                item: data.item,
-                hash,
-            });
+            return Err(ContextError::ConflictingFunctionName { item, hash });
         }
 
         self.items.try_push(ModuleItem {
-            item: data.item,
+            item,
             common: ModuleItemCommon { docs, deprecated },
             kind: ModuleItemKind::Function(ModuleFunction {
                 handler: data.handler,

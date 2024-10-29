@@ -1,28 +1,79 @@
+use core::fmt;
+use rust_alloc::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, HashMap, String, Vec};
+use crate::alloc::{self, HashMap};
 use crate::runtime::{
-    self, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, TypeInfo,
-    Value, VmErrorKind, VmResult,
+    self, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, RawStr, ToValue,
+    TypeInfo, Value, VmErrorKind, VmResult,
 };
-use crate::TypeHash;
+use crate::{Hash, TypeHash};
 
-/// A constant value.
-#[derive(Debug, Deserialize, Serialize)]
-pub enum ConstValue {
-    /// A constant unit.
-    Unit,
-    /// A byte.
-    Byte(u8),
-    /// A character.
-    Char(char),
-    /// A boolean constant value.
-    Bool(bool),
-    /// An integer constant.
-    Integer(i64),
-    /// An float constant.
-    Float(f64),
+/// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
+pub use rune_macros::ToConstValue;
+
+use super::{AnyTypeInfo, RuntimeError};
+
+/// Implementation of a constant constructor.
+///
+/// Do not implement manually, this is provided when deriving
+/// [`ToConstValue`](derive@ToConstValue).
+pub trait ConstConstruct {
+    /// Construct from values.
+    #[doc(hidden)]
+    fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
+
+    /// Construct from values.
+    #[doc(hidden)]
+    fn runtime_construct(&self, fields: &mut [Value]) -> Result<Value, RuntimeError>;
+}
+
+pub(crate) trait ConstContext {
+    fn get(&self, hash: Hash) -> Option<&dyn ConstConstruct>;
+}
+
+pub(crate) struct EmptyConstContext;
+
+impl ConstContext for EmptyConstContext {
+    #[inline]
+    fn get(&self, _: Hash) -> Option<&dyn ConstConstruct> {
+        None
+    }
+}
+
+/// Convert a value into a constant value.
+pub trait ToConstValue: Sized {
+    /// Convert into a constant value.
+    fn to_const_value(self) -> Result<ConstValue, RuntimeError>;
+
+    /// Return the constant constructor for the given type.
+    #[inline]
+    fn construct() -> Option<Arc<dyn ConstConstruct>> {
+        None
+    }
+}
+
+impl ToConstValue for ConstValue {
+    #[inline]
+    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+        Ok(self)
+    }
+}
+
+impl ToConstValue for Value {
+    #[inline]
+    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+        ConstValue::from_value_ref(&self)
+    }
+}
+
+#[derive(Debug, TryClone, Deserialize, Serialize)]
+pub(crate) enum ConstValueKind {
+    /// An inline constant value.
+    Inline(#[try_clone(copy)] Inline),
     /// A string constant designated by its slot.
     String(String),
     /// A byte string.
@@ -35,81 +86,97 @@ pub enum ConstValue {
     Object(HashMap<String, ConstValue>),
     /// An option.
     Option(Option<Box<ConstValue>>),
+    /// A struct with the given type.
+    Struct(Hash, Box<[ConstValue]>),
+}
+
+/// A constant value.
+#[derive(Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct ConstValue {
+    kind: ConstValueKind,
 }
 
 impl ConstValue {
+    /// Construct a constant value for a struct.
+    pub fn for_struct<const N: usize>(
+        hash: Hash,
+        fields: [ConstValue; N],
+    ) -> Result<ConstValue, RuntimeError> {
+        let fields = Box::<[ConstValue]>::try_from(fields)?;
+
+        Ok(ConstValue {
+            kind: ConstValueKind::Struct(hash, fields),
+        })
+    }
+
+    /// Access the interior value.
+    pub(crate) fn as_kind(&self) -> &ConstValueKind {
+        &self.kind
+    }
+
     /// Construct a constant value from a reference to a value..
-    pub(crate) fn from_value_ref(value: &Value) -> VmResult<ConstValue> {
-        VmResult::Ok(match vm_try!(value.borrow_ref_repr()) {
-            BorrowRefRepr::Inline(value) => match *value {
-                Inline::Unit => Self::Unit,
-                Inline::Byte(value) => Self::Byte(value),
-                Inline::Char(value) => Self::Char(value),
-                Inline::Bool(value) => Self::Bool(value),
-                Inline::Integer(value) => Self::Integer(value),
-                Inline::Float(value) => Self::Float(value),
-                ref actual => {
-                    return VmResult::err(VmErrorKind::ConstNotSupported {
-                        actual: actual.type_info(),
-                    })
-                }
-            },
+    pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
+        let inner = match value.borrow_ref_repr()? {
+            BorrowRefRepr::Inline(value) => ConstValueKind::Inline(*value),
             BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Option(option) => Self::Option(match option {
-                    Some(some) => Some(vm_try!(Box::try_new(vm_try!(Self::from_value_ref(some))))),
+                Mutable::Option(option) => ConstValueKind::Option(match option {
+                    Some(some) => Some(Box::try_new(Self::from_value_ref(some)?)?),
                     None => None,
                 }),
                 Mutable::Vec(ref vec) => {
-                    let mut const_vec = vm_try!(Vec::try_with_capacity(vec.len()));
+                    let mut const_vec = Vec::try_with_capacity(vec.len())?;
 
                     for value in vec {
-                        vm_try!(const_vec.try_push(vm_try!(Self::from_value_ref(value))));
+                        const_vec.try_push(Self::from_value_ref(value)?)?;
                     }
 
-                    Self::Vec(const_vec)
+                    ConstValueKind::Vec(const_vec)
                 }
                 Mutable::Tuple(ref tuple) => {
-                    let mut const_tuple = vm_try!(Vec::try_with_capacity(tuple.len()));
+                    let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
 
                     for value in tuple.iter() {
-                        vm_try!(const_tuple.try_push(vm_try!(Self::from_value_ref(value))));
+                        const_tuple.try_push(Self::from_value_ref(value)?)?;
                     }
 
-                    Self::Tuple(vm_try!(const_tuple.try_into_boxed_slice()))
+                    ConstValueKind::Tuple(const_tuple.try_into_boxed_slice()?)
                 }
                 Mutable::Object(ref object) => {
-                    let mut const_object = vm_try!(HashMap::try_with_capacity(object.len()));
+                    let mut const_object = HashMap::try_with_capacity(object.len())?;
 
                     for (key, value) in object {
-                        let key = vm_try!(key.try_clone());
-                        let value = vm_try!(Self::from_value_ref(value));
-                        vm_try!(const_object.try_insert(key, value));
+                        let key = key.try_clone()?;
+                        let value = Self::from_value_ref(value)?;
+                        const_object.try_insert(key, value)?;
                     }
 
-                    Self::Object(const_object)
+                    ConstValueKind::Object(const_object)
                 }
                 value => {
-                    return VmResult::err(VmErrorKind::ConstNotSupported {
+                    return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
                         actual: value.type_info(),
-                    })
+                    }))
                 }
             },
             BorrowRefRepr::Any(value) => match value.type_hash() {
                 String::HASH => {
-                    let s = vm_try!(value.borrow_ref::<String>());
-                    Self::String(vm_try!(s.try_to_owned()))
+                    let s = value.borrow_ref::<String>()?;
+                    ConstValueKind::String(s.try_to_owned()?)
                 }
                 Bytes::HASH => {
-                    let s = vm_try!(value.borrow_ref::<Bytes>());
-                    Self::Bytes(vm_try!(s.try_to_owned()))
+                    let s = value.borrow_ref::<Bytes>()?;
+                    ConstValueKind::Bytes(s.try_to_owned()?)
                 }
                 _ => {
-                    return VmResult::err(VmErrorKind::ConstNotSupported {
+                    return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
                         actual: value.type_info(),
-                    });
+                    }));
                 }
             },
-        })
+        };
+
+        Ok(Self { kind: inner })
     }
 
     /// Convert into virtual machine value.
@@ -117,106 +184,179 @@ impl ConstValue {
     /// We provide this associated method since a constant value can be
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
-    pub(crate) fn to_value(&self) -> alloc::Result<Value> {
-        Ok(match self {
-            Self::Unit => Value::unit(),
-            Self::Byte(b) => Value::from(*b),
-            Self::Char(c) => Value::from(*c),
-            Self::Bool(b) => Value::from(*b),
-            Self::Integer(n) => Value::from(*n),
-            Self::Float(n) => Value::from(*n),
-            Self::String(string) => Value::try_from(string.try_clone()?)?,
-            Self::Bytes(b) => Value::try_from(b.try_clone()?)?,
-            Self::Option(option) => Value::try_from(match option {
-                Some(some) => Some(Self::to_value(some)?),
+    pub(crate) fn to_value(&self, cx: &dyn ConstContext) -> Result<Value, RuntimeError> {
+        match &self.kind {
+            ConstValueKind::Inline(value) => Ok(Value::from(*value)),
+            ConstValueKind::String(string) => Ok(Value::try_from(string.try_clone()?)?),
+            ConstValueKind::Bytes(b) => Ok(Value::try_from(b.try_clone()?)?),
+            ConstValueKind::Option(option) => Ok(Value::try_from(match option {
+                Some(some) => Some(Self::to_value(some, cx)?),
                 None => None,
-            })?,
-            Self::Vec(vec) => {
+            })?),
+            ConstValueKind::Vec(vec) => {
                 let mut v = runtime::Vec::with_capacity(vec.len())?;
 
                 for value in vec {
-                    v.push(Self::to_value(value)?)?;
+                    v.push(Self::to_value(value, cx)?)?;
                 }
 
-                Value::try_from(v)?
+                Ok(Value::try_from(v)?)
             }
-            Self::Tuple(tuple) => {
+            ConstValueKind::Tuple(tuple) => {
                 let mut t = Vec::try_with_capacity(tuple.len())?;
 
                 for value in tuple.iter() {
-                    t.try_push(Self::to_value(value)?)?;
+                    t.try_push(Self::to_value(value, cx)?)?;
                 }
 
-                Value::try_from(OwnedTuple::try_from(t)?)?
+                Ok(Value::try_from(OwnedTuple::try_from(t)?)?)
             }
-            Self::Object(object) => {
+            ConstValueKind::Object(object) => {
                 let mut o = Object::with_capacity(object.len())?;
 
                 for (key, value) in object {
                     let key = key.try_clone()?;
-                    let value = Self::to_value(value)?;
+                    let value = Self::to_value(value, cx)?;
                     o.insert(key, value)?;
                 }
 
-                Value::try_from(o)?
+                Ok(Value::try_from(o)?)
             }
-        })
+            ConstValueKind::Struct(hash, fields) => {
+                let Some(constructor) = cx.get(*hash) else {
+                    return Err(RuntimeError::missing_constant_constructor(*hash));
+                };
+
+                constructor.const_construct(fields)
+            }
+        }
     }
 
     /// Try to coerce into boolean.
-    pub fn into_bool(self) -> Result<bool, Self> {
-        match self {
-            Self::Bool(value) => Ok(value),
-            value => Err(value),
+    pub fn as_bool(&self) -> Option<bool> {
+        match self.kind {
+            ConstValueKind::Inline(Inline::Bool(value)) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Try to coerce into an integer.
+    pub fn as_i64(&self) -> Option<i64> {
+        match self.kind {
+            ConstValueKind::Inline(Inline::Integer(value)) => Some(value),
+            _ => None,
         }
     }
 
     /// Get the type information of the value.
-    pub fn type_info(&self) -> TypeInfo {
-        match self {
-            Self::Unit => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
-            Self::Byte(..) => TypeInfo::static_type(crate::runtime::static_type::BYTE),
-            Self::Char(..) => TypeInfo::static_type(crate::runtime::static_type::CHAR),
-            Self::Bool(..) => TypeInfo::static_type(crate::runtime::static_type::BOOL),
-            Self::String(..) => TypeInfo::static_type(crate::runtime::static_type::STRING),
-            Self::Bytes(..) => TypeInfo::static_type(crate::runtime::static_type::BYTES),
-            Self::Integer(..) => TypeInfo::static_type(crate::runtime::static_type::INTEGER),
-            Self::Float(..) => TypeInfo::static_type(crate::runtime::static_type::FLOAT),
-            Self::Vec(..) => TypeInfo::static_type(crate::runtime::static_type::VEC),
-            Self::Tuple(..) => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
-            Self::Object(..) => TypeInfo::static_type(crate::runtime::static_type::OBJECT),
-            Self::Option(..) => TypeInfo::static_type(crate::runtime::static_type::OPTION),
+    pub(crate) fn type_info(&self) -> TypeInfo {
+        match &self.kind {
+            ConstValueKind::Inline(value) => value.type_info(),
+            ConstValueKind::String(..) => {
+                TypeInfo::static_type(crate::runtime::static_type::STRING)
+            }
+            ConstValueKind::Bytes(..) => TypeInfo::static_type(crate::runtime::static_type::BYTES),
+            ConstValueKind::Vec(..) => TypeInfo::static_type(crate::runtime::static_type::VEC),
+            ConstValueKind::Tuple(..) => TypeInfo::static_type(crate::runtime::static_type::TUPLE),
+            ConstValueKind::Object(..) => {
+                TypeInfo::static_type(crate::runtime::static_type::OBJECT)
+            }
+            ConstValueKind::Option(..) => {
+                TypeInfo::static_type(crate::runtime::static_type::OPTION)
+            }
+            ConstValueKind::Struct(hash, ..) => TypeInfo::any_type_info(AnyTypeInfo::new(
+                RawStr::from_str("constant struct"),
+                *hash,
+            )),
         }
     }
 }
 
 impl TryClone for ConstValue {
     fn try_clone(&self) -> alloc::Result<Self> {
-        Ok(match self {
-            ConstValue::Unit => ConstValue::Unit,
-            ConstValue::Byte(byte) => ConstValue::Byte(*byte),
-            ConstValue::Char(char) => ConstValue::Char(*char),
-            ConstValue::Bool(bool) => ConstValue::Bool(*bool),
-            ConstValue::Integer(integer) => ConstValue::Integer(*integer),
-            ConstValue::Float(float) => ConstValue::Float(*float),
-            ConstValue::String(value) => ConstValue::String(value.try_clone()?),
-            ConstValue::Bytes(value) => ConstValue::Bytes(value.try_clone()?),
-            ConstValue::Vec(value) => ConstValue::Vec(value.try_clone()?),
-            ConstValue::Tuple(value) => ConstValue::Tuple(value.try_clone()?),
-            ConstValue::Object(value) => ConstValue::Object(value.try_clone()?),
-            ConstValue::Option(value) => ConstValue::Option(value.try_clone()?),
+        Ok(Self {
+            kind: self.kind.try_clone()?,
         })
     }
 }
 
 impl FromValue for ConstValue {
+    #[inline]
     fn from_value(value: Value) -> VmResult<Self> {
-        ConstValue::from_value_ref(&value)
+        VmResult::Ok(vm_try!(ConstValue::from_value_ref(&value)))
     }
 }
 
 impl ToValue for ConstValue {
+    #[inline]
     fn to_value(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(ConstValue::to_value(&self)))
+        VmResult::Ok(vm_try!(ConstValue::to_value(&self, &EmptyConstContext)))
+    }
+}
+
+impl From<ConstValueKind> for ConstValue {
+    #[inline]
+    fn from(kind: ConstValueKind) -> Self {
+        Self { kind }
+    }
+}
+
+impl From<Inline> for ConstValue {
+    #[inline]
+    fn from(value: Inline) -> Self {
+        Self::from(ConstValueKind::Inline(value))
+    }
+}
+
+impl From<String> for ConstValue {
+    #[inline]
+    fn from(value: String) -> Self {
+        Self::from(ConstValueKind::String(value))
+    }
+}
+
+impl From<Bytes> for ConstValue {
+    #[inline]
+    fn from(value: Bytes) -> Self {
+        Self::from(ConstValueKind::Bytes(value))
+    }
+}
+
+impl TryFrom<&str> for ConstValue {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(ConstValue::from(String::try_from(value)?))
+    }
+}
+
+impl ToConstValue for &str {
+    #[inline]
+    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+        Ok(ConstValue::try_from(self)?)
+    }
+}
+
+impl TryFrom<&[u8]> for ConstValue {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(ConstValue::from(Bytes::try_from(value)?))
+    }
+}
+
+impl ToConstValue for &[u8] {
+    #[inline]
+    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+        Ok(ConstValue::try_from(self)?)
+    }
+}
+
+impl fmt::Debug for ConstValue {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
     }
 }

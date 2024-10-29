@@ -323,7 +323,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                        ConstValue::String(rtti.item.try_to_string()?),
+                        ConstValue::from(rtti.item.try_to_string()?),
                     )
                     .with_span(span)?;
 
@@ -379,7 +379,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
-                        ConstValue::String(signature.path.try_to_string()?),
+                        ConstValue::from(signature.path.try_to_string()?),
                     )
                     .with_span(span)?;
 
@@ -435,7 +435,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
-                        ConstValue::String(signature.path.try_to_string()?),
+                        ConstValue::from(signature.path.try_to_string()?),
                     )
                     .with_span(span)?;
 
@@ -454,7 +454,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                        ConstValue::String(rtti.item.try_to_string()?),
+                        ConstValue::from(rtti.item.try_to_string()?),
                     )
                     .with_span(span)?;
 
@@ -598,7 +598,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, Protocol::INTO_TYPE_NAME),
-                        ConstValue::String(name),
+                        ConstValue::from(name),
                     )
                     .with_span(span)?;
             }
@@ -723,7 +723,7 @@ impl UnitBuilder {
         self.constants
             .try_insert(
                 Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                ConstValue::String(signature.path.try_to_string().with_span(location.span)?),
+                ConstValue::from(signature.path.try_to_string().with_span(location.span)?),
             )
             .with_span(location.span)?;
 

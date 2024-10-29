@@ -254,7 +254,9 @@ pub mod query;
 
 pub mod runtime;
 #[doc(inline)]
-pub use self::runtime::{from_value, to_value, FromValue, ToValue, TypeHash, Unit, Value, Vm};
+pub use self::runtime::{
+    from_value, to_value, FromValue, ToConstValue, ToValue, TypeHash, Unit, Value, Vm,
+};
 
 mod shared;
 
@@ -669,7 +671,11 @@ pub mod __private {
     pub use crate::params::Params;
     pub use crate::runtime::{TypeHash, TypeOf};
     pub use rust_alloc::boxed::Box;
+    pub use rust_alloc::sync::Arc;
 }
+
+mod musli;
+mod serde;
 
 #[cfg(test)]
 mod tests;

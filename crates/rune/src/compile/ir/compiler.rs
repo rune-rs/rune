@@ -51,7 +51,7 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
                 ));
             };
 
-            let value = value.to_value().with_span(span)?;
+            let value = value.to_value(c.q.context).with_span(span)?;
             ir::Ir::new(span, value)
         }
         hir::ExprKind::Variable(name) => {

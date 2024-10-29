@@ -12,8 +12,8 @@ use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{
-    ConstValue, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue,
-    InstVariant, Label, Output, PanicReason, Protocol, TypeCheck,
+    ConstValue, ConstValueKind, Inline, Inst, InstAddress, InstAssignOp, InstOp, InstRange,
+    InstTarget, InstValue, InstVariant, Label, Output, PanicReason, Protocol, TypeCheck,
 };
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
@@ -1099,34 +1099,42 @@ fn const_<'a, 'hir>(
 
     let out = addr.output();
 
-    match *value {
-        ConstValue::Unit => {
-            cx.asm.push(Inst::unit(out), span)?;
-        }
-        ConstValue::Byte(v) => {
-            cx.asm.push(Inst::byte(v, out), span)?;
-        }
-        ConstValue::Char(v) => {
-            cx.asm.push(Inst::char(v, out), span)?;
-        }
-        ConstValue::Integer(v) => {
-            cx.asm.push(Inst::integer(v, out), span)?;
-        }
-        ConstValue::Float(v) => {
-            cx.asm.push(Inst::float(v, out), span)?;
-        }
-        ConstValue::Bool(v) => {
-            cx.asm.push(Inst::bool(v, out), span)?;
-        }
-        ConstValue::String(ref s) => {
+    match *value.as_kind() {
+        ConstValueKind::Inline(value) => match value {
+            Inline::Unit => {
+                cx.asm.push(Inst::unit(out), span)?;
+            }
+            Inline::Byte(v) => {
+                cx.asm.push(Inst::byte(v, out), span)?;
+            }
+            Inline::Char(v) => {
+                cx.asm.push(Inst::char(v, out), span)?;
+            }
+            Inline::Integer(v) => {
+                cx.asm.push(Inst::integer(v, out), span)?;
+            }
+            Inline::Float(v) => {
+                cx.asm.push(Inst::float(v, out), span)?;
+            }
+            Inline::Bool(v) => {
+                cx.asm.push(Inst::bool(v, out), span)?;
+            }
+            Inline::Type(v) => {
+                cx.asm.push(Inst::ty(v, out), span)?;
+            }
+            Inline::Ordering(v) => {
+                cx.asm.push(Inst::ordering(v, out), span)?;
+            }
+        },
+        ConstValueKind::String(ref s) => {
             let slot = cx.q.unit.new_static_string(span, s)?;
             cx.asm.push(Inst::String { slot, out }, span)?;
         }
-        ConstValue::Bytes(ref b) => {
+        ConstValueKind::Bytes(ref b) => {
             let slot = cx.q.unit.new_static_bytes(span, b)?;
             cx.asm.push(Inst::Bytes { slot, out }, span)?;
         }
-        ConstValue::Option(ref option) => match option {
+        ConstValueKind::Option(ref option) => match option {
             Some(value) => {
                 const_(cx, value, span, addr)?;
 
@@ -1150,7 +1158,7 @@ fn const_<'a, 'hir>(
                 )?;
             }
         },
-        ConstValue::Vec(ref vec) => {
+        ConstValueKind::Vec(ref vec) => {
             let mut linear = cx.scopes.linear(span, vec.len())?;
 
             for (value, needs) in vec.iter().zip(&mut linear) {
@@ -1168,7 +1176,7 @@ fn const_<'a, 'hir>(
 
             linear.free_non_dangling()?;
         }
-        ConstValue::Tuple(ref tuple) => {
+        ConstValueKind::Tuple(ref tuple) => {
             let mut linear = cx.scopes.linear(span, tuple.len())?;
 
             for (value, needs) in tuple.iter().zip(&mut linear) {
@@ -1186,7 +1194,7 @@ fn const_<'a, 'hir>(
 
             linear.free_non_dangling()?;
         }
-        ConstValue::Object(ref object) => {
+        ConstValueKind::Object(ref object) => {
             let mut linear = cx.scopes.linear(span, object.len())?;
 
             let mut entries = object.iter().try_collect::<Vec<_>>()?;
@@ -1210,6 +1218,23 @@ fn const_<'a, 'hir>(
             )?;
 
             linear.free_non_dangling()?;
+        }
+        ConstValueKind::Struct(hash, ref values) => {
+            let mut linear = cx.scopes.linear(span, values.len())?;
+
+            for (value, needs) in values.iter().zip(&mut linear) {
+                const_(cx, value, span, needs)?;
+            }
+
+            cx.asm.push(
+                Inst::ConstConstruct {
+                    addr: linear.addr(),
+                    hash,
+                    count: values.len(),
+                    out,
+                },
+                span,
+            )?;
         }
     }
 

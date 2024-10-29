@@ -44,6 +44,13 @@ impl FieldAttrs {
     }
 }
 
+/// Parsed #[const_value(..)] field attributes.
+#[derive(Default)]
+pub(crate) struct ConstValueFieldAttrs {
+    /// Define a custom parsing method.
+    pub(crate) with: Option<syn::Path>,
+}
+
 /// The parsing implementations to build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ParseKind {
@@ -89,6 +96,13 @@ pub(crate) struct TypeAttr {
     pub(crate) from_value_mut: Option<syn::Path>,
     /// Method to use to convert from value.
     pub(crate) from_value_params: Option<syn::punctuated::Punctuated<syn::Type, Token![,]>>,
+}
+
+/// Parsed #[const_value(..)] field attributes.
+#[derive(Default)]
+pub(crate) struct ConstValueTypeAttr {
+    /// `#[const_value(module = <path>)]`.
+    pub(crate) module: Option<syn::Path>,
 }
 
 /// Parsed variant attributes.
@@ -176,6 +190,44 @@ impl Context {
         };
 
         Ok(ident)
+    }
+
+    pub(crate) fn const_value_field_attrs(
+        &self,
+        input: &[syn::Attribute],
+    ) -> Result<ConstValueFieldAttrs, ()> {
+        let mut error = false;
+        let mut attr = ConstValueFieldAttrs::default();
+
+        for a in input {
+            if a.path() != CONST_VALUE {
+                continue;
+            }
+
+            let result = a.parse_nested_meta(|meta| {
+                if meta.path.is_ident("with") {
+                    meta.input.parse::<Token![=]>()?;
+                    attr.with = Some(meta.input.parse::<syn::Path>()?);
+                    return Ok(());
+                }
+
+                return Err(syn::Error::new_spanned(
+                    &meta.path,
+                    "Unsupported field attribute",
+                ));
+            });
+
+            if let Err(e) = result {
+                error = true;
+                self.error(e);
+            };
+        }
+
+        if error {
+            return Err(());
+        }
+
+        Ok(attr)
     }
 
     /// Parse field attributes.
@@ -417,6 +469,49 @@ impl Context {
         Ok(attr)
     }
 
+    pub(crate) fn const_value_type_attrs(
+        &self,
+        input: &[syn::Attribute],
+    ) -> Result<ConstValueTypeAttr, ()> {
+        let mut error = false;
+        let mut attr = ConstValueTypeAttr::default();
+
+        for a in input {
+            if a.path() != CONST_VALUE {
+                continue;
+            }
+
+            let result = a.parse_nested_meta(|meta| {
+                if meta.path == MODULE || meta.path == CRATE {
+                    // Parse `#[rune(crate [= <path>])]`
+                    if meta.input.parse::<Option<Token![=]>>()?.is_some() {
+                        attr.module = Some(parse_path_compat(meta.input)?);
+                    } else {
+                        attr.module = Some(syn::parse_quote!(crate));
+                    }
+
+                    return Ok(());
+                }
+
+                return Err(syn::Error::new_spanned(
+                    &meta.path,
+                    "Unsupported type attribute",
+                ));
+            });
+
+            if let Err(e) = result {
+                error = true;
+                self.error(e);
+            };
+        }
+
+        if error {
+            return Err(());
+        }
+
+        Ok(attr)
+    }
+
     /// Parse field attributes.
     pub(crate) fn type_attrs(&self, input: &[syn::Attribute]) -> Result<TypeAttr, ()> {
         let mut error = false;
@@ -614,10 +709,14 @@ impl Context {
         Tokens {
             alloc: path(m, ["alloc"]),
             any_t: path(m, ["Any"]),
+            arc: path(m, ["__private", "Arc"]),
             box_: path(m, ["__private", "Box"]),
             compile_error: path(m, ["compile", "Error"]),
+            const_construct_t: path(m, ["runtime", "ConstConstruct"]),
+            const_value: path(m, ["runtime", "ConstValue"]),
             context_error: path(m, ["compile", "ContextError"]),
             double_ended_iterator: path(&core, ["iter", "DoubleEndedIterator"]),
+            from_const_value_t: path(m, ["runtime", "FromConstValue"]),
             from_value: path(m, ["runtime", "FromValue"]),
             hash: path(m, ["Hash"]),
             id: path(m, ["parse", "Id"]),
@@ -644,10 +743,12 @@ impl Context {
             raw_value_guard: path(m, ["runtime", "RawValueGuard"]),
             ref_: path(m, ["runtime", "Ref"]),
             result: path(&core, ["result", "Result"]),
+            runtime_error: path(m, ["runtime", "RuntimeError"]),
             span: path(m, ["ast", "Span"]),
             spanned: path(m, ["ast", "Spanned"]),
             static_type_mod: path(m, ["runtime", "static_type"]),
             string: path(m, ["alloc", "String"]),
+            to_const_value_t: path(m, ["runtime", "ToConstValue"]),
             to_tokens: path(m, ["macros", "ToTokens"]),
             to_value: path(m, ["runtime", "ToValue"]),
             token_stream: path(m, ["macros", "TokenStream"]),
@@ -705,10 +806,14 @@ fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path 
 pub(crate) struct Tokens {
     pub(crate) alloc: syn::Path,
     pub(crate) any_t: syn::Path,
+    pub(crate) arc: syn::Path,
     pub(crate) box_: syn::Path,
     pub(crate) compile_error: syn::Path,
+    pub(crate) const_construct_t: syn::Path,
+    pub(crate) const_value: syn::Path,
     pub(crate) context_error: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
+    pub(crate) from_const_value_t: syn::Path,
     pub(crate) from_value: syn::Path,
     pub(crate) hash: syn::Path,
     pub(crate) id: syn::Path,
@@ -735,10 +840,12 @@ pub(crate) struct Tokens {
     pub(crate) raw_value_guard: syn::Path,
     pub(crate) ref_: syn::Path,
     pub(crate) result: syn::Path,
+    pub(crate) runtime_error: syn::Path,
     pub(crate) span: syn::Path,
     pub(crate) spanned: syn::Path,
     pub(crate) static_type_mod: syn::Path,
     pub(crate) string: syn::Path,
+    pub(crate) to_const_value_t: syn::Path,
     pub(crate) to_tokens: syn::Path,
     pub(crate) to_value: syn::Path,
     pub(crate) token_stream: syn::Path,

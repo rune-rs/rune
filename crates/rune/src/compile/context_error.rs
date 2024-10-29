@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{TypeInfo, VmError};
+use crate::runtime::{RuntimeError, TypeInfo};
 use crate::{Hash, ItemBuf};
 
 /// An error raised when building the context.
@@ -12,6 +12,9 @@ use crate::{Hash, ItemBuf};
 pub enum ContextError {
     AllocError {
         error: alloc::Error,
+    },
+    RuntimeError {
+        error: RuntimeError,
     },
     UnitAlreadyPresent,
     InternalAlreadyPresent {
@@ -110,12 +113,13 @@ pub enum ContextError {
     ConstructorConflict {
         type_info: TypeInfo,
     },
-    ValueError {
-        error: VmError,
-    },
     VariantConstructorConflict {
         type_info: TypeInfo,
         index: usize,
+    },
+    ConflictingConstConstruct {
+        type_info: TypeInfo,
+        hash: Hash,
     },
     MissingType {
         item: ItemBuf,
@@ -154,6 +158,13 @@ impl From<alloc::Error> for ContextError {
     }
 }
 
+impl From<RuntimeError> for ContextError {
+    #[inline]
+    fn from(error: RuntimeError) -> Self {
+        ContextError::RuntimeError { error }
+    }
+}
+
 impl From<alloc::alloc::AllocError> for ContextError {
     #[inline]
     fn from(error: alloc::alloc::AllocError) -> Self {
@@ -167,6 +178,9 @@ impl fmt::Display for ContextError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ContextError::AllocError { error } => {
+                error.fmt(f)?;
+            }
+            ContextError::RuntimeError { error } => {
                 error.fmt(f)?;
             }
             ContextError::UnitAlreadyPresent {} => {
@@ -306,13 +320,16 @@ impl fmt::Display for ContextError {
                     "Constructor for type `{type_info}` has already been registered"
                 )?;
             }
-            ContextError::ValueError { error } => {
-                write!(f, "Error when converting to constant value: {error}")?;
-            }
             ContextError::VariantConstructorConflict { type_info, index } => {
                 write!(
                     f,
                     "Constructor for variant {index} in `{type_info}` has already been registered"
+                )?;
+            }
+            ContextError::ConflictingConstConstruct { type_info, hash } => {
+                write!(
+                    f,
+                    "Conflicting constant constructor with hash {hash} for type {type_info}"
                 )?;
             }
             ContextError::MissingType { item, type_info } => {
