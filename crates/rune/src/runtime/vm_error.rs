@@ -76,7 +76,6 @@ impl VmError {
         self.inner.stacktrace.first()
     }
 
-    #[cfg(test)]
     pub(crate) fn into_kind(self) -> VmErrorKind {
         self.inner.error.kind
     }
@@ -465,6 +464,19 @@ impl RuntimeError {
         self.error
     }
 
+    /// Construct an error containing a panic.
+    pub fn panic<D>(message: D) -> Self
+    where
+        D: 'static + BoxedPanic,
+    {
+        Self::new(VmErrorKind::from(Panic::custom(message)))
+    }
+
+    /// Bad argument count.
+    pub fn bad_argument_count(actual: usize, expected: usize) -> Self {
+        Self::new(VmErrorKind::BadArgumentCount { actual, expected })
+    }
+
     /// Construct an expected error.
     pub(crate) fn expected<T>(actual: TypeInfo) -> Self
     where
@@ -491,12 +503,45 @@ impl RuntimeError {
     pub(crate) fn expected_any_obj(actual: TypeInfo) -> Self {
         Self::new(VmErrorKind::ExpectedAny { actual })
     }
+
+    /// Indicate that a constant constructor is missing.
+    pub(crate) fn missing_constant_constructor(hash: Hash) -> Self {
+        Self::new(VmErrorKind::MissingConstantConstructor { hash })
+    }
 }
 
 impl fmt::Debug for RuntimeError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.error.fmt(f)
+    }
+}
+
+impl From<Infallible> for RuntimeError {
+    #[inline]
+    fn from(error: Infallible) -> Self {
+        match error {}
+    }
+}
+
+impl From<VmError> for RuntimeError {
+    #[inline]
+    fn from(error: VmError) -> Self {
+        Self::new(error.into_kind())
+    }
+}
+
+impl From<alloc::Error> for RuntimeError {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
+        RuntimeError::from(VmErrorKind::from(error))
+    }
+}
+
+impl From<alloc::alloc::AllocError> for RuntimeError {
+    #[inline]
+    fn from(error: alloc::alloc::AllocError) -> Self {
+        RuntimeError::from(VmErrorKind::from(error))
     }
 }
 
@@ -714,6 +759,9 @@ pub(crate) enum VmErrorKind {
     ExpectedAny {
         actual: TypeInfo,
     },
+    MissingConstantConstructor {
+        hash: Hash,
+    },
     ValueToIntegerCoercionError {
         from: VmIntegerRepr,
         to: &'static str,
@@ -916,6 +964,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::ExpectedAny { actual } => {
                 write!(f, "Expected `Any` type, but found `{actual}`")
+            }
+            VmErrorKind::MissingConstantConstructor { hash } => {
+                write!(f, "Missing constant constructor for type with hash {hash}")
             }
             VmErrorKind::ValueToIntegerCoercionError { from, to } => {
                 write!(f, "Failed to convert value `{from}` to integer `{to}`")

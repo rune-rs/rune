@@ -2,8 +2,7 @@ use crate::compile::ContextError;
 use crate::function_meta::{Associated, ToInstance};
 use crate::item::IntoComponent;
 use crate::module::ItemMut;
-use crate::runtime::{ToValue, TypeOf};
-use crate::ItemBuf;
+use crate::runtime::{ToConstValue, TypeHash, TypeOf};
 
 use super::Module;
 
@@ -21,7 +20,7 @@ pub struct ModuleConstantBuilder<'a, N, V> {
 
 impl<'a, N, V> ModuleConstantBuilder<'a, N, V>
 where
-    V: ToValue,
+    V: TypeHash + TypeOf + ToConstValue,
 {
     /// Add the free constant directly to the module.
     ///
@@ -39,8 +38,7 @@ where
     where
         N: IntoComponent,
     {
-        let item = ItemBuf::with_item([self.name])?;
-        self.module.insert_constant(item, self.value)
+        self.module.insert_constant(self.name, self.value)
     }
 
     /// Build a constant that is associated with the static type `T`.

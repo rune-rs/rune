@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use core::num::NonZeroUsize;
 
@@ -659,10 +660,24 @@ pub enum Inst {
     Struct {
         /// The address to load fields from.
         addr: InstAddress,
-        /// The type of the object to construct.
+        /// The type of the struct to construct.
         hash: Hash,
         /// The static slot of the object keys.
         slot: usize,
+        /// Where to write the constructed struct.
+        out: Output,
+    },
+    /// Construct a struct from a constant.
+    ///
+    /// The values at `addr` are dropped.
+    #[musli(packed)]
+    ConstConstruct {
+        /// Where constructor arguments are stored.
+        addr: InstAddress,
+        /// The type of the struct to construct.
+        hash: Hash,
+        /// The number of constructor arguments.
+        count: usize,
         /// Where to write the constructed struct.
         out: Output,
     },
@@ -1143,6 +1158,22 @@ impl Inst {
     pub fn float(v: f64, out: Output) -> Self {
         Self::Store {
             value: InstValue::Float(v),
+            out,
+        }
+    }
+
+    /// Construct an instruction to push a type.
+    pub fn ty(ty: Type, out: Output) -> Self {
+        Self::Store {
+            value: InstValue::Type(ty),
+            out,
+        }
+    }
+
+    /// Construct an instruction to push an ordering.
+    pub fn ordering(ordering: Ordering, out: Output) -> Self {
+        Self::Store {
+            value: InstValue::Ordering(ordering),
             out,
         }
     }
@@ -1724,6 +1755,12 @@ pub enum InstValue {
     /// A type hash.
     #[musli(packed)]
     Type(Type),
+    /// An ordering.
+    Ordering(
+        #[musli(with = crate::musli::ordering)]
+        #[serde(with = "crate::serde::ordering")]
+        Ordering,
+    ),
 }
 
 impl InstValue {
@@ -1737,6 +1774,7 @@ impl InstValue {
             Self::Integer(v) => Value::from(v),
             Self::Float(v) => Value::from(v),
             Self::Type(v) => Value::from(v),
+            Self::Ordering(v) => Value::from(v),
         }
     }
 }
@@ -1757,6 +1795,7 @@ impl fmt::Display for InstValue {
             Self::Integer(v) => write!(f, "{}", v)?,
             Self::Float(v) => write!(f, "{}", v)?,
             Self::Type(v) => write!(f, "{}", v.into_hash())?,
+            Self::Ordering(v) => write!(f, "{v:?}")?,
         }
 
         Ok(())

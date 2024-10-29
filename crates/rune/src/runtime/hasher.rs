@@ -54,7 +54,19 @@ impl Hasher {
     }
 
     /// Construct a hash.
-    pub fn finish(self) -> u64 {
+    pub fn finish(&self) -> u64 {
         self.hasher.finish()
+    }
+}
+
+impl core::hash::Hasher for Hasher {
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.hasher.finish()
+    }
+
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        self.hasher.write(bytes);
     }
 }

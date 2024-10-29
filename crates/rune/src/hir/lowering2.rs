@@ -18,7 +18,7 @@ use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::parse::{NonZeroId, Resolve};
 use crate::query::{self, GenericsParameters, Named2, Named2Kind, Used};
-use crate::runtime::{format, ConstValue, Type, TypeCheck};
+use crate::runtime::{format, ConstValue, ConstValueKind, Inline, Type, TypeCheck};
 use crate::Hash;
 
 use super::{Ctxt, Needs};
@@ -2551,14 +2551,27 @@ fn pat_const_value<'hir>(
     alloc_with!(cx, span);
 
     let kind = 'kind: {
-        let lit = match *const_value {
-            ConstValue::Bool(b) => hir::Lit::Bool(b),
-            ConstValue::Byte(b) => hir::Lit::Byte(b),
-            ConstValue::Char(ch) => hir::Lit::Char(ch),
-            ConstValue::String(ref string) => hir::Lit::Str(alloc_str!(string.as_ref())),
-            ConstValue::Bytes(ref bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
-            ConstValue::Integer(integer) => hir::Lit::Integer(integer),
-            ConstValue::Vec(ref items) => {
+        let lit = match *const_value.as_kind() {
+            ConstValueKind::Inline(value) => match value {
+                Inline::Unit => {
+                    break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
+                        kind: hir::PatSequenceKind::Anonymous {
+                            type_check: TypeCheck::Unit,
+                            count: 0,
+                            is_open: false,
+                        },
+                        items: &[],
+                    }));
+                }
+                Inline::Bool(b) => hir::Lit::Bool(b),
+                Inline::Byte(b) => hir::Lit::Byte(b),
+                Inline::Char(ch) => hir::Lit::Char(ch),
+                Inline::Integer(value) => hir::Lit::Integer(value),
+                _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
+            },
+            ConstValueKind::String(ref string) => hir::Lit::Str(alloc_str!(string.as_ref())),
+            ConstValueKind::Bytes(ref bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
+            ConstValueKind::Vec(ref items) => {
                 let items = iter!(items.iter(), items.len(), |value| pat_const_value(
                     cx, value, span
                 )?);
@@ -2572,17 +2585,7 @@ fn pat_const_value<'hir>(
                     items,
                 }));
             }
-            ConstValue::Unit => {
-                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                    kind: hir::PatSequenceKind::Anonymous {
-                        type_check: TypeCheck::Unit,
-                        count: 0,
-                        is_open: false,
-                    },
-                    items: &[],
-                }));
-            }
-            ConstValue::Tuple(ref items) => {
+            ConstValueKind::Tuple(ref items) => {
                 let items = iter!(items.iter(), items.len(), |value| pat_const_value(
                     cx, value, span
                 )?);
@@ -2596,7 +2599,7 @@ fn pat_const_value<'hir>(
                     items,
                 }));
             }
-            ConstValue::Object(ref fields) => {
+            ConstValueKind::Object(ref fields) => {
                 let bindings = iter!(fields.iter(), fields.len(), |(key, value)| {
                     let pat = alloc!(pat_const_value(cx, value, span)?);
 

@@ -20,8 +20,8 @@ use crate::module::{
     TypeSpecification,
 };
 use crate::runtime::{
-    ConstValue, FunctionHandler, InstAddress, Memory, Output, Protocol, RuntimeContext, StaticType,
-    TypeCheck, TypeInfo, VariantRtti, VmResult,
+    ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory, Output,
+    Protocol, RuntimeContext, StaticType, TypeCheck, TypeInfo, VariantRtti, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -278,6 +278,8 @@ pub struct Context {
     crates: HashSet<Box<str>>,
     /// Constants visible in this context
     constants: hash::Map<ConstValue>,
+    /// Constant constructor.
+    construct: hash::Map<Arc<dyn ConstConstruct>>,
 }
 
 impl Context {
@@ -374,6 +376,7 @@ impl Context {
         Ok(RuntimeContext::new(
             self.functions.try_clone()?,
             self.constants.try_clone()?,
+            self.construct.try_clone()?,
         ))
     }
 
@@ -409,7 +412,7 @@ impl Context {
         }
 
         for item in &module.items {
-            self.install_item(module, item)?;
+            self.install_item(item)?;
         }
 
         for assoc in &module.associated {
@@ -422,6 +425,10 @@ impl Context {
 
         for r in &module.reexports {
             self.install_reexport(r)?;
+        }
+
+        for (hash, type_info, construct) in &module.construct {
+            self.install_construct(*hash, type_info, construct)?;
         }
 
         Ok(())
@@ -927,6 +934,25 @@ impl Context {
         Ok(())
     }
 
+    /// Install a constant constructor.
+    fn install_construct(
+        &mut self,
+        hash: Hash,
+        type_info: &TypeInfo,
+        construct: &Arc<dyn ConstConstruct>,
+    ) -> Result<(), ContextError> {
+        let old = self.construct.try_insert(hash, construct.clone())?;
+
+        if old.is_some() {
+            return Err(ContextError::ConflictingConstConstruct {
+                type_info: type_info.try_clone()?,
+                hash,
+            });
+        }
+
+        Ok(())
+    }
+
     fn install_type_info(&mut self, ty: ContextType) -> Result<(), ContextError> {
         let item_hash = Hash::type_hash(&ty.item).with_type_parameters(ty.type_parameters);
 
@@ -941,7 +967,7 @@ impl Context {
 
         self.constants.try_insert(
             Hash::associated_function(ty.hash, Protocol::INTO_TYPE_NAME),
-            ConstValue::String(ty.item.try_to_string()?),
+            ConstValue::from(ty.item.try_to_string()?),
         )?;
 
         if let Some(old) = self.types.try_insert(ty.hash, ty)? {
@@ -956,12 +982,8 @@ impl Context {
     }
 
     /// Install a function and check for duplicates.
-    fn install_item(
-        &mut self,
-        module: &Module,
-        module_item: &ModuleItem,
-    ) -> Result<(), ContextError> {
-        let item = module.item.join(&module_item.item)?;
+    fn install_item(&mut self, module_item: &ModuleItem) -> Result<(), ContextError> {
+        let item = module_item.item.try_clone()?;
         self.names.insert(&item)?;
 
         let hash = Hash::type_hash(&item);
@@ -974,7 +996,7 @@ impl Context {
             rune::module::ModuleItemKind::Function(f) => {
                 self.constants.try_insert(
                     Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::String(item.try_to_string()?),
+                    ConstValue::from(item.try_to_string()?),
                 )?;
 
                 let signature = meta::Signature::from_context(&f.doc, &module_item.common)?;
@@ -1146,8 +1168,8 @@ impl Context {
 
         let kind = match &assoc.kind {
             ModuleAssociatedKind::Constant(value) => {
-                if let Some((hash, ..)) = &item {
-                    self.constants.try_insert(*hash, value.try_clone()?)?;
+                if let Some((hash, ..)) = item {
+                    self.constants.try_insert(hash, value.try_clone()?)?;
                 }
 
                 self.constants.try_insert(hash, value.try_clone()?)?;
@@ -1159,7 +1181,7 @@ impl Context {
                 if let Some((hash, item)) = &item {
                     self.constants.try_insert(
                         Hash::associated_function(*hash, Protocol::INTO_TYPE_NAME),
-                        ConstValue::String(item.try_to_string()?),
+                        ConstValue::from(item.try_to_string()?),
                     )?;
 
                     self.insert_native_fn(*hash, &f.handler, assoc.common.deprecated.as_deref())?;
@@ -1225,6 +1247,13 @@ impl Context {
 impl fmt::Debug for Context {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Context")
+    }
+}
+
+impl ConstContext for Context {
+    #[inline]
+    fn get(&self, hash: Hash) -> Option<&dyn ConstConstruct> {
+        Some(&**self.construct.get(&hash)?)
     }
 }
 

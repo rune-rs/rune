@@ -252,7 +252,10 @@ pub(super) async fn run(
         VmResult::Ok(result) => {
             if c.verbose || args.time || args.dump_return {
                 let duration = Instant::now().saturating_duration_since(last);
-                writeln!(io.stderr, "== {:?} ({:?})", result, duration)?;
+
+                execution
+                    .vm()
+                    .with(|| writeln!(io.stderr, "== {result:?} ({duration:?})"))?;
             }
 
             None
@@ -260,7 +263,10 @@ pub(super) async fn run(
         VmResult::Err(error) => {
             if c.verbose || args.time || args.dump_return {
                 let duration = Instant::now().saturating_duration_since(last);
-                writeln!(io.stderr, "== ! ({}) ({:?})", error, duration)?;
+
+                execution
+                    .vm()
+                    .with(|| writeln!(io.stderr, "== ! ({error}) ({duration:?})"))?;
             }
 
             Some(error)

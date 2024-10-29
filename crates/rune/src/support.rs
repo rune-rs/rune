@@ -87,6 +87,14 @@ pub(crate) mod no_std {
         }
     }
 
+    impl From<runtime::RuntimeError> for Error {
+        fn from(error: runtime::RuntimeError) -> Self {
+            Self {
+                kind: ErrorKind::Runtime(error),
+            }
+        }
+    }
+
     impl From<anyhow::Error> for Error {
         fn from(error: anyhow::Error) -> Self {
             Self {
@@ -111,6 +119,7 @@ pub(crate) mod no_std {
                 ErrorKind::Context(error) => error.fmt(f),
                 ErrorKind::Compile(error) => error.fmt(f),
                 ErrorKind::Build(error) => error.fmt(f),
+                ErrorKind::Runtime(error) => error.fmt(f),
                 ErrorKind::Vm(error) => error.fmt(f),
                 ErrorKind::Custom(error) => error.fmt(f),
                 #[cfg(test)]
@@ -126,6 +135,7 @@ pub(crate) mod no_std {
         Compile(compile::Error),
         Build(build::BuildError),
         Vm(runtime::VmError),
+        Runtime(runtime::RuntimeError),
         Custom(anyhow::Error),
         #[cfg(test)]
         Test(tests::TestError),
@@ -139,6 +149,7 @@ pub(crate) mod no_std {
                 ErrorKind::Compile(error) => Some(error),
                 ErrorKind::Build(error) => Some(error),
                 ErrorKind::Vm(error) => Some(error),
+                ErrorKind::Runtime(error) => Some(error),
                 ErrorKind::Custom(error) => Some(error.as_ref()),
                 #[cfg(test)]
                 ErrorKind::Test(error) => Some(error),

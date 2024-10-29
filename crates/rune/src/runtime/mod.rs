@@ -40,7 +40,8 @@ mod call;
 pub use self::call::Call;
 
 mod const_value;
-pub use self::const_value::ConstValue;
+pub use self::const_value::{ConstConstruct, ConstValue, ToConstValue};
+pub(crate) use self::const_value::{ConstContext, ConstValueKind, EmptyConstContext};
 
 pub mod debug;
 pub use self::debug::{DebugInfo, DebugInst};
@@ -164,11 +165,9 @@ pub(crate) use self::unit::UnitFn;
 pub use self::unit::{Unit, UnitStorage};
 
 mod value;
-pub(crate) use self::value::{
-    BorrowRefRepr, Inline, MutRepr, Mutable, OwnedRepr, RefRepr, ValueShared,
-};
+pub(crate) use self::value::{BorrowRefRepr, MutRepr, Mutable, OwnedRepr, RefRepr, ValueShared};
 pub use self::value::{
-    EmptyStruct, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value, ValueMutGuard,
+    EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value, ValueMutGuard,
     ValueRefGuard, VariantRtti,
 };
 

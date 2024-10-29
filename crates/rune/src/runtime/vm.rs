@@ -2892,6 +2892,26 @@ impl Vm {
         VmResult::Ok(())
     }
 
+    /// Operation to allocate a constant value from an array of values.
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_const_construct(
+        &mut self,
+        addr: InstAddress,
+        hash: Hash,
+        count: usize,
+        out: Output,
+    ) -> VmResult<()> {
+        let values = vm_try!(self.stack.slice_at_mut(addr, count));
+
+        let Some(construct) = self.context.construct(hash) else {
+            return err(VmErrorKind::MissingConstantConstructor { hash });
+        };
+
+        let value = vm_try!(construct.runtime_construct(values));
+        vm_try!(out.store(&mut self.stack, value));
+        VmResult::Ok(())
+    }
+
     /// Operation to allocate an object variant.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_struct_variant(
@@ -3810,6 +3830,14 @@ impl Vm {
                     out,
                 } => {
                     vm_try!(self.op_struct(addr, hash, slot, out));
+                }
+                Inst::ConstConstruct {
+                    addr,
+                    hash,
+                    count,
+                    out,
+                } => {
+                    vm_try!(self.op_const_construct(addr, hash, count, out));
                 }
                 Inst::StructVariant {
                     addr,

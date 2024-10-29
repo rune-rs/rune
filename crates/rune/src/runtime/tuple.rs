@@ -6,8 +6,8 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::runtime::{
-    ConstValue, FromValue, Mut, Mutable, OwnedRepr, RawAnyGuard, Ref, ToValue, UnsafeToMut,
-    UnsafeToRef, Value, ValueShared, VmErrorKind, VmResult,
+    ConstValue, EmptyConstContext, FromValue, Mut, Mutable, OwnedRepr, RawAnyGuard, Ref,
+    RuntimeError, ToValue, UnsafeToMut, UnsafeToRef, Value, ValueShared, VmErrorKind, VmResult,
 };
 #[cfg(feature = "alloc")]
 use crate::runtime::{Hasher, ProtocolCaller};
@@ -226,9 +226,9 @@ impl From<alloc::Box<[Value]>> for OwnedTuple {
 }
 
 impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
-    type Error = alloc::Error;
+    type Error = RuntimeError;
 
-    fn try_from(inner: alloc::Box<[ConstValue]>) -> alloc::Result<Self> {
+    fn try_from(inner: alloc::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
@@ -236,7 +236,7 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.iter() {
-            out.try_push(value.to_value()?)?;
+            out.try_push(value.to_value(&EmptyConstContext)?)?;
         }
 
         Ok(Self {
@@ -259,9 +259,9 @@ impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
 
 #[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
-    type Error = alloc::Error;
+    type Error = RuntimeError;
 
-    fn try_from(inner: ::rust_alloc::boxed::Box<[ConstValue]>) -> alloc::Result<Self> {
+    fn try_from(inner: ::rust_alloc::boxed::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
@@ -269,7 +269,7 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
         let mut out = alloc::Vec::try_with_capacity(inner.len())?;
 
         for value in inner.iter() {
-            out.try_push(value.to_value()?)?;
+            out.try_push(value.to_value(&EmptyConstContext)?)?;
         }
 
         Ok(Self {
