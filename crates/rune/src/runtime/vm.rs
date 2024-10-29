@@ -1931,7 +1931,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_await(&mut self, addr: InstAddress) -> VmResult<Future> {
-        vm_try!(self.stack.at(addr)).clone().into_future()
+        VmResult::Ok(vm_try!(vm_try!(self.stack.at(addr)).clone().into_future()))
     }
 
     #[cfg_attr(feature = "bench", inline(never))]

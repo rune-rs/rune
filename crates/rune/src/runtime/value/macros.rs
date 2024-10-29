@@ -410,8 +410,8 @@ macro_rules! number_value_trait {
 
             impl $crate::runtime::ToConstValue for $ty {
                 #[inline]
-                fn to_const_value(self) -> Result<ConstValue, $crate::runtime::RuntimeError> {
-                    Ok(ConstValue::try_from(self)?)
+                fn to_const_value(self) -> Result<$crate::runtime::ConstValue, $crate::runtime::RuntimeError> {
+                    $crate::runtime::ConstValue::try_from(self)
                 }
             }
 
@@ -421,7 +421,7 @@ macro_rules! number_value_trait {
                 #[inline]
                 fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
                     match <i64>::try_from(value) {
-                        Ok(number) => Ok(ConstValue::from(number)),
+                        Ok(number) => Ok($crate::runtime::ConstValue::from(number)),
                         #[allow(unreachable_patterns)]
                         Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
                             from: VmIntegerRepr::from(value),

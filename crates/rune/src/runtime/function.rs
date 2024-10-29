@@ -10,8 +10,8 @@ use crate::function;
 use crate::runtime::vm::Isolated;
 use crate::runtime::{
     Args, Call, ConstValue, FromValue, FunctionHandler, GuardedArgs, InstAddress, Mutable, Output,
-    OwnedTuple, RefRepr, Rtti, RuntimeContext, Stack, Unit, Value, VariantRtti, Vm, VmCall,
-    VmErrorKind, VmHalt, VmResult,
+    OwnedTuple, RefRepr, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, VariantRtti, Vm,
+    VmCall, VmErrorKind, VmHalt, VmResult,
 };
 use crate::shared::AssertSend;
 use crate::Any;
@@ -360,8 +360,8 @@ impl Function {
     /// assert!(closure.into_sync().is_err());
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn into_sync(self) -> VmResult<SyncFunction> {
-        VmResult::Ok(SyncFunction(vm_try!(self.0.into_sync())))
+    pub fn into_sync(self) -> Result<SyncFunction, RuntimeError> {
+        Ok(SyncFunction(self.0.into_sync()?))
     }
 }
 
@@ -564,7 +564,7 @@ where
             }
         };
 
-        T::from_value(value)
+        VmResult::Ok(vm_try!(T::from_value(value)))
     }
 
     fn async_send_call<'a, A, T>(&'a self, args: A) -> impl Future<Output = VmResult<T>> + Send + 'a
@@ -587,7 +587,7 @@ where
                 value
             };
 
-            T::from_value(value)
+            VmResult::Ok(vm_try!(T::from_value(value)))
         };
 
         // Safety: Future is send because there is no way to call this
@@ -774,18 +774,18 @@ where
 
 impl FunctionImpl<Value> {
     /// Try to convert into a [SyncFunction].
-    fn into_sync(self) -> VmResult<FunctionImpl<ConstValue>> {
+    fn into_sync(self) -> Result<FunctionImpl<ConstValue>, RuntimeError> {
         let inner = match self.inner {
             Inner::FnClosureOffset(closure) => {
-                let mut env = vm_try!(Vec::try_with_capacity(closure.environment.len()));
+                let mut env = Vec::try_with_capacity(closure.environment.len())?;
 
                 for value in Vec::from(closure.environment) {
-                    vm_try!(env.try_push(vm_try!(FromValue::from_value(value))));
+                    env.try_push(FromValue::from_value(value)?)?;
                 }
 
                 Inner::FnClosureOffset(FnClosureOffset {
                     fn_offset: closure.fn_offset,
-                    environment: vm_try!(env.try_into_boxed_slice()),
+                    environment: env.try_into_boxed_slice()?,
                 })
             }
             Inner::FnHandler(inner) => Inner::FnHandler(inner),
@@ -796,7 +796,7 @@ impl FunctionImpl<Value> {
             Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner),
         };
 
-        VmResult::Ok(FunctionImpl { inner })
+        Ok(FunctionImpl { inner })
     }
 }
 
@@ -1023,8 +1023,8 @@ struct FnTupleVariant {
 
 impl FromValue for SyncFunction {
     #[inline]
-    fn from_value(value: Value) -> VmResult<Self> {
-        vm_try!(value.into_function()).into_sync()
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_function()?.into_sync()
     }
 }
 

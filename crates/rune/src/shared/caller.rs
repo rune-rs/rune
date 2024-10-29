@@ -57,7 +57,7 @@ where
             unreachable!();
         };
 
-        T::from_value(value)
+        VmResult::Ok(vm_try!(T::from_value(value)))
     }
 }
 

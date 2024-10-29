@@ -17,7 +17,8 @@ use crate::{Any, TypeHash};
 use super::EnvProtocolCaller;
 use super::{
     Formatter, FromValue, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RawAnyGuard, Ref, ToValue, UnsafeToRef, Value, VmErrorKind, VmResult,
+    RangeToInclusive, RawAnyGuard, Ref, RuntimeError, ToValue, UnsafeToRef, Value, VmErrorKind,
+    VmResult,
 };
 
 /// Struct representing a dynamic vector.
@@ -534,16 +535,16 @@ impl<T> FromValue for ::rust_alloc::vec::Vec<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let vec = vm_try!(value.into_vec());
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let vec = value.into_vec()?;
 
         let mut output = ::rust_alloc::vec::Vec::with_capacity(vec.len());
 
         for value in vec {
-            output.push(vm_try!(T::from_value(value)));
+            output.push(T::from_value(value)?);
         }
 
-        VmResult::Ok(output)
+        Ok(output)
     }
 }
 
@@ -551,16 +552,16 @@ impl<T> FromValue for alloc::Vec<T>
 where
     T: FromValue,
 {
-    fn from_value(value: Value) -> VmResult<Self> {
-        let vec = vm_try!(value.into_vec());
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let vec = value.into_vec()?;
 
-        let mut output = vm_try!(alloc::Vec::try_with_capacity(vec.len()));
+        let mut output = alloc::Vec::try_with_capacity(vec.len())?;
 
         for value in vec {
-            vm_try!(output.try_push(vm_try!(T::from_value(value))));
+            output.try_push(T::from_value(value)?)?;
         }
 
-        VmResult::Ok(output)
+        Ok(output)
     }
 }
 

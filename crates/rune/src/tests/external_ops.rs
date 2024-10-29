@@ -220,7 +220,7 @@ fn ordering_struct() -> Result<()> {
                 foo.value = $initial;
 
                 let output = vm.try_clone()?.call(["type"], (&mut foo,))?;
-                let a = <bool as FromValue>::from_value(output).into_result()?;
+                let a: bool = rune::from_value(output)?;
 
                 assert_eq!(a, $expected, "{} != {} (value)", foo.value, $expected);
             }
@@ -289,7 +289,7 @@ fn eq_struct() -> Result<()> {
                 foo.value = $initial;
 
                 let output = vm.try_clone()?.call(["type"], (&mut foo,))?;
-                let a = <bool as FromValue>::from_value(output).into_result()?;
+                let a: bool = rune::from_value(output)?;
 
                 assert_eq!(a, $expected, "{} != {} (value)", foo.value, $expected);
             }

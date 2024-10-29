@@ -1,5 +1,5 @@
 use crate::alloc::Vec;
-use crate::runtime::{FromValue, ToValue, Value, VmErrorKind, VmResult};
+use crate::runtime::{FromValue, RuntimeError, ToValue, Value, VmErrorKind, VmResult};
 
 /// A helper type to deserialize arrays with different interior types.
 ///
@@ -26,17 +26,17 @@ macro_rules! impl_from_value_tuple_vec {
         where
             $($ty: FromValue,)*
         {
-            fn from_value(value: Value) -> VmResult<Self> {
-                let vec = vm_try!(value.into_vec_ref());
+            fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                let vec = value.into_vec_ref()?;
 
                 let [$($var,)*] = vec.as_slice() else {
-                    return VmResult::err(VmErrorKind::ExpectedTupleLength {
+                    return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {
                         actual: vec.len(),
                         expected: $count,
-                    });
+                    }));
                 };
 
-                VmResult::Ok(VecTuple(($(vm_try!(<$ty>::from_value($var.clone())),)*)))
+                Ok(VecTuple(($(<$ty>::from_value($var.clone())?,)*)))
             }
         }
 

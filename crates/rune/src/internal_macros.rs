@@ -116,16 +116,16 @@ macro_rules! from_value_ref {
         }
 
         impl $crate::runtime::FromValue for $crate::runtime::Ref<$ty> {
-            fn from_value(value: Value) -> $crate::runtime::VmResult<Self> {
-                let value = vm_try!(value.$into_ref());
-                $crate::runtime::VmResult::Ok(value)
+            fn from_value(value: Value) -> Result<Self, $crate::runtime::RuntimeError> {
+                let value = value.$into_ref()?;
+                Ok(value)
             }
         }
 
         impl $crate::runtime::FromValue for $crate::runtime::Mut<$ty> {
-            fn from_value(value: Value) -> VmResult<Self> {
-                let value = vm_try!(value.$into_mut());
-                $crate::runtime::VmResult::Ok(value)
+            fn from_value(value: Value) -> Result<Self, $crate::runtime::RuntimeError> {
+                let value = value.$into_mut()?;
+                Ok(value)
             }
         }
     };
@@ -135,9 +135,9 @@ macro_rules! from_value_ref {
 macro_rules! from_value2 {
     ($ty:ty, $into_ref:ident, $into_mut:ident, $into:ident) => {
         impl $crate::runtime::FromValue for $ty {
-            fn from_value(value: Value) -> $crate::runtime::VmResult<Self> {
-                let value = vm_try!(value.$into());
-                $crate::runtime::VmResult::Ok(value)
+            fn from_value(value: Value) -> Result<Self, $crate::runtime::RuntimeError> {
+                let value = value.$into()?;
+                Ok(value)
             }
         }
 

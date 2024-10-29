@@ -211,10 +211,10 @@ impl Context {
                     return Ok(());
                 }
 
-                return Err(syn::Error::new_spanned(
+                Err(syn::Error::new_spanned(
                     &meta.path,
                     "Unsupported field attribute",
-                ));
+                ))
             });
 
             if let Err(e) = result {
@@ -493,10 +493,10 @@ impl Context {
                     return Ok(());
                 }
 
-                return Err(syn::Error::new_spanned(
+                Err(syn::Error::new_spanned(
                     &meta.path,
                     "Unsupported type attribute",
-                ));
+                ))
             });
 
             if let Err(e) = result {
