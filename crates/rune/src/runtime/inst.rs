@@ -71,9 +71,6 @@ pub enum TypeCheck {
     /// A result type, and the specified variant index.
     #[musli(packed)]
     Result(usize),
-    /// A generator state type, and the specified variant index.
-    #[musli(packed)]
-    GeneratorState(usize),
 }
 
 impl fmt::Display for TypeCheck {
@@ -87,8 +84,6 @@ impl fmt::Display for TypeCheck {
             Self::Option(..) => write!(fmt, "Option::None"),
             Self::Result(0) => write!(fmt, "Result::Ok"),
             Self::Result(..) => write!(fmt, "Result::Err"),
-            Self::GeneratorState(0) => write!(fmt, "GeneratorState::Yielded"),
-            Self::GeneratorState(..) => write!(fmt, "GeneratorState::Complete"),
         }
     }
 }
@@ -1876,5 +1871,14 @@ where
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
+    }
+}
+
+impl IntoOutput for &str {
+    type Output = String;
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(vm_try!(String::try_from(self)))
     }
 }

@@ -17,8 +17,8 @@ use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
-    ConstConstruct, GeneratorState, InstAddress, MaybeTypeOf, Memory, Output, Protocol,
-    ToConstValue, TypeCheck, TypeHash, TypeInfo, TypeOf, Value, VmResult,
+    ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, ToConstValue, TypeCheck,
+    TypeHash, TypeInfo, TypeOf, Value, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -351,53 +351,6 @@ impl Module {
         self.variant_meta::<F::Return>(index)?
             .constructor(constructor)?;
         Ok(())
-    }
-
-    /// Construct the type information for the `GeneratorState` type.
-    ///
-    /// Registering this allows the given type to be used in Rune scripts when
-    /// referring to the `GeneratorState` type.
-    ///
-    /// # Examples
-    ///
-    /// This shows how to register the `GeneratorState` as
-    /// `nonstd::ops::GeneratorState`.
-    ///
-    /// ```
-    /// use rune::Module;
-    ///
-    /// let mut module = Module::with_crate_item("nonstd", ["ops"])?;
-    /// module.generator_state(["GeneratorState"])?;
-    ///
-    /// Ok::<_, rune::support::Error>(())
-    pub fn generator_state<N>(
-        &mut self,
-        name: N,
-    ) -> Result<InternalEnumMut<'_, GeneratorState>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let mut enum_ = InternalEnum::new(
-            "GeneratorState",
-            crate::runtime::static_type::GENERATOR_STATE,
-        );
-
-        // Note: these numeric variants are magic, and must simply match up with
-        // what's being used in the virtual machine implementation for these
-        // types.
-        enum_.variant(
-            "Complete",
-            TypeCheck::GeneratorState(0),
-            GeneratorState::Complete,
-        )?;
-
-        enum_.variant(
-            "Yielded",
-            TypeCheck::GeneratorState(1),
-            GeneratorState::Yielded,
-        )?;
-
-        self.install_internal_enum(name, enum_)
     }
 
     /// Construct type information for the `Option` type.

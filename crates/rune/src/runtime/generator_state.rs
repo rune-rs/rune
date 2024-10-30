@@ -50,12 +50,14 @@ use crate::Any;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Debug, TryClone)]
-#[rune(builtin, static_type = GENERATOR_STATE)]
+#[rune(static_type = GENERATOR_STATE)]
 pub enum GeneratorState {
     /// The generator yielded.
-    Yielded(Value),
+    #[rune(constructor)]
+    Yielded(#[rune(get, set)] Value),
     /// The generator completed.
-    Complete(Value),
+    #[rune(constructor)]
+    Complete(#[rune(get, set)] Value),
 }
 
 impl GeneratorState {
@@ -97,10 +99,3 @@ impl GeneratorState {
         }
     }
 }
-
-from_value2!(
-    GeneratorState,
-    into_generator_state_ref,
-    into_generator_state_mut,
-    into_generator_state
-);

@@ -45,7 +45,7 @@ pub fn module() -> Result<Module, ContextError> {
     }
 
     {
-        m.generator_state(["GeneratorState"])?.docs(docstring! {
+        m.ty::<GeneratorState>()?.docs(docstring! {
             /// Enum indicating the state of a generator.
         })?;
 

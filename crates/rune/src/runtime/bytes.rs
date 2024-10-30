@@ -11,8 +11,9 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::{RawAnyGuard, Ref, UnsafeToRef, Value, VmResult};
 use crate::Any;
+
+use super::{IntoOutput, RawAnyGuard, Ref, UnsafeToRef, Value, VmResult};
 
 /// A vector of bytes.
 #[derive(Default, Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -438,5 +439,23 @@ impl<'de> de::Deserialize<'de> for Bytes {
         }
 
         deserializer.deserialize_bytes(Visitor)
+    }
+}
+
+impl TryFrom<&[u8]> for Value {
+    type Error = alloc::Error;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Value::new(Bytes::try_from(value)?)
+    }
+}
+
+impl IntoOutput for &[u8] {
+    type Output = Bytes;
+
+    #[inline]
+    fn into_output(self) -> VmResult<Self::Output> {
+        VmResult::Ok(vm_try!(Bytes::try_from(self)))
     }
 }

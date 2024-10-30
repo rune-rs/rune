@@ -30,11 +30,11 @@ use crate::{Any, Hash};
 
 use super::static_type;
 use super::{
-    AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, Bytes, CallResultOnly, ConstValue,
-    ConstValueKind, ControlFlow, DynGuardedArgs, EnvProtocolCaller, Format, Formatter, FromValue,
-    Function, Future, Generator, GeneratorState, IntoOutput, Iterator, MaybeTypeOf, Mut, Object,
-    OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot,
-    Stream, Type, TypeInfo, Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
+    AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
+    ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Function, Future,
+    Generator, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
+    ProtocolCaller, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Stream, Type, TypeInfo,
+    Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, Tuple};
@@ -428,9 +428,6 @@ impl Value {
                     Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
                     Mutable::Stream(value) => Mutable::Stream(vm_try!(value.try_clone())),
                     Mutable::Generator(value) => Mutable::Generator(vm_try!(value.try_clone())),
-                    Mutable::GeneratorState(value) => {
-                        Mutable::GeneratorState(vm_try!(value.try_clone()))
-                    }
                     Mutable::Option(value) => Mutable::Option(vm_try!(value.try_clone())),
                     Mutable::Result(value) => Mutable::Result(vm_try!(value.try_clone())),
                     Mutable::EmptyStruct(value) => Mutable::EmptyStruct(vm_try!(value.try_clone())),
@@ -510,9 +507,6 @@ impl Value {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Generator(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::GeneratorState(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Option(value) => {
@@ -835,16 +829,6 @@ impl Value {
         borrow_function_ref,
         borrow_function_mut,
         into_function,
-    }
-
-    into! {
-        /// Coerce into a [`GeneratorState`].
-        GeneratorState(GeneratorState),
-        into_generator_state_ref,
-        into_generator_state_mut,
-        borrow_generator_state_ref,
-        borrow_generator_state_mut,
-        into_generator_state,
     }
 
     into! {
@@ -1880,33 +1864,6 @@ impl TryFrom<&str> for Value {
     }
 }
 
-impl IntoOutput for &str {
-    type Output = String;
-
-    #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(vm_try!(String::try_from(self)))
-    }
-}
-
-impl TryFrom<&[u8]> for Value {
-    type Error = alloc::Error;
-
-    #[inline]
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Value::new(Bytes::try_from(value)?)
-    }
-}
-
-impl IntoOutput for &[u8] {
-    type Output = Bytes;
-
-    #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(vm_try!(Bytes::try_from(self)))
-    }
-}
-
 impl IntoOutput for Mutable {
     type Output = Mutable;
 
@@ -1928,7 +1885,6 @@ inline_from! {
 
 from! {
     Function => Function,
-    GeneratorState => GeneratorState,
     Vec => Vec,
     EmptyStruct => EmptyStruct,
     TupleStruct => TupleStruct,
@@ -1942,10 +1898,11 @@ from! {
 }
 
 any_from! {
-    String,
-    Bytes,
-    Format,
-    ControlFlow,
+    crate::alloc::String,
+    super::Bytes,
+    super::Format,
+    super::ControlFlow,
+    super::GeneratorState,
 }
 
 from_container! {
@@ -2077,8 +2034,6 @@ pub(crate) enum Mutable {
     Stream(Stream<Vm>),
     /// A stored generator.
     Generator(Generator<Vm>),
-    /// Generator state.
-    GeneratorState(GeneratorState),
     /// An empty value indicating nothing.
     Option(Option<Value>),
     /// A stored result in a slot.
@@ -2104,7 +2059,6 @@ impl Mutable {
             Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
             Mutable::Stream(..) => TypeInfo::static_type(static_type::STREAM),
             Mutable::Generator(..) => TypeInfo::static_type(static_type::GENERATOR),
-            Mutable::GeneratorState(..) => TypeInfo::static_type(static_type::GENERATOR_STATE),
             Mutable::Option(..) => TypeInfo::static_type(static_type::OPTION),
             Mutable::Result(..) => TypeInfo::static_type(static_type::RESULT),
             Mutable::Function(..) => TypeInfo::static_type(static_type::FUNCTION),
@@ -2127,7 +2081,6 @@ impl Mutable {
             Mutable::Future(..) => static_type::FUTURE.hash,
             Mutable::Stream(..) => static_type::STREAM.hash,
             Mutable::Generator(..) => static_type::GENERATOR.hash,
-            Mutable::GeneratorState(..) => static_type::GENERATOR_STATE.hash,
             Mutable::Result(..) => static_type::RESULT.hash,
             Mutable::Option(..) => static_type::OPTION.hash,
             Mutable::Function(..) => static_type::FUNCTION.hash,
