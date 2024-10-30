@@ -149,13 +149,13 @@ impl FormatSpec {
         let (f, buf) = f.parts_mut();
 
         if let Some(sign) = sign {
-            vm_try!(f.try_push(sign));
+            vm_try!(f.try_write_char(sign));
         }
 
         let mut w = self.width.map(|n| n.get()).unwrap_or_default();
 
         if w == 0 {
-            vm_try!(f.try_push_str(buf));
+            vm_try!(f.try_write_str(buf));
             return VmResult::Ok(());
         }
 
@@ -164,7 +164,7 @@ impl FormatSpec {
             .saturating_sub(sign.map(|_| 1).unwrap_or_default());
 
         if w == 0 {
-            vm_try!(f.try_push_str(buf));
+            vm_try!(f.try_write_str(buf));
             return VmResult::Ok(());
         }
 
@@ -172,29 +172,29 @@ impl FormatSpec {
 
         match align {
             Alignment::Left => {
-                vm_try!(f.try_push_str(buf));
+                vm_try!(f.try_write_str(buf));
 
                 for c in filler {
-                    vm_try!(f.try_push(c));
+                    vm_try!(f.try_write_char(c));
                 }
             }
             Alignment::Center => {
                 for c in (&mut filler).take(w / 2) {
-                    vm_try!(f.try_push(c));
+                    vm_try!(f.try_write_char(c));
                 }
 
-                vm_try!(f.try_push_str(buf));
+                vm_try!(f.try_write_str(buf));
 
                 for c in filler {
-                    vm_try!(f.try_push(c));
+                    vm_try!(f.try_write_char(c));
                 }
             }
             Alignment::Right => {
                 for c in filler {
-                    vm_try!(f.try_push(c));
+                    vm_try!(f.try_write_char(c));
                 }
 
-                vm_try!(f.try_push_str(buf));
+                vm_try!(f.try_write_str(buf));
             }
         }
 

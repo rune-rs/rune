@@ -1,5 +1,7 @@
 //! The [`Result`] type.
 
+use core::ptr::NonNull;
+
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -201,11 +203,13 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
     match result {
         Ok(value) => VmResult::Ok(value),
         Err(err) => {
-            let mut f = Formatter::new();
+            let mut s = String::new();
+            // SAFETY: Formatter does not outlive the string it references.
+            let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
             vm_try!(message.string_display(&mut f));
             vm_try!(f.try_write_str(": "));
             vm_try!(err.string_debug(&mut f));
-            VmResult::err(Panic::custom(f.into_string()))
+            VmResult::err(Panic::custom(s))
         }
     }
 }

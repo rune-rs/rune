@@ -1,6 +1,9 @@
 //! The [`Option`] type.
 
+use core::ptr::NonNull;
+
 use crate as rune;
+use crate::alloc::String;
 use crate::runtime::{ControlFlow, Formatter, Function, Panic, Value, VmResult};
 use crate::Any;
 use crate::{ContextError, Module};
@@ -83,9 +86,11 @@ fn expect(option: Option<Value>, message: Value) -> VmResult<Value> {
     match option {
         Some(some) => VmResult::Ok(some),
         None => {
-            let mut f = Formatter::new();
+            let mut s = String::new();
+            // SAFETY: Formatter does not outlive the string it references.
+            let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
             vm_try!(message.string_display(&mut f));
-            VmResult::err(Panic::custom(f.into_string()))
+            VmResult::err(Panic::custom(s))
         }
     }
 }

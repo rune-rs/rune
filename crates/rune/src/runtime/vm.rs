@@ -3024,13 +3024,15 @@ impl Vm {
         let values = vm_try!(self.stack.slice_at(addr, len));
         let values = vm_try!(values.iter().cloned().try_collect::<alloc::Vec<_>>());
 
-        let mut f = vm_try!(Formatter::with_capacity(size_hint));
+        let mut s = vm_try!(String::try_with_capacity(size_hint));
+        // SAFETY: Formatter does not outlive the string it references.
+        let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
 
         for value in values {
             vm_try!(value.string_display_with(&mut f, &mut *self));
         }
 
-        vm_try!(out.store(&mut self.stack, f.string));
+        vm_try!(out.store(&mut self.stack, s));
         VmResult::Ok(())
     }
 
@@ -3635,30 +3637,13 @@ impl Vm {
     /// [Value::string_display] which requires access to a virtual machine.
     ///
     /// ```no_run
-    /// use rune::{Context, Unit};
-    /// use rune::runtime::Formatter;
-    /// use std::sync::Arc;
+    /// use rune::{Value, Vm};
+    /// use rune::runtime::{Formatter, VmError};
     ///
-    /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime()?);
-    ///
-    /// // Normally the unit would be created by compiling some source,
-    /// // and since this one is empty it'll just error.
-    /// let unit = Arc::new(Unit::default());
-    ///
-    /// let mut vm = rune::Vm::new(context, unit);
-    ///
-    /// let output = vm.call(["main"], ())?;
-    ///
-    /// // Call the string_display protocol on `output`. This requires
-    /// // access to a virtual machine since it might use functions
-    /// // registered in the unit associated with it.
-    /// let mut f = Formatter::new();
-    ///
-    /// // Note: We do an extra unwrap because the return value is
-    /// // `fmt::Result`.
-    /// vm.with(|| output.string_display(&mut f)).into_result()?;
-    /// # Ok::<_, rune::support::Error>(())
+    /// fn use_with(vm: &Vm, output: &Value, f: &mut Formatter) -> Result<(), VmError> {
+    ///     vm.with(|| output.string_display(f)).into_result()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn with<F, T>(&self, f: F) -> T
     where
