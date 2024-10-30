@@ -27,7 +27,7 @@ macro_rules! impl_from_value_tuple_vec {
             $($ty: FromValue,)*
         {
             fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                let vec = value.into_vec_ref()?;
+                let vec = value.into_any_ref::<$crate::runtime::Vec>()?;
 
                 let [$($var,)*] = vec.as_slice() else {
                     return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {

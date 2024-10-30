@@ -7,7 +7,10 @@ use crate::compile::meta;
 use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
 use crate::hir;
 use crate::query::{Query, Used};
-use crate::runtime::{BorrowRefRepr, ConstValue, Mutable, Object, OwnedTuple, RefRepr, Value};
+use crate::runtime::{
+    self, BorrowRefRepr, ConstValue, Mutable, Object, OwnedTuple, RefRepr, Value,
+};
+use crate::TypeHash;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
 pub struct Interpreter<'a, 'arena> {
@@ -224,11 +227,6 @@ impl ir::Scopes {
                 match target {
                     BorrowRefRepr::Mutable(value) => {
                         match &*value {
-                            Mutable::Vec(vec) => {
-                                if let Some(value) = vec.get(*index) {
-                                    return Ok(value.clone());
-                                }
-                            }
                             Mutable::Tuple(tuple) => {
                                 if let Some(value) = tuple.get(*index) {
                                     return Ok(value.clone());
@@ -242,11 +240,26 @@ impl ir::Scopes {
                             }
                         };
                     }
-                    actual => {
+                    BorrowRefRepr::Any(value) => match value.type_hash() {
+                        runtime::Vec::HASH => {
+                            let vec = value.borrow_ref::<runtime::Vec>().with_span(ir_target)?;
+
+                            if let Some(value) = vec.get(*index) {
+                                return Ok(value.clone());
+                            }
+                        }
+                        _ => {
+                            return Err(compile::Error::expected_type::<OwnedTuple>(
+                                ir_target,
+                                value.type_info(),
+                            ));
+                        }
+                    },
+                    value => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
-                            actual.type_info(),
-                        ))
+                            value.type_info(),
+                        ));
                     }
                 }
 
@@ -300,35 +313,47 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let target = self.get_target(target)?;
 
-                let mut target = match target.as_ref_repr().with_span(ir_target)? {
-                    RefRepr::Mutable(current) => current.borrow_mut().with_span(ir_target)?,
-                    actual => {
+                match target.as_ref_repr().with_span(ir_target)? {
+                    RefRepr::Inline(value) => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
-                            actual.type_info().with_span(ir_target)?,
+                            value.type_info(),
                         ));
                     }
-                };
+                    RefRepr::Mutable(current) => {
+                        let mut mutable = current.borrow_mut().with_span(ir_target)?;
 
-                match &mut *target {
-                    Mutable::Vec(vec) => {
-                        if let Some(current) = vec.get_mut(*index) {
-                            *current = value;
-                            return Ok(());
+                        match &mut *mutable {
+                            Mutable::Tuple(tuple) => {
+                                if let Some(current) = tuple.get_mut(*index) {
+                                    *current = value;
+                                    return Ok(());
+                                }
+                            }
+                            value => {
+                                return Err(compile::Error::expected_type::<OwnedTuple>(
+                                    ir_target,
+                                    value.type_info(),
+                                ));
+                            }
+                        };
+                    }
+                    RefRepr::Any(any) => match any.type_hash() {
+                        runtime::Vec::HASH => {
+                            let mut vec = any.borrow_mut::<runtime::Vec>().with_span(ir_target)?;
+
+                            if let Some(current) = vec.get_mut(*index) {
+                                *current = value;
+                                return Ok(());
+                            }
                         }
-                    }
-                    Mutable::Tuple(tuple) => {
-                        if let Some(current) = tuple.get_mut(*index) {
-                            *current = value;
-                            return Ok(());
+                        _ => {
+                            return Err(compile::Error::expected_type::<OwnedTuple>(
+                                ir_target,
+                                any.type_info(),
+                            ));
                         }
-                    }
-                    actual => {
-                        return Err(compile::Error::expected_type::<OwnedTuple>(
-                            ir_target,
-                            actual.type_info(),
-                        ));
-                    }
+                    },
                 };
 
                 Err(compile::Error::msg(ir_target, "missing index"))
@@ -382,40 +407,49 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let current = self.get_target(target)?;
 
-                let mut value = match current.as_ref_repr().with_span(ir_target)? {
-                    RefRepr::Mutable(value) => value.borrow_mut().with_span(ir_target)?,
-                    actual => {
-                        return Err(compile::Error::expected_type::<OwnedTuple>(
+                match current.as_ref_repr().with_span(ir_target)? {
+                    RefRepr::Mutable(value) => {
+                        let mut value = value.borrow_mut().with_span(ir_target)?;
+
+                        match &mut *value {
+                            Mutable::Tuple(tuple) => {
+                                let value = tuple.get_mut(*index).ok_or_else(|| {
+                                    compile::Error::new(
+                                        ir_target,
+                                        IrErrorKind::MissingIndex { index: *index },
+                                    )
+                                })?;
+
+                                op(value)
+                            }
+                            actual => Err(compile::Error::expected_type::<OwnedTuple>(
+                                ir_target,
+                                actual.type_info(),
+                            )),
+                        }
+                    }
+                    RefRepr::Any(value) => match value.type_hash() {
+                        runtime::Vec::HASH => {
+                            let mut vec =
+                                value.borrow_mut::<runtime::Vec>().with_span(ir_target)?;
+
+                            let value = vec.get_mut(*index).ok_or_else(|| {
+                                compile::Error::new(
+                                    ir_target,
+                                    IrErrorKind::MissingIndex { index: *index },
+                                )
+                            })?;
+
+                            op(value)
+                        }
+                        _ => Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
-                            actual.type_info().with_span(ir_target)?,
-                        ));
-                    }
-                };
-
-                match &mut *value {
-                    Mutable::Vec(vec) => {
-                        let value = vec.get_mut(*index).ok_or_else(|| {
-                            compile::Error::new(
-                                ir_target,
-                                IrErrorKind::MissingIndex { index: *index },
-                            )
-                        })?;
-
-                        op(value)
-                    }
-                    Mutable::Tuple(tuple) => {
-                        let value = tuple.get_mut(*index).ok_or_else(|| {
-                            compile::Error::new(
-                                ir_target,
-                                IrErrorKind::MissingIndex { index: *index },
-                            )
-                        })?;
-
-                        op(value)
-                    }
+                            value.type_info(),
+                        )),
+                    },
                     actual => Err(compile::Error::expected_type::<OwnedTuple>(
                         ir_target,
-                        actual.type_info(),
+                        actual.type_info().with_span(ir_target)?,
                     )),
                 }
             }

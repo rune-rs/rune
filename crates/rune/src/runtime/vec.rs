@@ -40,8 +40,7 @@ use super::{
 /// ```
 #[derive(Default, Any)]
 #[repr(transparent)]
-#[rune(builtin, static_type = VEC)]
-#[rune(from_value = Value::into_vec, from_value_ref = Value::into_vec_ref, from_value_mut = Value::into_vec_mut)]
+#[rune(static_type = VEC)]
 pub struct Vec {
     inner: alloc::Vec<Value>,
 }
@@ -536,7 +535,7 @@ where
     T: FromValue,
 {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let vec = value.into_vec()?;
+        let vec = value.into_any::<Vec>()?;
 
         let mut output = ::rust_alloc::vec::Vec::with_capacity(vec.len());
 
@@ -553,7 +552,7 @@ where
     T: FromValue,
 {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let vec = value.into_vec()?;
+        let vec = value.into_any::<Vec>()?;
 
         let mut output = alloc::Vec::try_with_capacity(vec.len())?;
 
@@ -569,10 +568,8 @@ impl UnsafeToRef for [Value] {
     type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let vec = vm_try!(value.into_vec_ref());
+        let vec = vm_try!(value.into_any_ref::<Vec>());
         let (vec, guard) = Ref::into_raw(vec);
-        // SAFETY: we're holding onto the guard for the vector here, so it is
-        // live.
         VmResult::Ok((vec.as_ref().as_slice(), guard))
     }
 }
