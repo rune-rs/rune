@@ -361,19 +361,19 @@ impl Value {
             match vm_try!(self.borrow_ref_repr()) {
                 BorrowRefRepr::Inline(value) => match value {
                     Inline::Char(c) => {
-                        vm_try!(f.push(*c));
+                        vm_try!(f.try_write_char(*c));
                     }
                     Inline::Unsigned(byte) => {
                         let mut buffer = itoa::Buffer::new();
-                        vm_try!(f.push_str(buffer.format(*byte)));
+                        vm_try!(f.try_write_str(buffer.format(*byte)));
                     }
                     Inline::Signed(integer) => {
                         let mut buffer = itoa::Buffer::new();
-                        vm_try!(f.push_str(buffer.format(*integer)));
+                        vm_try!(f.try_write_str(buffer.format(*integer)));
                     }
                     Inline::Float(float) => {
                         let mut buffer = ryu::Buffer::new();
-                        vm_try!(f.push_str(buffer.format(*float)));
+                        vm_try!(f.try_write_str(buffer.format(*float)));
                     }
                     Inline::Bool(bool) => {
                         vm_try!(vm_write!(f, "{bool}"));
@@ -1768,7 +1768,9 @@ impl fmt::Debug for Value {
             return Ok(());
         }
 
-        let mut o = Formatter::new();
+        let mut s = String::new();
+        // SAFETY: Formatter does not outlive the string it references.
+        let mut o = unsafe { Formatter::new(NonNull::from(&mut s)) };
 
         if let Err(e) = self.string_debug(&mut o).into_result() {
             match &self.repr {
@@ -1796,7 +1798,7 @@ impl fmt::Debug for Value {
             return Ok(());
         }
 
-        f.write_str(o.as_str())?;
+        f.write_str(s.as_str())?;
         Ok(())
     }
 }
