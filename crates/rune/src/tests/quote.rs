@@ -132,7 +132,7 @@ fn test_synthetic() -> Result<()> {
         assert_quote!(cx, [Number(NumberSource::Synthetic(..))], quote!(0));
         assert_quote!(cx, [Number(NumberSource::Synthetic(..))], quote!(42.0));
         assert_quote!(cx, [Char(CopySource::Inline('a'))], quote!('a'));
-        assert_quote!(cx, [Byte(CopySource::Inline(b'a'))], quote!(b'a'));
+        assert_quote!(cx, [Number(NumberSource::Synthetic(..))], quote!(b'a'));
         Ok(())
     })?;
 

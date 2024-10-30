@@ -45,8 +45,9 @@ pub fn module() -> Result<Module, ContextError> {
     }
 
     {
-        m.generator_state(["GeneratorState"])?
-            .docs(["Enum indicating the state of a generator."])?;
+        m.generator_state(["GeneratorState"])?.docs(docstring! {
+            /// Enum indicating the state of a generator.
+        })?;
 
         m.function_meta(generator_state_partial_eq)?;
         m.implement_trait::<GeneratorState>(rune::item!(::std::cmp::PartialEq))?;

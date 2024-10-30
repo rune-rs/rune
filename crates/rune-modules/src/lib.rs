@@ -77,13 +77,8 @@
 // support intra-doc links (yet):
 // https://github.com/livioribeiro/cargo-readme/issues/55
 
-macro_rules! modules {
+macro_rules! entry {
     ($({$ident:ident, $name:literal $(, $module:ident)*}),* $(,)?) => {
-        $(
-            #[cfg(feature = $name)]
-            pub mod $ident;
-        )*
-
         /// Construct a a default rune context with all enabled modules provided
         /// based on the [default rune
         /// context](rune::Context::with_default_modules).
@@ -110,15 +105,41 @@ macro_rules! modules {
     }
 }
 
-modules! {
+#[cfg(feature = "base64")]
+pub mod base64;
+
+#[cfg(feature = "fs")]
+pub mod fs;
+
+#[cfg(feature = "http")]
+pub mod http;
+
+#[cfg(feature = "json")]
+pub mod json;
+
+#[cfg(feature = "process")]
+pub mod process;
+
+#[cfg(feature = "rand")]
+pub mod rand;
+
+#[cfg(feature = "signal")]
+pub mod signal;
+
+#[cfg(feature = "test")]
+pub mod test;
+
+#[cfg(feature = "time")]
+pub mod time;
+
+#[cfg(feature = "toml")]
+pub mod toml;
+
+entry! {
     {base64, "base64"},
-    {core, "core"},
-    {fmt, "fmt"},
     {fs, "fs"},
     {http, "http"},
-    {io, "io"},
     {json, "json"},
-    {macros, "macros"},
     {process, "process"},
     {rand, "rand"},
     {signal, "signal"},

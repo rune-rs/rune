@@ -50,11 +50,11 @@ impl IntoConstValue for &ConstValue {
 /// # Examples
 ///
 /// ```
-/// let value = rune::to_const_value((1u32, 2u64))?;
-/// let (a, b) = rune::from_const_value::<(1u32, 2u64)>(value)?;
+/// let value = rune::to_const_value((i32::MIN, u64::MAX))?;
+/// let (a, b) = rune::from_const_value::<(i32, u64)>(value)?;
 ///
-/// assert_eq!(a, 1);
-/// assert_eq!(b, 2);
+/// assert_eq!(a, i32::MIN);
+/// assert_eq!(b, u64::MAX);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 pub fn from_const_value<T>(value: impl IntoConstValue) -> Result<T, RuntimeError>
@@ -69,11 +69,11 @@ where
 /// # Examples
 ///
 /// ```
-/// let value = rune::to_const_value((1u32, 2u64))?;
-/// let (a, b) = rune::from_const_value::<(1u32, 2u64)>(value)?;
+/// let value = rune::to_const_value((i32::MIN, u64::MAX))?;
+/// let (a, b) = rune::from_const_value::<(i32, u64)>(value)?;
 ///
-/// assert_eq!(a, 1);
-/// assert_eq!(b, 2);
+/// assert_eq!(a, i32::MIN);
+/// assert_eq!(b, u64::MAX);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 pub fn to_const_value(value: impl ToConstValue) -> Result<ConstValue, RuntimeError> {

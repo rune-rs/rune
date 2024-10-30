@@ -67,14 +67,18 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::{Any, Module};
+    /// use rune::{docstring, Any, Module};
     ///
     /// let mut module = Module::default();
     ///
     /// #[derive(Any)]
     /// struct Thing;
     ///
-    /// module.constant("TEN", 10).build_associated::<Thing>()?.docs(["Ten which is an associated constant."]);
+    /// module.constant("TEN", 10)
+    ///     .build_associated::<Thing>()?
+    ///     .docs(docstring! {
+    ///         /// Ten which is an associated constant.
+    ///     });
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn build_associated<T>(self) -> Result<ItemMut<'a>, ContextError>

@@ -48,9 +48,9 @@ struct Duration {
 
 impl Duration {
     /// Construct a duration from the given number of seconds.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```rune
     /// use time::Duration;
     ///
@@ -65,9 +65,9 @@ impl Duration {
 }
 
 /// Sleep for the given [`Duration`].
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rune,no_run
 /// use time::Duration;
 ///

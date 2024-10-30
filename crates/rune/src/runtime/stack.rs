@@ -69,7 +69,7 @@ pub trait Memory {
     ///     let mut number = 0;
     ///
     ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer());
+    ///         number += vm_try!(value.as_integer::<i64>());
     ///     }
     ///
     ///     out.store(stack, number);
@@ -108,7 +108,7 @@ pub trait Memory {
     ///
     /// fn add_one(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut value = vm_try!(stack.at_mut(addr));
-    ///     let number = vm_try!(value.as_integer());
+    ///     let number = vm_try!(value.as_integer::<i64>());
     ///     *value = vm_try!(rune::to_value(number + 1));
     ///     out.store(stack, ());
     ///     VmResult::Ok(())
@@ -226,7 +226,7 @@ impl Stack {
     /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
     ///
     /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-    ///     let value = vm_try!(vm_try!(stack.at(addr)).as_integer());
+    ///     let value = vm_try!(vm_try!(stack.at(addr)).as_integer::<i64>());
     ///     out.store(stack, value + 1);
     ///     VmResult::Ok(())
     /// }
@@ -249,7 +249,7 @@ impl Stack {
     ///
     /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut value = vm_try!(stack.at_mut(addr));
-    ///     let number = vm_try!(value.as_integer());
+    ///     let number = vm_try!(value.as_integer::<i64>());
     ///     *value = vm_try!(rune::to_value(number + 1));
     ///     out.store(stack, ());
     ///     VmResult::Ok(())
@@ -275,7 +275,7 @@ impl Stack {
     ///     let mut number = 0;
     ///
     ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer());
+    ///         number += vm_try!(value.as_integer::<i64>());
     ///     }
     ///
     ///     out.store(stack, number);
@@ -303,7 +303,7 @@ impl Stack {
     ///
     /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     for value in vm_try!(stack.slice_at_mut(addr, args)) {
-    ///         let number = vm_try!(value.as_integer());
+    ///         let number = vm_try!(value.as_integer::<i64>());
     ///         *value = vm_try!(rune::to_value(number + 1));
     ///     }
     ///

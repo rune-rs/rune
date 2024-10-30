@@ -501,17 +501,24 @@ impl Module {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Any, Module};
+    /// use rune::{docstring, Any, Module};
     ///
     /// let mut module = Module::default();
     ///
     /// #[derive(Any)]
     /// struct MyType;
     ///
-    /// module.constant("TEN", 10).build()?.docs(["A global ten value."]);
-    /// module.constant("TEN", 10).build_associated::<MyType>()?.docs(rune::docstring! {
-    ///     /// Ten which looks like an associated constant.
-    /// });
+    /// module.constant("TEN", 10)
+    ///     .build()?
+    ///     .docs(docstring! {
+    ///         /// A global ten value.
+    ///     });
+    ///
+    /// module.constant("TEN", 10)
+    ///     .build_associated::<MyType>()?
+    ///     .docs(docstring! {
+    ///         /// Ten which looks like an associated constant.
+    ///     });
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn constant<N, V>(&mut self, name: N, value: V) -> ModuleConstantBuilder<'_, N, V>
@@ -965,7 +972,7 @@ impl Module {
     /// # Examples
     ///
     /// ```
-    /// use rune::Module;
+    /// use rune::{docstring, Module};
     ///
     /// fn add_ten(value: i64) -> i64 {
     ///     value + 10
@@ -975,14 +982,16 @@ impl Module {
     ///
     /// module.function("add_ten", add_ten)
     ///     .build()?
-    ///     .docs(["Adds 10 to any integer passed in."])?;
+    ///     .docs(docstring! {
+    ///         /// Adds 10 to any integer passed in.
+    ///     });
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     ///
     /// Asynchronous function:
     ///
     /// ```
-    /// use rune::{Any, Module};
+    /// use rune::{docstring, Any, Module};
     /// # async fn download(url: &str) -> Result<String, DownloadError> { Ok(String::new()) }
     ///
     /// #[derive(Any)]
@@ -996,8 +1005,11 @@ impl Module {
     ///
     /// let mut module = Module::default();
     ///
-    /// module.function("download_quote", download_quote).build()?
-    ///     .docs(["Download a random quote from the internet."]);
+    /// module.function("download_quote", download_quote)
+    ///     .build()?
+    ///     .docs(docstring! {
+    ///         /// Download a random quote from the internet.
+    ///     });
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> ModuleFunctionBuilder<'_, F, A, N, K>
@@ -1359,13 +1371,13 @@ impl Module {
     /// ```
     /// use rune::Module;
     /// use rune::runtime::{Output, Memory, ToValue, VmResult, InstAddress};
-    /// use rune::vm_try;
+    /// use rune::{docstring, vm_try};
     ///
     /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut number = 0;
     ///
     ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer());
+    ///         number += vm_try!(value.as_integer::<i64>());
     ///     }
     ///
     ///     out.store(stack, number);
@@ -1376,9 +1388,9 @@ impl Module {
     ///
     /// module.raw_function("sum", sum)
     ///     .build()?
-    ///     .docs([
-    ///         "Sum all numbers provided to the function."
-    ///     ])?;
+    ///     .docs(docstring! {
+    ///         /// Sum all numbers provided to the function.
+    ///     })?;
     ///
     /// # Ok::<_, rune::support::Error>(())
     /// ```
