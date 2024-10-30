@@ -109,6 +109,13 @@ impl fmt::Display for TypeInfo {
     }
 }
 
+impl From<AnyTypeInfo> for TypeInfo {
+    #[inline]
+    fn from(value: AnyTypeInfo) -> Self {
+        Self::any_type_info(value)
+    }
+}
+
 /// Type information for the [`Any`][crate::Any] type.
 #[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
 #[try_clone(copy)]

@@ -11,17 +11,18 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
+use crate::Any;
 
 use super::{
     budget, static_type, Args, Awaited, BorrowMut, BorrowRefRepr, Bytes, Call, ControlFlow,
     DynArgs, DynGuardedArgs, EmptyStruct, Format, FormatSpec, Formatter, FromValue, Function,
-    Future, Generator, GuardedArgs, Inline, Inst, InstAddress, InstAssignOp, InstOp, InstRange,
-    InstTarget, InstValue, InstVariant, MutRepr, Mutable, Object, Output, OwnedTuple, Pair, Panic,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RefRepr, RuntimeContext, Select, SelectFuture, Stack, Stream, Struct, Type,
-    TypeCheck, TypeOf, Unit, UnitFn, UnitStorage, Value, Variant, VariantData, Vec, VmDiagnostics,
-    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
-    VmSendExecution,
+    Future, Generator, GeneratorState, GuardedArgs, Inline, Inst, InstAddress, InstAssignOp,
+    InstOp, InstRange, InstTarget, InstValue, InstVariant, MutRepr, Mutable, Object, Output,
+    OwnedTuple, Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive,
+    RangeTo, RangeToInclusive, RefRepr, RuntimeContext, Select, SelectFuture, Stack, Stream,
+    Struct, Type, TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Variant,
+    VariantData, Vec, VmDiagnostics, VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt,
+    VmIntegerRepr, VmResult, VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -857,8 +858,6 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_tuple_like_index_get(target: &Value, index: usize) -> VmResult<Option<Value>> {
-        use crate::runtime::GeneratorState::*;
-
         let result = match vm_try!(target.borrow_ref_repr()) {
             BorrowRefRepr::Inline(target) => match target {
                 Inline::Unit => Err(target.type_info()),
@@ -882,11 +881,6 @@ impl Vm {
                     (0, Some(value)) => Ok(value.clone()),
                     _ => Err(target.type_info()),
                 },
-                Mutable::GeneratorState(state) => match (index, state) {
-                    (0, Yielded(value)) => Ok(value.clone()),
-                    (0, Complete(value)) => Ok(value.clone()),
-                    _ => Err(target.type_info()),
-                },
                 Mutable::TupleStruct(tuple_struct) => match tuple_struct.data().get(index) {
                     Some(value) => Ok(value.clone()),
                     None => Err(target.type_info()),
@@ -900,9 +894,16 @@ impl Vm {
                 },
                 _ => return VmResult::Ok(None),
             },
-            BorrowRefRepr::Any(..) => {
-                return VmResult::Ok(None);
-            }
+            BorrowRefRepr::Any(target) => match target.type_hash() {
+                GeneratorState::HASH => match (index, &*vm_try!(target.borrow_ref())) {
+                    (0, GeneratorState::Yielded(value)) => Ok(value.clone()),
+                    (0, GeneratorState::Complete(value)) => Ok(value.clone()),
+                    _ => Err(target.type_info()),
+                },
+                _ => {
+                    return VmResult::Ok(None);
+                }
+            },
         };
 
         match result {
@@ -919,55 +920,72 @@ impl Vm {
         target: &Value,
         index: usize,
     ) -> VmResult<Option<BorrowMut<'_, Value>>> {
-        use crate::runtime::GeneratorState::*;
+        match vm_try!(target.as_ref_repr()) {
+            RefRepr::Mutable(value) => {
+                let mut unsupported = false;
 
-        let mut unsupported = false;
-
-        let result = match vm_try!(target.as_ref_repr()) {
-            RefRepr::Mutable(value) => BorrowMut::try_map(vm_try!(value.borrow_mut()), |kind| {
-                match kind {
-                    Mutable::Tuple(tuple) => return tuple.get_mut(index),
-                    Mutable::Vec(vec) => return vec.get_mut(index),
-                    Mutable::Result(result) => match (index, result) {
-                        (0, Ok(value)) => return Some(value),
-                        (0, Err(value)) => return Some(value),
-                        _ => return None,
-                    },
-                    Mutable::Option(option) => match (index, option) {
-                        (0, Some(value)) => return Some(value),
-                        _ => return None,
-                    },
-                    Mutable::GeneratorState(state) => match (index, state) {
-                        (0, Yielded(value)) => return Some(value),
-                        (0, Complete(value)) => return Some(value),
-                        _ => return None,
-                    },
-                    Mutable::TupleStruct(tuple_struct) => return tuple_struct.get_mut(index),
-                    Mutable::Variant(Variant {
-                        data: VariantData::Tuple(tuple),
-                        ..
-                    }) => {
-                        return tuple.get_mut(index);
+                let result = BorrowMut::try_map(vm_try!(value.borrow_mut()), |kind| {
+                    match kind {
+                        Mutable::Tuple(tuple) => return tuple.get_mut(index),
+                        Mutable::Vec(vec) => return vec.get_mut(index),
+                        Mutable::Result(result) => match (index, result) {
+                            (0, Ok(value)) => return Some(value),
+                            (0, Err(value)) => return Some(value),
+                            _ => return None,
+                        },
+                        Mutable::Option(option) => match (index, option) {
+                            (0, Some(value)) => return Some(value),
+                            _ => return None,
+                        },
+                        Mutable::TupleStruct(tuple_struct) => return tuple_struct.get_mut(index),
+                        Mutable::Variant(Variant {
+                            data: VariantData::Tuple(tuple),
+                            ..
+                        }) => {
+                            return tuple.get_mut(index);
+                        }
+                        _ => {}
                     }
-                    _ => {}
+
+                    unsupported = true;
+                    None
+                });
+
+                if unsupported {
+                    return VmResult::Ok(None);
                 }
 
-                unsupported = true;
-                None
-            }),
-            _ => return VmResult::Ok(None),
-        };
+                match result {
+                    Ok(value) => VmResult::Ok(Some(value)),
+                    Err(actual) => err(VmErrorKind::MissingIndexInteger {
+                        target: actual.type_info(),
+                        index: VmIntegerRepr::from(index),
+                    }),
+                }
+            }
+            RefRepr::Any(value) => match value.type_hash() {
+                GeneratorState::HASH => {
+                    let result = BorrowMut::try_map(
+                        vm_try!(value.borrow_mut::<GeneratorState>()),
+                        |value| match (index, value) {
+                            (0, GeneratorState::Yielded(value)) => Some(value),
+                            (0, GeneratorState::Complete(value)) => Some(value),
+                            _ => None,
+                        },
+                    );
 
-        if unsupported {
-            return VmResult::Ok(None);
-        }
+                    if let Ok(value) = result {
+                        return VmResult::Ok(Some(value));
+                    }
 
-        match result {
-            Ok(value) => VmResult::Ok(Some(value)),
-            Err(actual) => err(VmErrorKind::MissingIndexInteger {
-                target: actual.type_info(),
-                index: VmIntegerRepr::from(index),
-            }),
+                    err(VmErrorKind::MissingIndexInteger {
+                        target: TypeInfo::from(GeneratorState::INFO),
+                        index: VmIntegerRepr::from(index),
+                    })
+                }
+                _ => VmResult::Ok(None),
+            },
+            _ => VmResult::Ok(None),
         }
     }
 
@@ -1188,9 +1206,7 @@ impl Vm {
     where
         F: FnOnce(&[Value]) -> O,
     {
-        use crate::runtime::GeneratorState::*;
-
-        VmResult::Ok(match vm_try!(value.borrow_ref_repr()) {
+        let value = match vm_try!(value.borrow_ref_repr()) {
             BorrowRefRepr::Inline(value) => match (ty, value) {
                 (TypeCheck::Unit, Inline::Unit) => Some(f(&[])),
                 _ => None,
@@ -1198,27 +1214,22 @@ impl Vm {
             BorrowRefRepr::Mutable(value) => match (ty, &*value) {
                 (TypeCheck::Tuple, Mutable::Tuple(tuple)) => Some(f(tuple)),
                 (TypeCheck::Vec, Mutable::Vec(vec)) => Some(f(vec)),
-                (TypeCheck::Result(v), Mutable::Result(result)) => Some(match (v, result) {
-                    (0, Ok(ok)) => f(slice::from_ref(ok)),
-                    (1, Err(err)) => f(slice::from_ref(err)),
-                    _ => return VmResult::Ok(None),
-                }),
-                (TypeCheck::Option(v), Mutable::Option(option)) => Some(match (v, option) {
-                    (0, Some(some)) => f(slice::from_ref(some)),
-                    (1, None) => f(&[]),
-                    _ => return VmResult::Ok(None),
-                }),
-                (TypeCheck::GeneratorState(v), Mutable::GeneratorState(state)) => {
-                    Some(match (v, state) {
-                        (0, Complete(complete)) => f(slice::from_ref(complete)),
-                        (1, Yielded(yielded)) => f(slice::from_ref(yielded)),
-                        _ => return VmResult::Ok(None),
-                    })
-                }
+                (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
+                    (0, Ok(ok)) => Some(f(slice::from_ref(ok))),
+                    (1, Err(err)) => Some(f(slice::from_ref(err))),
+                    _ => None,
+                },
+                (TypeCheck::Option(v), Mutable::Option(option)) => match (v, option) {
+                    (0, Some(some)) => Some(f(slice::from_ref(some))),
+                    (1, None) => Some(f(&[])),
+                    _ => None,
+                },
                 _ => None,
             },
             BorrowRefRepr::Any(..) => None,
-        })
+        };
+
+        VmResult::Ok(value)
     }
 
     /// Internal implementation of the instance check.
@@ -3251,8 +3262,6 @@ impl Vm {
         addr: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        use crate::runtime::GeneratorState::*;
-
         let value = vm_try!(self.stack.at(addr));
 
         let is_match = match vm_try!(value.borrow_ref_repr()) {
@@ -3273,13 +3282,6 @@ impl Vm {
                     (1, None) => true,
                     _ => false,
                 },
-                (TypeCheck::GeneratorState(v), Mutable::GeneratorState(state)) => {
-                    match (v, state) {
-                        (0, Complete(..)) => true,
-                        (1, Yielded(..)) => true,
-                        _ => false,
-                    }
-                }
                 _ => false,
             },
             BorrowRefRepr::Any(..) => false,
