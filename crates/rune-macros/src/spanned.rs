@@ -20,42 +20,26 @@ impl syn::parse::Parse for Derive {
 }
 
 impl Derive {
-    pub(super) fn expand(self, is_option_spanned: bool) -> Result<TokenStream, Vec<syn::Error>> {
-        let cx = Context::new();
-        let tokens = cx.tokens_with_module(None);
+    pub(super) fn expand(self, cx: &Context, is_option_spanned: bool) -> Result<TokenStream, ()> {
+        let attr = cx.type_attrs(&self.input.attrs);
+        let tokens = cx.tokens_with_module(attr.module.as_ref());
 
         let mut expander = Expander { cx, tokens };
 
-        if expander.cx.type_attrs(&self.input.attrs).is_err() {
-            return Err(expander.cx.errors.into_inner());
-        }
-
         let inner = match &self.input.data {
-            syn::Data::Struct(st) => {
-                let Ok(inner) = expander.expand_struct_fields(
-                    &st.fields,
-                    |member| quote!(&self.#member),
-                    is_option_spanned,
-                ) else {
-                    return Err(expander.cx.errors.into_inner());
-                };
-
-                inner
-            }
-            syn::Data::Enum(enum_) => {
-                let Ok(inner) = expander.expand_enum(enum_, is_option_spanned) else {
-                    return Err(expander.cx.errors.into_inner());
-                };
-
-                inner
-            }
+            syn::Data::Struct(st) => expander.expand_struct_fields(
+                &st.fields,
+                |member| quote!(&self.#member),
+                is_option_spanned,
+            )?,
+            syn::Data::Enum(enum_) => expander.expand_enum(enum_, is_option_spanned)?,
             syn::Data::Union(un) => {
                 expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
 
-                return Err(expander.cx.errors.into_inner());
+                return Err(());
             }
         };
 
@@ -114,12 +98,12 @@ impl Derive {
     }
 }
 
-struct Expander {
-    cx: Context,
+struct Expander<'cx> {
+    cx: &'cx Context,
     tokens: Tokens,
 }
 
-impl Expander {
+impl Expander<'_> {
     /// Expand on a struct.
     fn expand_enum(
         &mut self,
@@ -213,7 +197,7 @@ impl Expander {
         let mut definite_span = false;
 
         for (index, field) in fields.iter().enumerate() {
-            let attr = self.cx.field_attrs(&field.attrs)?;
+            let attr = self.cx.field_attrs(&field.attrs);
 
             if attr.id.is_some() || attr.skip.is_some() {
                 continue;

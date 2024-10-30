@@ -84,13 +84,21 @@ impl syn::parse::Parse for Derive {
 
 impl Derive {
     pub(super) fn into_any_builder(self, cx: &Context) -> Result<TypeBuilder<syn::Ident>, ()> {
-        let attr = cx.type_attrs(&self.input.attrs)?;
-
+        let attr = cx.type_attrs(&self.input.attrs);
         let tokens = cx.tokens_with_module(attr.module.as_ref());
 
         let mut installers = Vec::new();
 
         expand_install_with(cx, &self.input, &tokens, &attr, &mut installers)?;
+
+        if matches!(&self.input.data, syn::Data::Enum(..)) {
+            if let Some(span) = attr.constructor {
+                cx.error(syn::Error::new(
+                    span,
+                    "#[rune(constructor)] is not supported on enums, only its variants",
+                ));
+            }
+        }
 
         let name = match &attr.name {
             Some(name) => name,
@@ -174,7 +182,7 @@ fn expand_struct_install_with(
     attr: &TypeAttr,
 ) -> Result<(), ()> {
     for (n, field) in st.fields.iter().enumerate() {
-        let attrs = cx.field_attrs(&field.attrs)?;
+        let attrs = cx.field_attrs(&field.attrs);
         let name;
         let index;
 
@@ -224,6 +232,7 @@ fn expand_struct_install_with(
         syn::Fields::Named(fields) => {
             let constructor = attr
                 .constructor
+                .is_some()
                 .then(|| {
                     let args = fields.named.iter().map(|f| {
                         let ident = f.ident.as_ref().expect("named fields must have an Ident");
@@ -301,7 +310,7 @@ fn expand_enum_install_with(
     for (variant_index, variant) in en.variants.iter().enumerate() {
         let span = variant.fields.span();
 
-        let variant_attr = cx.variant_attr(&variant.attrs)?;
+        let variant_attr = cx.variant_attr(&variant.attrs);
 
         let mut variant_docs = syn::ExprArray {
             attrs: Vec::new(),
@@ -323,7 +332,7 @@ fn expand_enum_install_with(
                 let mut field_names = Vec::new();
 
                 for f in &fields.named {
-                    let attrs = cx.field_attrs(&f.attrs)?;
+                    let attrs = cx.field_attrs(&f.attrs);
 
                     let Some(f_ident) = &f.ident else {
                         cx.error(syn::Error::new_spanned(f, "Missing field name"));
@@ -358,7 +367,7 @@ fn expand_enum_install_with(
 
                 for (n, field) in fields.unnamed.iter().enumerate() {
                     let span = field.span();
-                    let attrs = cx.field_attrs(&field.attrs)?;
+                    let attrs = cx.field_attrs(&field.attrs);
 
                     if attrs.field {
                         fields_len += 1;
@@ -379,16 +388,14 @@ fn expand_enum_install_with(
                     enum_.variant_mut(#variant_index)?.make_unnamed(#fields_len)?.static_docs(&#variant_docs)?
                 });
 
-                let constructor = if variant_attr.constructor {
-                    if fields_len != fields.unnamed.len() {
-                        cx.error(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
-                        return Err(());
-                    }
+                if variant_attr.constructor.is_some() && fields_len != fields.unnamed.len() {
+                    cx.error(syn::Error::new_spanned(fields, "#[rune(constructor)] can only be used if all fields are marked with #[rune(get)"));
+                }
 
-                    Some(quote!(#ident #type_generics :: #variant_ident))
-                } else {
-                    None
-                };
+                let constructor = variant_attr
+                    .constructor
+                    .is_some()
+                    .then(|| quote!(#ident #type_generics :: #variant_ident));
 
                 variants.push((constructor, variant_attr));
             }
@@ -397,7 +404,7 @@ fn expand_enum_install_with(
                     enum_.variant_mut(#variant_index)?.make_empty()?.static_docs(&#variant_docs)?
                 });
 
-                let constructor = if variant_attr.constructor {
+                let constructor = if variant_attr.constructor.is_some() {
                     Some(quote!(|| #ident #type_generics :: #variant_ident))
                 } else {
                     None

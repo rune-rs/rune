@@ -20,42 +20,40 @@ impl syn::parse::Parse for Derive {
 }
 
 impl Derive {
-    pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let cx = Context::new();
-        let tokens = cx.tokens_with_module(None);
+    pub(super) fn expand(self, cx: &Context) -> Result<TokenStream, ()> {
+        let attr = cx.type_attrs(&self.input.attrs);
+        let tokens = cx.tokens_with_module(attr.module.as_ref());
 
         let mut expander = Expander { cx, tokens };
 
         match &self.input.data {
-            syn::Data::Struct(st) => {
-                if let Ok(stream) = expander.expand_struct(&self.input, st) {
-                    return Ok(stream);
-                }
-            }
+            syn::Data::Struct(st) => expander.expand_struct(&self.input, st),
             syn::Data::Enum(en) => {
                 expander.cx.error(syn::Error::new_spanned(
                     en.enum_token,
                     "not supported on enums",
                 ));
+
+                Err(())
             }
             syn::Data::Union(un) => {
                 expander.cx.error(syn::Error::new_spanned(
                     un.union_token,
                     "not supported on unions",
                 ));
+
+                Err(())
             }
         }
-
-        Err(expander.cx.errors.into_inner())
     }
 }
 
-struct Expander {
-    cx: Context,
+struct Expander<'cx> {
+    cx: &'cx Context,
     tokens: Tokens,
 }
 
-impl Expander {
+impl Expander<'_> {
     /// Expand on a struct.
     fn expand_struct(
         &mut self,
@@ -103,11 +101,11 @@ impl Expander {
         let mut meta_parse = Vec::new();
         let mut meta_fields = Vec::new();
 
-        let ty_attrs = self.cx.type_attrs(&input.attrs)?;
+        let ty_attrs = self.cx.type_attrs(&input.attrs);
         let mut skipped = 0;
 
         for (i, field) in named.named.iter().enumerate() {
-            let field_attrs = self.cx.field_attrs(&field.attrs)?;
+            let field_attrs = self.cx.field_attrs(&field.attrs);
             let ident = self.cx.field_ident(field)?;
 
             if field_attrs.id.is_some() {

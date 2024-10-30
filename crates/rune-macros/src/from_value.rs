@@ -3,12 +3,12 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned as _;
 
-struct Expander {
-    cx: Context,
+struct Expander<'cx> {
+    cx: &'cx Context,
     tokens: Tokens,
 }
 
-impl Expander {
+impl Expander<'_> {
     /// Expand on a struct.
     fn expand_struct(
         &mut self,
@@ -209,7 +209,7 @@ impl Expander {
         } = &self.tokens;
 
         for (index, field) in unnamed.unnamed.iter().enumerate() {
-            let _ = self.cx.field_attrs(&field.attrs)?;
+            let _ = self.cx.field_attrs(&field.attrs);
 
             from_values.push(quote! {
                 match tuple.get(#index) {
@@ -233,7 +233,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.field_ident(field)?;
-            let _ = self.cx.field_attrs(&field.attrs)?;
+            let _ = self.cx.field_attrs(&field.attrs);
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
@@ -260,35 +260,22 @@ impl Expander {
     }
 }
 
-pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
-    let cx = Context::new();
-
-    let Ok(attr) = cx.type_attrs(&input.attrs) else {
-        return Err(cx.errors.into_inner());
-    };
-
+pub(super) fn expand(cx: &Context, input: &syn::DeriveInput) -> Result<TokenStream, ()> {
+    let attr = cx.type_attrs(&input.attrs);
     let tokens = cx.tokens_with_module(attr.module.as_ref());
 
     let mut expander = Expander { cx, tokens };
 
     match &input.data {
-        syn::Data::Struct(st) => {
-            if let Ok(expanded) = expander.expand_struct(input, st) {
-                return Ok(expanded);
-            }
-        }
-        syn::Data::Enum(en) => {
-            if let Ok(expanded) = expander.expand_enum(input, en) {
-                return Ok(expanded);
-            }
-        }
+        syn::Data::Struct(st) => expander.expand_struct(input, st),
+        syn::Data::Enum(en) => expander.expand_enum(input, en),
         syn::Data::Union(un) => {
             expander.cx.error(syn::Error::new_spanned(
                 un.union_token,
                 "not supported on unions",
             ));
+
+            Err(())
         }
     }
-
-    Err(expander.cx.errors.into_inner())
 }

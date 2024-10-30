@@ -33,7 +33,7 @@ pub(super) struct ConstBuilder<T> {
 
 impl Derive {
     pub(super) fn into_builder(self, cx: &Context) -> Result<ConstBuilder<syn::Ident>, ()> {
-        let attr = cx.const_value_type_attrs(&self.input.attrs)?;
+        let attr = cx.const_value_type_attrs(&self.input.attrs);
         let tokens = cx.tokens_with_module(attr.module.as_ref());
         let body;
 
@@ -57,7 +57,7 @@ impl Derive {
                 let mut fields = Vec::new();
 
                 for (index, field) in data.fields.iter().enumerate() {
-                    let attr = cx.const_value_field_attrs(&field.attrs)?;
+                    let attr = cx.const_value_field_attrs(&field.attrs);
 
                     let member = match &field.ident {
                         Some(ident) => syn::Member::Named(ident.clone()),

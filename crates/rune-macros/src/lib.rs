@@ -130,78 +130,59 @@ pub fn attribute_macro(
 #[doc(hidden)]
 pub fn to_tokens(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as to_tokens::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    Context::build(|cx| derive.expand(cx)).into()
 }
 
 #[proc_macro_derive(Parse, attributes(rune))]
 #[doc(hidden)]
 pub fn parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as parse::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    Context::build(|cx| derive.expand(cx)).into()
 }
 
 #[proc_macro_derive(Spanned, attributes(rune))]
 #[doc(hidden)]
 pub fn spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as spanned::Derive);
-    derive
-        .expand(false)
-        .unwrap_or_else(to_compile_errors)
-        .into()
+    Context::build(|cx| derive.expand(cx, false)).into()
 }
 
 #[proc_macro_derive(OptionSpanned, attributes(rune))]
 #[doc(hidden)]
 pub fn option_spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as spanned::Derive);
-    derive.expand(true).unwrap_or_else(to_compile_errors).into()
+    Context::build(|cx| derive.expand(cx, true)).into()
 }
 
 #[proc_macro_derive(Opaque, attributes(rune))]
 #[doc(hidden)]
 pub fn opaque(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as opaque::Derive);
-    derive.expand().unwrap_or_else(to_compile_errors).into()
+    Context::build(|cx| derive.expand(cx)).into()
 }
 
 #[proc_macro_derive(FromValue, attributes(rune))]
 pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    from_value::expand(&input)
-        .unwrap_or_else(to_compile_errors)
-        .into()
+    Context::build(|cx| from_value::expand(cx, &input)).into()
 }
 
 #[proc_macro_derive(ToValue, attributes(rune))]
 pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
-    to_value::expand(&input)
-        .unwrap_or_else(to_compile_errors)
-        .into()
+    Context::build(|cx| to_value::expand(cx, &input)).into()
 }
 
 #[proc_macro_derive(Any, attributes(rune))]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::Derive);
-    let cx = Context::new();
-
-    let Ok(builder) = derive.into_any_builder(&cx) else {
-        return to_compile_errors(cx.errors.into_inner()).into();
-    };
-
-    builder.expand().into()
+    Context::build(|cx| Ok(derive.into_any_builder(cx)?.expand())).into()
 }
 
 #[proc_macro_derive(ToConstValue, attributes(const_value))]
 pub fn const_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as const_value::Derive);
-    let cx = Context::new();
-
-    let Ok(builder) = derive.into_builder(&cx) else {
-        return to_compile_errors(cx.errors.into_inner()).into();
-    };
-
-    builder.expand().into()
+    Context::build(|cx| Ok(derive.into_builder(cx)?.expand())).into()
 }
 
 /// Calculate a type hash at compile time.
@@ -262,14 +243,8 @@ pub fn item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro]
 #[doc(hidden)]
 pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let internal_call = syn::parse_macro_input!(input as any::InternalCall);
-    let cx = Context::with_crate();
-
-    let Ok(builder) = internal_call.into_any_builder(&cx) else {
-        return to_compile_errors(cx.errors.into_inner()).into();
-    };
-
-    builder.expand().into()
+    let derive = syn::parse_macro_input!(input as any::InternalCall);
+    Context::build_with_crate(|cx| Ok(derive.into_any_builder(cx)?.expand())).into()
 }
 
 /// Shim for an ignored `#[stable]` attribute.
