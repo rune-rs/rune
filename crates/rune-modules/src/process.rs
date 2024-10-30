@@ -29,6 +29,9 @@
 //! }
 //! ```
 
+// Documentation copied from the Tokio project under the MIT license.
+// See: https://github.com/tokio-rs/tokio/blob/master/LICENSE
+
 use rune::alloc::clone::TryClone;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::Vec;
@@ -40,63 +43,85 @@ use tokio::process;
 
 /// A module for working with processes.
 ///
-/// This allows spawning child processes, capturing their output, and creating pipelines.
+/// This allows spawning child processes, capturing their output, and creating
+/// pipelines.
+///
+/// # Tokio
+///
+/// This function is implemented using [Tokio], and requires the Tokio runtime
+/// to be in scope.
+///
+/// [Tokio]: https://tokio.rs
 #[rune::module(::process)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
+
     module.ty::<Command>()?;
-    module.ty::<Child>()?;
-    module.ty::<ExitStatus>()?;
-    module.ty::<Output>()?;
-    module.ty::<Stdio>()?;
-    module.ty::<ChildStdin>()?;
-    module.ty::<ChildStdout>()?;
-    module.ty::<ChildStderr>()?;
-
-    module.function_meta(Command::string_debug)?;
-    module.function_meta(Command::new)?;
-    module.function_meta(Command::spawn)?;
-    module.function_meta(Command::arg)?;
-    module.function_meta(Command::args)?;
+    module.function_meta(Command::new__meta)?;
+    module.function_meta(Command::arg__meta)?;
+    module.function_meta(Command::args__meta)?;
+    module.function_meta(Command::string_debug__meta)?;
     #[cfg(unix)]
-    module.function_meta(Command::arg0)?;
-    module.function_meta(Command::stdin)?;
-    module.function_meta(Command::stdout)?;
-    module.function_meta(Command::stderr)?;
+    module.function_meta(Command::arg0__meta)?;
+    module.function_meta(Command::stdin__meta)?;
+    module.function_meta(Command::stdout__meta)?;
+    module.function_meta(Command::stderr__meta)?;
+    module.function_meta(Command::kill_on_drop__meta)?;
+    module.function_meta(Command::spawn__meta)?;
 
-    module.function_meta(Child::string_debug)?;
-    module.function_meta(Child::stdin)?;
-    module.function_meta(Child::stdout)?;
-    module.function_meta(Child::stderr)?;
-    module.function_meta(Child::id)?;
-    module.function_meta(Child::start_kill)?;
-    module.function_meta(Child::kill)?;
-    module.function_meta(Child::wait)?;
-    module.function_meta(Child::wait_with_output)?;
+    module.ty::<Child>()?;
+    module.function_meta(Child::string_debug__meta)?;
+    module.function_meta(Child::stdin__meta)?;
+    module.function_meta(Child::stdout__meta)?;
+    module.function_meta(Child::stderr__meta)?;
+    module.function_meta(Child::id__meta)?;
+    module.function_meta(Child::start_kill__meta)?;
+    module.function_meta(Child::kill__meta)?;
+    module.function_meta(Child::wait__meta)?;
+    module.function_meta(Child::wait_with_output__meta)?;
 
-    module.function_meta(ExitStatus::string_debug)?;
-    module.function_meta(ExitStatus::string_display)?;
-    module.function_meta(ExitStatus::code)?;
-    module.function_meta(ExitStatus::success)?;
+    module.ty::<ExitStatus>()?;
+    module.function_meta(ExitStatus::code__meta)?;
+    module.function_meta(ExitStatus::success__meta)?;
+    module.function_meta(ExitStatus::string_display__meta)?;
+    module.function_meta(ExitStatus::string_debug__meta)?;
 
-    module.function_meta(Output::string_debug)?;
-    module.function_meta(Stdio::null)?;
-    module.function_meta(Stdio::inherit)?;
-    module.function_meta(Stdio::piped)?;
+    module.ty::<Output>()?;
+    module.function_meta(Output::string_debug__meta)?;
 
-    module.function_meta(ChildStdin::string_debug)?;
-    module.function_meta(ChildStdin::try_into_stdio)?;
+    module.ty::<Stdio>()?;
+    module.function_meta(Stdio::null__meta)?;
+    module.function_meta(Stdio::inherit__meta)?;
+    module.function_meta(Stdio::piped__meta)?;
+    module.function_meta(Stdio::string_debug__meta)?;
 
-    module.function_meta(ChildStdout::string_debug)?;
-    module.function_meta(ChildStdout::try_into_stdio)?;
+    module.ty::<ChildStdin>()?;
+    module.function_meta(ChildStdin::string_debug__meta)?;
+    module.function_meta(ChildStdin::try_into_stdio__meta)?;
 
-    module.function_meta(ChildStderr::string_debug)?;
-    module.function_meta(ChildStderr::try_into_stdio)?;
+    module.ty::<ChildStdout>()?;
+    module.function_meta(ChildStdout::string_debug__meta)?;
+    module.function_meta(ChildStdout::try_into_stdio__meta)?;
+
+    module.ty::<ChildStderr>()?;
+    module.function_meta(ChildStderr::string_debug__meta)?;
+    module.function_meta(ChildStderr::try_into_stdio__meta)?;
 
     Ok(module)
 }
 
-/// A builder for a child command to execute
+/// This structure mimics the API of [`std::process::Command`] found in the
+/// standard library, but replaces functions that create a process with an
+/// asynchronous variant. The main provided asynchronous functions are
+/// [spawn](Command::spawn), [status](Command::status), and
+/// [output](Command::output).
+///
+/// `Command` uses asynchronous versions of some `std` types (for example
+/// [`Child`]).
+///
+/// [`std::process::Command`]:
+///     https://doc.rust-lang.org/std/process/struct.Command.html
+/// [`Child`]: struct@Child
 #[derive(Debug, Any)]
 #[rune(item = ::process)]
 struct Command {
@@ -104,21 +129,104 @@ struct Command {
 }
 
 impl Command {
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self);
-    }
-
-    /// Construct a new command.
-    #[rune::function(path = Self::new)]
+    /// Constructs a new `Command` for launching the program at path `program`,
+    /// with the following default configuration:
+    ///
+    /// * No arguments to the program
+    /// * Inherit the current process's environment
+    /// * Inherit the current process's working directory
+    /// * Inherit stdin/stdout/stderr for `spawn` or `status`, but create pipes
+    ///   for `output`
+    ///
+    /// Builder methods are provided to change these defaults and otherwise
+    /// configure the process.
+    ///
+    /// If `program` is not an absolute path, the `PATH` will be searched in an
+    /// OS-defined way.
+    ///
+    /// The search path to be used may be controlled by setting the `PATH`
+    /// environment variable on the Command, but this has some implementation
+    /// limitations on Windows (see issue [rust-lang/rust#37519]).
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    /// let command = Command::new("sh");
+    /// ```
+    ///
+    /// [rust-lang/rust#37519]: https://github.com/rust-lang/rust/issues/37519
+    #[rune::function(keep, path = Self::new)]
     fn new(command: &str) -> Self {
         Self {
             inner: process::Command::new(command),
         }
     }
 
-    /// Add arguments.
-    #[rune::function(instance)]
+    /// Adds an argument to pass to the program.
+    ///
+    /// Only one argument can be passed per use. So instead of:
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// let command = Command::new("sh");
+    /// command.arg("-C /path/to/repo");
+    /// ```
+    ///
+    /// usage would be:
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// let command = Command::new("sh");
+    /// command.arg("-C");
+    /// command.arg("/path/to/repo");
+    /// ```
+    ///
+    /// To pass multiple arguments see [`args`].
+    ///
+    /// [`args`]: method@Self::args
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// let command = Command::new("ls");
+    /// command.arg("-l");
+    /// command.arg("-a");
+    ///
+    /// let output = command.output().await?;
+    /// ```
+    #[rune::function(keep, instance)]
+    fn arg(&mut self, arg: &str) {
+        self.inner.arg(arg);
+    }
+
+    /// Adds multiple arguments to pass to the program.
+    ///
+    /// To pass a single argument see [`arg`].
+    ///
+    /// [`arg`]: method@Self::arg
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// let command = Command::new("ls");
+    /// command.args(["-l", "-a"]);
+    ///
+    /// let output = command.output().await?;
+    /// ```
+    #[rune::function(keep, instance)]
     fn args(&mut self, args: &[Value]) -> VmResult<()> {
         for arg in args {
             self.inner.arg(&*vm_try!(arg.borrow_string_ref()));
@@ -127,194 +235,418 @@ impl Command {
         VmResult::Ok(())
     }
 
-    /// Add an argument.
-    #[rune::function(instance)]
-    fn arg(&mut self, arg: &str) {
-        self.inner.arg(arg);
-    }
-
+    /// Sets executable argument.
+    ///
+    /// Set the first process argument, `argv[0]`, to something other than the
+    /// default executable path.
     #[cfg(unix)]
-    #[rune::function(instance)]
-    /// Set the first process argument, argv[0], to something other than the default executable path. (Unix only)
+    #[rune::function(keep, instance)]
     fn arg0(&mut self, arg: &str) {
         self.inner.arg0(arg);
     }
 
-    /// Sets configuration for the child process’s standard input (stdin) handle.
-    #[rune::function(instance)]
+    /// Sets configuration for the child process's standard input (stdin)
+    /// handle.
+    ///
+    /// Defaults to [`inherit`].
+    ///
+    /// [`inherit`]: process::Stdio::inherit
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::{Command, Stdio};
+    ///
+    /// let command = Command::new("ls");
+    /// command.stdin(Stdio::null());
+    ///
+    /// let output = command.output().await?;
+    /// ```
+    #[rune::function(keep, instance)]
     fn stdin(&mut self, stdio: Stdio) {
         self.inner.stdin(stdio.inner);
     }
 
-    /// Sets configuration for the child process’s standard output (stdout) handle.
-    #[rune::function(instance)]
+    /// Sets configuration for the child process's standard output (stdout)
+    /// handle.
+    ///
+    /// Defaults to [`inherit`] when used with `spawn` or `status`, and defaults
+    /// to [`piped`] when used with `output`.
+    ///
+    /// [`inherit`]: process::Stdio::inherit
+    /// [`piped`]: process::Stdio::piped
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::{Command, Stdio};
+    ///
+    /// let command = Command::new("ls");
+    /// command.stdout(Stdio::null());
+    ///
+    /// let output = command.output().await?;
+    /// ```
+    #[rune::function(keep, instance)]
     fn stdout(&mut self, stdio: Stdio) {
         self.inner.stdout(stdio.inner);
     }
 
-    /// Sets configuration for the child process’s standard error (stderr) handle.
-    #[rune::function(instance)]
+    /// Sets configuration for the child process's standard error (stderr)
+    /// handle.
+    ///
+    /// Defaults to [`inherit`] when used with `spawn` or `status`, and defaults
+    /// to [`piped`] when used with `output`.
+    ///
+    /// [`inherit`]: process::Stdio::inherit
+    /// [`piped`]: process::Stdio::piped
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::{Command, Stdio};
+    ///
+    /// let command = Command::new("ls");
+    /// command.stderr(Stdio::null());
+    ///
+    /// let output = command.output().await?;
+    /// ```
+    #[rune::function(keep, instance)]
     fn stderr(&mut self, stdio: Stdio) {
         self.inner.stderr(stdio.inner);
     }
 
-    /// Spawn the command.
-    #[rune::function(instance)]
-    fn spawn(mut self) -> io::Result<Child> {
+    /// Controls whether a `kill` operation should be invoked on a spawned child
+    /// process when its corresponding `Child` handle is dropped.
+    ///
+    /// By default, this value is assumed to be `false`, meaning the next
+    /// spawned process will not be killed on drop, similar to the behavior of
+    /// the standard library.
+    ///
+    /// # Caveats
+    ///
+    /// On Unix platforms processes must be "reaped" by their parent process
+    /// after they have exited in order to release all OS resources. A child
+    /// process which has exited, but has not yet been reaped by its parent is
+    /// considered a "zombie" process. Such processes continue to count against
+    /// limits imposed by the system, and having too many zombie processes
+    /// present can prevent additional processes from being spawned.
+    ///
+    /// Although issuing a `kill` signal to the child process is a synchronous
+    /// operation, the resulting zombie process cannot be `.await`ed inside of
+    /// the destructor to avoid blocking other tasks. The tokio runtime will, on
+    /// a best-effort basis, attempt to reap and clean up such processes in the
+    /// background, but no additional guarantees are made with regard to how
+    /// quickly or how often this procedure will take place.
+    ///
+    /// If stronger guarantees are required, it is recommended to avoid dropping
+    /// a [`Child`] handle where possible, and instead utilize
+    /// `child.wait().await` or `child.kill().await` where possible.
+    #[rune::function(keep, instance)]
+    pub fn kill_on_drop(&mut self, kill_on_drop: bool) {
+        self.inner.kill_on_drop(kill_on_drop);
+    }
+
+    /// Executes the command as a child process, returning a handle to it.
+    ///
+    /// By default, stdin, stdout and stderr are inherited from the parent.
+    ///
+    /// This method will spawn the child process synchronously and return a
+    /// handle to a future-aware child process. The `Child` returned implements
+    /// `Future` itself to acquire the `ExitStatus` of the child, and otherwise
+    /// the `Child` has methods to acquire handles to the stdin, stdout, and
+    /// stderr streams.
+    ///
+    /// All I/O this child does will be associated with the current default
+    /// event loop.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// async fn run_ls() {
+    ///     let command = Command::new("ls");
+    ///     command.spawn()?.wait().await?;
+    /// }
+    /// ```
+    ///
+    /// # Caveats
+    ///
+    /// ## Dropping/Cancellation
+    ///
+    /// Similar to the behavior to the standard library, and unlike the futures
+    /// paradigm of dropping-implies-cancellation, a spawned process will, by
+    /// default, continue to execute even after the `Child` handle has been
+    /// dropped.
+    ///
+    /// The [`Command::kill_on_drop`] method can be used to modify this behavior
+    /// and kill the child process if the `Child` wrapper is dropped before it
+    /// has exited.
+    ///
+    /// ## Unix Processes
+    ///
+    /// On Unix platforms processes must be "reaped" by their parent process
+    /// after they have exited in order to release all OS resources. A child
+    /// process which has exited, but has not yet been reaped by its parent is
+    /// considered a "zombie" process. Such processes continue to count against
+    /// limits imposed by the system, and having too many zombie processes
+    /// present can prevent additional processes from being spawned.
+    ///
+    /// The tokio runtime will, on a best-effort basis, attempt to reap and
+    /// clean up any process which it has spawned. No additional guarantees are
+    /// made with regard to how quickly or how often this procedure will take
+    /// place.
+    ///
+    /// It is recommended to avoid dropping a [`Child`] process handle before it
+    /// has been fully `await`ed if stricter cleanup guarantees are required.
+    ///
+    /// [`Command`]: crate::process::Command
+    /// [`Command::kill_on_drop`]: crate::process::Command::kill_on_drop
+    /// [`Child`]: crate::process::Child
+    ///
+    /// # Errors
+    ///
+    /// On Unix platforms this method will fail with
+    /// `std::io::ErrorKind::WouldBlock` if the system process limit is reached
+    /// (which includes other applications running on the system).
+    #[rune::function(keep, instance)]
+    fn spawn(&mut self) -> io::Result<Child> {
         Ok(Child {
-            inner: Some(self.inner.spawn()?),
+            inner: self.inner.spawn()?,
         })
+    }
+
+    #[rune::function(keep, protocol = STRING_DEBUG)]
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{self:?}")
     }
 }
 
-/// A running child process
+/// Representation of a child process spawned onto an event loop.
+///
+/// # Caveats
+///
+/// Similar to the behavior to the standard library, and unlike the futures
+/// paradigm of dropping-implies-cancellation, a spawned process will, by
+/// default, continue to execute even after the `Child` handle has been dropped.
+///
+/// The `Command::kill_on_drop` method can be used to modify this behavior and
+/// kill the child process if the `Child` wrapper is dropped before it has
+/// exited.
 #[derive(Debug, Any)]
 #[rune(item = ::process)]
 struct Child {
     // we use an option to avoid a panic if we try to complete the child process
     // multiple times.
-    //
-    // TODO: enapculate this pattern in some better way.
-    inner: Option<process::Child>,
+    inner: process::Child,
 }
 
 impl Child {
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self);
-    }
-
-    /// Attempt to take the stdin of the child process.
+    /// The handle for writing to the child's standard input (stdin), if it has
+    /// been captured. To avoid partially moving the `child` and thus blocking
+    /// yourself from calling functions on `child` while using `stdin`, you
+    /// might find it helpful to do:
     ///
-    /// Once taken this can not be taken again.
-    #[rune::function(instance)]
+    /// ```rune,no_run
+    /// # let child = #{};
+    /// let stdin = child.stdin()?;
+    /// ```
+    #[rune::function(keep, instance)]
     fn stdin(&mut self) -> Option<ChildStdin> {
-        let inner = match &mut self.inner {
-            Some(inner) => inner,
-            None => return None,
-        };
-        let stdin = inner.stdin.take()?;
-        Some(ChildStdin { inner: stdin })
+        let inner = self.inner.stdin.take()?;
+        Some(ChildStdin { inner })
     }
 
-    /// Attempt to take the stdout of the child process.
+    /// The handle for reading from the child's standard output (stdout), if it
+    /// has been captured. You might find it helpful to do
     ///
-    /// Once taken this can not be taken again.
-    #[rune::function(instance)]
+    /// ```rune,no_run
+    /// # let child = #{};
+    /// let stdout = child.stdout.take()?;
+    /// ```
+    ///
+    /// to avoid partially moving the `child` and thus blocking yourself from
+    /// calling functions on `child` while using `stdout`.
+    #[rune::function(keep, instance)]
     fn stdout(&mut self) -> Option<ChildStdout> {
-        let inner = match &mut self.inner {
-            Some(inner) => inner,
-            None => return None,
-        };
-        let stdout = inner.stdout.take()?;
-        Some(ChildStdout { inner: stdout })
+        let inner = self.inner.stdout.take()?;
+        Some(ChildStdout { inner })
     }
 
-    /// Attempt to take the stderr of the child process.
+    /// The handle for reading from the child's standard error (stderr), if it
+    /// has been captured. You might find it helpful to do
     ///
-    /// Once taken this can not be taken again.
-    #[rune::function(instance)]
+    /// ```rune,no_run
+    /// # let child = #{};
+    /// let stderr = child.stderr()?;
+    /// ```
+    ///
+    /// to avoid partially moving the `child` and thus blocking yourself from
+    /// calling functions on `child` while using `stderr`.
+    #[rune::function(keep, instance)]
     fn stderr(&mut self) -> Option<ChildStderr> {
-        let inner = match &mut self.inner {
-            Some(inner) => inner,
-            None => return None,
-        };
-        let stderr = inner.stderr.take()?;
-        Some(ChildStderr { inner: stderr })
+        let inner = self.inner.stderr.take()?;
+        Some(ChildStderr { inner })
     }
 
-    /// Attempt to get the OS process id of the child process.
+    /// Returns the OS-assigned process identifier associated with this child
+    /// while it is still running.
     ///
-    /// This will return None after the child process has completed.
-    #[rune::function(instance)]
+    /// Once the child has been polled to completion this will return `None`.
+    /// This is done to avoid confusion on platforms like Unix where the OS
+    /// identifier could be reused once the process has completed.
+    #[rune::function(keep, instance)]
     fn id(&self) -> Option<u32> {
-        match &self.inner {
-            Some(inner) => inner.id(),
-            None => None,
-        }
+        self.inner.id()
     }
 
-    #[rune::function(vm_result, instance)]
-    fn start_kill(&mut self) -> io::Result<()> {
-        let inner = match &mut self.inner {
-            Some(inner) => inner,
-            None => {
-                rune::vm_panic!("already completed");
-            }
-        };
-
-        inner.start_kill()
-    }
-
-    /// Sends a signal to the child process.
-    #[rune::function(vm_result, instance, path = Self::kill)]
-    async fn kill(mut this: Mut<Self>) -> io::Result<()> {
-        let inner = match &mut this.inner {
-            Some(inner) => inner,
-            None => {
-                rune::vm_panic!("already completed");
-            }
-        };
-
-        inner.kill().await
-    }
-
-    /// Attempt to wait for the child process to exit.
+    /// Attempts to force the child to exit, but does not wait for the request
+    /// to take effect.
     ///
-    /// This will not capture output, use [`wait_with_output`] for that.
-    #[rune::function(vm_result, instance)]
-    async fn wait(self) -> io::Result<ExitStatus> {
-        let mut inner = match self.inner {
-            Some(inner) => inner,
-            None => {
-                rune::vm_panic!("already completed");
-            }
-        };
-
-        let status = inner.wait().await?;
-
-        Ok(ExitStatus { status })
+    /// On Unix platforms, this is the equivalent to sending a `SIGKILL`. Note
+    /// that on Unix platforms it is possible for a zombie process to remain
+    /// after a kill is sent; to avoid this, the caller should ensure that
+    /// either `child.wait().await` or `child.try_wait()` is invoked
+    /// successfully.
+    #[rune::function(keep, instance)]
+    fn start_kill(&mut self) -> io::Result<()> {
+        self.inner.start_kill()
     }
 
-    // Returns a future that will resolve to an Output, containing the exit
-    // status, stdout, and stderr of the child process.
-    #[rune::function(vm_result, instance)]
-    async fn wait_with_output(self) -> io::Result<Output> {
-        let inner = match self.inner {
-            Some(inner) => inner,
-            None => {
-                rune::vm_panic!("already completed");
-            }
-        };
+    /// Forces the child to exit.
+    ///
+    /// This is equivalent to sending a `SIGKILL` on unix platforms.
+    ///
+    /// If the child has to be killed remotely, it is possible to do it using a
+    /// combination of the select! macro and a `oneshot` channel. In the
+    /// following example, the child will run until completion unless a message
+    /// is sent on the `oneshot` channel. If that happens, the child is killed
+    /// immediately using the `.kill()` method.
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    /// # async fn wait_for_something() {}
+    ///
+    /// let child = Command::new("sleep");
+    /// child.arg("1");
+    ///
+    /// let child = child.spawn();
+    ///
+    /// let recv = wait_for_something();
+    ///
+    /// select {
+    ///     _ = child.wait() => {}
+    ///     _ = recv => child.kill().await.expect("kill failed"),
+    /// }
+    /// ```
+    #[rune::function(keep, instance, path = Self::kill)]
+    async fn kill(mut this: Mut<Self>) -> io::Result<()> {
+        this.inner.kill().await
+    }
 
-        let output = inner.wait_with_output().await?;
+    /// Waits for the child to exit completely, returning the status that it
+    /// exited with. This function will continue to have the same return value
+    /// after it has been called at least once.
+    ///
+    /// The stdin handle to the child process, if any, will be closed
+    /// before waiting. This helps avoid deadlock: it ensures that the
+    /// child does not block waiting for input from the parent, while
+    /// the parent waits for the child to exit.
+    ///
+    /// If the caller wishes to explicitly control when the child's stdin
+    /// handle is closed, they may `.take()` it before calling `.wait()`:
+    ///
+    /// # Cancel safety
+    ///
+    /// This function is cancel safe.
+    ///
+    /// ```rune,no_run
+    /// use process::{Command, Stdio};
+    ///
+    /// let child = Command::new("cat");
+    /// child.stdin(Stdio::piped());
+    ///
+    /// let child = child.spawn()?;
+    ///
+    /// let stdin = child.stdin()?;
+    ///
+    /// // wait for the process to complete
+    /// let _ = child.wait().await?;
+    /// ```
+    #[rune::function(keep, instance, path = Self::wait)]
+    async fn wait(mut this: Mut<Self>) -> io::Result<ExitStatus> {
+        let inner = this.inner.wait().await?;
+        Ok(ExitStatus { inner })
+    }
+
+    /// Returns a future that will resolve to an `Output`, containing the exit
+    /// status, stdout, and stderr of the child process.
+    ///
+    /// The returned future will simultaneously waits for the child to exit and
+    /// collect all remaining output on the stdout/stderr handles, returning an
+    /// `Output` instance.
+    ///
+    /// The stdin handle to the child process, if any, will be closed before
+    /// waiting. This helps avoid deadlock: it ensures that the child does not
+    /// block waiting for input from the parent, while the parent waits for the
+    /// child to exit.
+    ///
+    /// By default, stdin, stdout and stderr are inherited from the parent. In
+    /// order to capture the output into this `Output` it is necessary to create
+    /// new pipes between parent and child. Use `stdout(Stdio::piped())` or
+    /// `stderr(Stdio::piped())`, respectively, when creating a `Command`.
+    #[rune::function(keep, vm_result, instance)]
+    async fn wait_with_output(self) -> io::Result<Output> {
+        let output = self.inner.wait_with_output().await?;
 
         Ok(Output {
             status: ExitStatus {
-                status: output.status,
+                inner: output.status,
             },
-            stdout: Bytes::from_vec(Vec::try_from(output.stdout).vm?),
-            stderr: Bytes::from_vec(Vec::try_from(output.stderr).vm?),
+            stdout: Value::new(Bytes::from_vec(Vec::try_from(output.stdout).vm?)).vm?,
+            stderr: Value::new(Bytes::from_vec(Vec::try_from(output.stderr).vm?)).vm?,
         })
+    }
+
+    #[rune::function(keep, protocol = STRING_DEBUG)]
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{:?}", self.inner)
     }
 }
 
-/// The output and exit status, returned by [`Child::wait_with_output`].
+/// The output of a finished process.
+///
+/// This is returned in a Result by either the [`output`] method of a
+/// [`Command`], or the [`wait_with_output`] method of a [`Child`] process.
+///
+/// [`output`]: Command::output
+/// [`wait_with_output`]: Child::wait_with_output
 #[derive(Debug, Any)]
 #[rune(item = ::process)]
 struct Output {
-    #[rune(get)]
+    /// The status (exit code) of the process.
+    #[rune(get, copy)]
     status: ExitStatus,
+    /// The data that the process wrote to stdout.
     #[rune(get)]
-    stdout: Bytes,
+    stdout: Value,
+    /// The data that the process wrote to stderr.
     #[rune(get)]
-    stderr: Bytes,
+    stderr: Value,
 }
 
 impl Output {
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self);
+    #[rune::function(keep, protocol = STRING_DEBUG)]
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{self:?}")
     }
 }
 
@@ -322,28 +654,73 @@ impl Output {
 #[derive(Debug, TryClone, Clone, Copy, Any)]
 #[rune(item = ::process)]
 struct ExitStatus {
-    status: std::process::ExitStatus,
+    inner: std::process::ExitStatus,
 }
 
 impl ExitStatus {
-    #[rune::function(vm_result, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) {
-        vm_write!(f, "{}", self.status);
-    }
-
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self);
-    }
-
-    #[rune::function]
+    /// Was termination successful? Signal termination is not considered a
+    /// success, and success is defined as a zero exit status.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// let command = Command::new("mkdir");
+    /// command.arg("projects");
+    ///
+    /// let status = command.status()?;
+    ///
+    /// if status.success() {
+    ///     println!("'projects/' directory created");
+    /// } else {
+    ///     println!("failed to create 'projects/' directory: {status}");
+    /// }
+    /// ```
+    #[rune::function(keep)]
     fn success(&self) -> bool {
-        self.status.success()
+        self.inner.success()
     }
 
-    #[rune::function]
+    /// Returns the exit code of the process, if any.
+    ///
+    /// In Unix terms the return value is the **exit status**: the value passed to `exit`, if the
+    /// process finished by calling `exit`.  Note that on Unix the exit status is truncated to 8
+    /// bits, and that values that didn't come from a program's call to `exit` may be invented by the
+    /// runtime system (often, for example, 255, 254, 127 or 126).
+    ///
+    /// On Unix, this will return `None` if the process was terminated by a signal.
+    /// [`ExitStatusExt`](crate::os::unix::process::ExitStatusExt) is an
+    /// extension trait for extracting any such signal, and other details, from the `ExitStatus`.
+    ///
+    /// # Examples
+    ///
+    /// ```rune,no_run
+    /// use process::Command;
+    ///
+    /// let command = Command::new("mkdir");
+    /// command.arg("projects");
+    ///
+    /// let status = command.status().await?;
+    ///
+    /// match status.code() {
+    ///     Some(code) => println!("Exited with status code: {code}"),
+    ///     None => println!("Process terminated by signal")
+    /// }
+    /// ```
+    #[rune::function(keep)]
     fn code(&self) -> Option<i32> {
-        self.status.code()
+        self.inner.code()
+    }
+
+    #[rune::function(keep, protocol = STRING_DISPLAY)]
+    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{}", self.inner)
+    }
+
+    #[rune::function(keep, protocol = STRING_DEBUG)]
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{:?}", self.inner)
     }
 }
 
@@ -355,13 +732,8 @@ struct Stdio {
 }
 
 impl Stdio {
-    #[rune::function(vm_result, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) {
-        vm_write!(f, "{:?}", self);
-    }
-
     /// This stream will be ignored. This is the equivalent of attaching the stream to /dev/null.
-    #[rune::function(path = Self::null)]
+    #[rune::function(keep, path = Self::null)]
     fn null() -> Self {
         Self {
             inner: std::process::Stdio::null(),
@@ -369,7 +741,7 @@ impl Stdio {
     }
 
     /// The child inherits from the corresponding parent descriptor. This is the default.
-    #[rune::function(path = Self::inherit)]
+    #[rune::function(keep, path = Self::inherit)]
     fn inherit() -> Self {
         Self {
             inner: std::process::Stdio::inherit(),
@@ -377,11 +749,16 @@ impl Stdio {
     }
 
     /// A new pipe should be arranged to connect the parent and child processes.
-    #[rune::function(path = Self::piped)]
+    #[rune::function(keep, path = Self::piped)]
     fn piped() -> Self {
         Self {
             inner: std::process::Stdio::piped(),
         }
+    }
+
+    #[rune::function(keep, protocol = STRING_DEBUG)]
+    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{:?}", self.inner)
     }
 }
 
@@ -395,21 +772,21 @@ macro_rules! stdio_stream {
         }
 
         impl $name {
-            #[rune::function(vm_result, protocol = STRING_DEBUG)]
-            fn string_debug(&self, f: &mut Formatter) {
-                vm_write!(f, "{:?}", self);
-            }
-
             /// Try to convert into a `Stdio`, which allows creating a pipeline between processes.
             ///
             /// This consumes the stream, as it can only be used once.
             ///
             /// Returns a Result<Stdio>
-            #[rune::function(instance)]
-            fn try_into_stdio(self) -> Result<Stdio, std::io::Error> {
+            #[rune::function(keep, instance)]
+            fn try_into_stdio(self) -> io::Result<Stdio> {
                 Ok(Stdio {
                     inner: self.inner.try_into()?,
                 })
+            }
+
+            #[rune::function(keep, protocol = STRING_DEBUG)]
+            fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+                vm_write!(f, "{:?}", self.inner)
             }
         }
     };
