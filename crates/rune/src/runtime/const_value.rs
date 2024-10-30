@@ -184,26 +184,37 @@ impl ConstValue {
     /// ```
     /// let value = rune::to_const_value(u32::MAX)?;
     ///
-    /// assert_eq!(value.try_as_integer::<u64>()?, u32::MAX as u64);
-    /// assert!(value.try_as_integer::<i32>().is_err());
+    /// assert_eq!(value.as_integer::<u64>()?, u32::MAX as u64);
+    /// assert!(value.as_integer::<i32>().is_err());
     ///
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
+    pub fn as_integer<T>(&self) -> Result<T, RuntimeError>
     where
-        T: TryFrom<i64>,
-        VmIntegerRepr: From<i64>,
+        T: TryFrom<i64> + TryFrom<u64>,
     {
-        let integer = self.as_integer()?;
-
-        match integer.try_into() {
-            Ok(number) => Ok(number),
-            Err(..) => Err(RuntimeError::new(
-                VmErrorKind::ValueToIntegerCoercionError {
-                    from: VmIntegerRepr::from(integer),
-                    to: any::type_name::<T>(),
-                },
-            )),
+        match self.kind {
+            ConstValueKind::Inline(Inline::Signed(value)) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            ConstValueKind::Inline(Inline::Unsigned(value)) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            ref kind => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                actual: kind.type_info(),
+            })),
         }
     }
 

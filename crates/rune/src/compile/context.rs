@@ -333,6 +333,7 @@ impl Context {
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
         this.install(crate::modules::i64::module()?)?;
+        this.install(crate::modules::u64::module()?)?;
         this.install(crate::modules::io::module(stdio)?)?;
         this.install(crate::modules::macros::module()?)?;
         this.install(crate::modules::macros::builtin::module()?)?;

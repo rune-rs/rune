@@ -795,24 +795,6 @@ pub enum Inst {
         /// Where to store the value in case there is a continuation.
         out: Output,
     },
-    /// Test if the top of the stack is a specific byte.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    #[musli(packed)]
-    EqByte {
-        /// Address of the value to compare.
-        addr: InstAddress,
-        /// The byte to test against.
-        #[inst_display(display_with = DisplayDebug::new)]
-        value: u8,
-        /// Where to store the result of the comparison.
-        out: Output,
-    },
     /// Test if the top of the stack is a specific character.
     ///
     /// # Operation
@@ -831,16 +813,9 @@ pub enum Inst {
         /// Where to store the result of the comparison.
         out: Output,
     },
-    /// Test if the top of the stack is a specific integer.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Test if the specified value is a specific signed integer.
     #[musli(packed)]
-    EqInteger {
+    EqSigned {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The value to test against.
@@ -848,7 +823,16 @@ pub enum Inst {
         /// Where to store the result of the comparison.
         out: Output,
     },
-
+    /// Test if the specified value is a specific unsigned integer.
+    #[musli(packed)]
+    EqUnsigned {
+        /// Address of the value to compare.
+        addr: InstAddress,
+        /// The value to test against.
+        value: u64,
+        /// Where to store the result of the comparison.
+        out: Output,
+    },
     /// Test if the top of the stack is a specific boolean.
     ///
     /// # Operation
@@ -1130,14 +1114,6 @@ impl Inst {
         }
     }
 
-    /// Construct an instruction to push a byte.
-    pub fn byte(b: u8, out: Output) -> Self {
-        Self::Store {
-            value: InstValue::Byte(b),
-            out,
-        }
-    }
-
     /// Construct an instruction to push a character.
     pub fn char(c: char, out: Output) -> Self {
         Self::Store {
@@ -1147,9 +1123,17 @@ impl Inst {
     }
 
     /// Construct an instruction to push an integer.
-    pub fn integer(v: i64, out: Output) -> Self {
+    pub fn signed(v: i64, out: Output) -> Self {
         Self::Store {
             value: InstValue::Integer(v),
+            out,
+        }
+    }
+
+    /// Construct an instruction to push an unsigned integer.
+    pub fn unsigned(v: u64, out: Output) -> Self {
+        Self::Store {
+            value: InstValue::Unsigned(v),
             out,
         }
     }
@@ -1740,12 +1724,12 @@ pub enum InstValue {
     /// A boolean.
     #[musli(packed)]
     Bool(bool),
-    /// A byte.
-    #[musli(packed)]
-    Byte(u8),
     /// A character.
     #[musli(packed)]
     Char(char),
+    /// An unsigned integer.
+    #[musli(packed)]
+    Unsigned(u64),
     /// An integer.
     #[musli(packed)]
     Integer(i64),
@@ -1769,8 +1753,8 @@ impl InstValue {
         match self {
             Self::Unit => Value::unit(),
             Self::Bool(v) => Value::from(v),
-            Self::Byte(v) => Value::from(v),
             Self::Char(v) => Value::from(v),
+            Self::Unsigned(v) => Value::from(v),
             Self::Integer(v) => Value::from(v),
             Self::Float(v) => Value::from(v),
             Self::Type(v) => Value::from(v),
@@ -1784,16 +1768,10 @@ impl fmt::Display for InstValue {
         match self {
             Self::Unit => write!(f, "()")?,
             Self::Bool(v) => write!(f, "{}", v)?,
-            Self::Byte(v) => {
-                if v.is_ascii_graphic() {
-                    write!(f, "b'{}'", *v as char)?
-                } else {
-                    write!(f, "b'\\x{:02x}'", v)?
-                }
-            }
-            Self::Char(v) => write!(f, "{:?}", v)?,
-            Self::Integer(v) => write!(f, "{}", v)?,
-            Self::Float(v) => write!(f, "{}", v)?,
+            Self::Char(v) => write!(f, "{v:?}")?,
+            Self::Unsigned(v) => write!(f, "{v}u64")?,
+            Self::Integer(v) => write!(f, "{v}i64")?,
+            Self::Float(v) => write!(f, "{v}")?,
             Self::Type(v) => write!(f, "{}", v.into_hash())?,
             Self::Ordering(v) => write!(f, "{v:?}")?,
         }

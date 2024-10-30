@@ -146,7 +146,7 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     ///     let expr = p.parse_all::<ast::Expr>()?;
     ///     let value = cx.eval(&expr)?;
     ///
-    ///     let integer = value.try_as_integer::<u32>().context("Expected integer")?;
+    ///     let integer = value.as_integer::<u32>().context("Expected integer")?;
     ///     assert_eq!(3, integer);
     ///     Ok(())
     /// })?;

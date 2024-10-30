@@ -9,14 +9,14 @@ use crate::alloc::string::TryToString;
 use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
-/// Signed integers.
+/// Unsigned integers.
 ///
-/// This provides methods for computing over and parsing 64-bit signed integers.
-#[rune::module(::std::i64)]
+/// This provides methods for computing over and parsing 64-bit unsigned integers.
+#[rune::module(::std::u64)]
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
-    signed!(m, i64);
+    unsigned!(m, u64);
     Ok(m)
 }
 
-signed_fns!(i64);
+unsigned_fns!(u64);

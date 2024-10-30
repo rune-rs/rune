@@ -23,11 +23,6 @@ impl Hasher {
         }
     }
 
-    /// Hash some bytes.
-    pub(crate) fn write(&mut self, bytes: &[u8]) {
-        self.hasher.write(bytes);
-    }
-
     /// Hash a string.
     pub(crate) fn write_str(&mut self, string: &str) {
         self.hasher.write(string.as_bytes());
@@ -41,16 +36,6 @@ impl Hasher {
     pub(crate) fn write_f64(&mut self, value: f64) {
         let bits = value.to_bits();
         self.hasher.write_u64(bits);
-    }
-
-    /// Hash a 64-bit signed integer.
-    pub(crate) fn write_i64(&mut self, value: i64) {
-        self.hasher.write_i64(value);
-    }
-
-    /// Hash an 8-bit unsigned integer.
-    pub(crate) fn write_u8(&mut self, value: u8) {
-        self.hasher.write_u8(value);
     }
 
     /// Construct a hash.

@@ -28,14 +28,6 @@ impl IntoLit for char {
     }
 }
 
-impl IntoLit for u8 {
-    fn into_lit(self, cx: &mut MacroContext<'_, '_, '_>) -> alloc::Result<ast::Lit> {
-        let span = cx.macro_span();
-        let source = ast::CopySource::Inline(self);
-        Ok(ast::Lit::Byte(ast::LitByte { span, source }))
-    }
-}
-
 impl IntoLit for &str {
     fn into_lit(self, cx: &mut MacroContext<'_, '_, '_>) -> alloc::Result<ast::Lit> {
         let span = cx.macro_span();

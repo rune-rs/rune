@@ -573,7 +573,7 @@ fn expand_format_spec<'a>(
             let value = cx.eval(expr)?;
 
             let number = match value.as_inline().with_span(expr)? {
-                Some(Inline::Integer(n)) => n.to_usize(),
+                Some(Inline::Signed(n)) => n.to_usize(),
                 _ => None,
             };
 

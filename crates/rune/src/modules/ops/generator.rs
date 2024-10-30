@@ -11,13 +11,35 @@ pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 
     {
-        m.ty::<Generator<Vm>>()?;
+        m.ty::<Generator<Vm>>()?.docs(docstring! {
+            /// A generator produced by a generator function.
+            ///
+            /// Generator are functions or closures which contain the `yield`
+            /// expressions.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// use std::ops::generator::Generator;
+            ///
+            /// let f = |n| {
+            ///     yield n;
+            ///     yield n + 1;
+            /// };
+            ///
+            /// let g = f(10);
+            ///
+            /// assert!(g is Generator);
+            /// ```
+        })?;
         m.function_meta(generator_next)?;
         m.function_meta(generator_resume)?;
         m.function_meta(generator_iter)?;
         m.function_meta(generator_into_iter)?;
 
-        m.ty::<Iter>()?;
+        m.ty::<Iter>()?.docs(docstring! {
+            /// An iterator over a generator.
+        })?;
         m.function_meta(Iter::next__meta)?;
         m.implement_trait::<Iter>(rune::item!(::std::iter::Iterator))?;
     }

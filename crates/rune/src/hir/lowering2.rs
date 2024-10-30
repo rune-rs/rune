@@ -9,7 +9,7 @@ use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, HashSet};
-use crate::ast::{self, Delimiter, Kind, Span, Spanned};
+use crate::ast::{self, Delimiter, Kind, NumberSize, Span, Spanned};
 use crate::compile::{meta, Error, ErrorKind, ItemId, Result, WithSpan};
 use crate::grammar::{
     classify, object_key, Ignore, MaybeNode, NodeClass, Remaining, Stream, StreamBuf, Tree,
@@ -319,7 +319,7 @@ impl<'hir, 'a> ExprInner<'hir, 'a> {
                         if args > 0 {
                             return Err(Error::new(
                                 self.span,
-                                ErrorKind::UnsupportedArgumentCount {
+                                ErrorKind::BadArgumentCount {
                                     expected: 0,
                                     actual: args,
                                 },
@@ -337,7 +337,7 @@ impl<'hir, 'a> ExprInner<'hir, 'a> {
                         if *expected != args {
                             return Err(Error::new(
                                 self.span,
-                                ErrorKind::UnsupportedArgumentCount {
+                                ErrorKind::BadArgumentCount {
                                     expected: *expected,
                                     actual: args,
                                 },
@@ -679,11 +679,16 @@ fn expr_expanded_macro<'hir>(
                 Ok(hir::ExprKind::Lit(hir::Lit::Str(lit)))
             }
             query::BuiltInMacro2::Line(line) => {
-                let Some(n) = line.to_i64() else {
-                    return Err(Error::new(&*p, ErrorKind::BadNumberOutOfBounds));
+                let Some(n) = line.to_u64() else {
+                    return Err(Error::new(
+                        &*p,
+                        ErrorKind::BadUnsignedOutOfBounds {
+                            size: NumberSize::S64,
+                        },
+                    ));
                 };
 
-                Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
+                Ok(hir::ExprKind::Lit(hir::Lit::Unsigned(n)))
             }
             query::BuiltInMacro2::Format(tree) => expr_format_macro(cx, p, tree),
             query::BuiltInMacro2::Template(tree, literal) => {
@@ -2299,7 +2304,7 @@ fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
         if !(args == items.len() || items.len() < args && is_open) {
             cx.error(Error::new(
                 span,
-                ErrorKind::UnsupportedArgumentCount {
+                ErrorKind::BadArgumentCount {
                     expected: args,
                     actual: items.len(),
                 },
@@ -2564,9 +2569,9 @@ fn pat_const_value<'hir>(
                     }));
                 }
                 Inline::Bool(b) => hir::Lit::Bool(b),
-                Inline::Byte(b) => hir::Lit::Byte(b),
                 Inline::Char(ch) => hir::Lit::Char(ch),
-                Inline::Integer(value) => hir::Lit::Integer(value),
+                Inline::Unsigned(value) => hir::Lit::Unsigned(value),
+                Inline::Signed(value) => hir::Lit::Signed(value),
                 _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
             },
             ConstValueKind::String(ref string) => hir::Lit::Str(alloc_str!(string.as_ref())),
@@ -2746,35 +2751,54 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Lit
             match (n.value, n.suffix) {
                 (ast::NumberValue::Float(n), _) => {
                     let n = if neg { -n } else { n };
-
                     Ok(hir::Lit::Float(n))
                 }
-                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Byte(..))) => {
-                    if neg {
-                        return Err(Error::new(lit, ErrorKind::BadByteNeg));
-                    }
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(_, size))) => {
+                    let int = if neg { int.neg() } else { int };
 
-                    let Some(n) = int.to_u8() else {
-                        return Err(Error::new(lit, ErrorKind::BadByteOutOfBounds));
+                    let Some(n) = int.to_u64() else {
+                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
                     };
 
-                    Ok(hir::Lit::Byte(n))
+                    if !size.unsigned_in(n) {
+                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
+                    }
+
+                    Ok(hir::Lit::Unsigned(n))
+                }
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(_, size))) => {
+                    let int = if neg { int.neg() } else { int };
+
+                    let Some(n) = int.to_u64() else {
+                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
+                    };
+
+                    if !size.unsigned_in(n) {
+                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
+                    }
+
+                    Ok(hir::Lit::Unsigned(n))
                 }
                 (ast::NumberValue::Integer(int), _) => {
                     let int = if neg { int.neg() } else { int };
 
                     let Some(n) = int.to_i64() else {
-                        return Err(Error::new(lit, ErrorKind::BadNumberOutOfBounds));
+                        return Err(Error::new(
+                            lit,
+                            ErrorKind::BadSignedOutOfBounds {
+                                size: NumberSize::S64,
+                            },
+                        ));
                     };
 
-                    Ok(hir::Lit::Integer(n))
+                    Ok(hir::Lit::Signed(n))
                 }
             }
         }
         K![byte] => {
             let lit = p.ast::<ast::LitByte>()?;
             let b = lit.resolve(resolve_context!(cx.q))?;
-            Ok(hir::Lit::Byte(b))
+            Ok(hir::Lit::Unsigned(b as u64))
         }
         K![char] => {
             let lit = p.ast::<ast::LitChar>()?;

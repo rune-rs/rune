@@ -1,6 +1,7 @@
 //! The bytes module.
 
 use core::cmp::Ordering;
+use core::hash::Hasher as _;
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;

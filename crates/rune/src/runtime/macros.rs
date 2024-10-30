@@ -15,13 +15,6 @@ macro_rules! inline_macros {
         }
 
         $path! {
-            /// Coerce into [`u8`] byte.
-            Byte(u8),
-            as_byte,
-            as_byte_mut,
-        }
-
-        $path! {
             /// Coerce into [`char`].
             Char(char),
             as_char,
@@ -29,10 +22,17 @@ macro_rules! inline_macros {
         }
 
         $path! {
-            /// Coerce into [`i64`] integer.
-            Integer(i64),
-            as_integer,
-            as_integer_mut,
+            /// Coerce into [`u64`] unsigned integer.
+            Unsigned(u64),
+            as_unsigned,
+            as_unsigned_mut,
+        }
+
+        $path! {
+            /// Coerce into [`i64`] signed integer.
+            Signed(i64),
+            as_signed,
+            as_signed_mut,
         }
 
         $path! {

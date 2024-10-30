@@ -26,15 +26,15 @@ pub fn module() -> Result<Module, ContextError> {
 
     macro_rules! iter {
         ($ty:ident) => {
-            m.ty::<$ty<u8>>()?;
-            m.function_meta($ty::<u8>::next__meta)?;
-            m.function_meta($ty::<u8>::size_hint__meta)?;
-            m.implement_trait::<$ty<u8>>(rune::item!(::std::iter::Iterator))?;
-
             m.ty::<$ty<i64>>()?;
             m.function_meta($ty::<i64>::next__meta)?;
             m.function_meta($ty::<i64>::size_hint__meta)?;
             m.implement_trait::<$ty<i64>>(rune::item!(::std::iter::Iterator))?;
+
+            m.ty::<$ty<u64>>()?;
+            m.function_meta($ty::<u64>::next__meta)?;
+            m.function_meta($ty::<u64>::size_hint__meta)?;
+            m.implement_trait::<$ty<u64>>(rune::item!(::std::iter::Iterator))?;
 
             m.ty::<$ty<char>>()?;
             m.function_meta($ty::<char>::next__meta)?;
@@ -46,17 +46,18 @@ pub fn module() -> Result<Module, ContextError> {
     macro_rules! double_ended {
         ($ty:ident) => {
             iter!($ty);
-            m.function_meta($ty::<u8>::next_back__meta)?;
-            m.implement_trait::<$ty<u8>>(rune::item!(::std::iter::DoubleEndedIterator))?;
-
-            m.function_meta($ty::<u8>::len__meta)?;
-            m.implement_trait::<$ty<u8>>(rune::item!(::std::iter::ExactSizeIterator))?;
 
             m.function_meta($ty::<i64>::next_back__meta)?;
             m.implement_trait::<$ty<i64>>(rune::item!(::std::iter::DoubleEndedIterator))?;
 
             m.function_meta($ty::<i64>::len__meta)?;
             m.implement_trait::<$ty<i64>>(rune::item!(::std::iter::ExactSizeIterator))?;
+
+            m.function_meta($ty::<u64>::next_back__meta)?;
+            m.implement_trait::<$ty<u64>>(rune::item!(::std::iter::DoubleEndedIterator))?;
+
+            m.function_meta($ty::<u64>::len__meta)?;
+            m.implement_trait::<$ty<u64>>(rune::item!(::std::iter::ExactSizeIterator))?;
 
             m.function_meta($ty::<char>::next_back__meta)?;
             m.implement_trait::<$ty<char>>(rune::item!(::std::iter::DoubleEndedIterator))?;
@@ -333,7 +334,7 @@ fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
 /// assert_eq!(hash([1, 2]), hash((1, 2)));
 /// ```
 #[rune::function]
-fn hash(value: Value) -> VmResult<i64> {
+fn hash(value: Value) -> VmResult<u64> {
     let state = STATE.get_or_init(RandomState::new);
     let mut hasher = Hasher::new_with(state);
 
@@ -343,5 +344,5 @@ fn hash(value: Value) -> VmResult<i64> {
         &mut EnvProtocolCaller
     ));
 
-    VmResult::Ok(hasher.finish() as i64)
+    VmResult::Ok(hasher.finish())
 }

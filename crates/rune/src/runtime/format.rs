@@ -214,7 +214,7 @@ impl FormatSpec {
                         vm_try!(f.buf_mut().try_push(*c));
                         vm_try!(self.format_fill(f, self.align, self.fill, None));
                     }
-                    Inline::Integer(n) => {
+                    Inline::Signed(n) => {
                         let (n, align, fill, sign) = self.int_traits(*n);
                         vm_try!(self.format_number(f.buf_mut(), n));
                         vm_try!(self.format_fill(f, align, fill, sign));
@@ -258,7 +258,7 @@ impl FormatSpec {
         'fallback: {
             match vm_try!(value.as_ref_repr()) {
                 RefRepr::Inline(value) => match value {
-                    Inline::Integer(n) => {
+                    Inline::Signed(n) => {
                         let (n, align, fill, sign) = self.int_traits(*n);
                         vm_try!(self.format_number(f.buf_mut(), n));
                         vm_try!(self.format_fill(f, align, fill, sign));
@@ -294,7 +294,7 @@ impl FormatSpec {
 
     fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match vm_try!(value.as_inline()) {
-            Some(Inline::Integer(n)) => {
+            Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:X}", n));
                 vm_try!(self.format_fill(f, align, fill, sign));
@@ -309,7 +309,7 @@ impl FormatSpec {
 
     fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match vm_try!(value.as_inline()) {
-            Some(Inline::Integer(n)) => {
+            Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:x}", n));
                 vm_try!(self.format_fill(f, align, fill, sign));
@@ -324,7 +324,7 @@ impl FormatSpec {
 
     fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match vm_try!(value.as_inline()) {
-            Some(Inline::Integer(n)) => {
+            Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:b}", n));
                 vm_try!(self.format_fill(f, align, fill, sign));
@@ -339,7 +339,7 @@ impl FormatSpec {
 
     fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
         match vm_try!(value.as_inline()) {
-            Some(Inline::Integer(n)) => {
+            Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:p}", n as *const ()));
                 vm_try!(self.format_fill(f, align, fill, sign));

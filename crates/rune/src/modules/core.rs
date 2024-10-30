@@ -6,7 +6,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Panic, Value, VmResult};
-use crate::{ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 #[rune::module(::std)]
 /// Core types and methods in Rune.
@@ -15,13 +15,21 @@ use crate::{ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?.with_unique("std");
 
-    module.ty::<bool>()?.docs(["The primitive boolean type."])?;
-    module
-        .ty::<char>()?
-        .docs(["The primitive character type."])?;
-    module.ty::<u8>()?.docs(["The primitive byte type."])?;
-    module.ty::<f64>()?.docs(["The primitive float type."])?;
-    module.ty::<i64>()?.docs(["The primitive integer type."])?;
+    module.ty::<bool>()?.docs(docstring! {
+        /// The primitive boolean type.
+    })?;
+    module.ty::<char>()?.docs(docstring! {
+        /// The primitive character type.
+    })?;
+    module.ty::<u64>()?.docs(docstring! {
+        /// The unsigned integer type.
+    })?;
+    module.ty::<i64>()?.docs(docstring! {
+        /// The signed integer type.
+    })?;
+    module.ty::<f64>()?.docs(docstring! {
+        /// The primitive float type.
+    })?;
 
     module.function_meta(panic)?;
     module.function_meta(is_readable)?;

@@ -16,7 +16,7 @@ fn test_get_const() -> Result<()> {
         unit.constant(Hash::type_hash(["LEET"]))
             .context("missing constant")?
             .to_value()?
-            .as_integer()?,
+            .as_signed()?,
         1337
     );
     Ok(())
@@ -42,7 +42,7 @@ fn test_get_const_re_export() -> Result<()> {
         unit.constant(Hash::type_hash(["LEET"]))
             .context("missing constant")?
             .to_value()?
-            .as_integer()?,
+            .as_signed()?,
         1337
     );
     Ok(())
@@ -67,7 +67,7 @@ fn test_get_const_nested() -> Result<()> {
             .expect("successful lookup")
             .to_value()
             .expect("could not allocate value")
-            .as_integer()
+            .as_signed()
             .expect("the inner value"),
         1337
     );
