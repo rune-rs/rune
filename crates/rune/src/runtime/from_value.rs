@@ -386,48 +386,27 @@ impl FromConstValue for char {
     }
 }
 
-impl FromValue for i64 {
-    #[inline]
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.as_integer()
-    }
-}
-
-impl FromConstValue for i64 {
-    #[inline]
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
-        value.as_integer()
-    }
-}
-
 macro_rules! impl_number {
-    ($ty:ty) => {
-        impl FromValue for $ty {
-            #[inline]
-            fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                value.try_as_integer()
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl FromValue for $ty {
+                #[inline]
+                fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                    value.try_as_integer()
+                }
             }
-        }
 
-        impl FromConstValue for $ty {
-            #[inline]
-            fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
-                value.try_as_integer()
+            impl FromConstValue for $ty {
+                #[inline]
+                fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+                    value.try_as_integer()
+                }
             }
-        }
+        )*
     };
 }
 
-impl_number!(u16);
-impl_number!(u32);
-impl_number!(u64);
-impl_number!(u128);
-impl_number!(usize);
-impl_number!(i8);
-impl_number!(i16);
-impl_number!(i32);
-impl_number!(i128);
-impl_number!(isize);
+impl_number!(u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
 impl FromValue for f64 {
     #[inline]

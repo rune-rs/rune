@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
+use crate::compile::meta::AssociatedKind;
 use crate::runtime::{RuntimeError, TypeInfo};
 use crate::{Hash, ItemBuf};
 
@@ -13,7 +14,13 @@ pub enum ContextError {
     AllocError {
         error: alloc::Error,
     },
-    RuntimeError {
+    InvalidConstValue {
+        item: ItemBuf,
+        error: RuntimeError,
+    },
+    InvalidAssociatedConstValue {
+        container: TypeInfo,
+        kind: AssociatedKind,
         error: RuntimeError,
     },
     UnitAlreadyPresent,
@@ -158,13 +165,6 @@ impl From<alloc::Error> for ContextError {
     }
 }
 
-impl From<RuntimeError> for ContextError {
-    #[inline]
-    fn from(error: RuntimeError) -> Self {
-        ContextError::RuntimeError { error }
-    }
-}
-
 impl From<alloc::alloc::AllocError> for ContextError {
     #[inline]
     fn from(error: alloc::alloc::AllocError) -> Self {
@@ -180,8 +180,18 @@ impl fmt::Display for ContextError {
             ContextError::AllocError { error } => {
                 error.fmt(f)?;
             }
-            ContextError::RuntimeError { error } => {
-                error.fmt(f)?;
+            ContextError::InvalidConstValue { item, error } => {
+                write!(f, "Error when building constant {item}: {error}")?;
+            }
+            ContextError::InvalidAssociatedConstValue {
+                container,
+                kind,
+                error,
+            } => {
+                write!(
+                    f,
+                    "Error when building associated constant in {container}::{kind}: {error}"
+                )?;
             }
             ContextError::UnitAlreadyPresent {} => {
                 write!(f, "Unit `()` type is already present")?;

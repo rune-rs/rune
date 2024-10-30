@@ -1732,6 +1732,7 @@ impl<K, A: Allocator> Iterator for Drain<'_, K, A> {
             None => None,
         }
     }
+
     #[cfg_attr(feature = "inline-more", inline)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()

@@ -93,7 +93,8 @@ impl<'a> Resolve<'a> for LitNumber {
             .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         let suffix = match suffix {
-            "i64" => Some(ast::NumberSuffix::Int(text.suffix)),
+            "i64" => Some(ast::NumberSuffix::Signed(text.suffix)),
+            "u64" => Some(ast::NumberSuffix::Unsigned(text.suffix)),
             "f64" => Some(ast::NumberSuffix::Float(text.suffix)),
             "u8" => Some(ast::NumberSuffix::Byte(text.suffix)),
             "" => None,

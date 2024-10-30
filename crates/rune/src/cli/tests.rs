@@ -537,10 +537,12 @@ impl TestCase {
             }
         }
 
+        let mut emitted = None;
+
         match &self.outcome {
             Outcome::Panic(error) => {
                 section.error("panicked")?;
-                error.emit(section.io, &self.sources)?;
+                emitted = Some(error);
             }
             Outcome::ExpectedPanic => {
                 section.error("expected panic because of `should_panic`, but ran without issue")?;
@@ -558,6 +560,10 @@ impl TestCase {
         }
 
         section.close()?;
+
+        if let Some(error) = emitted {
+            error.emit(io.stdout, &self.sources)?;
+        }
 
         if !self.outcome.is_ok() && !self.output.is_empty() {
             writeln!(io.stdout, "-- output --")?;

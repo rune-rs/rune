@@ -361,7 +361,7 @@ impl Value {
                     Inline::Char(c) => {
                         vm_try!(f.push(*c));
                     }
-                    Inline::Integer(integer) => {
+                    Inline::Signed(integer) => {
                         let mut buffer = itoa::Buffer::new();
                         vm_try!(f.push_str(buffer.format(*integer)));
                     }
@@ -776,9 +776,16 @@ impl Value {
 
     inline_into! {
         /// Coerce into [`i64`] integer.
-        Integer(i64),
-        as_integer,
-        as_integer_mut,
+        Signed(i64),
+        as_signed,
+        as_signed_mut,
+    }
+
+    inline_into! {
+        /// Coerce into [`u64`] unsigned integer.
+        Unsigned(u64),
+        as_unsigned,
+        as_unsigned_mut,
     }
 
     inline_into! {
@@ -1127,7 +1134,7 @@ impl Value {
 
             let a = match (&a, vm_try!(b.borrow_ref_repr())) {
                 (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
-                    return a.partial_eq(b);
+                    return VmResult::Ok(vm_try!(a.partial_eq(b)));
                 }
                 (BorrowRefRepr::Inline(lhs), rhs) => {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1232,7 +1239,7 @@ impl Value {
     ) -> VmResult<()> {
         match vm_try!(self.borrow_ref_repr()) {
             BorrowRefRepr::Inline(value) => match value {
-                Inline::Integer(value) => {
+                Inline::Signed(value) => {
                     hasher.write_i64(*value);
                     return VmResult::Ok(());
                 }
@@ -1410,7 +1417,9 @@ impl Value {
             vm_try!(self.borrow_ref_repr()),
             vm_try!(b.borrow_ref_repr()),
         ) {
-            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => return a.partial_cmp(b),
+            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
+                return VmResult::Ok(vm_try!(a.partial_cmp(b)))
+            }
             (BorrowRefRepr::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_CMP.name,
@@ -1601,19 +1610,21 @@ impl Value {
     /// ```
     pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
     where
-        T: TryFrom<i64>,
-        VmIntegerRepr: From<i64>,
+        T: TryFrom<u8> + TryFrom<u64> + TryFrom<i64>,
     {
-        let integer = self.as_integer()?;
-
-        match integer.try_into() {
-            Ok(number) => Ok(number),
-            Err(..) => Err(RuntimeError::new(
-                VmErrorKind::ValueToIntegerCoercionError {
-                    from: VmIntegerRepr::from(integer),
-                    to: any::type_name::<T>(),
-                },
-            )),
+        match self.repr {
+            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
+            Repr::Inline(value) => value.try_as_integer(),
+            Repr::Mutable(ref value) => {
+                return Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                    actual: value.borrow_ref()?.type_info(),
+                }))
+            }
+            Repr::Any(ref value) => {
+                return Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                    actual: value.type_info(),
+                }))
+            }
         }
     }
 
@@ -1918,7 +1929,8 @@ inline_from! {
     Byte => u8,
     Bool => bool,
     Char => char,
-    Integer => i64,
+    Signed => i64,
+    Unsigned => u64,
     Float => f64,
     Type => Type,
     Ordering => Ordering,
@@ -1951,13 +1963,9 @@ from_container! {
     Result => Result<Value, Value>,
 }
 
-number_value_trait! {
-    u16, u32, u64, u128, usize, i8, i16, i32, i128, isize,
-}
-
-float_value_trait! {
-    f32,
-}
+signed_value_trait!(i8, i16, i32, i128, isize);
+unsigned_value_trait!(u16, u32, u128, usize);
+float_value_trait!(f32);
 
 impl MaybeTypeOf for Value {
     #[inline]

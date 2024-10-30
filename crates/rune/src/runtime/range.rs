@@ -98,13 +98,19 @@ impl Range {
             &vm_try!(self.start.as_ref_repr()),
             vm_try!(self.end.as_ref_repr()),
         ) {
-            (RefRepr::Inline(Inline::Byte(start)), RefRepr::Inline(Inline::Byte(end))) => {
-                vm_try!(rune::to_value(RangeIter::new(*start..*end)))
+            (RefRepr::Inline(Inline::Byte(start)), RefRepr::Inline(end)) => {
+                let end = vm_try!(end.try_as_integer::<u8>());
+                vm_try!(rune::to_value(RangeIter::new(*start..end)))
+            }
+            (RefRepr::Inline(Inline::Unsigned(start)), RefRepr::Inline(end)) => {
+                let end = vm_try!(end.try_as_integer::<u64>());
+                vm_try!(rune::to_value(RangeIter::new(*start..end)))
+            }
+            (RefRepr::Inline(Inline::Signed(start)), RefRepr::Inline(end)) => {
+                let end = vm_try!(end.try_as_integer::<i64>());
+                vm_try!(rune::to_value(RangeIter::new(*start..end)))
             }
             (RefRepr::Inline(Inline::Char(start)), RefRepr::Inline(Inline::Char(end))) => {
-                vm_try!(rune::to_value(RangeIter::new(*start..*end)))
-            }
-            (RefRepr::Inline(Inline::Integer(start)), RefRepr::Inline(Inline::Integer(end))) => {
                 vm_try!(rune::to_value(RangeIter::new(*start..*end)))
             }
             (start, end) => {

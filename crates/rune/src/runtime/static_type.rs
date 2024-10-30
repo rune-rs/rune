@@ -78,26 +78,36 @@ pub(crate) static CHAR: &StaticType = &StaticType {
 impl_static_type!(char, CHAR, CHAR_HASH);
 
 /// Hash for `::std::i64`.
-pub(crate) const INTEGER_HASH: Hash = ::rune_macros::hash!(::std::i64);
+pub(crate) const SIGNED_HASH: Hash = ::rune_macros::hash!(::std::i64);
 
 /// The specialized type information for a integer type.
-pub(crate) static INTEGER: &StaticType = &StaticType {
+pub(crate) static SIGNED: &StaticType = &StaticType {
     name: RawStr::from_str("i64"),
-    hash: INTEGER_HASH,
+    hash: SIGNED_HASH,
 };
 
-impl_static_type!(i8, INTEGER, INTEGER_HASH);
+impl_static_type!(i8, SIGNED, SIGNED_HASH);
+impl_static_type!(i16, SIGNED, SIGNED_HASH);
+impl_static_type!(i32, SIGNED, SIGNED_HASH);
+impl_static_type!(i64, SIGNED, SIGNED_HASH);
+impl_static_type!(i128, SIGNED, SIGNED_HASH);
+impl_static_type!(isize, SIGNED, SIGNED_HASH);
+
+/// Hash for `::std::u64`.
+pub(crate) const UNSIGNED_HASH: Hash = ::rune_macros::hash!(::std::u64);
+
+/// The specialized type information for an unsigned integer type.
+pub(crate) static UNSIGNED: &StaticType = &StaticType {
+    name: RawStr::from_str("u64"),
+    hash: UNSIGNED_HASH,
+};
+
 // NB: u8 is its own type BYTE.
-impl_static_type!(u16, INTEGER, INTEGER_HASH);
-impl_static_type!(i16, INTEGER, INTEGER_HASH);
-impl_static_type!(u32, INTEGER, INTEGER_HASH);
-impl_static_type!(i32, INTEGER, INTEGER_HASH);
-impl_static_type!(u64, INTEGER, INTEGER_HASH);
-impl_static_type!(i64, INTEGER, INTEGER_HASH);
-impl_static_type!(u128, INTEGER, INTEGER_HASH);
-impl_static_type!(i128, INTEGER, INTEGER_HASH);
-impl_static_type!(usize, INTEGER, INTEGER_HASH);
-impl_static_type!(isize, INTEGER, INTEGER_HASH);
+impl_static_type!(u16, UNSIGNED, UNSIGNED_HASH);
+impl_static_type!(u32, UNSIGNED, UNSIGNED_HASH);
+impl_static_type!(u64, UNSIGNED, UNSIGNED_HASH);
+impl_static_type!(u128, UNSIGNED, UNSIGNED_HASH);
+impl_static_type!(usize, UNSIGNED, UNSIGNED_HASH);
 
 /// Hash for `::std::f64`.
 pub(crate) const FLOAT_HASH: Hash = ::rune_macros::hash!(::std::f64);

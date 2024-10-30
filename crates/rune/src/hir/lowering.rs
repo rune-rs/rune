@@ -644,7 +644,8 @@ fn pat_const_value<'hir>(
                 Inline::Bool(b) => hir::Lit::Bool(b),
                 Inline::Byte(b) => hir::Lit::Byte(b),
                 Inline::Char(ch) => hir::Lit::Char(ch),
-                Inline::Integer(integer) => hir::Lit::Integer(integer),
+                Inline::Unsigned(integer) => hir::Lit::Unsigned(integer),
+                Inline::Signed(integer) => hir::Lit::Signed(integer),
                 _ => {
                     return Err(compile::Error::msg(
                         span,
@@ -784,12 +785,19 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
 
                     Ok(hir::Lit::Byte(n))
                 }
-                (ast::NumberValue::Integer(int), _) => {
-                    let Some(n) = int.to_i64() else {
-                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(..))) => {
+                    let Some(n) = int.to_u64() else {
+                        return Err(compile::Error::new(ast, ErrorKind::BadUnsignedOutOfBounds));
                     };
 
-                    Ok(hir::Lit::Integer(n))
+                    Ok(hir::Lit::Unsigned(n))
+                }
+                (ast::NumberValue::Integer(int), _) => {
+                    let Some(n) = int.to_i64() else {
+                        return Err(compile::Error::new(ast, ErrorKind::BadSignedOutOfBounds));
+                    };
+
+                    Ok(hir::Lit::Signed(n))
                 }
             }
         }
@@ -849,14 +857,21 @@ fn expr_unary<'hir>(
         (ast::NumberValue::Float(n), Some(ast::NumberSuffix::Float(..)) | None) => {
             Ok(hir::ExprKind::Lit(hir::Lit::Float(-n)))
         }
-        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Int(..)) | None) => {
-            let Some(n) = int.neg().to_i64() else {
-                return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(..))) => {
+            let Some(n) = int.neg().to_u64() else {
+                return Err(compile::Error::new(ast, ErrorKind::BadUnsignedOutOfBounds));
             };
 
-            Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
+            Ok(hir::ExprKind::Lit(hir::Lit::Unsigned(n)))
         }
-        _ => Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds)),
+        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(..)) | None) => {
+            let Some(n) = int.neg().to_i64() else {
+                return Err(compile::Error::new(ast, ErrorKind::BadSignedOutOfBounds));
+            };
+
+            Ok(hir::ExprKind::Lit(hir::Lit::Signed(n)))
+        }
+        _ => Err(compile::Error::new(ast, ErrorKind::BadSignedOutOfBounds)),
     }
 }
 

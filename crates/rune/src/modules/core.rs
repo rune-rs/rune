@@ -21,7 +21,8 @@ pub fn module() -> Result<Module, ContextError> {
         .docs(["The primitive character type."])?;
     module.ty::<u8>()?.docs(["The primitive byte type."])?;
     module.ty::<f64>()?.docs(["The primitive float type."])?;
-    module.ty::<i64>()?.docs(["The primitive integer type."])?;
+    module.ty::<i64>()?.docs(["The signed integer type."])?;
+    module.ty::<u64>()?.docs(["The unsigned integer type."])?;
 
     module.function_meta(panic)?;
     module.function_meta(is_readable)?;

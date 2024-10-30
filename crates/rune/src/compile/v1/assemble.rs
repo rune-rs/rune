@@ -620,7 +620,8 @@ fn pat_lit_inst(
             slot: cx.q.unit.new_static_bytes(hir, bytes)?,
             out,
         },
-        hir::Lit::Integer(value) => Inst::EqInteger { addr, value, out },
+        hir::Lit::Unsigned(value) => Inst::EqUnsigned { addr, value, out },
+        hir::Lit::Signed(value) => Inst::EqSigned { addr, value, out },
         hir::Lit::Bool(value) => Inst::EqBool { addr, value, out },
         _ => return Ok(None),
     };
@@ -1110,8 +1111,11 @@ fn const_<'a, 'hir>(
             Inline::Char(v) => {
                 cx.asm.push(Inst::char(v, out), span)?;
             }
-            Inline::Integer(v) => {
-                cx.asm.push(Inst::integer(v, out), span)?;
+            Inline::Signed(v) => {
+                cx.asm.push(Inst::signed(v, out), span)?;
+            }
+            Inline::Unsigned(v) => {
+                cx.asm.push(Inst::unsigned(v, out), span)?;
             }
             Inline::Float(v) => {
                 cx.asm.push(Inst::float(v, out), span)?;
@@ -3131,8 +3135,11 @@ fn lit<'a, 'hir>(
         hir::Lit::Char(v) => {
             cx.asm.push(Inst::char(v, out), span)?;
         }
-        hir::Lit::Integer(v) => {
-            cx.asm.push(Inst::integer(v, out), span)?;
+        hir::Lit::Unsigned(v) => {
+            cx.asm.push(Inst::unsigned(v, out), span)?;
+        }
+        hir::Lit::Signed(v) => {
+            cx.asm.push(Inst::signed(v, out), span)?;
         }
         hir::Lit::Float(v) => {
             cx.asm.push(Inst::float(v, out), span)?;

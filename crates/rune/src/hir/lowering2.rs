@@ -679,11 +679,11 @@ fn expr_expanded_macro<'hir>(
                 Ok(hir::ExprKind::Lit(hir::Lit::Str(lit)))
             }
             query::BuiltInMacro2::Line(line) => {
-                let Some(n) = line.to_i64() else {
-                    return Err(Error::new(&*p, ErrorKind::BadNumberOutOfBounds));
+                let Some(n) = line.to_u64() else {
+                    return Err(Error::new(&*p, ErrorKind::BadUnsignedOutOfBounds));
                 };
 
-                Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
+                Ok(hir::ExprKind::Lit(hir::Lit::Unsigned(n)))
             }
             query::BuiltInMacro2::Format(tree) => expr_format_macro(cx, p, tree),
             query::BuiltInMacro2::Template(tree, literal) => {
@@ -2566,7 +2566,8 @@ fn pat_const_value<'hir>(
                 Inline::Bool(b) => hir::Lit::Bool(b),
                 Inline::Byte(b) => hir::Lit::Byte(b),
                 Inline::Char(ch) => hir::Lit::Char(ch),
-                Inline::Integer(value) => hir::Lit::Integer(value),
+                Inline::Unsigned(value) => hir::Lit::Unsigned(value),
+                Inline::Signed(value) => hir::Lit::Signed(value),
                 _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
             },
             ConstValueKind::String(ref string) => hir::Lit::Str(alloc_str!(string.as_ref())),
@@ -2760,14 +2761,23 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Lit
 
                     Ok(hir::Lit::Byte(n))
                 }
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(..))) => {
+                    let int = if neg { int.neg() } else { int };
+
+                    let Some(n) = int.to_u64() else {
+                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds));
+                    };
+
+                    Ok(hir::Lit::Unsigned(n))
+                }
                 (ast::NumberValue::Integer(int), _) => {
                     let int = if neg { int.neg() } else { int };
 
                     let Some(n) = int.to_i64() else {
-                        return Err(Error::new(lit, ErrorKind::BadNumberOutOfBounds));
+                        return Err(Error::new(lit, ErrorKind::BadSignedOutOfBounds));
                     };
 
-                    Ok(hir::Lit::Integer(n))
+                    Ok(hir::Lit::Signed(n))
                 }
             }
         }

@@ -208,7 +208,11 @@ fn lit(_c: &mut Ctxt<'_, '_>, span: Span, hir: hir::Lit<'_>) -> compile::Result<
             let value = Value::from(boolean);
             ir::Ir::new(span, value)
         }
-        hir::Lit::Integer(n) => {
+        hir::Lit::Unsigned(n) => {
+            let value = Value::from(n);
+            ir::Ir::new(span, value)
+        }
+        hir::Lit::Signed(n) => {
             let value = Value::from(n);
             ir::Ir::new(span, value)
         }

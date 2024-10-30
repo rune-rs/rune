@@ -222,7 +222,7 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
 /// }
 ///
 /// assert_eq!(Ok(2).and_then(sq_then_to_string), Ok(4));
-/// assert_eq!(Ok(i64::MAX).and_then(sq_then_to_string), Err("overflowed"));
+/// assert_eq!(Ok(u64::MAX).and_then(sq_then_to_string), Err("overflowed"));
 /// assert_eq!(Err("not a number").and_then(sq_then_to_string), Err("not a number"));
 /// ```
 #[rune::function(instance)]

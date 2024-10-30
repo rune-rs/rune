@@ -29,10 +29,17 @@ macro_rules! inline_macros {
         }
 
         $path! {
-            /// Coerce into [`i64`] integer.
-            Integer(i64),
-            as_integer,
-            as_integer_mut,
+            /// Coerce into [`i64`] signed integer.
+            Signed(i64),
+            as_signed,
+            as_signed_mut,
+        }
+
+        $path! {
+            /// Coerce into [`u64`] unsigned integer.
+            Unsigned(u64),
+            as_unsigned,
+            as_unsigned_mut,
         }
 
         $path! {

@@ -1,3 +1,4 @@
+use core::any;
 use core::cmp::Ordering;
 use core::fmt;
 
@@ -5,7 +6,9 @@ use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::hash::Hash;
-use crate::runtime::{static_type, Protocol, Type, TypeInfo, VmErrorKind, VmResult};
+use crate::runtime::{
+    static_type, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr, VmResult,
+};
 
 use super::err;
 
@@ -21,7 +24,9 @@ pub enum Inline {
     /// A character.
     Char(char),
     /// A number.
-    Integer(i64),
+    Signed(i64),
+    /// An unsigned number.
+    Unsigned(u64),
     /// A float.
     Float(f64),
     /// A type hash. Describes a type in the virtual machine.
@@ -35,22 +40,65 @@ pub enum Inline {
 }
 
 impl Inline {
+    pub(crate) fn try_as_integer<T>(self) -> Result<T, RuntimeError>
+    where
+        T: TryFrom<u8> + TryFrom<u64> + TryFrom<i64>,
+    {
+        match self {
+            Inline::Byte(value) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            Inline::Unsigned(value) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            Inline::Signed(value) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            ref value => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                actual: value.type_info(),
+            })),
+        }
+    }
+
     /// Perform a partial equality check over two inline values.
-    pub(crate) fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+    pub(crate) fn partial_eq(&self, other: &Self) -> Result<bool, RuntimeError> {
         match (self, other) {
-            (Inline::Unit, Inline::Unit) => VmResult::Ok(true),
-            (Inline::Bool(a), Inline::Bool(b)) => VmResult::Ok(*a == *b),
-            (Inline::Byte(a), Inline::Byte(b)) => VmResult::Ok(*a == *b),
-            (Inline::Char(a), Inline::Char(b)) => VmResult::Ok(*a == *b),
-            (Inline::Integer(a), Inline::Integer(b)) => VmResult::Ok(*a == *b),
-            (Inline::Float(a), Inline::Float(b)) => VmResult::Ok(*a == *b),
-            (Inline::Type(a), Inline::Type(b)) => VmResult::Ok(*a == *b),
-            (Inline::Ordering(a), Inline::Ordering(b)) => VmResult::Ok(*a == *b),
-            (lhs, rhs) => err(VmErrorKind::UnsupportedBinaryOperation {
-                op: Protocol::PARTIAL_EQ.name,
-                lhs: lhs.type_info(),
-                rhs: rhs.type_info(),
-            }),
+            (Inline::Unit, Inline::Unit) => Ok(true),
+            (Inline::Bool(a), Inline::Bool(b)) => Ok(*a == *b),
+            (Inline::Byte(a), Inline::Byte(b)) => Ok(*a == *b),
+            (Inline::Char(a), Inline::Char(b)) => Ok(*a == *b),
+            (Inline::Signed(a), Inline::Signed(b)) => Ok(*a == *b),
+            (Inline::Signed(a), rhs) => Ok(*a == rhs.try_as_integer::<i64>()?),
+            (Inline::Unsigned(a), Inline::Unsigned(b)) => Ok(*a == *b),
+            (Inline::Unsigned(a), rhs) => Ok(*a == rhs.try_as_integer::<u64>()?),
+            (Inline::Float(a), Inline::Float(b)) => Ok(*a == *b),
+            (Inline::Type(a), Inline::Type(b)) => Ok(*a == *b),
+            (Inline::Ordering(a), Inline::Ordering(b)) => Ok(*a == *b),
+            (lhs, rhs) => Err(RuntimeError::from(
+                VmErrorKind::UnsupportedBinaryOperation {
+                    op: Protocol::PARTIAL_EQ.name,
+                    lhs: lhs.type_info(),
+                    rhs: rhs.type_info(),
+                },
+            )),
         }
     }
 
@@ -68,7 +116,7 @@ impl Inline {
 
                 VmResult::Ok(matches!(ordering, Ordering::Equal))
             }
-            (Inline::Integer(a), Inline::Integer(b)) => VmResult::Ok(*a == *b),
+            (Inline::Signed(a), Inline::Signed(b)) => VmResult::Ok(*a == *b),
             (Inline::Type(a), Inline::Type(b)) => VmResult::Ok(*a == *b),
             (Inline::Ordering(a), Inline::Ordering(b)) => VmResult::Ok(*a == *b),
             (lhs, rhs) => err(VmErrorKind::UnsupportedBinaryOperation {
@@ -80,21 +128,32 @@ impl Inline {
     }
 
     /// Partial comparison implementation for inline.
-    pub(crate) fn partial_cmp(&self, other: &Self) -> VmResult<Option<Ordering>> {
+    pub(crate) fn partial_cmp(&self, other: &Self) -> Result<Option<Ordering>, RuntimeError> {
         match (self, other) {
-            (Inline::Unit, Inline::Unit) => VmResult::Ok(Some(Ordering::Equal)),
-            (Inline::Bool(lhs), Inline::Bool(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (Inline::Byte(lhs), Inline::Byte(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (Inline::Char(lhs), Inline::Char(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (Inline::Float(lhs), Inline::Float(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (Inline::Integer(lhs), Inline::Integer(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (Inline::Type(lhs), Inline::Type(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (Inline::Ordering(lhs), Inline::Ordering(rhs)) => VmResult::Ok(lhs.partial_cmp(rhs)),
-            (lhs, rhs) => err(VmErrorKind::UnsupportedBinaryOperation {
-                op: Protocol::PARTIAL_CMP.name,
-                lhs: lhs.type_info(),
-                rhs: rhs.type_info(),
-            }),
+            (Inline::Unit, Inline::Unit) => Ok(Some(Ordering::Equal)),
+            (Inline::Bool(lhs), Inline::Bool(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Byte(lhs), Inline::Byte(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Char(lhs), Inline::Char(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Float(lhs), Inline::Float(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Signed(lhs), Inline::Signed(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Signed(lhs), rhs) => {
+                let rhs = rhs.try_as_integer::<i64>()?;
+                Ok(lhs.partial_cmp(&rhs))
+            }
+            (Inline::Unsigned(lhs), Inline::Unsigned(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Unsigned(lhs), rhs) => {
+                let rhs = rhs.try_as_integer::<u64>()?;
+                Ok(lhs.partial_cmp(&rhs))
+            }
+            (Inline::Type(lhs), Inline::Type(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Ordering(lhs), Inline::Ordering(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (lhs, rhs) => Err(RuntimeError::from(
+                VmErrorKind::UnsupportedBinaryOperation {
+                    op: Protocol::PARTIAL_CMP.name,
+                    lhs: lhs.type_info(),
+                    rhs: rhs.type_info(),
+                },
+            )),
         }
     }
 
@@ -112,7 +171,8 @@ impl Inline {
 
                 VmResult::Ok(ordering)
             }
-            (Inline::Integer(a), Inline::Integer(b)) => VmResult::Ok(a.cmp(b)),
+            (Inline::Signed(a), Inline::Signed(b)) => VmResult::Ok(a.cmp(b)),
+            (Inline::Unsigned(a), Inline::Unsigned(b)) => VmResult::Ok(a.cmp(b)),
             (Inline::Type(a), Inline::Type(b)) => VmResult::Ok(a.cmp(b)),
             (Inline::Ordering(a), Inline::Ordering(b)) => VmResult::Ok(a.cmp(b)),
             (lhs, rhs) => VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
@@ -131,7 +191,8 @@ impl fmt::Debug for Inline {
             Inline::Bool(value) => value.fmt(f),
             Inline::Byte(value) => value.fmt(f),
             Inline::Char(value) => value.fmt(f),
-            Inline::Integer(value) => value.fmt(f),
+            Inline::Signed(value) => value.fmt(f),
+            Inline::Unsigned(value) => value.fmt(f),
             Inline::Float(value) => value.fmt(f),
             Inline::Type(value) => value.fmt(f),
             Inline::Ordering(value) => value.fmt(f),
@@ -146,7 +207,8 @@ impl Inline {
             Inline::Bool(..) => TypeInfo::static_type(static_type::BOOL),
             Inline::Byte(..) => TypeInfo::static_type(static_type::BYTE),
             Inline::Char(..) => TypeInfo::static_type(static_type::CHAR),
-            Inline::Integer(..) => TypeInfo::static_type(static_type::INTEGER),
+            Inline::Signed(..) => TypeInfo::static_type(static_type::SIGNED),
+            Inline::Unsigned(..) => TypeInfo::static_type(static_type::UNSIGNED),
             Inline::Float(..) => TypeInfo::static_type(static_type::FLOAT),
             Inline::Type(..) => TypeInfo::static_type(static_type::TYPE),
             Inline::Ordering(..) => TypeInfo::static_type(static_type::ORDERING),
@@ -163,7 +225,8 @@ impl Inline {
             Inline::Bool(..) => static_type::BOOL.hash,
             Inline::Byte(..) => static_type::BYTE.hash,
             Inline::Char(..) => static_type::CHAR.hash,
-            Inline::Integer(..) => static_type::INTEGER.hash,
+            Inline::Signed(..) => static_type::SIGNED.hash,
+            Inline::Unsigned(..) => static_type::UNSIGNED.hash,
             Inline::Float(..) => static_type::FLOAT.hash,
             Inline::Type(..) => static_type::TYPE.hash,
             Inline::Ordering(..) => static_type::ORDERING.hash,

@@ -191,19 +191,32 @@ impl ConstValue {
     /// ```
     pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
     where
-        T: TryFrom<i64>,
-        VmIntegerRepr: From<i64>,
+        T: TryFrom<i64> + TryFrom<u64>,
     {
-        let integer = self.as_integer()?;
-
-        match integer.try_into() {
-            Ok(number) => Ok(number),
-            Err(..) => Err(RuntimeError::new(
-                VmErrorKind::ValueToIntegerCoercionError {
-                    from: VmIntegerRepr::from(integer),
-                    to: any::type_name::<T>(),
-                },
-            )),
+        match self.kind {
+            ConstValueKind::Inline(Inline::Signed(value)) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            ConstValueKind::Inline(Inline::Unsigned(value)) => match value.try_into() {
+                Ok(number) => Ok(number),
+                Err(..) => Err(RuntimeError::new(
+                    VmErrorKind::ValueToIntegerCoercionError {
+                        from: VmIntegerRepr::from(value),
+                        to: any::type_name::<T>(),
+                    },
+                )),
+            },
+            ref kind => {
+                return Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                    actual: kind.type_info(),
+                }))
+            }
         }
     }
 

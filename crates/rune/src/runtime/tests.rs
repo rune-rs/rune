@@ -306,7 +306,7 @@ fn ensure_future_dropped_poll() -> crate::support::Result<()> {
         panic!("expected ready");
     };
 
-    assert_eq!(ok.unwrap().as_integer().unwrap(), 10);
+    assert_eq!(ok.unwrap().as_signed().unwrap(), 10);
     assert!(future.is_completed());
     Ok(())
 }
@@ -328,7 +328,7 @@ fn ensure_future_dropped_explicitly() -> crate::support::Result<()> {
         panic!("expected ready");
     };
 
-    assert_eq!(ok.unwrap().as_integer().unwrap(), 0);
+    assert_eq!(ok.unwrap().as_signed().unwrap(), 0);
     assert!(future.is_completed());
     Ok(())
 }

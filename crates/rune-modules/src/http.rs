@@ -1579,7 +1579,9 @@ impl StatusCode {
     /// # Example
     ///
     /// ```rune
-    /// let status = http::StatusCode::OK;
+    /// use http::StatusCode;
+    ///
+    /// let status = StatusCode::OK;
     /// assert_eq!(status.as_u16(), 200);
     /// ```
     #[rune::function(keep, instance)]
@@ -1596,7 +1598,9 @@ impl StatusCode {
     /// # Example
     ///
     /// ```rune
-    /// let status = http::StatusCode::OK;
+    /// use http::StatusCode;
+    ///
+    /// let status = StatusCode::OK;
     /// assert_eq!(status.as_str(), "200");
     /// ```
     #[rune::function(keep, instance, vm_result)]
@@ -1620,7 +1624,9 @@ impl StatusCode {
     /// # Example
     ///
     /// ```rune
-    /// let status = http::StatusCode::OK;
+    /// use http::StatusCode;
+    ///
+    /// let status = StatusCode::OK;
     /// assert_eq!(status.canonical_reason(), Some("OK"));
     /// ```
     #[inline]
@@ -1670,7 +1676,6 @@ impl StatusCode {
     ///
     /// ```rune
     /// use std::ops::partial_eq;
-    ///
     /// use http::StatusCode;
     ///
     /// let ok = StatusCode::OK;
@@ -1692,7 +1697,6 @@ impl StatusCode {
     ///
     /// ```rune
     /// use std::ops::eq;
-    ///
     /// use http::StatusCode;
     ///
     /// let ok = StatusCode::OK;

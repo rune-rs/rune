@@ -480,7 +480,8 @@ pub(crate) enum ErrorKind {
     PrecedenceGroupRequired,
     BadByteNeg,
     BadByteOutOfBounds,
-    BadNumberOutOfBounds,
+    BadSignedOutOfBounds,
+    BadUnsignedOutOfBounds,
     BadFieldAccess,
     ExpectedMacroCloseDelimiter {
         expected: ast::Kind,
@@ -1033,10 +1034,16 @@ impl fmt::Display for ErrorKind {
             ErrorKind::BadByteOutOfBounds => {
                 write!(f, "Byte literal out of bounds `0` to `255`")?;
             }
-            ErrorKind::BadNumberOutOfBounds => {
+            ErrorKind::BadSignedOutOfBounds => {
                 write!(
                     f,
                     "Number literal out of bounds `-9223372036854775808` to `9223372036854775807`"
+                )?;
+            }
+            ErrorKind::BadUnsignedOutOfBounds => {
+                write!(
+                    f,
+                    "Number literal out of bounds `0` to `18446744073709551615`"
                 )?;
             }
             ErrorKind::BadFieldAccess => {
@@ -1141,7 +1148,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedSuffix => {
                 write!(
                     f,
-                    "Unsupported suffix, expected one of `u8`, `i64`, or `f64`"
+                    "Unsupported suffix, expected one of `u8`, `i64`, `u64`, or `f64`"
                 )?;
             }
             ErrorKind::ClosureInConst => {

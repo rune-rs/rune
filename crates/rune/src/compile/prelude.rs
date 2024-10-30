@@ -23,6 +23,7 @@ impl Prelude {
         this.add_prelude("u8", ["u8"])?;
         this.add_prelude("f64", ["f64"])?;
         this.add_prelude("i64", ["i64"])?;
+        this.add_prelude("u64", ["u64"])?;
         this.add_prelude("char", ["char"])?;
         this.add_prelude("dbg", ["io", "dbg"])?;
         this.add_prelude("drop", ["mem", "drop"])?;

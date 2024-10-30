@@ -382,7 +382,7 @@ macro_rules! from_container {
     };
 }
 
-macro_rules! number_value_trait {
+macro_rules! signed_value_trait {
     ($($ty:ty),* $(,)?) => {
         $(
             impl $crate::runtime::ToValue for $ty {
@@ -426,6 +426,58 @@ macro_rules! number_value_trait {
                         Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
                             from: VmIntegerRepr::from(value),
                             to: any::type_name::<i64>(),
+                        })),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! unsigned_value_trait {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl $crate::runtime::ToValue for $ty {
+                #[inline]
+                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
+                    Value::try_from(self)
+                }
+            }
+
+            impl TryFrom<$ty> for Value {
+                type Error = $crate::runtime::RuntimeError;
+
+                #[inline]
+                fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
+                    match <u64>::try_from(value) {
+                        Ok(number) => Ok(Value::from(number)),
+                        #[allow(unreachable_patterns)]
+                        Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
+                            from: VmIntegerRepr::from(value),
+                            to: any::type_name::<u64>(),
+                        })),
+                    }
+                }
+            }
+
+            impl $crate::runtime::ToConstValue for $ty {
+                #[inline]
+                fn to_const_value(self) -> Result<$crate::runtime::ConstValue, $crate::runtime::RuntimeError> {
+                    $crate::runtime::ConstValue::try_from(self)
+                }
+            }
+
+            impl TryFrom<$ty> for ConstValue {
+                type Error = $crate::runtime::RuntimeError;
+
+                #[inline]
+                fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
+                    match <u64>::try_from(value) {
+                        Ok(number) => Ok($crate::runtime::ConstValue::from(number)),
+                        #[allow(unreachable_patterns)]
+                        Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
+                            from: VmIntegerRepr::from(value),
+                            to: any::type_name::<u64>(),
                         })),
                     }
                 }

@@ -831,16 +831,9 @@ pub enum Inst {
         /// Where to store the result of the comparison.
         out: Output,
     },
-    /// Test if the top of the stack is a specific integer.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
+    /// Test if the specified value is a specific signed integer.
     #[musli(packed)]
-    EqInteger {
+    EqSigned {
         /// Address of the value to compare.
         addr: InstAddress,
         /// The value to test against.
@@ -848,7 +841,16 @@ pub enum Inst {
         /// Where to store the result of the comparison.
         out: Output,
     },
-
+    /// Test if the specified value is a specific unsigned integer.
+    #[musli(packed)]
+    EqUnsigned {
+        /// Address of the value to compare.
+        addr: InstAddress,
+        /// The value to test against.
+        value: u64,
+        /// Where to store the result of the comparison.
+        out: Output,
+    },
     /// Test if the top of the stack is a specific boolean.
     ///
     /// # Operation
@@ -1147,9 +1149,17 @@ impl Inst {
     }
 
     /// Construct an instruction to push an integer.
-    pub fn integer(v: i64, out: Output) -> Self {
+    pub fn signed(v: i64, out: Output) -> Self {
         Self::Store {
             value: InstValue::Integer(v),
+            out,
+        }
+    }
+
+    /// Construct an instruction to push an unsigned integer.
+    pub fn unsigned(v: u64, out: Output) -> Self {
+        Self::Store {
+            value: InstValue::Unsigned(v),
             out,
         }
     }
@@ -1749,6 +1759,9 @@ pub enum InstValue {
     /// An integer.
     #[musli(packed)]
     Integer(i64),
+    /// An unsigned integer.
+    #[musli(packed)]
+    Unsigned(u64),
     /// A float.
     #[musli(packed)]
     Float(f64),
@@ -1772,6 +1785,7 @@ impl InstValue {
             Self::Byte(v) => Value::from(v),
             Self::Char(v) => Value::from(v),
             Self::Integer(v) => Value::from(v),
+            Self::Unsigned(v) => Value::from(v),
             Self::Float(v) => Value::from(v),
             Self::Type(v) => Value::from(v),
             Self::Ordering(v) => Value::from(v),
@@ -1791,9 +1805,10 @@ impl fmt::Display for InstValue {
                     write!(f, "b'\\x{:02x}'", v)?
                 }
             }
-            Self::Char(v) => write!(f, "{:?}", v)?,
-            Self::Integer(v) => write!(f, "{}", v)?,
-            Self::Float(v) => write!(f, "{}", v)?,
+            Self::Char(v) => write!(f, "{v:?}")?,
+            Self::Integer(v) => write!(f, "{v}i64")?,
+            Self::Unsigned(v) => write!(f, "{v}u64")?,
+            Self::Float(v) => write!(f, "{v}")?,
             Self::Type(v) => write!(f, "{}", v.into_hash())?,
             Self::Ordering(v) => write!(f, "{v:?}")?,
         }

@@ -207,7 +207,9 @@ pub enum NumberValue {
 #[non_exhaustive]
 pub enum NumberSuffix {
     /// The `i64` suffix.
-    Int(Span),
+    Signed(Span),
+    /// The `u64` suffix.
+    Unsigned(Span),
     /// The `f64` suffix.
     Float(Span),
     /// The `u8` suffix.

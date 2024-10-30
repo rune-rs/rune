@@ -1238,7 +1238,8 @@ impl Vm {
                 match ty.into_hash() {
                     static_type::FLOAT_HASH => Value::from($value as f64),
                     static_type::BYTE_HASH => Value::from($value as u8),
-                    static_type::INTEGER_HASH => Value::from($value as i64),
+                    static_type::SIGNED_HASH => Value::from($value as i64),
+                    static_type::UNSIGNED_HASH => Value::from($value as u64),
                     ty => {
                         return err(VmErrorKind::UnsupportedAs {
                             value: <$from as TypeOf>::type_info(),
@@ -1250,7 +1251,8 @@ impl Vm {
         }
 
         let value = match vm_try!(a.as_ref_repr()) {
-            RefRepr::Inline(Inline::Integer(a)) => convert!(i64, *a),
+            RefRepr::Inline(Inline::Signed(a)) => convert!(i64, *a),
+            RefRepr::Inline(Inline::Unsigned(a)) => convert!(u64, *a),
             RefRepr::Inline(Inline::Float(a)) => convert!(f64, *a),
             RefRepr::Inline(Inline::Byte(a)) => convert!(u8, *a),
             value => {
@@ -1421,7 +1423,8 @@ impl Vm {
         target: InstTarget,
         protocol: Protocol,
         error: fn() -> VmErrorKind,
-        integer_op: fn(i64, i64) -> Option<i64>,
+        signed_op: fn(i64, i64) -> Option<i64>,
+        unsigned_op: fn(u64, u64) -> Option<u64>,
         float_op: fn(f64, f64) -> f64,
         rhs: InstAddress,
     ) -> VmResult<()> {
@@ -1431,8 +1434,13 @@ impl Vm {
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
             TargetValue::Same(value) => {
                 match vm_try!(value.as_mut_repr()) {
-                    MutRepr::Inline(Inline::Integer(value)) => {
-                        let out = vm_try!(integer_op(*value, *value).ok_or_else(error));
+                    MutRepr::Inline(Inline::Signed(value)) => {
+                        let out = vm_try!(signed_op(*value, *value).ok_or_else(error));
+                        *value = out;
+                        return VmResult::Ok(());
+                    }
+                    MutRepr::Inline(Inline::Unsigned(value)) => {
+                        let out = vm_try!(unsigned_op(*value, *value).ok_or_else(error));
                         *value = out;
                         return VmResult::Ok(());
                     }
@@ -1456,8 +1464,13 @@ impl Vm {
             TargetValue::Pair(lhs, rhs) => {
                 match (vm_try!(lhs.as_mut_repr()), vm_try!(rhs.as_ref_repr())) {
                     (MutRepr::Inline(lhs), RefRepr::Inline(rhs)) => match (lhs, rhs) {
-                        (Inline::Integer(lhs), Inline::Integer(rhs)) => {
-                            let out = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
+                        (Inline::Signed(lhs), Inline::Signed(rhs)) => {
+                            let out = vm_try!(signed_op(*lhs, *rhs).ok_or_else(error));
+                            *lhs = out;
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Unsigned(lhs), Inline::Unsigned(rhs)) => {
+                            let out = vm_try!(unsigned_op(*lhs, *rhs).ok_or_else(error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
@@ -1563,7 +1576,8 @@ impl Vm {
         &mut self,
         protocol: Protocol,
         error: fn() -> VmErrorKind,
-        integer_op: fn(i64, i64) -> Option<i64>,
+        signed_op: fn(i64, i64) -> Option<i64>,
+        unsigned_op: fn(u64, u64) -> Option<u64>,
         float_op: fn(f64, f64) -> f64,
         lhs: InstAddress,
         rhs: InstAddress,
@@ -1575,8 +1589,11 @@ impl Vm {
         'fallback: {
             let inline = match (vm_try!(lhs.as_ref_repr()), vm_try!(rhs.as_ref_repr())) {
                 (RefRepr::Inline(lhs), RefRepr::Inline(rhs)) => match (lhs, rhs) {
-                    (Inline::Integer(lhs), Inline::Integer(rhs)) => {
-                        Inline::Integer(vm_try!(integer_op(*lhs, *rhs).ok_or_else(error)))
+                    (Inline::Signed(lhs), Inline::Signed(rhs)) => {
+                        Inline::Signed(vm_try!(signed_op(*lhs, *rhs).ok_or_else(error)))
+                    }
+                    (Inline::Unsigned(lhs), Inline::Unsigned(rhs)) => {
+                        Inline::Unsigned(vm_try!(unsigned_op(*lhs, *rhs).ok_or_else(error)))
                     }
                     (Inline::Float(lhs), Inline::Float(rhs)) => Inline::Float(float_op(*lhs, *rhs)),
                     (lhs, rhs) => {
@@ -1626,7 +1643,8 @@ impl Vm {
     fn internal_infallible_bitwise_bool(
         &mut self,
         protocol: Protocol,
-        integer_op: fn(i64, i64) -> i64,
+        signed_op: fn(i64, i64) -> i64,
+        unsigned_op: fn(u64, u64) -> u64,
         byte_op: fn(u8, u8) -> u8,
         bool_op: fn(bool, bool) -> bool,
         lhs: InstAddress,
@@ -1639,8 +1657,11 @@ impl Vm {
         'fallback: {
             let inline = match (vm_try!(lhs.as_ref_repr()), vm_try!(rhs.as_ref_repr())) {
                 (RefRepr::Inline(lhs), RefRepr::Inline(rhs)) => match (lhs, rhs) {
-                    (Inline::Integer(lhs), Inline::Integer(rhs)) => {
-                        Inline::Integer(integer_op(*lhs, *rhs))
+                    (Inline::Signed(lhs), Inline::Signed(rhs)) => {
+                        Inline::Signed(signed_op(*lhs, *rhs))
+                    }
+                    (Inline::Unsigned(lhs), Inline::Unsigned(rhs)) => {
+                        Inline::Unsigned(unsigned_op(*lhs, *rhs))
                     }
                     (Inline::Byte(lhs), Inline::Byte(rhs)) => Inline::Byte(byte_op(*lhs, *rhs)),
                     (Inline::Bool(lhs), Inline::Bool(rhs)) => Inline::Bool(bool_op(*lhs, *rhs)),
@@ -1690,7 +1711,8 @@ impl Vm {
         &mut self,
         target: InstTarget,
         protocol: Protocol,
-        integer_op: fn(&mut i64, i64),
+        signed_op: fn(&mut i64, i64),
+        unsigned_op: fn(&mut u64, u64),
         byte_op: fn(&mut u8, u8),
         bool_op: fn(&mut bool, bool),
         rhs: InstAddress,
@@ -1701,9 +1723,14 @@ impl Vm {
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
             TargetValue::Same(value) => {
                 match vm_try!(value.as_mut_repr()) {
-                    MutRepr::Inline(Inline::Integer(value)) => {
+                    MutRepr::Inline(Inline::Signed(value)) => {
                         let rhs = *value;
-                        integer_op(value, rhs);
+                        signed_op(value, rhs);
+                        return VmResult::Ok(());
+                    }
+                    MutRepr::Inline(Inline::Unsigned(value)) => {
+                        let rhs = *value;
+                        unsigned_op(value, rhs);
                         return VmResult::Ok(());
                     }
                     MutRepr::Inline(Inline::Byte(value)) => {
@@ -1731,8 +1758,12 @@ impl Vm {
             TargetValue::Pair(lhs, rhs) => {
                 match (vm_try!(lhs.as_mut_repr()), vm_try!(rhs.as_ref_repr())) {
                     (MutRepr::Inline(lhs), RefRepr::Inline(rhs)) => match (lhs, rhs) {
-                        (Inline::Integer(lhs), Inline::Integer(rhs)) => {
-                            integer_op(lhs, *rhs);
+                        (Inline::Signed(lhs), Inline::Signed(rhs)) => {
+                            signed_op(lhs, *rhs);
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Unsigned(lhs), Inline::Unsigned(rhs)) => {
+                            unsigned_op(lhs, *rhs);
                             return VmResult::Ok(());
                         }
                         (Inline::Byte(lhs), Inline::Byte(rhs)) => {
@@ -1773,8 +1804,9 @@ impl Vm {
         &mut self,
         protocol: Protocol,
         error: fn() -> VmErrorKind,
-        integer_op: fn(i64, i64) -> Option<i64>,
-        byte_op: fn(u8, i64) -> Option<u8>,
+        signed_op: fn(i64, u32) -> Option<i64>,
+        unsigned_op: fn(u64, u32) -> Option<u64>,
+        byte_op: fn(u8, u32) -> Option<u8>,
         lhs: InstAddress,
         rhs: InstAddress,
         out: Output,
@@ -1785,11 +1817,18 @@ impl Vm {
                     Pair::Same(value) => {
                         if let MutRepr::Inline(lhs) = vm_try!(value.as_mut_repr()) {
                             match lhs {
-                                Inline::Integer(value) => {
-                                    break 'inline Inline::Integer(vm_try!(integer_op(
-                                        *value, *value
-                                    )
-                                    .ok_or_else(error)));
+                                Inline::Signed(value) => {
+                                    let shift =
+                                        vm_try!(u32::try_from(*value).ok().ok_or_else(error));
+                                    let value = vm_try!(signed_op(*value, shift).ok_or_else(error));
+                                    break 'inline Inline::Signed(value);
+                                }
+                                Inline::Unsigned(value) => {
+                                    let shift =
+                                        vm_try!(u32::try_from(*value).ok().ok_or_else(error));
+                                    let value =
+                                        vm_try!(unsigned_op(*value, shift).ok_or_else(error));
+                                    break 'inline Inline::Unsigned(value);
                                 }
                                 value => {
                                     return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1806,15 +1845,20 @@ impl Vm {
                     Pair::Pair(lhs, rhs) => {
                         match (vm_try!(lhs.as_mut_repr()), vm_try!(rhs.as_ref_repr())) {
                             (MutRepr::Inline(lhs), RefRepr::Inline(rhs)) => match (lhs, rhs) {
-                                (Inline::Integer(lhs), Inline::Integer(rhs)) => {
-                                    break 'inline Inline::Integer(vm_try!(
-                                        integer_op(*lhs, *rhs).ok_or_else(error)
-                                    ));
+                                (Inline::Signed(lhs), rhs) => {
+                                    let rhs = vm_try!(rhs.try_as_integer());
+                                    let value = vm_try!(signed_op(*lhs, rhs).ok_or_else(error));
+                                    break 'inline Inline::Signed(value);
                                 }
-                                (Inline::Byte(lhs), Inline::Integer(rhs)) => {
-                                    break 'inline Inline::Byte(vm_try!(
-                                        byte_op(*lhs, *rhs).ok_or_else(error)
-                                    ));
+                                (Inline::Unsigned(lhs), rhs) => {
+                                    let rhs = vm_try!(rhs.try_as_integer());
+                                    let value = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
+                                    break 'inline Inline::Unsigned(value);
+                                }
+                                (Inline::Byte(lhs), rhs) => {
+                                    let rhs = vm_try!(rhs.try_as_integer());
+                                    let value = vm_try!(byte_op(*lhs, rhs).ok_or_else(error));
+                                    break 'inline Inline::Byte(value);
                                 }
                                 (lhs, rhs) => {
                                     return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1863,8 +1907,9 @@ impl Vm {
         target: InstTarget,
         protocol: Protocol,
         error: fn() -> VmErrorKind,
-        integer_op: fn(i64, i64) -> Option<i64>,
-        byte_op: fn(u8, i64) -> Option<u8>,
+        signed_op: fn(i64, u32) -> Option<i64>,
+        unsigned_op: fn(u64, u32) -> Option<u64>,
+        byte_op: fn(u8, u32) -> Option<u8>,
         rhs: InstAddress,
     ) -> VmResult<()> {
         let lhs;
@@ -1873,8 +1918,15 @@ impl Vm {
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
             TargetValue::Same(value) => {
                 match vm_try!(value.as_mut_repr()) {
-                    MutRepr::Inline(Inline::Integer(value)) => {
-                        let out = vm_try!(integer_op(*value, *value).ok_or_else(error));
+                    MutRepr::Inline(Inline::Signed(value)) => {
+                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(error));
+                        let out = vm_try!(signed_op(*value, shift).ok_or_else(error));
+                        *value = out;
+                        return VmResult::Ok(());
+                    }
+                    MutRepr::Inline(Inline::Unsigned(value)) => {
+                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(error));
+                        let out = vm_try!(unsigned_op(*value, shift).ok_or_else(error));
                         *value = out;
                         return VmResult::Ok(());
                     }
@@ -1893,13 +1945,21 @@ impl Vm {
             TargetValue::Pair(lhs, rhs) => {
                 match (vm_try!(lhs.as_mut_repr()), vm_try!(rhs.as_ref_repr())) {
                     (MutRepr::Inline(lhs), RefRepr::Inline(rhs)) => match (lhs, rhs) {
-                        (Inline::Integer(lhs), Inline::Integer(rhs)) => {
-                            let out = vm_try!(integer_op(*lhs, *rhs).ok_or_else(error));
+                        (Inline::Signed(lhs), rhs) => {
+                            let rhs = vm_try!(rhs.try_as_integer());
+                            let out = vm_try!(signed_op(*lhs, rhs).ok_or_else(error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
-                        (Inline::Byte(lhs), Inline::Integer(rhs)) => {
-                            let out = vm_try!(byte_op(*lhs, *rhs).ok_or_else(error));
+                        (Inline::Unsigned(lhs), rhs) => {
+                            let rhs = vm_try!(rhs.try_as_integer());
+                            let out = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
+                            *lhs = out;
+                            return VmResult::Ok(());
+                        }
+                        (Inline::Byte(lhs), rhs) => {
+                            let rhs = vm_try!(rhs.try_as_integer());
+                            let out = vm_try!(byte_op(*lhs, rhs).ok_or_else(error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
@@ -2108,7 +2168,7 @@ impl Vm {
         let value = match vm_try!(value.borrow_ref_repr()) {
             BorrowRefRepr::Inline(value) => match value {
                 Inline::Bool(value) => Value::from(!value),
-                Inline::Integer(value) => Value::from(!value),
+                Inline::Signed(value) => Value::from(!value),
                 Inline::Byte(value) => Value::from(!value),
                 actual => {
                     let operand = actual.type_info();
@@ -2132,7 +2192,7 @@ impl Vm {
         let value = match vm_try!(value.borrow_ref_repr()) {
             BorrowRefRepr::Inline(value) => match value {
                 Inline::Float(value) => Value::from(-value),
-                Inline::Integer(value) => Value::from(-value),
+                Inline::Signed(value) => Value::from(-value),
                 actual => {
                     let operand = actual.type_info();
                     return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
@@ -2162,6 +2222,7 @@ impl Vm {
                     Protocol::ADD,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
+                    u64::checked_add,
                     ops::Add::add,
                     lhs,
                     rhs,
@@ -2173,6 +2234,7 @@ impl Vm {
                     Protocol::SUB,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
+                    u64::checked_sub,
                     ops::Sub::sub,
                     lhs,
                     rhs,
@@ -2184,6 +2246,7 @@ impl Vm {
                     Protocol::MUL,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
+                    u64::checked_mul,
                     ops::Mul::mul,
                     lhs,
                     rhs,
@@ -2195,6 +2258,7 @@ impl Vm {
                     Protocol::DIV,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
+                    u64::checked_div,
                     ops::Div::div,
                     lhs,
                     rhs,
@@ -2206,6 +2270,7 @@ impl Vm {
                     Protocol::REM,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
+                    u64::checked_rem,
                     ops::Rem::rem,
                     lhs,
                     rhs,
@@ -2217,6 +2282,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_AND,
                     i64::bitand,
+                    u64::bitand,
                     u8::bitand,
                     bool::bitand,
                     lhs,
@@ -2229,6 +2295,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_XOR,
                     i64::bitxor,
+                    u64::bitxor,
                     u8::bitxor,
                     bool::bitxor,
                     lhs,
@@ -2241,6 +2308,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_bool(
                     Protocol::BIT_OR,
                     i64::bitor,
+                    u64::bitor,
                     u8::bitor,
                     bool::bitor,
                     lhs,
@@ -2252,8 +2320,9 @@ impl Vm {
                 vm_try!(self.internal_bitwise(
                     Protocol::SHL,
                     || VmErrorKind::Overflow,
-                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
-                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    i64::checked_shl,
+                    u64::checked_shl,
+                    u8::checked_shl,
                     lhs,
                     rhs,
                     out,
@@ -2263,8 +2332,9 @@ impl Vm {
                 vm_try!(self.internal_bitwise(
                     Protocol::SHR,
                     || VmErrorKind::Underflow,
-                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
-                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
+                    i64::checked_shr,
+                    u64::checked_shr,
+                    u8::checked_shr,
                     lhs,
                     rhs,
                     out
@@ -2366,6 +2436,7 @@ impl Vm {
                     Protocol::ADD_ASSIGN,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
+                    u64::checked_add,
                     ops::Add::add,
                     value,
                 ));
@@ -2376,6 +2447,7 @@ impl Vm {
                     Protocol::SUB_ASSIGN,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
+                    u64::checked_sub,
                     ops::Sub::sub,
                     value,
                 ));
@@ -2386,6 +2458,7 @@ impl Vm {
                     Protocol::MUL_ASSIGN,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
+                    u64::checked_mul,
                     ops::Mul::mul,
                     value,
                 ));
@@ -2396,6 +2469,7 @@ impl Vm {
                     Protocol::DIV_ASSIGN,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
+                    u64::checked_div,
                     ops::Div::div,
                     value,
                 ));
@@ -2406,6 +2480,7 @@ impl Vm {
                     Protocol::REM_ASSIGN,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
+                    u64::checked_rem,
                     ops::Rem::rem,
                     value,
                 ));
@@ -2414,6 +2489,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::BIT_AND_ASSIGN,
+                    ops::BitAndAssign::bitand_assign,
                     ops::BitAndAssign::bitand_assign,
                     ops::BitAndAssign::bitand_assign,
                     ops::BitAndAssign::bitand_assign,
@@ -2427,6 +2503,7 @@ impl Vm {
                     ops::BitXorAssign::bitxor_assign,
                     ops::BitXorAssign::bitxor_assign,
                     ops::BitXorAssign::bitxor_assign,
+                    ops::BitXorAssign::bitxor_assign,
                     value,
                 ));
             }
@@ -2434,6 +2511,7 @@ impl Vm {
                 vm_try!(self.internal_infallible_bitwise_assign(
                     target,
                     Protocol::BIT_OR_ASSIGN,
+                    ops::BitOrAssign::bitor_assign,
                     ops::BitOrAssign::bitor_assign,
                     ops::BitOrAssign::bitor_assign,
                     ops::BitOrAssign::bitor_assign,
@@ -2445,8 +2523,9 @@ impl Vm {
                     target,
                     Protocol::SHL_ASSIGN,
                     || VmErrorKind::Overflow,
-                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
-                    |a, b| a.checked_shl(u32::try_from(b).ok()?),
+                    i64::checked_shl,
+                    u64::checked_shl,
+                    u8::checked_shl,
                     value,
                 ));
             }
@@ -2455,8 +2534,9 @@ impl Vm {
                     target,
                     Protocol::SHR_ASSIGN,
                     || VmErrorKind::Underflow,
-                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
-                    |a, b| a.checked_shr(u32::try_from(b).ok()?),
+                    i64::checked_shr,
+                    u64::checked_shr,
+                    u8::checked_shr,
                     value,
                 ));
             }
@@ -2629,13 +2709,8 @@ impl Vm {
             let target = vm_try!(self.stack.at(target));
 
             match vm_try!(index.as_ref_repr()) {
-                RefRepr::Inline(Inline::Integer(index)) => {
-                    let Ok(index) = usize::try_from(*index) else {
-                        return err(VmErrorKind::MissingIndexInteger {
-                            target: vm_try!(target.type_info()),
-                            index: VmIntegerRepr::from(*index),
-                        });
-                    };
+                RefRepr::Inline(inline) => {
+                    let index = vm_try!(inline.try_as_integer::<usize>());
 
                     if let Some(value) = vm_try!(Self::try_tuple_like_index_get(target, index)) {
                         break 'store value;
@@ -3062,11 +3137,24 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_eq_integer(&mut self, addr: InstAddress, value: i64, out: Output) -> VmResult<()> {
+    fn op_eq_unsigned(&mut self, addr: InstAddress, value: u64, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
         let is_match = match vm_try!(v.as_inline()) {
-            Some(Inline::Integer(actual)) => *actual == value,
+            Some(Inline::Unsigned(actual)) => *actual == value,
+            _ => false,
+        };
+
+        vm_try!(out.store(&mut self.stack, is_match));
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_eq_signed(&mut self, addr: InstAddress, value: i64, out: Output) -> VmResult<()> {
+        let v = vm_try!(self.stack.at(addr));
+
+        let is_match = match vm_try!(v.as_inline()) {
+            Some(Inline::Signed(actual)) => *actual == value,
             _ => false,
         };
 
@@ -3878,8 +3966,11 @@ impl Vm {
                 Inst::EqChar { addr, value, out } => {
                     vm_try!(self.op_eq_character(addr, value, out));
                 }
-                Inst::EqInteger { addr, value, out } => {
-                    vm_try!(self.op_eq_integer(addr, value, out));
+                Inst::EqUnsigned { addr, value, out } => {
+                    vm_try!(self.op_eq_unsigned(addr, value, out));
+                }
+                Inst::EqSigned { addr, value, out } => {
+                    vm_try!(self.op_eq_signed(addr, value, out));
                 }
                 Inst::EqBool {
                     addr,

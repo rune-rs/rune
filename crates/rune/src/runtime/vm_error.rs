@@ -759,6 +759,9 @@ pub(crate) enum VmErrorKind {
     ExpectedAny {
         actual: TypeInfo,
     },
+    ExpectedNumber {
+        actual: TypeInfo,
+    },
     MissingConstantConstructor {
         hash: Hash,
     },
@@ -964,6 +967,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::ExpectedAny { actual } => {
                 write!(f, "Expected `Any` type, but found `{actual}`")
+            }
+            VmErrorKind::ExpectedNumber { actual } => {
+                write!(f, "Expected number type, but found `{actual}`")
             }
             VmErrorKind::MissingConstantConstructor { hash } => {
                 write!(f, "Missing constant constructor for type with hash {hash}")

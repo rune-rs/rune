@@ -150,7 +150,7 @@ pub fn module() -> Result<Module, ContextError> {
             /// // a finite range knows exactly how many times it will iterate
             /// let five = (0..5).iter();
             ///
-            /// assert_eq!(5, five.len());
+            /// assert_eq!(five.len(), 5);
             /// ```
         })?;
 
@@ -188,9 +188,9 @@ pub fn module() -> Result<Module, ContextError> {
                 /// // a finite range knows exactly how many times it will iterate
                 /// let range = (0..5).iter();
                 ///
-                /// assert_eq!(5, range.len());
+                /// assert_eq!(range.len(), 5);
                 /// let _ = range.next();
-                /// assert_eq!(4, range.len());
+                /// assert_eq!(range.len(), 4);
                 /// ```
             })?;
     }
@@ -681,9 +681,9 @@ pub fn module() -> Result<Module, ContextError> {
                 /// let a = [1, 2, 3];
                 /// let iter = a.iter();
                 ///
-                /// assert_eq!((3, Some(3)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (3u64, Some(3)));
                 /// let _ = iter.next();
-                /// assert_eq!((2, Some(2)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (2u64, Some(2)));
                 /// ```
                 ///
                 /// A more complex example:
@@ -694,13 +694,13 @@ pub fn module() -> Result<Module, ContextError> {
                 ///
                 /// // We might iterate from zero to ten times. Knowing that it's five
                 /// // exactly wouldn't be possible without executing filter().
-                /// assert_eq!((0, Some(10)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (0, Some(10)));
                 ///
                 /// // Let's add five more numbers with chain()
                 /// let iter = (0..10).iter().filter(|x| x % 2 == 0).chain(15..20);
                 ///
                 /// // now both bounds are increased by five
-                /// assert_eq!((5, Some(15)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (5, Some(15)));
                 /// ```
                 ///
                 /// Returning `None` for an upper bound:
@@ -710,7 +710,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// // and the maximum possible lower bound
                 /// let iter = (0..).iter();
                 ///
-                /// assert_eq!((i64::MAX, None), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (u64::MAX, None));
                 /// ```
             })?;
 
@@ -1094,9 +1094,9 @@ pub fn module() -> Result<Module, ContextError> {
                 ///
                 /// let iter = a.iter().enumerate();
                 ///
-                /// assert_eq!(iter.next(), Some((0, 'a')));
-                /// assert_eq!(iter.next(), Some((1, 'b')));
-                /// assert_eq!(iter.next(), Some((2, 'c')));
+                /// assert_eq!(iter.next(), Some((0u64, 'a')));
+                /// assert_eq!(iter.next(), Some((1u64, 'b')));
+                /// assert_eq!(iter.next(), Some((2u64, 'c')));
                 /// assert_eq!(iter.next(), None);
                 /// ```
             })?;
@@ -2485,6 +2485,21 @@ impl CheckedOps for i64 {
     #[inline]
     fn checked_mul(self, value: Self) -> Option<Self> {
         i64::checked_mul(self, value)
+    }
+}
+
+impl CheckedOps for u64 {
+    const ONE: Self = 1;
+    const ZERO: Self = 0;
+
+    #[inline]
+    fn checked_add(self, value: Self) -> Option<Self> {
+        u64::checked_add(self, value)
+    }
+
+    #[inline]
+    fn checked_mul(self, value: Self) -> Option<Self> {
+        u64::checked_mul(self, value)
     }
 }
 

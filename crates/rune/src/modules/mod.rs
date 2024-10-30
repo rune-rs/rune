@@ -11,6 +11,9 @@
 //
 // Copyright 2014-2024 The Rust Project Developers
 
+#[macro_use]
+mod inner_macros;
+
 pub mod any;
 pub mod bytes;
 #[cfg(feature = "capture-io")]
@@ -42,4 +45,5 @@ pub mod stream;
 pub mod string;
 pub mod test;
 pub mod tuple;
+pub mod u64;
 pub mod vec;

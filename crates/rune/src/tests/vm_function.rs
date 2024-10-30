@@ -59,7 +59,7 @@ fn test_function() {
 
     assert!(function.call::<Value>((1i64,)).into_result().is_err());
     let value: Value = function.call((1i64, 2i64)).unwrap();
-    assert_eq!(value.as_integer().unwrap(), 3);
+    assert_eq!(value.as_signed().unwrap(), 3);
 
     // closure with captures
     let function: Function = run(
@@ -72,5 +72,5 @@ fn test_function() {
 
     assert!(function.call::<Value>((1i64,)).into_result().is_err());
     let value: Value = function.call(()).unwrap();
-    assert_eq!(value.as_integer().unwrap(), 3);
+    assert_eq!(value.as_signed().unwrap(), 3);
 }
