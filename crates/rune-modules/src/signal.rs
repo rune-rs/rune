@@ -27,13 +27,24 @@
 //! }
 //! ```
 
+// Documentation copied from the Tokio project under the MIT license.
+// See: https://github.com/tokio-rs/tokio/blob/master/LICENSE
+
 use std::io;
 
 use rune::{ContextError, Module};
 
 /// Construct the `signal` module.
+///
+/// # Tokio
+///
+/// This function is implemented using [Tokio], and requires the Tokio runtime
+/// to be in scope.
+///
+/// [Tokio]: https://tokio.rs
+#[rune::module(::signal)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("signal")?;
+    let mut module = Module::from_meta(self::module_meta)?;
     module.function_meta(ctrl_c)?;
     Ok(module)
 }
@@ -47,13 +58,6 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// Once the returned future is polled, a listener is registered. The future
 /// will complete on the first received `ctrl-c` **after** the initial call to
 /// either `Future::poll` or `.await`.
-///
-/// # Tokio
-///
-/// This function is implemented using [Tokio], and requires the Tokio runtime
-/// to be in scope.
-///
-/// [Tokio]: https://tokio.rs
 ///
 /// # Caveats
 ///
