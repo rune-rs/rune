@@ -1234,7 +1234,7 @@ impl Output {
     ///     let mut number = 0;
     ///
     ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer());
+    ///         number += vm_try!(value.as_integer::<i64>());
     ///     }
     ///
     ///     out.store(stack, number);

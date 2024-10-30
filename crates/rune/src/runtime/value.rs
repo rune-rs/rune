@@ -1598,8 +1598,8 @@ impl Value {
     /// ```
     /// let value = rune::to_value(u32::MAX)?;
     ///
-    /// assert_eq!(value.impl_integer::<u64>()?, u32::MAX as u64);
-    /// assert!(value.impl_integer::<i32>().is_err());
+    /// assert_eq!(value.as_integer::<u64>()?, u32::MAX as u64);
+    /// assert!(value.as_integer::<i32>().is_err());
     ///
     /// # Ok::<(), rune::support::Error>(())
     /// ```

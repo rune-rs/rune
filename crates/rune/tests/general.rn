@@ -151,7 +151,7 @@ fn test_is() {
     assert!({} is Tuple);
     assert!(#{} is Object);
     assert!(() is Tuple);
-    assert!((1,) is Tuple);
+    assert!((1, ) is Tuple);
     assert!((1, 2) is Tuple);
     assert!(foo() is Tuple);
     assert!(true is bool);

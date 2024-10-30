@@ -75,22 +75,6 @@ fn test_field_fn() {
             (t1, ),
             String => pub fn main(val) { std::any::type_name_of_val(val.x) }
         },
-        "::std::i64"
+        "::std::u64"
     );
 }
-
-// Not sure what the right return should be here - it returns the field name, but it probably should return ::std::i64?
-// #[test]
-// fn test_field_fn_ref() {
-//     assert_eq!(
-//         rune_n! {
-//             make_native_module().expect("failed making native module"),
-//             (),
-//             String =>
-//             pub fn main() {
-//                 std::any::type_name_of_val(native_crate::NativeStruct::x)
-//             }
-//         },
-//         "::std::i64"
-//     );
-// }

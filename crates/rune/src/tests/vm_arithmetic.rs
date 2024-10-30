@@ -141,34 +141,74 @@ fn test_bit_ops_i64() {
 }
 
 #[test]
+fn test_bit_ops_u64() {
+    op_tests!(u64, 0b1100 & 0b0110 = 0b1100 & 0b0110);
+    op_tests!(u64, 0b1100 ^ 0b0110 = 0b1100 ^ 0b0110);
+    op_tests!(u64, 0b1100 | 0b0110 = 0b1100 | 0b0110);
+    op_tests!(u64, 0b1100 << 2 = 0b1100 << 2);
+    op_tests!(u64, 0b1100 >> 2 = 0b1100 >> 2);
+    error_test!(0b1 << 64 = Overflow);
+    error_test!(0b1 >> 64 = Underflow);
+}
+
+#[test]
 fn test_bit_ops_u8() {
     op_tests!(u8, 0b1100u8 & 0b0110u8 = 0b1100u8 & 0b0110u8);
     op_tests!(u8, 0b1100u8 ^ 0b0110u8 = 0b1100u8 ^ 0b0110u8);
     op_tests!(u8, 0b1100u8 | 0b0110u8 = 0b1100u8 | 0b0110u8);
     op_tests!(u8, 0b1100u8 << 2 = 0b1100u8 << 2);
     op_tests!(u8, 0b1100u8 >> 2 = 0b1100u8 >> 2);
-    error_test!(0b1u8 << 8 = Overflow);
-    error_test!(0b1u8 >> 8 = Underflow);
+}
+
+#[test]
+fn test_bit_ops_i8() {
+    op_tests!(i8, 0b1100i8 & 0b0110i8 = 0b1100i8 & 0b0110i8);
+    op_tests!(i8, 0b1100i8 ^ 0b0110i8 = 0b1100i8 ^ 0b0110i8);
+    op_tests!(i8, 0b1100i8 | 0b0110i8 = 0b1100i8 | 0b0110i8);
+    op_tests!(i8, 0b1100i8 << 2 = 0b1100i8 << 2);
+    op_tests!(i8, 0b1100i8 >> 2 = 0b1100i8 >> 2);
 }
 
 #[test]
 fn test_bitwise_not_i64() {
     let out: i64 = rune!(
         pub fn main() {
-            let a = 0b10100;
+            let a = 0b10100i64;
             !a
         }
     );
-    assert_eq!(out, !0b10100);
+    assert_eq!(out, !0b10100i64);
+}
+
+#[test]
+fn test_bitwise_not_u64() {
+    let out: u64 = rune!(
+        pub fn main() {
+            let a = 0b10100u64;
+            !a
+        }
+    );
+    assert_eq!(out, !0b10100u64);
 }
 
 #[test]
 fn test_bitwise_not_u8() {
-    let out: u8 = rune!(
+    let out: u64 = rune!(
         pub fn main() {
             let a = 0b10100u8;
             !a
         }
     );
-    assert_eq!(out, !0b10100u8);
+    assert_eq!(out, !0b10100u64);
+}
+
+#[test]
+fn test_bitwise_not_i8() {
+    let out: i64 = rune!(
+        pub fn main() {
+            let a = 0b10100i8;
+            !a
+        }
+    );
+    assert_eq!(out, !0b10100i64);
 }

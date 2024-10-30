@@ -5,7 +5,7 @@ use core::cmp::Ordering;
 use crate as rune;
 use crate::runtime::slice::Iter;
 use crate::runtime::{EnvProtocolCaller, Hasher, Ref, Tuple, Value, Vec, VmResult};
-use crate::{ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 /// The [`Tuple`] fixed collection.
 ///
@@ -42,7 +42,9 @@ use crate::{ContextError, Module};
 #[rune::module(::std::tuple)]
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
-    m.ty::<Tuple>()?.docs(["The tuple type."])?;
+    m.ty::<Tuple>()?.docs(docstring! {
+        /// The tuple type.
+    })?;
     m.function_meta(len)?;
     m.function_meta(is_empty)?;
     m.function_meta(get)?;
