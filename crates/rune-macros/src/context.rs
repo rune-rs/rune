@@ -12,6 +12,7 @@ use syn::Token;
 
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
+#[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct FieldAttrs {
     /// A field that is an identifier. Should use `Default::default` to be
     /// constructed and ignored during `ToTokens` and `Spanned`.
@@ -46,6 +47,7 @@ impl FieldAttrs {
 
 /// Parsed #[const_value(..)] field attributes.
 #[derive(Default)]
+#[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct ConstValueFieldAttrs {
     /// Define a custom parsing method.
     pub(crate) with: Option<syn::Path>,
@@ -68,6 +70,7 @@ impl Default for ParseKind {
 
 /// Parsed field attributes.
 #[derive(Default)]
+#[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct TypeAttr {
     /// `#[rune(name = TypeName)]` to override the default type name.
     pub(crate) name: Option<syn::Ident>,
@@ -80,7 +83,7 @@ pub(crate) struct TypeAttr {
     /// `#[rune(item = <path>)]`.
     pub(crate) item: Option<syn::Path>,
     /// `#[rune(constructor)]`.
-    pub(crate) constructor: bool,
+    pub(crate) constructor: Option<Span>,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
     /// Indicates that this is a builtin type, so don't generate an `Any`
@@ -100,6 +103,7 @@ pub(crate) struct TypeAttr {
 
 /// Parsed #[const_value(..)] field attributes.
 #[derive(Default)]
+#[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct ConstValueTypeAttr {
     /// `#[const_value(module = <path>)]`.
     pub(crate) module: Option<syn::Path>,
@@ -107,9 +111,10 @@ pub(crate) struct ConstValueTypeAttr {
 
 /// Parsed variant attributes.
 #[derive(Default)]
+#[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct VariantAttrs {
     /// `#[rune(constructor)]`.
-    pub(crate) constructor: bool,
+    pub(crate) constructor: Option<Span>,
     /// Discovered documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -169,6 +174,47 @@ impl Context {
         }
     }
 
+    /// Helper to build using a function that takes a context.
+    pub(super) fn build(f: impl FnOnce(&Self) -> Result<TokenStream, ()>) -> TokenStream {
+        let cx = Self::new();
+        cx.build_inner(f)
+    }
+
+    /// Helper to build using a function that takes a context internally.
+    pub(super) fn build_with_crate(
+        f: impl FnOnce(&Self) -> Result<TokenStream, ()>,
+    ) -> TokenStream {
+        let cx = Self::with_crate();
+        cx.build_inner(f)
+    }
+
+    fn build_inner(self, f: impl FnOnce(&Self) -> Result<TokenStream, ()>) -> TokenStream {
+        fn to_compile_errors<I>(errors: I) -> TokenStream
+        where
+            I: IntoIterator<Item = syn::Error>,
+        {
+            let mut stream = TokenStream::default();
+
+            for error in errors {
+                stream.extend(error.into_compile_error());
+            }
+
+            stream
+        }
+
+        let Ok(builder) = f(&self) else {
+            return to_compile_errors(self.errors.into_inner());
+        };
+
+        let errors = self.errors.into_inner();
+
+        if !errors.is_empty() {
+            return to_compile_errors(errors);
+        }
+
+        builder
+    }
+
     /// Register an error.
     pub(crate) fn error(&self, error: syn::Error) {
         self.errors.borrow_mut().push(error)
@@ -192,11 +238,7 @@ impl Context {
         Ok(ident)
     }
 
-    pub(crate) fn const_value_field_attrs(
-        &self,
-        input: &[syn::Attribute],
-    ) -> Result<ConstValueFieldAttrs, ()> {
-        let mut error = false;
+    pub(crate) fn const_value_field_attrs(&self, input: &[syn::Attribute]) -> ConstValueFieldAttrs {
         let mut attr = ConstValueFieldAttrs::default();
 
         for a in input {
@@ -218,20 +260,15 @@ impl Context {
             });
 
             if let Err(e) = result {
-                error = true;
                 self.error(e);
             };
         }
 
-        if error {
-            return Err(());
-        }
-
-        Ok(attr)
+        attr
     }
 
     /// Parse field attributes.
-    pub(crate) fn field_attrs(&self, input: &[syn::Attribute]) -> Result<FieldAttrs, ()> {
+    pub(crate) fn field_attrs(&self, input: &[syn::Attribute]) -> FieldAttrs {
         macro_rules! generate_assign {
             ($proto:ident, $op:tt) => {
                 |g| {
@@ -277,7 +314,6 @@ impl Context {
             };
         }
 
-        let mut error = false;
         let mut attr = FieldAttrs::default();
 
         for a in input {
@@ -457,23 +493,14 @@ impl Context {
             });
 
             if let Err(e) = result {
-                error = true;
                 self.error(e);
             }
         }
 
-        if error {
-            return Err(());
-        }
-
-        Ok(attr)
+        attr
     }
 
-    pub(crate) fn const_value_type_attrs(
-        &self,
-        input: &[syn::Attribute],
-    ) -> Result<ConstValueTypeAttr, ()> {
-        let mut error = false;
+    pub(crate) fn const_value_type_attrs(&self, input: &[syn::Attribute]) -> ConstValueTypeAttr {
         let mut attr = ConstValueTypeAttr::default();
 
         for a in input {
@@ -500,21 +527,15 @@ impl Context {
             });
 
             if let Err(e) = result {
-                error = true;
                 self.error(e);
             };
         }
 
-        if error {
-            return Err(());
-        }
-
-        Ok(attr)
+        attr
     }
 
     /// Parse field attributes.
-    pub(crate) fn type_attrs(&self, input: &[syn::Attribute]) -> Result<TypeAttr, ()> {
-        let mut error = false;
+    pub(crate) fn type_attrs(&self, input: &[syn::Attribute]) -> TypeAttr {
         let mut attr = TypeAttr::default();
 
         for a in input {
@@ -567,7 +588,14 @@ impl Context {
                         meta.input.parse::<Token![=]>()?;
                         attr.install_with = Some(parse_path_compat(meta.input)?);
                     } else if meta.path == CONSTRUCTOR {
-                        attr.constructor = true;
+                        if attr.constructor.is_some() {
+                            return Err(syn::Error::new(
+                                meta.path.span(),
+                                "#[rune(constructor)] must only be used once",
+                            ));
+                        }
+
+                        attr.constructor = Some(meta.path.span());
                     } else if meta.path == BUILTIN {
                         attr.builtin = Some(meta.path.span());
                     } else if meta.path == STATIC_TYPE {
@@ -599,23 +627,17 @@ impl Context {
                 });
 
                 if let Err(e) = result {
-                    error = true;
                     self.error(e);
                 };
             }
         }
 
-        if error {
-            return Err(());
-        }
-
-        Ok(attr)
+        attr
     }
 
     /// Parse and extract variant attributes.
-    pub(crate) fn variant_attr(&self, input: &[syn::Attribute]) -> Result<VariantAttrs, ()> {
+    pub(crate) fn variant_attr(&self, input: &[syn::Attribute]) -> VariantAttrs {
         let mut attr = VariantAttrs::default();
-        let mut error = false;
 
         for a in input {
             if a.path().is_ident("doc") {
@@ -629,14 +651,14 @@ impl Context {
             if a.path() == RUNE {
                 let result = a.parse_nested_meta(|meta| {
                     if meta.path == CONSTRUCTOR {
-                        if attr.constructor {
-                            return Err(syn::Error::new_spanned(
-                                &meta.path,
+                        if attr.constructor.is_some() {
+                            return Err(syn::Error::new(
+                                meta.path.span(),
                                 "#[rune(constructor)] must only be used once",
                             ));
                         }
 
-                        attr.constructor = true;
+                        attr.constructor = Some(meta.path.span());
                     } else {
                         return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
                     }
@@ -645,17 +667,12 @@ impl Context {
                 });
 
                 if let Err(e) = result {
-                    error = true;
                     self.error(e);
                 };
             }
         }
 
-        if error {
-            return Err(());
-        }
-
-        Ok(attr)
+        attr
     }
 
     /// Parse path to custom field function.

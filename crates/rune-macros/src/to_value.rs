@@ -2,12 +2,12 @@ use crate::context::{Context, Tokens};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-struct Expander {
-    cx: Context,
+struct Expander<'cx> {
+    cx: &'cx Context,
     tokens: Tokens,
 }
 
-impl Expander {
+impl Expander<'_> {
     /// Expand on a struct.
     fn expand_struct(
         &mut self,
@@ -66,7 +66,7 @@ impl Expander {
         } = &self.tokens;
 
         for (index, f) in unnamed.unnamed.iter().enumerate() {
-            let _ = self.cx.field_attrs(&f.attrs)?;
+            _ = self.cx.field_attrs(&f.attrs);
             let index = syn::Index::from(index);
             to_values.push(quote!(#vec::try_push(&mut tuple, #to_value::to_value(self.#index)?)?));
         }
@@ -97,7 +97,7 @@ impl Expander {
 
         for f in &named.named {
             let ident = self.cx.field_ident(f)?;
-            let _ = self.cx.field_attrs(&f.attrs)?;
+            _ = self.cx.field_attrs(&f.attrs);
 
             let name = &syn::LitStr::new(&ident.to_string(), ident.span());
 
@@ -114,19 +114,11 @@ impl Expander {
     }
 }
 
-pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
-    let cx = Context::new();
-
-    let Ok(attr) = cx.type_attrs(&input.attrs) else {
-        return Err(cx.errors.into_inner());
-    };
-
+pub(super) fn expand(cx: &Context, input: &syn::DeriveInput) -> Result<TokenStream, ()> {
+    let attr = cx.type_attrs(&input.attrs);
     let tokens = cx.tokens_with_module(attr.module.as_ref());
 
-    let mut expander = Expander {
-        cx: Context::new(),
-        tokens,
-    };
+    let mut expander = Expander { cx, tokens };
 
     match &input.data {
         syn::Data::Struct(st) => {
@@ -148,5 +140,5 @@ pub(super) fn expand(input: &syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
         }
     }
 
-    Err(expander.cx.errors.into_inner())
+    Err(())
 }

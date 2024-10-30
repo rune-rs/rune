@@ -18,8 +18,7 @@ impl syn::parse::Parse for Derive {
 }
 
 impl Derive {
-    pub(super) fn expand(self) -> Result<TokenStream, Vec<syn::Error>> {
-        let cx = Context::new();
+    pub(super) fn expand(self, cx: &Context) -> Result<TokenStream, ()> {
         let tokens = cx.tokens_with_module(None);
 
         let mut expander = Expander { cx, tokens };
@@ -43,23 +42,23 @@ impl Derive {
             }
         }
 
-        Err(expander.cx.errors.into_inner())
+        Err(())
     }
 }
 
-struct Expander {
-    cx: Context,
+struct Expander<'cx> {
+    cx: &'cx Context,
     tokens: Tokens,
 }
 
-impl Expander {
+impl Expander<'_> {
     /// Expand on a struct.
     fn expand_struct(
         &mut self,
         input: &syn::DeriveInput,
         st: &syn::DataStruct,
     ) -> Result<TokenStream, ()> {
-        let _ = self.cx.type_attrs(&input.attrs)?;
+        _ = self.cx.type_attrs(&input.attrs);
         self.expand_struct_fields(input, &st.fields)
     }
 
@@ -69,7 +68,7 @@ impl Expander {
         input: &syn::DeriveInput,
         st: &syn::DataEnum,
     ) -> Result<TokenStream, ()> {
-        let _ = self.cx.type_attrs(&input.attrs)?;
+        _ = self.cx.type_attrs(&input.attrs);
 
         let mut impl_into_tokens = Vec::new();
 
@@ -163,7 +162,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.cx.field_ident(field)?;
-            let attrs = self.cx.field_attrs(&field.attrs)?;
+            let attrs = self.cx.field_attrs(&field.attrs);
 
             if attrs.skip() {
                 continue;
@@ -208,7 +207,7 @@ impl Expander {
 
         for field in &named.named {
             let ident = self.cx.field_ident(field)?;
-            let attrs = self.cx.field_attrs(&field.attrs)?;
+            let attrs = self.cx.field_attrs(&field.attrs);
             idents.push(ident);
 
             if attrs.skip() {
@@ -238,7 +237,7 @@ impl Expander {
 
         for (n, field) in named.unnamed.iter().enumerate() {
             let ident = syn::Ident::new(&format!("f{}", n), field.span());
-            let attrs = self.cx.field_attrs(&field.attrs)?;
+            let attrs = self.cx.field_attrs(&field.attrs);
 
             idents.push(ident.clone());
 
