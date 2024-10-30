@@ -26,7 +26,8 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
-use crate::{Any, Hash};
+use crate::runtime;
+use crate::{Any, Hash, TypeHash};
 
 use super::static_type;
 use super::{
@@ -416,14 +417,13 @@ impl Value {
 
     pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<Value> {
         'fallback: {
-            let value = match vm_try!(self.borrow_ref_repr()) {
-                BorrowRefRepr::Inline(value) => {
+            let value = match vm_try!(self.as_ref_repr()) {
+                RefRepr::Inline(value) => {
                     return VmResult::Ok(Self {
                         repr: Repr::Inline(*value),
                     });
                 }
-                BorrowRefRepr::Mutable(value) => match &*value {
-                    Mutable::Vec(value) => Mutable::Vec(vm_try!(value.try_clone())),
+                RefRepr::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
                     Mutable::Tuple(value) => Mutable::Tuple(vm_try!(value.try_clone())),
                     Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
                     Mutable::Stream(value) => Mutable::Stream(vm_try!(value.try_clone())),
@@ -439,7 +439,7 @@ impl Value {
                         break 'fallback;
                     }
                 },
-                BorrowRefRepr::Any(..) => {
+                RefRepr::Any(..) => {
                     break 'fallback;
                 }
             };
@@ -491,9 +491,6 @@ impl Value {
             };
 
             match &*vm_try!(value.borrow_ref()) {
-                Mutable::Vec(value) => {
-                    vm_try!(Vec::string_debug_with(value, f, caller));
-                }
                 Mutable::Tuple(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
@@ -812,16 +809,6 @@ impl Value {
     }
 
     into! {
-        /// Coerce into [`Vec`].
-        Vec(Vec),
-        into_vec_ref,
-        into_vec_mut,
-        borrow_vec_ref,
-        borrow_vec_mut,
-        into_vec,
-    }
-
-    into! {
         /// Coerce into a [`Function`].
         Function(Function),
         into_function_ref,
@@ -1109,82 +1096,98 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         'fallback: {
-            let a = vm_try!(self.borrow_ref_repr());
+            let a = 'mutable: {
+                match (vm_try!(self.as_ref_repr()), vm_try!(b.borrow_ref_repr())) {
+                    (RefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
+                        return VmResult::Ok(vm_try!(a.partial_eq(b)));
+                    }
+                    (RefRepr::Inline(a), b) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: Protocol::PARTIAL_EQ.name,
+                            lhs: a.type_info(),
+                            rhs: b.type_info(),
+                        });
+                    }
+                    (RefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => {
+                        let a = vm_try!(a.borrow_ref());
 
-            let a = match (&a, vm_try!(b.borrow_ref_repr())) {
-                (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
-                    return VmResult::Ok(vm_try!(a.partial_eq(b)));
-                }
-                (BorrowRefRepr::Inline(lhs), rhs) => {
-                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                        op: Protocol::PARTIAL_EQ.name,
-                        lhs: lhs.type_info(),
-                        rhs: rhs.type_info(),
-                    });
-                }
-                (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b2)) => match (&**a, &*b2) {
-                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            // NB: don't get any future ideas, this must fall through to
-                            // the VmError below since it's otherwise a comparison
-                            // between two incompatible types.
-                            //
-                            // Other than that, all units are equal.
-                            return VmResult::Ok(true);
+                        match (&*a, &*b) {
+                            (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
+                                if a.rtti.hash == b.rtti.hash {
+                                    // NB: don't get any future ideas, this must fall through to
+                                    // the VmError below since it's otherwise a comparison
+                                    // between two incompatible types.
+                                    //
+                                    // Other than that, all units are equal.
+                                    return VmResult::Ok(true);
+                                }
+
+                                break 'fallback;
+                            }
+                            (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
+                                if a.rtti.hash == b.rtti.hash {
+                                    return Vec::eq_with(
+                                        &a.data,
+                                        &b.data,
+                                        Value::partial_eq_with,
+                                        caller,
+                                    );
+                                }
+
+                                break 'fallback;
+                            }
+                            (Mutable::Struct(a), Mutable::Struct(b)) => {
+                                if a.rtti.hash == b.rtti.hash {
+                                    return Object::eq_with(
+                                        &a.data,
+                                        &b.data,
+                                        Value::partial_eq_with,
+                                        caller,
+                                    );
+                                }
+
+                                break 'fallback;
+                            }
+                            (Mutable::Variant(a), Mutable::Variant(b)) => {
+                                if a.rtti().enum_hash == b.rtti().enum_hash {
+                                    return Variant::partial_eq_with(a, b, caller);
+                                }
+
+                                break 'fallback;
+                            }
+                            (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
+                                (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
+                                (None, None) => return VmResult::Ok(true),
+                                _ => return VmResult::Ok(false),
+                            },
+                            (Mutable::Result(a), Mutable::Result(b)) => match (a, b) {
+                                (Ok(a), Ok(b)) => return Value::partial_eq_with(a, b, caller),
+                                (Err(a), Err(b)) => return Value::partial_eq_with(a, b, caller),
+                                _ => return VmResult::Ok(false),
+                            },
+                            _ => {}
                         }
 
-                        break 'fallback;
+                        break 'mutable a;
                     }
-                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
+                    (RefRepr::Any(value), _) => match value.type_hash() {
+                        runtime::Vec::HASH => {
+                            let vec = vm_try!(value.borrow_ref::<Vec>());
+                            return Vec::partial_eq_with(&vec, b.clone(), caller);
                         }
-
-                        break 'fallback;
-                    }
-                    (Mutable::Struct(a), Mutable::Struct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Object::eq_with(
-                                &a.data,
-                                &b.data,
-                                Value::partial_eq_with,
-                                caller,
-                            );
+                        _ => {
+                            break 'fallback;
                         }
-
-                        break 'fallback;
-                    }
-                    (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().enum_hash == b.rtti().enum_hash {
-                            return Variant::partial_eq_with(a, b, caller);
-                        }
-
-                        break 'fallback;
-                    }
-                    (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
-                        (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
-                        (None, None) => return VmResult::Ok(true),
-                        _ => return VmResult::Ok(false),
                     },
-                    (Mutable::Result(a), Mutable::Result(b)) => match (a, b) {
-                        (Ok(a), Ok(b)) => return Value::partial_eq_with(a, b, caller),
-                        (Err(a), Err(b)) => return Value::partial_eq_with(a, b, caller),
-                        _ => return VmResult::Ok(false),
-                    },
-                    (a, _) => a,
-                },
-                _ => break 'fallback,
+                    _ => {
+                        break 'fallback;
+                    }
+                }
             };
 
             // Special cases.
-            match a {
-                Mutable::Vec(a) => {
-                    return Vec::partial_eq_with(a, b.clone(), caller);
-                }
-                Mutable::Tuple(a) => {
-                    return Vec::partial_eq_with(a, b.clone(), caller);
-                }
-                _ => {}
+            if let Mutable::Tuple(a) = &*a {
+                return Vec::partial_eq_with(a, b.clone(), caller);
             }
         }
 
@@ -1245,15 +1248,15 @@ impl Value {
                     });
                 }
             },
-            BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Tuple(tuple) => {
+            BorrowRefRepr::Mutable(value) => {
+                if let Mutable::Tuple(tuple) = &*value {
                     return Tuple::hash_with(tuple, hasher, caller);
                 }
-                Mutable::Vec(vec) => {
-                    return Vec::hash_with(vec, hasher, caller);
-                }
-                _ => {}
-            },
+            }
+            BorrowRefRepr::Any(value) if value.type_hash() == runtime::Vec::HASH => {
+                let vec = vm_try!(value.borrow_ref::<Vec>());
+                return Vec::hash_with(&vec, hasher, caller);
+            }
             _ => {}
         }
 
@@ -1305,9 +1308,6 @@ impl Value {
                 });
             }
             (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Vec(a), Mutable::Vec(b)) => {
-                    return Vec::eq_with(a, b, Value::eq_with, caller);
-                }
                 (Mutable::Tuple(a), Mutable::Tuple(b)) => {
                     return Vec::eq_with(a, b, Value::eq_with, caller);
                 }
@@ -1407,9 +1407,6 @@ impl Value {
                 })
             }
             (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Vec(a), Mutable::Vec(b)) => {
-                    return Vec::partial_cmp_with(a, b, caller);
-                }
                 (Mutable::Tuple(a), Mutable::Tuple(b)) => {
                     return Vec::partial_cmp_with(a, b, caller);
                 }
@@ -1502,9 +1499,6 @@ impl Value {
         ) {
             (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => return a.cmp(b),
             (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Vec(a), Mutable::Vec(b)) => {
-                    return Vec::cmp_with(a, b, caller);
-                }
                 (Mutable::Tuple(a), Mutable::Tuple(b)) => {
                     return Vec::cmp_with(a, b, caller);
                 }
@@ -1612,7 +1606,7 @@ impl Value {
 
     /// Test if the value is inline.
     pub(crate) fn is_inline(&self) -> bool {
-        matches!(self.repr, Repr::Any(..) | Repr::Inline(..))
+        matches!(self.repr, Repr::Inline(..))
     }
 
     /// Coerce into a checked [`Inline`] object.
@@ -1887,7 +1881,6 @@ inline_from! {
 
 from! {
     Function => Function,
-    Vec => Vec,
     EmptyStruct => EmptyStruct,
     TupleStruct => TupleStruct,
     Struct => Struct,
@@ -1905,6 +1898,7 @@ any_from! {
     super::Format,
     super::ControlFlow,
     super::GeneratorState,
+    super::Vec,
 }
 
 from_container! {
@@ -2024,8 +2018,6 @@ impl TypeValue {
 }
 
 pub(crate) enum Mutable {
-    /// A vector containing any values.
-    Vec(Vec),
     /// A tuple.
     Tuple(OwnedTuple),
     /// An object.
@@ -2055,7 +2047,6 @@ pub(crate) enum Mutable {
 impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Mutable::Vec(..) => TypeInfo::static_type(static_type::VEC),
             Mutable::Tuple(..) => TypeInfo::static_type(static_type::TUPLE),
             Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
             Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
@@ -2077,7 +2068,6 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::Vec(..) => static_type::VEC.hash,
             Mutable::Tuple(..) => static_type::TUPLE.hash,
             Mutable::Object(..) => static_type::OBJECT.hash,
             Mutable::Future(..) => static_type::FUTURE.hash,

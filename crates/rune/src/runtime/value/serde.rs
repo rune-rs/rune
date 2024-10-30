@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{BorrowRefRepr, Bytes, Inline, Mutable, Object, Vec};
+use crate::runtime::{self, BorrowRefRepr, Bytes, Inline, Mutable, Object, Vec};
 use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
@@ -38,15 +38,6 @@ impl ser::Serialize for Value {
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
             BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Vec(vec) => {
-                    let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
-
-                    for value in vec {
-                        serializer.serialize_element(value)?;
-                    }
-
-                    serializer.end()
-                }
                 Mutable::Tuple(tuple) => {
                     let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
@@ -90,6 +81,16 @@ impl ser::Serialize for Value {
                 Bytes::HASH => {
                     let bytes = value.borrow_ref::<Bytes>().map_err(S::Error::custom)?;
                     serializer.serialize_bytes(bytes.as_slice())
+                }
+                runtime::Vec::HASH => {
+                    let vec = value.borrow_ref::<Vec>().map_err(S::Error::custom)?;
+                    let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
+
+                    for value in vec.iter() {
+                        serializer.serialize_element(value)?;
+                    }
+
+                    serializer.end()
                 }
                 _ => Err(ser::Error::custom("cannot serialize external references")),
             },

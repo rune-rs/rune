@@ -3,10 +3,10 @@
 use crate as rune;
 use crate::alloc::Vec;
 use crate::runtime::{
-    BorrowRefRepr, Future, Inline, Mut, Mutable, RefRepr, SelectFuture, Value, VmErrorKind,
+    self, BorrowRefRepr, Future, Inline, Mut, Mutable, RefRepr, SelectFuture, Value, VmErrorKind,
     VmResult,
 };
-use crate::{ContextError, Module};
+use crate::{ContextError, Module, TypeHash};
 
 /// Asynchronous computations.
 #[rune::module(::std::future)]
@@ -106,7 +106,7 @@ async fn join(value: Value) -> VmResult<Value> {
             Inline::Unit => VmResult::Ok(Value::unit()),
             value => VmResult::err([
                 VmErrorKind::bad_argument(0),
-                VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
+                VmErrorKind::expected::<runtime::Vec>(value.type_info()),
             ]),
         },
         BorrowRefRepr::Mutable(value) => match *value {
@@ -118,21 +118,24 @@ async fn join(value: Value) -> VmResult<Value> {
 
                 VmResult::Ok(vm_try!(result))
             }
-            Mutable::Vec(ref vec) => {
+            ref value => VmResult::err([
+                VmErrorKind::bad_argument(0),
+                VmErrorKind::expected::<runtime::Vec>(value.type_info()),
+            ]),
+        },
+        BorrowRefRepr::Any(value) => match value.type_hash() {
+            runtime::Vec::HASH => {
+                let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
                 let result = try_join_impl(vec.iter(), vec.len(), |vec| {
                     VmResult::Ok(vm_try!(Value::vec(vec)))
                 })
                 .await;
                 VmResult::Ok(vm_try!(result))
             }
-            ref value => VmResult::err([
+            _ => VmResult::err([
                 VmErrorKind::bad_argument(0),
-                VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
+                VmErrorKind::expected::<runtime::Vec>(value.type_info()),
             ]),
         },
-        BorrowRefRepr::Any(value) => VmResult::err([
-            VmErrorKind::bad_argument(0),
-            VmErrorKind::expected::<crate::runtime::Vec>(value.type_info()),
-        ]),
     }
 }

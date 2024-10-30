@@ -11,6 +11,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
+use crate::runtime;
 use crate::Any;
 
 use super::{
@@ -482,8 +483,8 @@ impl Vm {
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`Mut<T>`]: crate::runtime::Mut
-    /// [`Ref<T>`]: crate::runtime::Ref
+    /// [`Mut<T>`]: runtime::Mut
+    /// [`Ref<T>`]: runtime::Ref
     pub fn call(
         &mut self,
         name: impl ToTypeHash,
@@ -522,8 +523,8 @@ impl Vm {
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`Mut<T>`]: crate::runtime::Mut
-    /// [`Ref<T>`]: crate::runtime::Ref
+    /// [`Mut<T>`]: runtime::Mut
+    /// [`Ref<T>`]: runtime::Ref
     pub fn call_with_diagnostics(
         &mut self,
         name: impl ToTypeHash,
@@ -566,8 +567,8 @@ impl Vm {
     /// this call will panic as we are trying to free the metadata relatedc to
     /// the reference.
     ///
-    /// [`Mut<T>`]: crate::runtime::Mut
-    /// [`Ref<T>`]: crate::runtime::Ref
+    /// [`Mut<T>`]: runtime::Mut
+    /// [`Ref<T>`]: runtime::Ref
     pub async fn async_call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: ToTypeHash,
@@ -682,7 +683,7 @@ impl Vm {
     }
 
     fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
-        crate::runtime::env::exclusive(|_, _, diagnostics| {
+        runtime::env::exclusive(|_, _, diagnostics| {
             if let Some(diagnostics) = diagnostics {
                 vm_try!(diagnostics.function_used(hash, self.ip()));
             }
@@ -868,10 +869,6 @@ impl Vm {
                     Some(value) => Ok(value.clone()),
                     None => Err(target.type_info()),
                 },
-                Mutable::Vec(vec) => match vec.get(index) {
-                    Some(value) => Ok(value.clone()),
-                    None => Err(target.type_info()),
-                },
                 Mutable::Result(result) => match (index, result) {
                     (0, Ok(value)) => Ok(value.clone()),
                     (0, Err(value)) => Ok(value.clone()),
@@ -900,6 +897,14 @@ impl Vm {
                     (0, GeneratorState::Complete(value)) => Ok(value.clone()),
                     _ => Err(target.type_info()),
                 },
+                runtime::Vec::HASH => {
+                    let vec = vm_try!(target.borrow_ref::<runtime::Vec>());
+
+                    match vec.get(index) {
+                        Some(value) => Ok(value.clone()),
+                        None => Err(target.type_info()),
+                    }
+                }
                 _ => {
                     return VmResult::Ok(None);
                 }
@@ -927,7 +932,6 @@ impl Vm {
                 let result = BorrowMut::try_map(vm_try!(value.borrow_mut()), |kind| {
                     match kind {
                         Mutable::Tuple(tuple) => return tuple.get_mut(index),
-                        Mutable::Vec(vec) => return vec.get_mut(index),
                         Mutable::Result(result) => match (index, result) {
                             (0, Ok(value)) => return Some(value),
                             (0, Err(value)) => return Some(value),
@@ -973,6 +977,19 @@ impl Vm {
                             _ => None,
                         },
                     );
+
+                    if let Ok(value) = result {
+                        return VmResult::Ok(Some(value));
+                    }
+
+                    err(VmErrorKind::MissingIndexInteger {
+                        target: TypeInfo::from(GeneratorState::INFO),
+                        index: VmIntegerRepr::from(index),
+                    })
+                }
+                runtime::Vec::HASH => {
+                    let vec = vm_try!(value.borrow_mut::<runtime::Vec>());
+                    let result = BorrowMut::try_map(vec, |vec| vec.get_mut(index));
 
                     if let Ok(value) = result {
                         return VmResult::Ok(Some(value));
@@ -1042,7 +1059,7 @@ impl Vm {
     }
 
     /// Implementation of getting a string index on an object-like type.
-    fn try_tuple_like_index_set(target: &Value, index: usize, value: &Value) -> VmResult<bool> {
+    fn try_tuple_like_index_set(target: &Value, index: usize, from: &Value) -> VmResult<bool> {
         match vm_try!(target.as_ref_repr()) {
             RefRepr::Inline(target) => match target {
                 Inline::Unit => VmResult::Ok(false),
@@ -1051,15 +1068,7 @@ impl Vm {
             RefRepr::Mutable(target) => match &mut *vm_try!(target.borrow_mut()) {
                 Mutable::Tuple(tuple) => {
                     if let Some(target) = tuple.get_mut(index) {
-                        target.clone_from(value);
-                        return VmResult::Ok(true);
-                    }
-
-                    VmResult::Ok(false)
-                }
-                Mutable::Vec(vec) => {
-                    if let Some(target) = vec.get_mut(index) {
-                        target.clone_from(value);
+                        target.clone_from(from);
                         return VmResult::Ok(true);
                     }
 
@@ -1072,7 +1081,7 @@ impl Vm {
                         _ => return VmResult::Ok(false),
                     };
 
-                    target.clone_from(value);
+                    target.clone_from(from);
                     VmResult::Ok(true)
                 }
                 Mutable::Option(option) => {
@@ -1081,12 +1090,12 @@ impl Vm {
                         _ => return VmResult::Ok(false),
                     };
 
-                    target.clone_from(value);
+                    target.clone_from(from);
                     VmResult::Ok(true)
                 }
                 Mutable::TupleStruct(tuple_struct) => {
                     if let Some(target) = tuple_struct.get_mut(index) {
-                        target.clone_from(value);
+                        target.clone_from(from);
                         return VmResult::Ok(true);
                     }
 
@@ -1095,7 +1104,7 @@ impl Vm {
                 Mutable::Variant(variant) => {
                     if let VariantData::Tuple(data) = variant.data_mut() {
                         if let Some(target) = data.get_mut(index) {
-                            target.clone_from(value);
+                            target.clone_from(from);
                             return VmResult::Ok(true);
                         }
                     }
@@ -1104,7 +1113,19 @@ impl Vm {
                 }
                 _ => VmResult::Ok(false),
             },
-            RefRepr::Any(..) => VmResult::Ok(false),
+            RefRepr::Any(value) => match value.type_hash() {
+                runtime::Vec::HASH => {
+                    let mut vec = vm_try!(value.borrow_mut::<runtime::Vec>());
+
+                    if let Some(target) = vec.get_mut(index) {
+                        target.clone_from(from);
+                        return VmResult::Ok(true);
+                    }
+
+                    VmResult::Ok(false)
+                }
+                _ => VmResult::Ok(false),
+            },
         }
     }
 
@@ -1213,7 +1234,6 @@ impl Vm {
             },
             BorrowRefRepr::Mutable(value) => match (ty, &*value) {
                 (TypeCheck::Tuple, Mutable::Tuple(tuple)) => Some(f(tuple)),
-                (TypeCheck::Vec, Mutable::Vec(vec)) => Some(f(vec)),
                 (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
                     (0, Ok(ok)) => Some(f(slice::from_ref(ok))),
                     (1, Err(err)) => Some(f(slice::from_ref(err))),
@@ -1226,7 +1246,13 @@ impl Vm {
                 },
                 _ => None,
             },
-            BorrowRefRepr::Any(..) => None,
+            BorrowRefRepr::Any(value) => match (ty, value.type_hash()) {
+                (TypeCheck::Vec, runtime::Vec::HASH) => {
+                    let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
+                    Some(f(&vec))
+                }
+                _ => None,
+            },
         };
 
         VmResult::Ok(value)
@@ -3273,7 +3299,6 @@ impl Vm {
             },
             BorrowRefRepr::Mutable(value) => match (type_check, &*value) {
                 (TypeCheck::Tuple, Mutable::Tuple(..)) => true,
-                (TypeCheck::Vec, Mutable::Vec(..)) => true,
                 (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
                     (0, Ok(..)) => true,
                     (1, Err(..)) => true,
@@ -3286,7 +3311,10 @@ impl Vm {
                 },
                 _ => false,
             },
-            BorrowRefRepr::Any(..) => false,
+            BorrowRefRepr::Any(value) => match (type_check, value.type_hash()) {
+                (TypeCheck::Vec, runtime::Vec::HASH) => true,
+                _ => false,
+            },
         };
 
         vm_try!(out.store(&mut self.stack, is_match));
@@ -3649,7 +3677,7 @@ impl Vm {
     where
         F: FnOnce() -> T,
     {
-        let _guard = crate::runtime::env::Guard::new(self.context.clone(), self.unit.clone(), None);
+        let _guard = runtime::env::Guard::new(self.context.clone(), self.unit.clone(), None);
         f()
     }
 
@@ -3667,8 +3695,7 @@ impl Vm {
 
         // NB: set up environment so that native function can access context and
         // unit.
-        let _guard =
-            crate::runtime::env::Guard::new(self.context.clone(), self.unit.clone(), diagnostics);
+        let _guard = runtime::env::Guard::new(self.context.clone(), self.unit.clone(), diagnostics);
 
         let mut budget = budget::acquire();
 
