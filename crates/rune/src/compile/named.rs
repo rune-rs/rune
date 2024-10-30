@@ -35,17 +35,17 @@ impl Named for i64 {
 
 impl InstallWith for i64 {}
 
+impl Named for u64 {
+    const BASE_NAME: RawStr = RawStr::from_str("u64");
+}
+
+impl InstallWith for u64 {}
+
 impl Named for f64 {
     const BASE_NAME: RawStr = RawStr::from_str("f64");
 }
 
 impl InstallWith for f64 {}
-
-impl Named for u8 {
-    const BASE_NAME: RawStr = RawStr::from_str("u8");
-}
-
-impl InstallWith for u8 {}
 
 impl Named for char {
     const BASE_NAME: RawStr = RawStr::from_str("char");

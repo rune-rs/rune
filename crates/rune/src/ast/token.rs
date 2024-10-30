@@ -201,17 +201,80 @@ pub enum NumberValue {
     Integer(#[try_clone(with = num::BigInt::clone)] num::BigInt),
 }
 
+/// The literal size of a number.
+///
+/// If this comes from a `u8` or `i8` suffix it would be `S8`.
+#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[try_clone(copy)]
+#[non_exhaustive]
+pub enum NumberSize {
+    /// A 8-bit sized integer.
+    S8,
+    /// A 16-bit sized integer.
+    S16,
+    /// A 32-bit sized integer.
+    S32,
+    /// A 64-bit sized integer.
+    S64,
+}
+
+impl NumberSize {
+    pub(crate) fn signed_in(&self, value: i64) -> bool {
+        self.signed_min() <= value && value <= self.signed_max()
+    }
+
+    pub(crate) fn unsigned_in(&self, value: u64) -> bool {
+        self.unsigned_min() <= value && value <= self.unsigned_max()
+    }
+
+    pub(crate) fn signed_min(&self) -> i64 {
+        match self {
+            Self::S8 => i8::MIN as i64,
+            Self::S16 => i16::MIN as i64,
+            Self::S32 => i32::MIN as i64,
+            Self::S64 => i64::MIN,
+        }
+    }
+
+    pub(crate) fn signed_max(&self) -> i64 {
+        match self {
+            Self::S8 => i8::MAX as i64,
+            Self::S16 => i16::MAX as i64,
+            Self::S32 => i32::MAX as i64,
+            Self::S64 => i64::MAX,
+        }
+    }
+
+    pub(crate) fn unsigned_min(&self) -> u64 {
+        match self {
+            Self::S8 => u8::MIN as u64,
+            Self::S16 => u16::MIN as u64,
+            Self::S32 => u32::MIN as u64,
+            Self::S64 => u64::MIN,
+        }
+    }
+
+    pub(crate) fn unsigned_max(&self) -> u64 {
+        match self {
+            Self::S8 => u8::MAX as u64,
+            Self::S16 => u16::MAX as u64,
+            Self::S32 => u32::MAX as u64,
+            Self::S64 => u64::MAX,
+        }
+    }
+}
+
 /// The suffix of a number.
 #[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub enum NumberSuffix {
+    /// The `u64` suffix.
+    Unsigned(Span, NumberSize),
     /// The `i64` suffix.
-    Int(Span),
+    Signed(Span, NumberSize),
     /// The `f64` suffix.
     Float(Span),
-    /// The `u8` suffix.
-    Byte(Span),
 }
 
 /// A resolved number literal.
@@ -263,29 +326,22 @@ impl Number {
 }
 
 macro_rules! impl_from_int {
-    ($ty:ty) => {
-        impl From<$ty> for Number {
-            #[inline]
-            fn from(value: $ty) -> Self {
-                Self {
-                    value: NumberValue::Integer(num::BigInt::from(value)),
-                    suffix: None,
+    ($($ty:ty),*) => {
+        $(
+            impl From<$ty> for Number {
+                #[inline]
+                fn from(value: $ty) -> Self {
+                    Self {
+                        value: NumberValue::Integer(num::BigInt::from(value)),
+                        suffix: None,
+                    }
                 }
             }
-        }
+        )*
     };
 }
 
-impl_from_int!(usize);
-impl_from_int!(isize);
-impl_from_int!(i16);
-impl_from_int!(u16);
-impl_from_int!(i32);
-impl_from_int!(u32);
-impl_from_int!(i64);
-impl_from_int!(u64);
-impl_from_int!(i128);
-impl_from_int!(u128);
+impl_from_int!(usize, isize, i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
 
 impl From<f32> for Number {
     #[inline]

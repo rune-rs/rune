@@ -15,6 +15,8 @@ pub use self::data::{EmptyStruct, Struct, TupleStruct};
 use core::any;
 use core::cmp::Ordering;
 use core::fmt;
+#[cfg(feature = "alloc")]
+use core::hash::Hasher as _;
 use core::mem::replace;
 use core::ptr::NonNull;
 
@@ -361,7 +363,11 @@ impl Value {
                     Inline::Char(c) => {
                         vm_try!(f.push(*c));
                     }
-                    Inline::Integer(integer) => {
+                    Inline::Unsigned(byte) => {
+                        let mut buffer = itoa::Buffer::new();
+                        vm_try!(f.push_str(buffer.format(*byte)));
+                    }
+                    Inline::Signed(integer) => {
                         let mut buffer = itoa::Buffer::new();
                         vm_try!(f.push_str(buffer.format(*integer)));
                     }
@@ -371,10 +377,6 @@ impl Value {
                     }
                     Inline::Bool(bool) => {
                         vm_try!(vm_write!(f, "{bool}"));
-                    }
-                    Inline::Byte(byte) => {
-                        let mut buffer = itoa::Buffer::new();
-                        vm_try!(f.push_str(buffer.format(*byte)));
                     }
                     _ => {
                         break 'fallback;
@@ -688,7 +690,7 @@ impl Value {
     /// Try to coerce value into a usize.
     #[inline]
     pub fn as_usize(&self) -> Result<usize, RuntimeError> {
-        self.try_as_integer()
+        self.as_integer()
     }
 
     /// Get the value as a string.
@@ -761,13 +763,6 @@ impl Value {
     }
 
     inline_into! {
-        /// Coerce into [`u8`] byte.
-        Byte(u8),
-        as_byte,
-        as_byte_mut,
-    }
-
-    inline_into! {
         /// Coerce into [`char`].
         Char(char),
         as_char,
@@ -776,9 +771,16 @@ impl Value {
 
     inline_into! {
         /// Coerce into [`i64`] integer.
-        Integer(i64),
-        as_integer,
-        as_integer_mut,
+        Signed(i64),
+        as_signed,
+        as_signed_mut,
+    }
+
+    inline_into! {
+        /// Coerce into [`u64`] unsigned integer.
+        Unsigned(u64),
+        as_unsigned,
+        as_unsigned_mut,
     }
 
     inline_into! {
@@ -1127,7 +1129,7 @@ impl Value {
 
             let a = match (&a, vm_try!(b.borrow_ref_repr())) {
                 (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
-                    return a.partial_eq(b);
+                    return VmResult::Ok(vm_try!(a.partial_eq(b)));
                 }
                 (BorrowRefRepr::Inline(lhs), rhs) => {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1232,12 +1234,12 @@ impl Value {
     ) -> VmResult<()> {
         match vm_try!(self.borrow_ref_repr()) {
             BorrowRefRepr::Inline(value) => match value {
-                Inline::Integer(value) => {
-                    hasher.write_i64(*value);
+                Inline::Unsigned(value) => {
+                    hasher.write_u64(*value);
                     return VmResult::Ok(());
                 }
-                Inline::Byte(value) => {
-                    hasher.write_u8(*value);
+                Inline::Signed(value) => {
+                    hasher.write_i64(*value);
                     return VmResult::Ok(());
                 }
                 // Care must be taken whan hashing floats, to ensure that `hash(v1)
@@ -1410,7 +1412,9 @@ impl Value {
             vm_try!(self.borrow_ref_repr()),
             vm_try!(b.borrow_ref_repr()),
         ) {
-            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => return a.partial_cmp(b),
+            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
+                return VmResult::Ok(vm_try!(a.partial_cmp(b)))
+            }
             (BorrowRefRepr::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_CMP.name,
@@ -1594,26 +1598,24 @@ impl Value {
     /// ```
     /// let value = rune::to_value(u32::MAX)?;
     ///
-    /// assert_eq!(value.try_as_integer::<u64>()?, u32::MAX as u64);
-    /// assert!(value.try_as_integer::<i32>().is_err());
+    /// assert_eq!(value.impl_integer::<u64>()?, u32::MAX as u64);
+    /// assert!(value.impl_integer::<i32>().is_err());
     ///
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn try_as_integer<T>(&self) -> Result<T, RuntimeError>
+    pub fn as_integer<T>(&self) -> Result<T, RuntimeError>
     where
-        T: TryFrom<i64>,
-        VmIntegerRepr: From<i64>,
+        T: TryFrom<u64> + TryFrom<i64>,
     {
-        let integer = self.as_integer()?;
-
-        match integer.try_into() {
-            Ok(number) => Ok(number),
-            Err(..) => Err(RuntimeError::new(
-                VmErrorKind::ValueToIntegerCoercionError {
-                    from: VmIntegerRepr::from(integer),
-                    to: any::type_name::<T>(),
-                },
-            )),
+        match self.repr {
+            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
+            Repr::Inline(value) => value.as_integer(),
+            Repr::Mutable(ref value) => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                actual: value.borrow_ref()?.type_info(),
+            })),
+            Repr::Any(ref value) => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+                actual: value.type_info(),
+            })),
         }
     }
 
@@ -1915,10 +1917,10 @@ impl IntoOutput for Mutable {
 }
 
 inline_from! {
-    Byte => u8,
     Bool => bool,
     Char => char,
-    Integer => i64,
+    Signed => i64,
+    Unsigned => u64,
     Float => f64,
     Type => Type,
     Ordering => Ordering,
@@ -1951,13 +1953,9 @@ from_container! {
     Result => Result<Value, Value>,
 }
 
-number_value_trait! {
-    u16, u32, u64, u128, usize, i8, i16, i32, i128, isize,
-}
-
-float_value_trait! {
-    f32,
-}
+signed_value_trait!(i8, i16, i32, i128, isize);
+unsigned_value_trait!(u8, u16, u32, u128, usize);
+float_value_trait!(f32);
 
 impl MaybeTypeOf for Value {
     #[inline]

@@ -143,49 +143,35 @@ fn test_loop() {
 
 #[test]
 fn test_is() {
-    let out = {} is Object;
-    assert!(!out);
-
-    let out = {} is Tuple;
-    assert!(out);
-
-    let out = #{} is Object;
-    assert!(out);
-
-    let out = () is Tuple;
-    assert!(out);
-
     fn foo() {
     }
-    let out = foo() is Tuple;
-    assert!(out);
 
-    let out = {} is Tuple;
-    assert!(out);
-
-    let out = true is bool;
-    assert!(out);
-
-    let out = 'a' is char;
-    assert!(out);
-
-    let out = 42u8 is u8;
-    assert!(out);
-
-    let out = 42 is i64;
-    assert!(out);
-
-    let out = 42.1 is f64;
-    assert!(out);
-
-    let out = "hello" is String;
-    assert!(out);
-
-    let out = #{ "hello": "world" } is Object;
-    assert!(out);
-
-    let out = ["hello", "world"] is Vec;
-    assert!(out);
+    // The `{}` is an empty block which evaluates to `()`.
+    assert!({} is not Object);
+    assert!({} is Tuple);
+    assert!(#{} is Object);
+    assert!(() is Tuple);
+    assert!((1,) is Tuple);
+    assert!((1, 2) is Tuple);
+    assert!(foo() is Tuple);
+    assert!(true is bool);
+    assert!(false is bool);
+    assert!('a' is char);
+    assert!(42u8 is u64);
+    assert!(42u16 is u64);
+    assert!(42u32 is u64);
+    assert!(42u64 is u64);
+    assert!(42 is i64);
+    assert!(42i8 is i64);
+    assert!(42i16 is i64);
+    assert!(42i32 is i64);
+    assert!(42i64 is i64);
+    assert!(42.1 is f64);
+    assert!(42.1f32 is f64);
+    assert!(42.1f64 is f64);
+    assert!("hello" is String);
+    assert!(#{ "hello": "world" } is Object);
+    assert!(["hello", "world"] is Vec);
 }
 
 #[test]

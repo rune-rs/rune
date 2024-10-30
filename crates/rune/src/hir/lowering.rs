@@ -7,7 +7,7 @@ use tracing::instrument_ast;
 use crate::alloc::prelude::*;
 use crate::alloc::try_format;
 use crate::alloc::{self, Box, HashMap, HashSet};
-use crate::ast::{self, Spanned};
+use crate::ast::{self, NumberSize, Spanned};
 use crate::compile::meta;
 use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
@@ -642,9 +642,9 @@ fn pat_const_value<'hir>(
                     }));
                 }
                 Inline::Bool(b) => hir::Lit::Bool(b),
-                Inline::Byte(b) => hir::Lit::Byte(b),
                 Inline::Char(ch) => hir::Lit::Char(ch),
-                Inline::Integer(integer) => hir::Lit::Integer(integer),
+                Inline::Unsigned(integer) => hir::Lit::Unsigned(integer),
+                Inline::Signed(integer) => hir::Lit::Signed(integer),
                 _ => {
                     return Err(compile::Error::msg(
                         span,
@@ -777,25 +777,57 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
 
             match (n.value, n.suffix) {
                 (ast::NumberValue::Float(n), _) => Ok(hir::Lit::Float(n)),
-                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Byte(..))) => {
-                    let Some(n) = int.to_u8() else {
-                        return Err(compile::Error::new(ast, ErrorKind::BadByteOutOfBounds));
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(_, size))) => {
+                    let Some(n) = int.to_u64() else {
+                        return Err(compile::Error::new(
+                            ast,
+                            ErrorKind::BadUnsignedOutOfBounds { size },
+                        ));
                     };
 
-                    Ok(hir::Lit::Byte(n))
+                    if !size.unsigned_in(n) {
+                        return Err(compile::Error::new(
+                            ast,
+                            ErrorKind::BadUnsignedOutOfBounds { size },
+                        ));
+                    }
+
+                    Ok(hir::Lit::Unsigned(n))
+                }
+                (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(_, size))) => {
+                    let Some(n) = int.to_i64() else {
+                        return Err(compile::Error::new(
+                            ast,
+                            ErrorKind::BadSignedOutOfBounds { size },
+                        ));
+                    };
+
+                    if !size.signed_in(n) {
+                        return Err(compile::Error::new(
+                            ast,
+                            ErrorKind::BadSignedOutOfBounds { size },
+                        ));
+                    }
+
+                    Ok(hir::Lit::Signed(n))
                 }
                 (ast::NumberValue::Integer(int), _) => {
                     let Some(n) = int.to_i64() else {
-                        return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+                        return Err(compile::Error::new(
+                            ast,
+                            ErrorKind::BadSignedOutOfBounds {
+                                size: NumberSize::S64,
+                            },
+                        ));
                     };
 
-                    Ok(hir::Lit::Integer(n))
+                    Ok(hir::Lit::Signed(n))
                 }
             }
         }
         ast::Lit::Byte(lit) => {
             let b = lit.resolve(resolve_context!(cx.q))?;
-            Ok(hir::Lit::Byte(b))
+            Ok(hir::Lit::Unsigned(b as u64))
         }
         ast::Lit::Char(lit) => {
             let ch = lit.resolve(resolve_context!(cx.q))?;
@@ -846,17 +878,53 @@ fn expr_unary<'hir>(
     let number = n.resolve(resolve_context!(cx.q))?;
 
     match (number.value, number.suffix) {
-        (ast::NumberValue::Float(n), Some(ast::NumberSuffix::Float(..)) | None) => {
-            Ok(hir::ExprKind::Lit(hir::Lit::Float(-n)))
-        }
-        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Int(..)) | None) => {
-            let Some(n) = int.neg().to_i64() else {
-                return Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds));
+        (ast::NumberValue::Float(n), _) => Ok(hir::ExprKind::Lit(hir::Lit::Float(-n))),
+        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(_, size))) => {
+            let Some(n) = int.neg().to_u64() else {
+                return Err(compile::Error::new(
+                    ast,
+                    ErrorKind::BadUnsignedOutOfBounds { size },
+                ));
             };
 
-            Ok(hir::ExprKind::Lit(hir::Lit::Integer(n)))
+            if !size.unsigned_in(n) {
+                return Err(compile::Error::new(
+                    ast,
+                    ErrorKind::BadUnsignedOutOfBounds { size },
+                ));
+            }
+
+            Ok(hir::ExprKind::Lit(hir::Lit::Unsigned(n)))
         }
-        _ => Err(compile::Error::new(ast, ErrorKind::BadNumberOutOfBounds)),
+        (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(_, size))) => {
+            let Some(n) = int.neg().to_i64() else {
+                return Err(compile::Error::new(
+                    ast,
+                    ErrorKind::BadSignedOutOfBounds { size },
+                ));
+            };
+
+            if !size.signed_in(n) {
+                return Err(compile::Error::new(
+                    ast,
+                    ErrorKind::BadSignedOutOfBounds { size },
+                ));
+            }
+
+            Ok(hir::ExprKind::Lit(hir::Lit::Signed(n)))
+        }
+        (ast::NumberValue::Integer(int), _) => {
+            let Some(n) = int.neg().to_i64() else {
+                return Err(compile::Error::new(
+                    ast,
+                    ErrorKind::BadSignedOutOfBounds {
+                        size: NumberSize::S64,
+                    },
+                ));
+            };
+
+            Ok(hir::ExprKind::Lit(hir::Lit::Signed(n)))
+        }
     }
 }
 
@@ -1234,7 +1302,7 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     if !(args == count || count < args && is_open) {
                         return Err(compile::Error::new(
                             path,
-                            ErrorKind::UnsupportedArgumentCount {
+                            ErrorKind::BadArgumentCount {
                                 expected: args,
                                 actual: count,
                             },
@@ -1744,7 +1812,7 @@ fn expr_call<'hir>(
                         if !ast.args.is_empty() {
                             return Err(compile::Error::new(
                                 &ast.args,
-                                ErrorKind::UnsupportedArgumentCount {
+                                ErrorKind::BadArgumentCount {
                                     expected: 0,
                                     actual: ast.args.len(),
                                 },
@@ -1762,7 +1830,7 @@ fn expr_call<'hir>(
                         if *args != ast.args.len() {
                             return Err(compile::Error::new(
                                 &ast.args,
-                                ErrorKind::UnsupportedArgumentCount {
+                                ErrorKind::BadArgumentCount {
                                     expected: *args,
                                     actual: ast.args.len(),
                                 },

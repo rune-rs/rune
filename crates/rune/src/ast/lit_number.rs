@@ -1,5 +1,6 @@
 use crate::ast::prelude::*;
 
+use ast::token::NumberSize;
 use num::Num;
 
 #[test]
@@ -93,9 +94,15 @@ impl<'a> Resolve<'a> for LitNumber {
             .ok_or_else(|| compile::Error::new(span, ErrorKind::BadSlice))?;
 
         let suffix = match suffix {
-            "i64" => Some(ast::NumberSuffix::Int(text.suffix)),
-            "f64" => Some(ast::NumberSuffix::Float(text.suffix)),
-            "u8" => Some(ast::NumberSuffix::Byte(text.suffix)),
+            "u8" => Some(ast::NumberSuffix::Unsigned(text.suffix, NumberSize::S8)),
+            "u16" => Some(ast::NumberSuffix::Unsigned(text.suffix, NumberSize::S16)),
+            "u32" => Some(ast::NumberSuffix::Unsigned(text.suffix, NumberSize::S32)),
+            "u64" => Some(ast::NumberSuffix::Unsigned(text.suffix, NumberSize::S64)),
+            "i8" => Some(ast::NumberSuffix::Signed(text.suffix, NumberSize::S8)),
+            "i16" => Some(ast::NumberSuffix::Signed(text.suffix, NumberSize::S16)),
+            "i32" => Some(ast::NumberSuffix::Signed(text.suffix, NumberSize::S32)),
+            "i64" => Some(ast::NumberSuffix::Signed(text.suffix, NumberSize::S64)),
+            "f32" | "f64" => Some(ast::NumberSuffix::Float(text.suffix)),
             "" => None,
             _ => {
                 return Err(compile::Error::new(

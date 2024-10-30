@@ -759,6 +759,9 @@ pub(crate) enum VmErrorKind {
     ExpectedAny {
         actual: TypeInfo,
     },
+    ExpectedNumber {
+        actual: TypeInfo,
+    },
     MissingConstantConstructor {
         hash: Hash,
     },
@@ -882,10 +885,9 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingRtti { hash } => {
                 write!(f, "Missing runtime information for type with hash `{hash}`")
             }
-            VmErrorKind::BadArgumentCount { actual, expected } => write!(
-                f,
-                "Wrong number of arguments `{actual}`, expected `{expected}`",
-            ),
+            VmErrorKind::BadArgumentCount { actual, expected } => {
+                write!(f, "Wrong number of arguments {actual}, expected {expected}",)
+            }
             VmErrorKind::BadEnvironmentCount { actual, expected } => write!(
                 f,
                 "Wrong environment size `{actual}`, expected `{expected}`",
@@ -964,6 +966,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::ExpectedAny { actual } => {
                 write!(f, "Expected `Any` type, but found `{actual}`")
+            }
+            VmErrorKind::ExpectedNumber { actual } => {
+                write!(f, "Expected number type, but found `{actual}`")
             }
             VmErrorKind::MissingConstantConstructor { hash } => {
                 write!(f, "Missing constant constructor for type with hash {hash}")
@@ -1139,21 +1144,64 @@ impl VmErrorKind {
     }
 }
 
-/// A type-erased rust number.
-#[derive(Debug, Clone, PartialEq)]
-pub struct VmIntegerRepr(num::BigInt);
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq))]
+enum VmIntegerReprKind {
+    Signed(i128),
+    Unsigned(u128),
+    Isize(isize),
+    Usize(usize),
+}
 
-impl<T> From<T> for VmIntegerRepr
-where
-    num::BigInt: From<T>,
-{
-    fn from(value: T) -> Self {
-        Self(num::BigInt::from(value))
+/// A type-erased integer representation.
+#[derive(Clone)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct VmIntegerRepr {
+    kind: VmIntegerReprKind,
+}
+
+impl VmIntegerRepr {
+    #[inline]
+    fn new(kind: VmIntegerReprKind) -> Self {
+        Self { kind }
     }
 }
 
+macro_rules! impl_from {
+    ($($variant:ident => [$($ty:ty),* $(,)?]),* $(,)?) => {
+        $($(
+            impl From<$ty> for VmIntegerRepr {
+                #[inline]
+                fn from(value: $ty) -> Self {
+                    Self::new(VmIntegerReprKind::$variant(From::from(value)))
+                }
+            }
+        )*)*
+    };
+}
+
+impl_from! {
+    Signed => [i8, i16, i32, i64, i128],
+    Unsigned => [u8, u16, u32, u64, u128],
+    Isize => [isize],
+    Usize => [usize],
+}
+
 impl fmt::Display for VmIntegerRepr {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        match &self.kind {
+            VmIntegerReprKind::Signed(value) => value.fmt(f),
+            VmIntegerReprKind::Unsigned(value) => value.fmt(f),
+            VmIntegerReprKind::Isize(value) => value.fmt(f),
+            VmIntegerReprKind::Usize(value) => value.fmt(f),
+        }
+    }
+}
+
+impl fmt::Debug for VmIntegerRepr {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
     }
 }

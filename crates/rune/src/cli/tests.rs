@@ -108,6 +108,7 @@ where
     let mut executed = 0usize;
     let mut skipped = 0usize;
     let mut build_errors = 0usize;
+    let mut collected = Vec::new();
 
     let capture = crate::modules::capture_io::CaptureIo::new();
     let context = shared.context(entry, c, Some(&capture))?;
@@ -169,12 +170,13 @@ where
             .with_source_loader(&mut source_loader)
             .build();
 
-        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
-
         if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
             build_errors = build_errors.wrapping_add(1);
+            collected.try_push((diagnostics, sources))?;
             continue;
         }
+
+        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
         let unit = Arc::new(unit?);
         let sources = Arc::new(sources);
@@ -214,6 +216,7 @@ where
                 &options,
                 &context,
                 &mut build_errors,
+                &mut collected,
                 &mut filter,
             )?;
 
@@ -237,6 +240,7 @@ where
             options,
             &context,
             &mut build_errors,
+            &mut collected,
             &mut filter,
         )?;
 
@@ -326,6 +330,10 @@ where
 
     let failures = failed.len();
 
+    for (diagnostics, sources) in collected {
+        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
+    }
+
     for case in failed {
         case.emit(io)?;
     }
@@ -383,6 +391,7 @@ fn populate_doc_tests(
     options: &Options,
     context: &crate::Context,
     build_errors: &mut usize,
+    collected: &mut Vec<(Diagnostics, Sources)>,
     filter: &mut dyn FnMut(&Item) -> Result<bool>,
 ) -> Result<Vec<TestCase>> {
     let mut cases = Vec::new();
@@ -415,12 +424,13 @@ fn populate_doc_tests(
             .with_source_loader(&mut source_loader)
             .build();
 
-        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
-
         if diagnostics.has_error() || flags.warnings_are_errors && diagnostics.has_warning() {
             *build_errors = build_errors.wrapping_add(1);
+            collected.try_push((diagnostics, sources))?;
             continue;
         }
+
+        diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
         if !test.params.no_run {
             let unit = Arc::new(unit?);
@@ -537,10 +547,12 @@ impl TestCase {
             }
         }
 
+        let mut emitted = None;
+
         match &self.outcome {
             Outcome::Panic(error) => {
-                section.error("panicked")?;
-                error.emit(section.io, &self.sources)?;
+                section.error("errored")?;
+                emitted = Some(error);
             }
             Outcome::ExpectedPanic => {
                 section.error("expected panic because of `should_panic`, but ran without issue")?;
@@ -558,6 +570,10 @@ impl TestCase {
         }
 
         section.close()?;
+
+        if let Some(error) = emitted {
+            error.emit(io.stdout, &self.sources)?;
+        }
 
         if !self.outcome.is_ok() && !self.output.is_empty() {
             writeln!(io.stdout, "-- output --")?;

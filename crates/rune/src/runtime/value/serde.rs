@@ -27,13 +27,13 @@ impl ser::Serialize for Value {
         S: ser::Serializer,
     {
         match self.borrow_ref_repr().map_err(S::Error::custom)? {
-            BorrowRefRepr::Inline(value) => match value {
+            BorrowRefRepr::Inline(value) => match *value {
                 Inline::Unit => serializer.serialize_unit(),
-                Inline::Bool(b) => serializer.serialize_bool(*b),
-                Inline::Char(c) => serializer.serialize_char(*c),
-                Inline::Byte(c) => serializer.serialize_u8(*c),
-                Inline::Integer(integer) => serializer.serialize_i64(*integer),
-                Inline::Float(float) => serializer.serialize_f64(*float),
+                Inline::Bool(value) => serializer.serialize_bool(value),
+                Inline::Char(value) => serializer.serialize_char(value),
+                Inline::Unsigned(value) => serializer.serialize_u64(value),
+                Inline::Signed(value) => serializer.serialize_i64(value),
+                Inline::Float(value) => serializer.serialize_f64(value),
                 Inline::Type(..) => Err(ser::Error::custom("cannot serialize types")),
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },

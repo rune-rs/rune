@@ -150,7 +150,7 @@ pub fn module() -> Result<Module, ContextError> {
             /// // a finite range knows exactly how many times it will iterate
             /// let five = (0..5).iter();
             ///
-            /// assert_eq!(5, five.len());
+            /// assert_eq!(five.len(), 5);
             /// ```
         })?;
 
@@ -188,9 +188,9 @@ pub fn module() -> Result<Module, ContextError> {
                 /// // a finite range knows exactly how many times it will iterate
                 /// let range = (0..5).iter();
                 ///
-                /// assert_eq!(5, range.len());
+                /// assert_eq!(range.len(), 5);
                 /// let _ = range.next();
-                /// assert_eq!(4, range.len());
+                /// assert_eq!(range.len(), 4);
                 /// ```
             })?;
     }
@@ -556,8 +556,8 @@ pub fn module() -> Result<Module, ContextError> {
                 }};
             }
 
+            ops!(u64);
             ops!(i64);
-            ops!(u8);
             ops!(f64);
             Ok(())
         })?;
@@ -681,9 +681,9 @@ pub fn module() -> Result<Module, ContextError> {
                 /// let a = [1, 2, 3];
                 /// let iter = a.iter();
                 ///
-                /// assert_eq!((3, Some(3)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (3u64, Some(3)));
                 /// let _ = iter.next();
-                /// assert_eq!((2, Some(2)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (2u64, Some(2)));
                 /// ```
                 ///
                 /// A more complex example:
@@ -694,13 +694,13 @@ pub fn module() -> Result<Module, ContextError> {
                 ///
                 /// // We might iterate from zero to ten times. Knowing that it's five
                 /// // exactly wouldn't be possible without executing filter().
-                /// assert_eq!((0, Some(10)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (0, Some(10)));
                 ///
                 /// // Let's add five more numbers with chain()
                 /// let iter = (0..10).iter().filter(|x| x % 2 == 0).chain(15..20);
                 ///
                 /// // now both bounds are increased by five
-                /// assert_eq!((5, Some(15)), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (5, Some(15)));
                 /// ```
                 ///
                 /// Returning `None` for an upper bound:
@@ -710,7 +710,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// // and the maximum possible lower bound
                 /// let iter = (0..).iter();
                 ///
-                /// assert_eq!((i64::MAX, None), iter.size_hint());
+                /// assert_eq!(iter.size_hint(), (u64::MAX, None));
                 /// ```
             })?;
 
@@ -1094,9 +1094,9 @@ pub fn module() -> Result<Module, ContextError> {
                 ///
                 /// let iter = a.iter().enumerate();
                 ///
-                /// assert_eq!(iter.next(), Some((0, 'a')));
-                /// assert_eq!(iter.next(), Some((1, 'b')));
-                /// assert_eq!(iter.next(), Some((2, 'c')));
+                /// assert_eq!(iter.next(), Some((0u64, 'a')));
+                /// assert_eq!(iter.next(), Some((1u64, 'b')));
+                /// assert_eq!(iter.next(), Some((2u64, 'c')));
                 /// assert_eq!(iter.next(), None);
                 /// ```
             })?;
@@ -1218,19 +1218,21 @@ pub fn module() -> Result<Module, ContextError> {
             .argument_types::<(Value, Function)>()?
             .return_type::<FlatMap>()?
             .docs(docstring! {
-                /// Creates an iterator that works like map, but flattens nested structure.
+                /// Creates an iterator that works like map, but flattens nested
+                /// structure.
                 ///
-                /// The [`map`] adapter is very useful, but only when the closure argument
-                /// produces values. If it produces an iterator instead, there's an extra
-                /// layer of indirection. `flat_map()` will remove this extra layer on its
-                /// own.
+                /// The [`map`] adapter is very useful, but only when the
+                /// closure argument produces values. If it produces an iterator
+                /// instead, there's an extra layer of indirection. `flat_map()`
+                /// will remove this extra layer on its own.
                 ///
                 /// You can think of `flat_map(f)` as the semantic equivalent of
-                /// [`map`]ping, and then [`flatten`]ing as in `map(f).flatten()`.
+                /// [`map`]ping, and then [`flatten`]ing as in
+                /// `map(f).flatten()`.
                 ///
-                /// Another way of thinking about `flat_map()`: [`map`]'s closure returns
-                /// one item for each element, and `flat_map()`'s closure returns an
-                /// iterator for each element.
+                /// Another way of thinking about `flat_map()`: [`map`]'s
+                /// closure returns one item for each element, and
+                /// `flat_map()`'s closure returns an iterator for each element.
                 ///
                 /// [`map`]: Iterator::map
                 /// [`flatten`]: Iterator::flatten
@@ -1252,14 +1254,15 @@ pub fn module() -> Result<Module, ContextError> {
             .argument_types::<(Value,)>()?
             .return_type::<Peekable>()?
             .docs(docstring! {
-                /// Creates an iterator which can use the [`peek`] method to look at the next
-                /// element of the iterator without consuming it. See their documentation for
-                /// more information.
+                /// Creates an iterator which can use the [`peek`] method to
+                /// look at the next element of the iterator without consuming
+                /// it. See their documentation for more information.
                 ///
-                /// Note that the underlying iterator is still advanced when [`peek`] are called
-                /// for the first time: In order to retrieve the next element, [`next`] is
-                /// called on the underlying iterator, hence any side effects (i.e. anything
-                /// other than fetching the next value) of the [`next`] method will occur.
+                /// Note that the underlying iterator is still advanced when
+                /// [`peek`] are called for the first time: In order to retrieve
+                /// the next element, [`next`] is called on the underlying
+                /// iterator, hence any side effects (i.e. anything other than
+                /// fetching the next value) of the [`next`] method will occur.
                 ///
                 /// # Examples
                 ///
@@ -1297,10 +1300,11 @@ pub fn module() -> Result<Module, ContextError> {
             .docs(docstring! {
                 /// Creates an iterator that skips the first `n` elements.
                 ///
-                /// `skip(n)` skips elements until `n` elements are skipped or the end of the
-                /// iterator is reached (whichever happens first). After that, all the remaining
-                /// elements are yielded. In particular, if the original iterator is too short,
-                /// then the returned iterator is empty.
+                /// `skip(n)` skips elements until `n` elements are skipped or
+                /// the end of the iterator is reached (whichever happens
+                /// first). After that, all the remaining elements are yielded.
+                /// In particular, if the original iterator is too short, then
+                /// the returned iterator is empty.
                 ///
                 /// # Examples
                 ///
@@ -1320,14 +1324,15 @@ pub fn module() -> Result<Module, ContextError> {
             .argument_types::<(Value, usize)>()?
             .return_type::<Take>()?
             .docs(docstring! {
-                /// Creates an iterator that yields the first `n` elements, or fewer if the
-                /// underlying iterator ends sooner.
+                /// Creates an iterator that yields the first `n` elements, or
+                /// fewer if the underlying iterator ends sooner.
                 ///
-                /// `take(n)` yields elements until `n` elements are yielded or the end of the
-                /// iterator is reached (whichever happens first). The returned iterator is a
-                /// prefix of length `n` if the original iterator contains at least `n`
-                /// elements, otherwise it contains all of the (fewer than `n`) elements of the
-                /// original iterator.
+                /// `take(n)` yields elements until `n` elements are yielded or
+                /// the end of the iterator is reached (whichever happens
+                /// first). The returned iterator is a prefix of length `n` if
+                /// the original iterator contains at least `n` elements,
+                /// otherwise it contains all of the (fewer than `n`) elements
+                /// of the original iterator.
                 ///
                 /// # Examples
                 ///
@@ -1343,7 +1348,8 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.next(), None);
                 /// ```
                 ///
-                /// `take()` is often used with an infinite iterator, to make it finite:
+                /// `take()` is often used with an infinite iterator, to make it
+                /// finite:
                 ///
                 /// ```rune
                 /// let iter = (0..).iter().take(3);
@@ -1354,8 +1360,8 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.next(), None);
                 /// ```
                 ///
-                /// If less than `n` elements are available, `take` will limit itself to the
-                /// size of the underlying iterator:
+                /// If less than `n` elements are available, `take` will limit
+                /// itself to the size of the underlying iterator:
                 ///
                 /// ```rune
                 /// let v = [1, 2];
@@ -1374,18 +1380,22 @@ pub fn module() -> Result<Module, ContextError> {
                     .docs(docstring! {
                         /// Sums the elements of an iterator.
                         ///
-                        /// Takes each element, adds them together, and returns the result.
+                        /// Takes each element, adds them together, and returns
+                        /// the result.
                         ///
-                        /// An empty iterator returns the zero value of the type.
+                        /// An empty iterator returns the zero value of the
+                        /// type.
                         ///
-                        /// `sum()` can be used to sum numerical built-in types, such as `int`, `float`
-                        /// and `u8`. The first element returned by the iterator determines the type
-                        /// being summed.
+                        /// `sum()` can be used to sum numerical built-in types,
+                        /// such as `i64`, `float` and `u64`. The first element
+                        /// returned by the iterator determines the type being
+                        /// summed.
                         ///
                         /// # Panics
                         ///
-                        /// When calling `sum()` and a primitive integer type is being returned, this
-                        /// method will panic if the computation overflows.
+                        /// When calling `sum()` and a primitive integer type is
+                        /// being returned, this method will panic if the
+                        /// computation overflows.
                         ///
                         /// # Examples
                         ///
@@ -1401,9 +1411,9 @@ pub fn module() -> Result<Module, ContextError> {
             };
         }
 
+        sum_ops!(u64);
         sum_ops!(i64);
         sum_ops!(f64);
-        sum_ops!(u8);
 
         macro_rules! integer_product_ops {
             ($ty:ty) => {
@@ -1411,18 +1421,21 @@ pub fn module() -> Result<Module, ContextError> {
                     .argument_types::<(Value,)>()?
                     .return_type::<$ty>()?
                     .docs(docstring! {
-                        /// Iterates over the entire iterator, multiplying all the elements
+                        /// Iterates over the entire iterator, multiplying all
+                        /// the elements
                         ///
                         /// An empty iterator returns the one value of the type.
                         ///
-                        /// `sum()` can be used to sum numerical built-in types, such as `int`, `float`
-                        /// and `u8`. The first element returned by the iterator determines the type
-                        /// being multiplied.
+                        /// `sum()` can be used to sum numerical built-in types,
+                        /// such as `i64`, `f64` and `u64`. The first element
+                        /// returned by the iterator determines the type being
+                        /// multiplied.
                         ///
                         /// # Panics
                         ///
-                        /// When calling `product()` and a primitive integer type is being returned,
-                        /// method will panic if the computation overflows.
+                        /// When calling `product()` and a primitive integer
+                        /// type is being returned, method will panic if the
+                        /// computation overflows.
                         ///
                         /// # Examples
                         ///
@@ -1548,18 +1561,21 @@ pub fn module() -> Result<Module, ContextError> {
                     .argument_types::<(Value,)>()?
                     .return_type::<$ty>()?
                     .docs(docstring! {
-                        /// Iterates over the entire iterator, multiplying all the elements
+                        /// Iterates over the entire iterator, multiplying all
+                        /// the elements
                         ///
                         /// An empty iterator returns the one value of the type.
                         ///
-                        /// `sum()` can be used to sum numerical built-in types, such as `int`, `float`
-                        /// and `u8`. The first element returned by the iterator determines the type
-                        /// being multiplied.
+                        /// `sum()` can be used to sum numerical built-in types,
+                        /// such as `i64`, `f64` and `u64`. The first element
+                        /// returned by the iterator determines the type being
+                        /// multiplied.
                         ///
                         /// # Panics
                         ///
-                        /// When calling `product()` and a primitive integer type is being returned,
-                        /// method will panic if the computation overflows.
+                        /// When calling `product()` and a primitive integer
+                        /// type is being returned, method will panic if the
+                        /// computation overflows.
                         ///
                         /// # Examples
                         ///
@@ -1576,8 +1592,8 @@ pub fn module() -> Result<Module, ContextError> {
             };
         }
 
+        integer_product_ops!(u64);
         integer_product_ops!(i64);
-        integer_product_ops!(u8);
         float_product_ops!(f64);
     }
 
@@ -1587,17 +1603,20 @@ pub fn module() -> Result<Module, ContextError> {
         t.docs(docstring! {
             /// An iterator able to yield elements from both ends.
             ///
-            /// Something that implements `DoubleEndedIterator` has one extra capability
-            /// over something that implements [`Iterator`]: the ability to also take
-            /// `Item`s from the back, as well as the front.
+            /// Something that implements `DoubleEndedIterator` has one extra
+            /// capability over something that implements [`Iterator`]: the
+            /// ability to also take `Item`s from the back, as well as the
+            /// front.
             ///
-            /// It is important to note that both back and forth work on the same range,
-            /// and do not cross: iteration is over when they meet in the middle.
+            /// It is important to note that both back and forth work on the
+            /// same range, and do not cross: iteration is over when they meet
+            /// in the middle.
             ///
             /// In a similar fashion to the [`Iterator`] protocol, once a
-            /// `DoubleEndedIterator` returns [`None`] from a [`next_back()`], calling it
-            /// again may or may not ever return [`Some`] again. [`next()`] and
-            /// [`next_back()`] are interchangeable for this purpose.
+            /// `DoubleEndedIterator` returns [`None`] from a [`next_back()`],
+            /// calling it again may or may not ever return [`Some`] again.
+            /// [`next()`] and [`next_back()`] are interchangeable for this
+            /// purpose.
             ///
             /// [`next_back()`]: DoubleEndedIterator::next_back
             /// [`next()`]: Iterator::next
@@ -2458,21 +2477,6 @@ pub(crate) trait CheckedOps: Sized {
     fn checked_mul(self, value: Self) -> Option<Self>;
 }
 
-impl CheckedOps for u8 {
-    const ONE: Self = 1;
-    const ZERO: Self = 0;
-
-    #[inline]
-    fn checked_add(self, value: Self) -> Option<Self> {
-        u8::checked_add(self, value)
-    }
-
-    #[inline]
-    fn checked_mul(self, value: Self) -> Option<Self> {
-        u8::checked_mul(self, value)
-    }
-}
-
 impl CheckedOps for i64 {
     const ONE: Self = 1;
     const ZERO: Self = 0;
@@ -2485,6 +2489,21 @@ impl CheckedOps for i64 {
     #[inline]
     fn checked_mul(self, value: Self) -> Option<Self> {
         i64::checked_mul(self, value)
+    }
+}
+
+impl CheckedOps for u64 {
+    const ONE: Self = 1;
+    const ZERO: Self = 0;
+
+    #[inline]
+    fn checked_add(self, value: Self) -> Option<Self> {
+        u64::checked_add(self, value)
+    }
+
+    #[inline]
+    fn checked_mul(self, value: Self) -> Option<Self> {
+        u64::checked_mul(self, value)
     }
 }
 

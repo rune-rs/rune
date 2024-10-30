@@ -536,7 +536,16 @@ impl Module {
     {
         let item = self.item.join([name])?;
         let hash = Hash::type_hash(&item);
-        let value = value.to_const_value()?;
+
+        let value = match value.to_const_value() {
+            Ok(value) => value,
+            Err(error) => {
+                return Err(ContextError::InvalidConstValue {
+                    item,
+                    error: Box::try_new(error)?,
+                })
+            }
+        };
 
         if !self.names.try_insert(Name::Item(hash))? {
             return Err(ContextError::ConflictingConstantName { item, hash });
@@ -570,7 +579,16 @@ impl Module {
     where
         V: TypeHash + TypeOf + ToConstValue,
     {
-        let value = value.to_const_value()?;
+        let value = match value.to_const_value() {
+            Ok(value) => value,
+            Err(error) => {
+                return Err(ContextError::InvalidAssociatedConstValue {
+                    container: associated.container_type_info,
+                    kind: Box::try_new(associated.name.kind)?,
+                    error: Box::try_new(error)?,
+                });
+            }
+        };
 
         self.insert_associated_name(&associated)?;
 

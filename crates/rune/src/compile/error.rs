@@ -333,7 +333,7 @@ pub(crate) enum ErrorKind {
     UnsupportedAssignExpr,
     UnsupportedBinaryExpr,
     UnsupportedRef,
-    UnsupportedArgumentCount {
+    BadArgumentCount {
         expected: usize,
         actual: usize,
     },
@@ -478,9 +478,12 @@ pub(crate) enum ErrorKind {
         c: char,
     },
     PrecedenceGroupRequired,
-    BadByteNeg,
-    BadByteOutOfBounds,
-    BadNumberOutOfBounds,
+    BadSignedOutOfBounds {
+        size: ast::NumberSize,
+    },
+    BadUnsignedOutOfBounds {
+        size: ast::NumberSize,
+    },
     BadFieldAccess,
     ExpectedMacroCloseDelimiter {
         expected: ast::Kind,
@@ -779,11 +782,8 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedRef => {
                 write!(f, "Cannot take reference of expression")?;
             }
-            ErrorKind::UnsupportedArgumentCount { expected, actual } => {
-                write!(
-                    f,
-                    "Wrong number of arguments, expected `{expected}` but got `{actual}`",
-                )?;
+            ErrorKind::BadArgumentCount { expected, actual } => {
+                write!(f, "Wrong number of arguments {actual}, expected {expected}",)?;
             }
             ErrorKind::UnsupportedPatternExpr => {
                 write!(f, "This kind of expression is not supported as a pattern")?;
@@ -1027,16 +1027,20 @@ impl fmt::Display for ErrorKind {
             ErrorKind::PrecedenceGroupRequired => {
                 write!(f, "Group required in expression to determine precedence")?;
             }
-            ErrorKind::BadByteNeg => {
-                write!(f, "Byte literals cannot be negated")?;
-            }
-            ErrorKind::BadByteOutOfBounds => {
-                write!(f, "Byte literal out of bounds `0` to `255`")?;
-            }
-            ErrorKind::BadNumberOutOfBounds => {
+            ErrorKind::BadSignedOutOfBounds { size } => {
                 write!(
                     f,
-                    "Number literal out of bounds `-9223372036854775808` to `9223372036854775807`"
+                    "Number literal out of bounds `{}` to `{}`",
+                    size.signed_min(),
+                    size.signed_max(),
+                )?;
+            }
+            ErrorKind::BadUnsignedOutOfBounds { size } => {
+                write!(
+                    f,
+                    "Number literal out of bounds `{}` to `{}`",
+                    size.unsigned_min(),
+                    size.unsigned_max(),
                 )?;
             }
             ErrorKind::BadFieldAccess => {
@@ -1141,7 +1145,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedSuffix => {
                 write!(
                     f,
-                    "Unsupported suffix, expected one of `u8`, `i64`, or `f64`"
+                    "Unsupported suffix, expected one of `u8`, `i64`, `u64`, or `f64`"
                 )?;
             }
             ErrorKind::ClosureInConst => {

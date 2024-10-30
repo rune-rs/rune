@@ -534,8 +534,8 @@ impl IrAssignOp {
     where
         S: Copy + Spanned,
     {
-        if let Some(Inline::Integer(target)) = target.as_inline_mut().with_span(spanned)? {
-            if let Some(Inline::Integer(operand)) = operand.as_inline().with_span(spanned)? {
+        if let Some(Inline::Signed(target)) = target.as_inline_mut().with_span(spanned)? {
+            if let Some(Inline::Signed(operand)) = operand.as_inline().with_span(spanned)? {
                 return self.assign_int(spanned, target, *operand);
             }
         }

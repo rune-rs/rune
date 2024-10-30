@@ -19,17 +19,17 @@ fn test_number_literals() {
 
     assert_errors! {
         r#"pub fn main() { -9223372036854775809 }"#,
-        span!(16, 36), BadNumberOutOfBounds { .. }
+        span!(16, 36), BadSignedOutOfBounds { .. }
     };
 
     assert_parse!(r#"pub fn main() { 9223372036854775807 }"#);
     assert_errors! {
         r#"pub fn main() { 9223372036854775808 }"#,
-        span!(16, 35), BadNumberOutOfBounds { .. }
+        span!(16, 35), BadSignedOutOfBounds { .. }
     };
 
     assert_errors! {
         r#"pub fn main() { 0b1000000000000000000000000000000000000000000000000000000000000000 }"#,
-        span!(16, 82), BadNumberOutOfBounds { .. }
+        span!(16, 82), BadSignedOutOfBounds { .. }
     };
 }

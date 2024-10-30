@@ -87,13 +87,13 @@ impl RangeFrom {
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
         let value = match vm_try!(self.start.as_ref_repr()) {
-            RefRepr::Inline(Inline::Byte(start)) => {
+            RefRepr::Inline(Inline::Unsigned(start)) => {
+                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
+            }
+            RefRepr::Inline(Inline::Signed(start)) => {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
             }
             RefRepr::Inline(Inline::Char(start)) => {
-                vm_try!(crate::to_value(RangeFromIter::new(*start..)))
-            }
-            RefRepr::Inline(Inline::Integer(start)) => {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
             }
             start => {
@@ -296,7 +296,7 @@ where
 range_iter!(RangeFrom, RangeFromIter<T>, {
     #[rune::function(instance, keep, protocol = SIZE_HINT)]
     #[inline]
-    pub(crate) fn size_hint(&self) -> (i64, Option<i64>) {
-        (i64::MAX, None)
+    pub(crate) fn size_hint(&self) -> (u64, Option<u64>) {
+        (u64::MAX, None)
     }
 });

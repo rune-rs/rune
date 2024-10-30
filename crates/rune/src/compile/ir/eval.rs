@@ -79,21 +79,21 @@ fn eval_ir_binary(
         (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
             let out = 'out: {
                 match (a, b) {
-                    (Inline::Integer(a), Inline::Integer(b)) => match ir.op {
+                    (Inline::Signed(a), Inline::Signed(b)) => match ir.op {
                         ir::IrBinaryOp::Add => {
-                            break 'out Inline::Integer(a.add(b));
+                            break 'out Inline::Signed(a.add(b));
                         }
                         ir::IrBinaryOp::Sub => {
-                            break 'out Inline::Integer(a.sub(b));
+                            break 'out Inline::Signed(a.sub(b));
                         }
                         ir::IrBinaryOp::Mul => {
-                            break 'out Inline::Integer(a.mul(b));
+                            break 'out Inline::Signed(a.mul(b));
                         }
                         ir::IrBinaryOp::Div => {
                             let number = a
                                 .checked_div(*b)
                                 .ok_or_else(|| compile::Error::msg(span, "division by zero"))?;
-                            break 'out Inline::Integer(number);
+                            break 'out Inline::Signed(number);
                         }
                         ir::IrBinaryOp::Shl => {
                             let b = u32::try_from(*b).map_err(|_| {
@@ -101,7 +101,7 @@ fn eval_ir_binary(
                             })?;
 
                             let n = a.shl(b);
-                            break 'out Inline::Integer(n);
+                            break 'out Inline::Signed(n);
                         }
                         ir::IrBinaryOp::Shr => {
                             let b = u32::try_from(*b).map_err(|_| {
@@ -109,7 +109,7 @@ fn eval_ir_binary(
                             })?;
 
                             let n = a.shr(b);
-                            break 'out Inline::Integer(n);
+                            break 'out Inline::Signed(n);
                         }
                         ir::IrBinaryOp::Lt => break 'out Inline::Bool(a < b),
                         ir::IrBinaryOp::Lte => break 'out Inline::Bool(a <= b),
@@ -357,7 +357,7 @@ fn eval_ir_template(
 
                 match value {
                     BorrowRefRepr::Inline(value) => match value {
-                        Inline::Integer(integer) => {
+                        Inline::Signed(integer) => {
                             write!(buf, "{integer}")?;
                         }
                         Inline::Float(float) => {

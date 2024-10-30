@@ -190,9 +190,9 @@ pub(crate) struct Expr<'hir> {
 #[non_exhaustive]
 pub(crate) enum Lit<'hir> {
     Bool(bool),
-    Integer(i64),
+    Unsigned(u64),
+    Signed(i64),
     Float(f64),
-    Byte(u8),
     Char(char),
     Str(&'hir str),
     ByteStr(&'hir [u8]),

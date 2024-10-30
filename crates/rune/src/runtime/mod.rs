@@ -197,10 +197,8 @@ pub(crate) use self::vm_diagnostics::{VmDiagnostics, VmDiagnosticsObj};
 mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;
-pub(crate) use self::vm_error::VmErrorKind;
-pub use self::vm_error::{
-    try_result, RuntimeError, TryFromResult, VmError, VmIntegerRepr, VmResult,
-};
+pub use self::vm_error::{try_result, RuntimeError, TryFromResult, VmError, VmResult};
+pub(crate) use self::vm_error::{VmErrorKind, VmIntegerRepr};
 
 mod vm_execution;
 pub(crate) use self::vm_execution::ExecutionState;
