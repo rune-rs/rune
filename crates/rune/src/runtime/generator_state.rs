@@ -51,6 +51,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Debug, TryClone)]
 #[rune(static_type = GENERATOR_STATE)]
+#[rune(item = ::std::ops::generator)]
 pub enum GeneratorState {
     /// The generator yielded.
     #[rune(constructor)]

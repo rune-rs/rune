@@ -12,7 +12,6 @@ use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime;
-use crate::Any;
 
 use super::{
     budget, static_type, Args, Awaited, BorrowMut, BorrowRefRepr, Bytes, Call, ControlFlow,
@@ -983,7 +982,7 @@ impl Vm {
                     }
 
                     err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::from(GeneratorState::INFO),
+                        target: TypeInfo::any::<GeneratorState>(),
                         index: VmIntegerRepr::from(index),
                     })
                 }
@@ -996,7 +995,7 @@ impl Vm {
                     }
 
                     err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::from(GeneratorState::INFO),
+                        target: TypeInfo::any::<GeneratorState>(),
                         index: VmIntegerRepr::from(index),
                     })
                 }
@@ -1278,7 +1277,7 @@ impl Vm {
                     static_type::SIGNED_HASH => Value::from($value as i64),
                     ty => {
                         return err(VmErrorKind::UnsupportedAs {
-                            value: <$from as TypeOf>::type_info(),
+                            value: TypeInfo::from(<$from as TypeOf>::STATIC_TYPE_INFO),
                             type_hash: ty,
                         });
                     }

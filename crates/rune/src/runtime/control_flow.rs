@@ -27,6 +27,7 @@ use super::{
 #[derive(Debug, Clone, TryClone, Any)]
 #[try_clone(crate)]
 #[rune(static_type = CONTROL_FLOW)]
+#[rune(item = ::std::ops)]
 pub enum ControlFlow {
     /// Move on to the next phase of the operation as normal.
     #[rune(constructor)]

@@ -27,7 +27,8 @@ use crate::Any;
 #[rune(crate)]
 #[rune(builtin, static_type = GENERATOR, from_value_params = [Vm])]
 #[rune(from_value = Value::into_generator, from_value_ref = Value::into_generator_ref, from_value_mut = Value::into_generator_mut)]
-pub struct Generator<T>
+#[rune(item = ::std::ops::generator)]
+pub struct Generator<T = Vm>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {
@@ -104,14 +105,14 @@ impl Generator<&mut Vm> {
     }
 }
 
-impl Generator<Vm> {
+impl Generator {
     /// Convert into iterator
     pub fn rune_iter(self) -> Iter {
         self.into_iter()
     }
 }
 
-impl IntoIterator for Generator<Vm> {
+impl IntoIterator for Generator {
     type Item = Result<Value, VmError>;
     type IntoIter = Iter;
 
@@ -124,7 +125,7 @@ impl IntoIterator for Generator<Vm> {
 #[derive(Any)]
 #[rune(item = ::std::ops::generator)]
 pub struct Iter {
-    generator: Generator<Vm>,
+    generator: Generator,
 }
 
 impl Iter {

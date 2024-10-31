@@ -16,8 +16,8 @@ use crate::runtime;
 use crate::{Hash, TypeHash};
 
 use super::{
-    BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, RawStr, ToValue, Tuple,
-    Type, TypeInfo, Value, VmErrorKind,
+    BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, Tuple, Type,
+    TypeInfo, Value, VmErrorKind,
 };
 
 /// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
@@ -129,6 +129,10 @@ pub(crate) enum ConstValueKind {
 
 impl ConstValueKind {
     fn type_info(&self) -> TypeInfo {
+        fn full_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "constant struct")
+        }
+
         match self {
             ConstValueKind::Inline(value) => value.type_info(),
             ConstValueKind::String(..) => TypeInfo::static_type(runtime::static_type::STRING),
@@ -137,10 +141,9 @@ impl ConstValueKind {
             ConstValueKind::Tuple(..) => TypeInfo::static_type(runtime::static_type::TUPLE),
             ConstValueKind::Object(..) => TypeInfo::static_type(runtime::static_type::OBJECT),
             ConstValueKind::Option(..) => TypeInfo::static_type(runtime::static_type::OPTION),
-            ConstValueKind::Struct(hash, ..) => TypeInfo::any_type_info(AnyTypeInfo::new(
-                RawStr::from_str("constant struct"),
-                *hash,
-            )),
+            ConstValueKind::Struct(hash, ..) => {
+                TypeInfo::any_type_info(AnyTypeInfo::new(full_name, *hash))
+            }
         }
     }
 }

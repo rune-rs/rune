@@ -8,7 +8,7 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToReturn, TypeHash, TypeInfo,
+    self, FromValue, InstAddress, MaybeTypeOf, Memory, Output, StaticTypeInfo, ToReturn, TypeHash,
     TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
@@ -170,11 +170,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Zero-sized marker struct for mutable references.
@@ -202,11 +198,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 // Fake guard for owned values.

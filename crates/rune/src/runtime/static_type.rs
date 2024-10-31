@@ -4,288 +4,202 @@ use core::cmp::{Eq, Ordering, PartialEq};
 use core::hash;
 use core::ops::ControlFlow;
 
+use crate::alloc::clone::TryClone;
 use crate::alloc::{self, HashMap};
 use crate::runtime as rt;
-use crate::runtime::{RawStr, TypeInfo};
-use crate::Hash;
+use crate::runtime::TypeInfo;
+use crate::{Hash, Item};
 
 /// Static type information.
-#[derive(Debug)]
-#[repr(C)]
+#[derive(TryClone, Debug, Clone, Copy)]
 pub struct StaticType {
     /// The name of the static type.
-    pub(crate) name: RawStr,
+    #[try_clone(copy)]
+    pub(crate) item: &'static Item,
     /// The hash of the static type.
+    #[try_clone(copy)]
     pub(crate) hash: Hash,
 }
 
 impl StaticType {
     #[inline]
-    pub(crate) fn type_info(&'static self) -> TypeInfo {
+    pub(crate) fn type_info(self) -> TypeInfo {
         TypeInfo::static_type(self)
     }
 }
 
-impl PartialEq for &'static StaticType {
+impl PartialEq for StaticType {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
 }
 
-impl Eq for &'static StaticType {}
+impl Eq for StaticType {}
 
-impl PartialEq<Hash> for &'static StaticType {
+impl PartialEq<Hash> for StaticType {
     fn eq(&self, other: &Hash) -> bool {
         self.hash == *other
     }
 }
 
-impl hash::Hash for &'static StaticType {
+impl hash::Hash for StaticType {
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.hash.hash(state)
     }
 }
 
-pub(crate) const BOOL_HASH: Hash = ::rune_macros::hash!(::std::bool);
+macro_rules! static_type {
+    (
+        $(
+            $(#[$($meta:meta)*])*
+            $vis:vis static [$name:ident, $hash:ident] = $path:path {
+                $(
+                    $(#[$($impl_meta:meta)*])*
+                    impl $(<$($p:ident),*>)? for $ty:ty;
+                )*
+            }
+        )*
+    ) => {
+        $(
+            $vis const $hash: Hash = ::rune_macros::hash!($path);
 
-/// The specialized type information for a bool type.
-pub(crate) static BOOL: &StaticType = &StaticType {
-    name: RawStr::from_str("bool"),
-    hash: BOOL_HASH,
-};
+            $(#[$($meta)*])*
+            $vis const $name: StaticType = StaticType {
+                item: ::rune_macros::item!($path),
+                hash: $hash,
+            };
 
-impl_static_type!(bool, BOOL, BOOL_HASH);
-
-pub(crate) const CHAR_HASH: Hash = ::rune_macros::hash!(::std::char);
-
-/// The specialized type information for a char type.
-pub(crate) static CHAR: &StaticType = &StaticType {
-    name: RawStr::from_str("char"),
-    hash: CHAR_HASH,
-};
-
-impl_static_type!(char, CHAR, CHAR_HASH);
-
-/// Hash for `::std::i64`.
-pub(crate) const SIGNED_HASH: Hash = ::rune_macros::hash!(::std::i64);
-
-/// The specialized type information for a integer type.
-pub(crate) static SIGNED: &StaticType = &StaticType {
-    name: RawStr::from_str("i64"),
-    hash: SIGNED_HASH,
-};
-
-impl_static_type!(i8, SIGNED, SIGNED_HASH);
-impl_static_type!(i16, SIGNED, SIGNED_HASH);
-impl_static_type!(i32, SIGNED, SIGNED_HASH);
-impl_static_type!(i64, SIGNED, SIGNED_HASH);
-impl_static_type!(i128, SIGNED, SIGNED_HASH);
-impl_static_type!(isize, SIGNED, SIGNED_HASH);
-
-/// Hash for `::std::u64`.
-pub(crate) const UNSIGNED_HASH: Hash = ::rune_macros::hash!(::std::u64);
-
-/// The specialized type information for an unsigned integer type.
-pub(crate) static UNSIGNED: &StaticType = &StaticType {
-    name: RawStr::from_str("u64"),
-    hash: UNSIGNED_HASH,
-};
-
-impl_static_type!(u8, UNSIGNED, UNSIGNED_HASH);
-impl_static_type!(u16, UNSIGNED, UNSIGNED_HASH);
-impl_static_type!(u32, UNSIGNED, UNSIGNED_HASH);
-impl_static_type!(u64, UNSIGNED, UNSIGNED_HASH);
-impl_static_type!(u128, UNSIGNED, UNSIGNED_HASH);
-impl_static_type!(usize, UNSIGNED, UNSIGNED_HASH);
-
-/// Hash for `::std::f64`.
-pub(crate) const FLOAT_HASH: Hash = ::rune_macros::hash!(::std::f64);
-
-pub(crate) static FLOAT: &StaticType = &StaticType {
-    name: RawStr::from_str("f64"),
-    hash: FLOAT_HASH,
-};
-
-impl_static_type!(f32, FLOAT, FLOAT_HASH);
-impl_static_type!(f64, FLOAT, FLOAT_HASH);
-
-pub(crate) const STRING_HASH: Hash = ::rune_macros::hash!(::std::string::String);
-pub(crate) static STRING: &StaticType = &StaticType {
-    name: RawStr::from_str("String"),
-    hash: STRING_HASH,
-};
-
-#[cfg(feature = "alloc")]
-impl_static_type!(::rust_alloc::string::String, STRING, STRING_HASH);
-impl_static_type!(alloc::String, STRING, STRING_HASH);
-impl_static_type!(alloc::Box<str>, STRING, STRING_HASH);
-impl_static_type!(str, STRING, STRING_HASH);
-
-pub(crate) const BYTES_HASH: Hash = ::rune_macros::hash!(::std::bytes::Bytes);
-
-pub(crate) static BYTES: &StaticType = &StaticType {
-    name: RawStr::from_str("Bytes"),
-    hash: BYTES_HASH,
-};
-
-impl_static_type!([u8], BYTES, BYTES_HASH);
-
-pub(crate) const VEC_HASH: Hash = ::rune_macros::hash!(::std::vec::Vec);
-
-pub(crate) static VEC: &StaticType = &StaticType {
-    name: RawStr::from_str("Vec"),
-    hash: VEC_HASH,
-};
-
-impl_static_type!([rt::Value], VEC, VEC_HASH);
-#[cfg(feature = "alloc")]
-impl_static_type!(impl<T> ::rust_alloc::vec::Vec<T>, VEC, VEC_HASH);
-impl_static_type!(impl<T> alloc::Vec<T>, VEC, VEC_HASH);
-impl_static_type!(impl<T> rt::VecTuple<T>, VEC, VEC_HASH);
-
-pub(crate) const TUPLE_HASH: Hash = ::rune_macros::hash!(::std::tuple::Tuple);
-
-pub(crate) static TUPLE: &StaticType = &StaticType {
-    name: RawStr::from_str("Tuple"),
-    hash: TUPLE_HASH,
-};
-
-impl_static_type!(rt::OwnedTuple, TUPLE, TUPLE_HASH);
-
-pub(crate) const OBJECT_HASH: Hash = ::rune_macros::hash!(::std::object::Object);
-
-pub(crate) static OBJECT: &StaticType = &StaticType {
-    name: RawStr::from_str("Object"),
-    hash: OBJECT_HASH,
-};
-
-impl_static_type!(rt::Struct, OBJECT, OBJECT_HASH);
-impl_static_type!(impl<T> HashMap<::rust_alloc::string::String, T>, OBJECT, OBJECT_HASH);
-impl_static_type!(impl<T> HashMap<alloc::String, T>, OBJECT, OBJECT_HASH);
-
-cfg_std! {
-    impl_static_type!(impl<T> ::std::collections::HashMap<::rust_alloc::string::String, T>, OBJECT, OBJECT_HASH);
-    impl_static_type!(impl<T> ::std::collections::HashMap<alloc::String, T>, OBJECT, OBJECT_HASH);
+            $(
+                $(#[$($impl_meta)*])*
+                impl_static_type!(impl $(<$($p),*>)* for $ty, $name, $hash);
+            )*
+        )*
+    }
 }
 
-pub(crate) const RANGE_FROM_HASH: Hash = ::rune_macros::hash!(::std::ops::RangeFrom);
+static_type! {
+    /// The specialized type information for a bool type.
+    pub(crate) static [BOOL, BOOL_HASH] = ::std::bool {
+        impl for bool;
+    }
 
-pub(crate) static RANGE_FROM: &StaticType = &StaticType {
-    name: RawStr::from_str("RangeFrom"),
-    hash: RANGE_FROM_HASH,
-};
+    /// The specialized type information for a char type.
+    pub(crate) static [CHAR, CHAR_HASH] = ::std::char {
+        impl for char;
+    }
 
-pub(crate) const RANGE_FULL_HASH: Hash = ::rune_macros::hash!(::std::ops::RangeFull);
+    /// The specialized type information for a integer type.
+    pub(crate) static [SIGNED, SIGNED_HASH] = ::std::i64 {
+        impl for i8;
+        impl for i16;
+        impl for i32;
+        impl for i64;
+        impl for i128;
+        impl for isize;
+    }
 
-pub(crate) static RANGE_FULL: &StaticType = &StaticType {
-    name: RawStr::from_str("RangeFull"),
-    hash: RANGE_FULL_HASH,
-};
+    /// The specialized type information for an unsigned integer type.
+    pub(crate) static [UNSIGNED, UNSIGNED_HASH] = ::std::u64 {
+        impl for u8;
+        impl for u16;
+        impl for u32;
+        impl for u64;
+        impl for u128;
+        impl for usize;
+    }
 
-pub(crate) const RANGE_INCLUSIVE_HASH: Hash = ::rune_macros::hash!(::std::ops::RangeInclusive);
+    /// The specialized type information for a float type.
+    pub(crate) static [FLOAT, FLOAT_HASH] = ::std::f64 {
+        impl for f32;
+        impl for f64;
+    }
 
-pub(crate) static RANGE_INCLUSIVE: &StaticType = &StaticType {
-    name: RawStr::from_str("RangeInclusive"),
-    hash: RANGE_INCLUSIVE_HASH,
-};
+    /// The specialized type information for a float type.
+    pub(crate) static [STRING, STRING_HASH] = ::std::string::String {
+        #[cfg(feature = "alloc")]
+        #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
+        impl for ::rust_alloc::string::String;
+        impl for alloc::String;
+        impl for alloc::Box<str>;
+        impl for str;
+    }
 
-pub(crate) const RANGE_TO_INCLUSIVE_HASH: Hash = ::rune_macros::hash!(::std::ops::RangeToInclusive);
+    /// The specialized type information for the [`Bytes`] type.
+    pub(crate) static [BYTES, BYTES_HASH] = ::std::bytes::Bytes {
+        impl for [u8];
+    }
 
-pub(crate) static RANGE_TO_INCLUSIVE: &StaticType = &StaticType {
-    name: RawStr::from_str("RangeToInclusive"),
-    hash: RANGE_TO_INCLUSIVE_HASH,
-};
+    /// The specialized type information for the [`Vec`] type.
+    pub(crate) static [VEC, VEC_HASH] = ::std::vec::Vec {
+        impl for [rt::Value];
+        #[cfg(feature = "alloc")]
+        #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
+        impl<T> for ::rust_alloc::vec::Vec<T>;
+        impl<T> for alloc::Vec<T>;
+        impl<T> for rt::VecTuple<T>;
+    }
 
-pub(crate) const RANGE_TO_HASH: Hash = ::rune_macros::hash!(::std::ops::RangeTo);
+    /// The specialized type information for the [`Tuple`] type.
+    pub(crate) static [TUPLE, TUPLE_HASH] = ::std::tuple::Tuple {
+        impl for rt::OwnedTuple;
+    }
 
-pub(crate) static RANGE_TO: &StaticType = &StaticType {
-    name: RawStr::from_str("RangeTo"),
-    hash: RANGE_TO_HASH,
-};
+    /// The specialized type information for the [`Object`] type.
+    pub(crate) static [OBJECT, OBJECT_HASH] = ::std::object::Object {
+        impl for rt::Struct;
+        impl<T> for HashMap<::rust_alloc::string::String, T>;
+        impl<T> for HashMap<alloc::String, T>;
 
-pub(crate) const RANGE_HASH: Hash = ::rune_macros::hash!(::std::ops::Range);
+        #[cfg(feature = "std")]
+        #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+        impl<T> for ::std::collections::HashMap<::rust_alloc::string::String, T>;
 
-pub(crate) static RANGE: &StaticType = &StaticType {
-    name: RawStr::from_str("Range"),
-    hash: RANGE_HASH,
-};
+        #[cfg(feature = "std")]
+        #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+        impl<T> for ::std::collections::HashMap<alloc::String, T>;
+    }
 
-pub(crate) const CONTROL_FLOW_HASH: Hash = ::rune_macros::hash!(::std::ops::ControlFlow);
+    pub(crate) static [RANGE_FROM, RANGE_FROM_HASH] = ::std::ops::RangeFrom {}
 
-pub(crate) static CONTROL_FLOW: &StaticType = &StaticType {
-    name: RawStr::from_str("ControlFlow"),
-    hash: CONTROL_FLOW_HASH,
-};
+    pub(crate) static [RANGE_FULL, RANGE_FULL_HASH] = ::std::ops::RangeFull {}
 
-impl_static_type!(impl<C, B> ControlFlow<C, B>, CONTROL_FLOW, CONTROL_FLOW_HASH);
+    pub(crate) static [RANGE_INCLUSIVE, RANGE_INCLUSIVE_HASH] = ::std::ops::RangeInclusive {}
 
-pub(crate) const FUTURE_HASH: Hash = ::rune_macros::hash!(::std::future::Future);
-pub(crate) static FUTURE: &StaticType = &StaticType {
-    name: RawStr::from_str("Future"),
-    hash: FUTURE_HASH,
-};
+    pub(crate) static [RANGE_TO_INCLUSIVE, RANGE_TO_INCLUSIVE_HASH] = ::std::ops::RangeToInclusive {}
 
-pub(crate) const GENERATOR_HASH: Hash = ::rune_macros::hash!(::std::ops::generator::Generator);
-pub(crate) static GENERATOR: &StaticType = &StaticType {
-    name: RawStr::from_str("Generator"),
-    hash: GENERATOR_HASH,
-};
+    pub(crate) static [RANGE_TO, RANGE_TO_HASH] = ::std::ops::RangeTo {}
 
-pub(crate) const GENERATOR_STATE_HASH: Hash =
-    ::rune_macros::hash!(::std::ops::generator::GeneratorState);
-pub(crate) static GENERATOR_STATE: &StaticType = &StaticType {
-    name: RawStr::from_str("GeneratorState"),
-    hash: GENERATOR_STATE_HASH,
-};
+    pub(crate) static [RANGE, RANGE_HASH] = ::std::ops::Range {}
 
-pub(crate) const STREAM_HASH: Hash = ::rune_macros::hash!(::std::stream::Stream);
-pub(crate) static STREAM: &StaticType = &StaticType {
-    name: RawStr::from_str("Stream"),
-    hash: STREAM_HASH,
-};
+    pub(crate) static [CONTROL_FLOW, CONTROL_FLOW_HASH] = ::std::ops::ControlFlow {
+        impl<C, B> for ControlFlow<C, B>;
+    }
 
-pub(crate) const RESULT_HASH: Hash = ::rune_macros::hash!(::std::result::Result);
+    pub(crate) static [FUTURE, FUTURE_HASH] = ::std::future::Future {}
 
-pub(crate) static RESULT: &StaticType = &StaticType {
-    name: RawStr::from_str("Result"),
-    hash: RESULT_HASH,
-};
+    pub(crate) static [GENERATOR, GENERATOR_HASH] = ::std::ops::generator::Generator {}
 
-impl_static_type!(impl<T, E> Result<T, E>, RESULT, RESULT_HASH);
+    pub(crate) static [GENERATOR_STATE, GENERATOR_STATE_HASH] = ::std::ops::generator::GeneratorState {}
 
-pub(crate) const OPTION_HASH: Hash = ::rune_macros::hash!(::std::option::Option);
+    pub(crate) static [STREAM, STREAM_HASH] = ::std::stream::Stream {}
 
-pub(crate) static OPTION: &StaticType = &StaticType {
-    name: RawStr::from_str("Option"),
-    hash: OPTION_HASH,
-};
+    pub(crate) static [RESULT, RESULT_HASH] = ::std::result::Result {
+        impl<T, E> for Result<T, E>;
+    }
 
-impl_static_type!(impl<T> Option<T>, OPTION, OPTION_HASH);
+    pub(crate) static [OPTION, OPTION_HASH] = ::std::option::Option {
+        impl<T> for Option<T>;
+    }
 
-pub(crate) const FUNCTION_HASH: Hash = ::rune_macros::hash!(::std::ops::Function);
-pub(crate) static FUNCTION: &StaticType = &StaticType {
-    name: RawStr::from_str("Function"),
-    hash: FUNCTION_HASH,
-};
+    pub(crate) static [FUNCTION, FUNCTION_HASH] = ::std::ops::Function {}
 
-pub(crate) const FORMAT_HASH: Hash = ::rune_macros::hash!(::std::fmt::Format);
-pub(crate) static FORMAT: &StaticType = &StaticType {
-    name: RawStr::from_str("Format"),
-    hash: FORMAT_HASH,
-};
+    pub(crate) static [FORMAT, FORMAT_HASH] = ::std::fmt::Format {}
 
-pub(crate) const ORDERING_HASH: Hash = ::rune_macros::hash!(::std::cmp::Ordering);
-pub(crate) static ORDERING: &StaticType = &StaticType {
-    name: RawStr::from_str("Ordering"),
-    hash: ORDERING_HASH,
-};
+    pub(crate) static [ORDERING, ORDERING_HASH] = ::std::cmp::Ordering {
+        impl for Ordering;
+    }
 
-impl_static_type!(Ordering, ORDERING, ORDERING_HASH);
-
-pub(crate) const HASH: Hash = ::rune_macros::hash!(::std::any::Type);
-pub(crate) static TYPE: &StaticType = &StaticType {
-    name: RawStr::from_str("Type"),
-    hash: HASH,
-};
-
-impl_static_type!(rt::Type, TYPE, HASH);
+    pub(crate) static [TYPE, TYPE_HASH] = ::std::any::Type {
+        impl for rt::Type;
+    }
+}

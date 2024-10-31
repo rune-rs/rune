@@ -47,7 +47,7 @@ mod spanned;
 mod to_tokens;
 mod to_value;
 
-use self::context::Context;
+use self::context::{Context, Tokens};
 
 #[proc_macro]
 pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -198,13 +198,11 @@ pub fn const_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let args = syn::parse_macro_input!(input as self::hash::Arguments);
 
-    let stream = match self::hash::build_type_hash(&args) {
-        Ok(hash) => {
-            let hash = hash.into_inner();
-            ::quote::quote!(rune::Hash(#hash))
-        }
-        Err(error) => to_compile_errors([error]),
-    };
+    let stream = Context::build(|cx| {
+        let Tokens { hash, .. } = cx.tokens_with_module(None);
+        let value = args.build_type_hash(cx)?.into_inner();
+        Ok(::quote::quote!(#hash(#value)))
+    });
 
     stream.into()
 }

@@ -42,6 +42,7 @@ impl fmt::Display for AlignmentFromStrError {
 /// A format specification, wrapping an inner value.
 #[derive(Any, Debug, Clone, TryClone)]
 #[rune(static_type = FORMAT)]
+#[rune(item = ::std::fmt)]
 pub struct Format {
     /// The value being formatted.
     pub(crate) value: Value,

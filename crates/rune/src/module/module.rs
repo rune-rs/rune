@@ -17,8 +17,8 @@ use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
-    ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, ToConstValue, TypeCheck,
-    TypeHash, TypeInfo, TypeOf, Value, VmResult,
+    ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, StaticTypeInfo,
+    ToConstValue, TypeCheck, TypeHash, TypeOf, Value, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -71,7 +71,7 @@ pub struct Module {
     /// A re-export in the current module.
     pub(crate) reexports: Vec<ModuleReexport>,
     /// Constant constructors.
-    pub(crate) construct: Vec<(Hash, TypeInfo, Arc<dyn ConstConstruct>)>,
+    pub(crate) construct: Vec<(Hash, StaticTypeInfo, Arc<dyn ConstConstruct>)>,
     /// Defines construct hashes.
     pub(crate) construct_hash: HashSet<Hash>,
     /// Module level metadata.
@@ -196,31 +196,26 @@ impl Module {
     where
         T: ?Sized + TypeOf + Named + InstallWith,
     {
-        let item = ItemBuf::with_item([T::BASE_NAME])?;
-        let hash = T::HASH;
-        let type_parameters = T::PARAMETERS;
-        let type_info = T::type_info();
-
-        if !self.names.try_insert(Name::Item(hash))? {
+        if !self.names.try_insert(Name::Item(T::HASH))? {
             return Err(ContextError::ConflictingType {
-                item,
-                type_info,
-                hash,
+                item: T::ITEM.try_to_owned()?,
+                type_info: T::type_info(),
+                hash: T::HASH,
             });
         }
 
         let index = self.types.len();
-        self.types_hash.try_insert(hash, index)?;
+        self.types_hash.try_insert(T::HASH, index)?;
 
         self.types.try_push(ModuleType {
-            item,
-            hash,
+            item: T::ITEM.try_to_owned()?,
+            hash: T::HASH,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
                 deprecated: None,
             },
-            type_parameters,
-            type_info,
+            type_parameters: T::PARAMETERS,
+            type_info: T::type_info(),
             spec: None,
             constructor: None,
         })?;
@@ -248,7 +243,7 @@ impl Module {
         let type_hash = T::HASH;
 
         let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
-            let full_name = String::try_from(T::full_name())?;
+            let full_name = T::display().try_to_string()?;
 
             return Err(ContextError::MissingType {
                 item: ItemBuf::with_item(&[full_name])?,
@@ -304,7 +299,7 @@ impl Module {
         let type_hash = T::HASH;
 
         let Some(ty) = self.types_hash.get(&type_hash).map(|&i| &mut self.types[i]) else {
-            let full_name = String::try_from(T::full_name())?;
+            let full_name = T::display().try_to_string()?;
 
             return Err(ContextError::MissingType {
                 item: ItemBuf::with_item(&[full_name])?,
@@ -313,7 +308,7 @@ impl Module {
         };
 
         let Some(TypeSpecification::Enum(en)) = &mut ty.spec else {
-            let full_name = String::try_from(T::full_name())?;
+            let full_name = T::display().try_to_string()?;
 
             return Err(ContextError::MissingEnum {
                 item: ItemBuf::with_item(&[full_name])?,
@@ -428,9 +423,11 @@ impl Module {
         T: ?Sized + TypeOf,
     {
         let item = self.item.join([name])?;
+        let hash = Hash::type_hash(&item);
 
         self.items.try_push(ModuleItem {
             item,
+            hash,
             common: ModuleItemCommon::default(),
             kind: ModuleItemKind::InternalEnum(enum_),
         })?;
@@ -513,6 +510,7 @@ impl Module {
 
         self.items.try_push(ModuleItem {
             item,
+            hash,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
                 deprecated: None,
@@ -581,7 +579,7 @@ impl Module {
         if self.construct_hash.try_insert(V::HASH)? {
             if let Some(construct) = V::construct() {
                 self.construct
-                    .try_push((V::HASH, V::type_info(), construct))?;
+                    .try_push((V::HASH, V::STATIC_TYPE_INFO, construct))?;
             }
         }
 
@@ -646,6 +644,7 @@ impl Module {
 
                 self.items.try_push(ModuleItem {
                     item,
+                    hash,
                     common: ModuleItemCommon {
                         docs,
                         deprecated: None,
@@ -670,6 +669,7 @@ impl Module {
 
                 self.items.try_push(ModuleItem {
                     item,
+                    hash,
                     common: ModuleItemCommon {
                         docs,
                         deprecated: None,
@@ -737,6 +737,7 @@ impl Module {
 
         self.items.try_push(ModuleItem {
             item,
+            hash,
             common: ModuleItemCommon::default(),
             kind: ModuleItemKind::Macro(ModuleMacro { handler }),
         })?;
@@ -801,6 +802,7 @@ impl Module {
 
         self.items.try_push(ModuleItem {
             item,
+            hash,
             common: ModuleItemCommon {
                 docs: Docs::EMPTY,
                 deprecated: None,
@@ -1383,6 +1385,7 @@ impl Module {
 
         self.items.try_push(ModuleItem {
             item,
+            hash,
             common: ModuleItemCommon { docs, deprecated },
             kind: ModuleItemKind::Function(ModuleFunction {
                 handler: data.handler,
@@ -1548,7 +1551,6 @@ impl Module {
     where
         T: ?Sized + TypeOf + Named,
     {
-        let item = ItemBuf::with_item([T::BASE_NAME])?;
         let hash = T::HASH;
         let type_info = T::type_info();
         let trait_hash = Hash::type_hash(trait_item);
@@ -1557,13 +1559,13 @@ impl Module {
             return Err(ContextError::ConflictingTraitImpl {
                 trait_item: trait_item.try_to_owned()?,
                 trait_hash,
-                item,
+                item: T::ITEM.try_to_owned()?,
                 hash,
             });
         }
 
         self.trait_impls.try_push(ModuleTraitImpl {
-            item,
+            item: T::ITEM.try_to_owned()?,
             hash,
             type_info,
             trait_item: trait_item.try_to_owned()?,

@@ -82,6 +82,7 @@ pub type Values<'a> = hash_map::Values<'a, String, Value>;
 #[derive(Any, Default)]
 #[repr(transparent)]
 #[rune(builtin, static_type = OBJECT)]
+#[rune(item = ::std::object)]
 pub struct Object {
     inner: HashMap<String, Value>,
 }

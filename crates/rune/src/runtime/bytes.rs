@@ -16,8 +16,9 @@ use crate::Any;
 use super::{IntoOutput, RawAnyGuard, Ref, UnsafeToRef, Value, VmResult};
 
 /// A vector of bytes.
-#[derive(Default, Any, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[rune(static_type = BYTES)]
+#[rune(item = ::std::bytes)]
 pub struct Bytes {
     bytes: Vec<u8>,
 }

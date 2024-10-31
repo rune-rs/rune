@@ -12,14 +12,14 @@ pub(crate) struct InternalEnum {
     /// The name of the internal enum.
     pub(crate) name: &'static str,
     /// The static type of the enum.
-    pub(crate) static_type: &'static StaticType,
+    pub(crate) static_type: StaticType,
     /// Internal variants.
     pub(crate) variants: Vec<Variant>,
 }
 
 impl InternalEnum {
     /// Construct a new handler for an internal enum.
-    pub(super) fn new(name: &'static str, static_type: &'static StaticType) -> Self {
+    pub(super) fn new(name: &'static str, static_type: StaticType) -> Self {
         InternalEnum {
             name,
             static_type,

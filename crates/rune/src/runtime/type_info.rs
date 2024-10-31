@@ -3,15 +3,16 @@ use core::fmt;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash::Hash;
-use crate::runtime::{RawStr, Rtti, StaticType, VariantRtti};
 use crate::Any;
 
 use ::rust_alloc::sync::Arc;
 
+use super::{Rtti, StaticType, StaticTypeInfo, StaticTypeInfoKind, VariantRtti};
+
 #[derive(Debug, TryClone, PartialEq, Eq)]
 enum TypeInfoKind {
     /// The static type of a value.
-    StaticType(&'static StaticType),
+    StaticType(StaticType),
     /// Reference to an external type.
     Any(AnyTypeInfo),
     /// A named type.
@@ -45,7 +46,7 @@ impl TypeInfo {
     where
         T: Any,
     {
-        Self::any_type_info(T::INFO)
+        Self::any_type_info(T::ANY_TYPE_INFO)
     }
 
     /// Construct type info from an statically known [`Any`] type.
@@ -56,7 +57,7 @@ impl TypeInfo {
     }
 
     #[doc(hidden)]
-    pub(crate) const fn static_type(ty: &'static StaticType) -> Self {
+    pub(crate) const fn static_type(ty: StaticType) -> Self {
         Self::new(TypeInfoKind::StaticType(ty))
     }
 
@@ -92,7 +93,7 @@ impl fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TypeInfoKind::StaticType(ty) => {
-                write!(f, "{}", ty.name)?;
+                write!(f, "{}", ty.item)?;
             }
             TypeInfoKind::Typed(rtti) => {
                 write!(f, "{}", rtti.item)?;
@@ -111,8 +112,18 @@ impl fmt::Display for TypeInfo {
 
 impl From<AnyTypeInfo> for TypeInfo {
     #[inline]
-    fn from(value: AnyTypeInfo) -> Self {
-        Self::any_type_info(value)
+    fn from(type_info: AnyTypeInfo) -> Self {
+        Self::any_type_info(type_info)
+    }
+}
+
+impl From<StaticTypeInfo> for TypeInfo {
+    #[inline]
+    fn from(type_info: StaticTypeInfo) -> Self {
+        match type_info.into_kind() {
+            StaticTypeInfoKind::StaticType(static_type) => Self::static_type(static_type),
+            StaticTypeInfoKind::AnyTypeInfo(any_type_info) => Self::any_type_info(any_type_info),
+        }
     }
 }
 
@@ -120,22 +131,24 @@ impl From<AnyTypeInfo> for TypeInfo {
 #[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
 #[try_clone(copy)]
 pub struct AnyTypeInfo {
-    /// The name of the type.
-    pub(crate) name: RawStr,
+    /// Formatter to display a full name.
+    pub(crate) full_name: FullNameFn,
     /// The type hash of the item.
     pub(crate) hash: Hash,
 }
 
 impl AnyTypeInfo {
     /// Private constructor, use at your own risk.
-    pub(crate) const fn new(name: RawStr, hash: Hash) -> Self {
-        Self { name, hash }
+    pub(crate) const fn new(full_name: FullNameFn, hash: Hash) -> Self {
+        Self { full_name, hash }
     }
 }
 
 impl fmt::Display for AnyTypeInfo {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)
+        (self.full_name)(f)
     }
 }
+
+pub type FullNameFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;

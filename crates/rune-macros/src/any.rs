@@ -44,24 +44,25 @@ impl InternalCall {
 
         let mut item = self.item.clone();
         item.segments.push(syn::PathSegment::from(name.clone()));
-        let args = crate::hash::Arguments::new(item);
 
-        let type_hash = match crate::hash::build_type_hash(&args) {
-            Ok(type_hash) => type_hash,
+        let type_item = match crate::item::build_item(&item) {
+            Ok(type_item) => type_item,
             Err(error) => {
                 cx.error(error);
                 return Err(());
             }
         };
 
+        let args = crate::hash::Arguments::new(item);
+        let type_hash = args.build_type_hash(cx)?;
+
         let attr = TypeAttr::default();
-        let name = syn::LitStr::new(&name.to_string(), name.span());
 
         Ok(TypeBuilder {
             attr,
             ident: self.path,
             type_hash,
-            name,
+            type_item,
             installers: Vec::new(),
             tokens,
             generics,
@@ -114,23 +115,16 @@ impl Derive {
         };
 
         item.segments.push(syn::PathSegment::from(name.clone()));
+
         let args = crate::hash::Arguments::new(item);
-
-        let type_hash = match crate::hash::build_type_hash(&args) {
-            Ok(type_hash) => type_hash,
-            Err(error) => {
-                cx.error(error);
-                return Err(());
-            }
-        };
-
-        let name = syn::LitStr::new(&name.to_string(), name.span());
+        let type_item = args.build_type_item(cx)?;
+        let type_hash = args.build_type_hash(cx)?;
 
         Ok(TypeBuilder {
             attr,
             ident: self.input.ident,
             type_hash,
-            name,
+            type_item,
             installers,
             tokens,
             generics: self.input.generics,
@@ -289,9 +283,9 @@ fn expand_enum_install_with(
         protocol,
         runtime_error,
         to_value,
-        type_of,
         vm_result,
         vm_try,
+        any_t,
         ..
     } = tokens;
 
@@ -431,7 +425,11 @@ fn expand_enum_install_with(
             module.field_function(#protocol::GET, #field, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::err(#runtime_error::__rune_macros__unsupported_object_field_get(<Self as #type_of>::type_info())),
+                    _ => return #vm_result::err(
+                        #runtime_error::__rune_macros__unsupported_object_field_get(
+                            <Self as #any_t>::ANY_TYPE_INFO
+                        )
+                    ),
                 }
             })?;
         });
@@ -442,7 +440,12 @@ fn expand_enum_install_with(
             module.index_function(#protocol::GET, #index, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::err(#runtime_error::__rune_macros__unsupported_tuple_index_get(<Self as #type_of>::type_info(), #index)),
+                    _ => return #vm_result::err(
+                        #runtime_error::__rune_macros__unsupported_tuple_index_get(
+                            <Self as #any_t>::ANY_TYPE_INFO,
+                            #index
+                        )
+                    ),
                 }
             })?;
         });
@@ -488,8 +491,10 @@ fn expand_enum_install_with(
 pub struct TypeBuilder<T> {
     attr: TypeAttr,
     ident: T,
+    /// Hash of the type.
     type_hash: Hash,
-    name: syn::LitStr,
+    /// Bytes corresponding to the item array.
+    type_item: syn::ExprArray,
     installers: Vec<TokenStream>,
     tokens: Tokens,
     generics: syn::Generics,
@@ -505,7 +510,7 @@ where
             attr,
             ident,
             type_hash,
-            name,
+            type_item,
             installers,
             tokens,
             generics,
@@ -514,11 +519,12 @@ where
         let Tokens {
             alloc,
             any_t,
-            box_,
             context_error,
+            fmt,
             from_value,
             hash,
             install_with,
+            item,
             maybe_type_of,
             meta,
             module,
@@ -526,13 +532,14 @@ where
             named,
             non_null,
             raw_any_guard,
-            raw_str,
             raw_value_guard,
             ref_,
+            result,
+            runtime_error,
+            static_type_info,
             static_type_mod,
             to_value,
             type_hash_t,
-            type_info,
             type_of,
             unsafe_to_mut,
             unsafe_to_ref,
@@ -542,8 +549,7 @@ where
             value,
             vm_result,
             vm_try,
-            runtime_error,
-            result,
+            write,
             ..
         } = &tokens;
 
@@ -555,14 +561,23 @@ where
             generics.type_params().map(|v| &v.ident).collect::<Vec<_>>()
         };
 
-        let impl_named = if !generic_names.is_empty() {
+        let impl_named = if let [first_name, remainder @ ..] = &generic_names[..] {
             quote! {
                 #[automatically_derived]
                 impl #impl_generics #named for #ident #type_generics #where_clause {
-                    const BASE_NAME: #raw_str  = #raw_str::from_str(#name);
+                    const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
 
-                    fn full_name() -> #box_<str> {
-                        [#name, "<", &#(#generic_names::full_name(),)* ">"].join("").into_boxed_str()
+                    fn full_name(f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
+                        #fmt::Display::fmt(Self::ITEM, f)?;
+
+                        #write!(f, "<")?;
+                        #first_name::full_name(f)?;
+                        #(
+                            #write!(f, ", ")?;
+                            #remainder::full_name(f)?;
+                        )*
+                        #write!(f, ">")?;
+                        #result::Ok(())
                     }
                 }
             }
@@ -570,7 +585,7 @@ where
             quote! {
                 #[automatically_derived]
                 impl #impl_generics #named for #ident #type_generics #where_clause {
-                    const BASE_NAME: #raw_str = #raw_str::from_str(#name);
+                    const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
                 }
             }
         };
@@ -596,10 +611,7 @@ where
 
                 #[automatically_derived]
                 impl #impl_generics #type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn type_info() -> #type_info {
-                        #type_info::static_type(#static_type_mod::#ty)
-                    }
+                    const STATIC_TYPE_INFO: #static_type_info = #static_type_info::static_type(#static_type_mod::#ty);
                 }
 
                 #[automatically_derived]
@@ -634,11 +646,7 @@ where
                 #[automatically_derived]
                 impl #impl_generics #type_of for #ident #type_generics #where_clause {
                     const PARAMETERS: #hash = #type_parameters;
-
-                    #[inline]
-                    fn type_info() -> #type_info {
-                        #type_info::any::<Self>()
-                    }
+                    const STATIC_TYPE_INFO: #static_type_info = #static_type_info::any_type_info(<Self as #any_t>::ANY_TYPE_INFO);
                 }
 
                 #[automatically_derived]

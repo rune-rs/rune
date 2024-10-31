@@ -9,7 +9,8 @@ use crate::Any;
 #[rune(crate)]
 #[rune(builtin, static_type = STREAM, from_value_params = [Vm])]
 #[rune(from_value = Value::into_stream, from_value_ref = Value::into_stream_ref, from_value_mut = Value::into_stream_mut)]
-pub struct Stream<T>
+#[rune(item = ::std::stream)]
+pub struct Stream<T = Vm>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {

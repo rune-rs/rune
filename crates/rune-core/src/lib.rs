@@ -41,4 +41,3 @@ pub mod hash;
 pub mod item;
 pub mod params;
 pub mod protocol;
-pub mod raw_str;

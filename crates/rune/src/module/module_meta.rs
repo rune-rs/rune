@@ -164,6 +164,7 @@ pub(crate) enum ModuleItemKind {
 
 pub(crate) struct ModuleItem {
     pub(crate) item: ItemBuf,
+    pub(crate) hash: Hash,
     pub(crate) common: ModuleItemCommon,
     pub(crate) kind: ModuleItemKind,
 }

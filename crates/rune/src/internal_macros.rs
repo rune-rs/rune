@@ -10,37 +10,34 @@ macro_rules! resolve_context {
 
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
-    (impl <$($p:ident),*> $ty:ty, $static_type:expr, $static_type_hash:expr) => {
-        impl<$($p,)*> $crate::TypeHash for $ty {
-            const HASH: $crate::Hash = $static_type_hash;
+    (impl $(<$($p:ident),*>)? for $ty:ty, $name:ident, $hash:ident) => {
+        impl $(<$($p,)*>)* $crate::TypeHash for $ty {
+            const HASH: $crate::Hash = $crate::runtime::static_type::$hash;
         }
 
-        impl<$($p,)*> $crate::runtime::TypeOf for $ty
+        impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
         where
-            $($p: $crate::runtime::MaybeTypeOf,)*
+            $(
+                $($p: $crate::runtime::MaybeTypeOf,)*
+            )*
         {
-            #[inline]
-            fn type_info() -> $crate::runtime::TypeInfo {
-                $crate::runtime::TypeInfo::static_type($static_type)
-            }
+            const STATIC_TYPE_INFO: $crate::runtime::StaticTypeInfo = $crate::runtime::StaticTypeInfo::static_type($crate::runtime::static_type::$name);
         }
 
-        impl<$($p,)*> $crate::runtime::MaybeTypeOf for $ty
+        impl $(<$($p,)*>)* $crate::runtime::MaybeTypeOf for $ty
         where
-            $($p: $crate::runtime::MaybeTypeOf,)*
+            $(
+                $($p: $crate::runtime::MaybeTypeOf,)*
+            )*
         {
             #[inline]
             fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
                 $crate::compile::meta::DocType::with_generics(
                     <$ty as $crate::TypeHash>::HASH,
-                    [$(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*]
+                    [$($(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*)*]
                 )
             }
         }
-    };
-
-    ($ty:ty, $static_type:expr, $static_type_hash:expr) => {
-        impl_static_type!(impl <> $ty, $static_type, $static_type_hash);
     };
 }
 

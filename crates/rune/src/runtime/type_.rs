@@ -1,10 +1,11 @@
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
 use crate::compile::Named;
 use crate::module::InstallWith;
-use crate::runtime::{RawStr, RuntimeError};
-use crate::{FromValue, Hash, Value};
+use crate::runtime::RuntimeError;
+use crate::{item, FromValue, Hash, Item, Value};
 
 /// A value representing a type in the virtual machine.
 #[derive(
@@ -38,5 +39,5 @@ impl FromValue for Type {
 }
 
 impl Named for Type {
-    const BASE_NAME: RawStr = RawStr::from_str("Type");
+    const ITEM: &'static Item = item!(::std::any::Type);
 }
