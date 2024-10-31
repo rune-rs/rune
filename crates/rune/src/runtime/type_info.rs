@@ -1,9 +1,11 @@
 use core::fmt;
+use core::hash;
 
 use crate as rune;
 use crate::alloc::prelude::*;
+use crate::compile::Named;
 use crate::hash::Hash;
-use crate::Any;
+use crate::{Any, TypeHash};
 
 use ::rust_alloc::sync::Arc;
 
@@ -47,6 +49,15 @@ impl TypeInfo {
         T: Any,
     {
         Self::any_type_info(T::ANY_TYPE_INFO)
+    }
+
+    /// Construct type info from an statically known [`Named`] type.
+    #[inline]
+    pub const fn named<T>() -> Self
+    where
+        T: Named + TypeHash,
+    {
+        Self::any_type_info(AnyTypeInfo::new(T::full_name, T::HASH))
     }
 
     /// Construct type info from an statically known [`Any`] type.
@@ -128,7 +139,7 @@ impl From<StaticTypeInfo> for TypeInfo {
 }
 
 /// Type information for the [`Any`][crate::Any] type.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 pub struct AnyTypeInfo {
     /// Formatter to display a full name.
@@ -152,3 +163,19 @@ impl fmt::Display for AnyTypeInfo {
 }
 
 pub type FullNameFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
+
+impl PartialEq for AnyTypeInfo {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl Eq for AnyTypeInfo {}
+
+impl hash::Hash for AnyTypeInfo {
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.hash.hash(state);
+    }
+}

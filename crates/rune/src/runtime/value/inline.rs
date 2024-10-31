@@ -9,6 +9,7 @@ use crate::hash::Hash;
 use crate::runtime::{
     static_type, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr, VmResult,
 };
+use crate::TypeHash;
 
 use super::err;
 
@@ -190,13 +191,13 @@ impl Inline {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
             Inline::Unit => TypeInfo::static_type(static_type::TUPLE),
-            Inline::Bool(..) => TypeInfo::static_type(static_type::BOOL),
-            Inline::Char(..) => TypeInfo::static_type(static_type::CHAR),
-            Inline::Unsigned(..) => TypeInfo::static_type(static_type::UNSIGNED),
-            Inline::Signed(..) => TypeInfo::static_type(static_type::SIGNED),
-            Inline::Float(..) => TypeInfo::static_type(static_type::FLOAT),
+            Inline::Bool(..) => TypeInfo::named::<bool>(),
+            Inline::Char(..) => TypeInfo::named::<char>(),
+            Inline::Unsigned(..) => TypeInfo::named::<u64>(),
+            Inline::Signed(..) => TypeInfo::named::<i64>(),
+            Inline::Float(..) => TypeInfo::named::<f64>(),
             Inline::Type(..) => TypeInfo::static_type(static_type::TYPE),
-            Inline::Ordering(..) => TypeInfo::static_type(static_type::ORDERING),
+            Inline::Ordering(..) => TypeInfo::named::<Ordering>(),
         }
     }
 
@@ -207,13 +208,13 @@ impl Inline {
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
             Inline::Unit => static_type::TUPLE.hash,
-            Inline::Bool(..) => static_type::BOOL.hash,
-            Inline::Char(..) => static_type::CHAR.hash,
-            Inline::Signed(..) => static_type::SIGNED.hash,
-            Inline::Unsigned(..) => static_type::UNSIGNED.hash,
-            Inline::Float(..) => static_type::FLOAT.hash,
+            Inline::Bool(..) => bool::HASH,
+            Inline::Char(..) => char::HASH,
+            Inline::Signed(..) => i64::HASH,
+            Inline::Unsigned(..) => u64::HASH,
+            Inline::Float(..) => f64::HASH,
             Inline::Type(..) => static_type::TYPE.hash,
-            Inline::Ordering(..) => static_type::ORDERING.hash,
+            Inline::Ordering(..) => Ordering::HASH,
         }
     }
 }

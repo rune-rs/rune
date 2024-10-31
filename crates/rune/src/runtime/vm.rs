@@ -14,15 +14,15 @@ use crate::modules::{option, result};
 use crate::runtime;
 
 use super::{
-    budget, static_type, Args, Awaited, BorrowMut, BorrowRefRepr, Bytes, Call, ControlFlow,
-    DynArgs, DynGuardedArgs, EmptyStruct, Format, FormatSpec, Formatter, FromValue, Function,
-    Future, Generator, GeneratorState, GuardedArgs, Inline, Inst, InstAddress, InstAssignOp,
-    InstOp, InstRange, InstTarget, InstValue, InstVariant, MutRepr, Mutable, Object, Output,
-    OwnedTuple, Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive,
-    RangeTo, RangeToInclusive, RefRepr, RuntimeContext, Select, SelectFuture, Stack, Stream,
-    Struct, Type, TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Variant,
-    VariantData, Vec, VmDiagnostics, VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt,
-    VmIntegerRepr, VmResult, VmSendExecution,
+    budget, Args, Awaited, BorrowMut, BorrowRefRepr, Bytes, Call, ControlFlow, DynArgs,
+    DynGuardedArgs, EmptyStruct, Format, FormatSpec, Formatter, FromValue, Function, Future,
+    Generator, GeneratorState, GuardedArgs, Inline, Inst, InstAddress, InstAssignOp, InstOp,
+    InstRange, InstTarget, InstValue, InstVariant, MutRepr, Mutable, Object, Output, OwnedTuple,
+    Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, RefRepr, RuntimeContext, Select, SelectFuture, Stack, Stream, Struct, Type,
+    TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Variant, VariantData,
+    Vec, VmDiagnostics, VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr,
+    VmResult, VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -1272,9 +1272,9 @@ impl Vm {
         macro_rules! convert {
             ($from:ty, $value:expr) => {
                 match ty.into_hash() {
-                    static_type::FLOAT_HASH => Value::from($value as f64),
-                    static_type::UNSIGNED_HASH => Value::from($value as u64),
-                    static_type::SIGNED_HASH => Value::from($value as i64),
+                    f64::HASH => Value::from($value as f64),
+                    u64::HASH => Value::from($value as u64),
+                    i64::HASH => Value::from($value as i64),
                     ty => {
                         return err(VmErrorKind::UnsupportedAs {
                             value: TypeInfo::from(<$from as TypeOf>::STATIC_TYPE_INFO),

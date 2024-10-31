@@ -135,9 +135,9 @@ impl ConstValueKind {
 
         match self {
             ConstValueKind::Inline(value) => value.type_info(),
-            ConstValueKind::String(..) => TypeInfo::static_type(runtime::static_type::STRING),
-            ConstValueKind::Bytes(..) => TypeInfo::static_type(runtime::static_type::BYTES),
-            ConstValueKind::Vec(..) => TypeInfo::static_type(runtime::static_type::VEC),
+            ConstValueKind::String(..) => TypeInfo::any::<String>(),
+            ConstValueKind::Bytes(..) => TypeInfo::any::<Bytes>(),
+            ConstValueKind::Vec(..) => TypeInfo::any::<runtime::Vec>(),
             ConstValueKind::Tuple(..) => TypeInfo::static_type(runtime::static_type::TUPLE),
             ConstValueKind::Object(..) => TypeInfo::static_type(runtime::static_type::OBJECT),
             ConstValueKind::Option(..) => TypeInfo::static_type(runtime::static_type::OPTION),

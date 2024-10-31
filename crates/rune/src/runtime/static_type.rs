@@ -48,6 +48,63 @@ impl hash::Hash for StaticType {
     }
 }
 
+macro_rules! any_type {
+    (
+        $(
+            $(#[$($meta:meta)*])*
+            $path:path {
+                $(
+                    $(#[$($impl_meta:meta)*])*
+                    impl $(<$($p:ident),*>)? for $ty:ty;
+                )*
+            }
+        )*
+    ) => {
+        $(
+            $(
+                $(#[$($impl_meta)*])*
+                impl $(<$($p,)*>)* $crate::TypeHash for $ty {
+                    const HASH: $crate::Hash = ::rune_macros::hash!($path);
+                }
+
+                $(#[$($impl_meta)*])*
+                impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
+                where
+                    $(
+                        $($p: $crate::runtime::MaybeTypeOf,)*
+                    )*
+                {
+                    const STATIC_TYPE_INFO: $crate::runtime::StaticTypeInfo = $crate::runtime::StaticTypeInfo::any_type_info(
+                        $crate::runtime::AnyTypeInfo::new(
+                            {
+                                fn full_name(f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                                    write!(f, "{}", ::rune_macros::item!($path))
+                                }
+
+                                full_name
+                            },
+                            <Self as $crate::TypeHash>::HASH,
+                        )
+                    );
+                }
+
+                $(#[$($impl_meta)*])*
+                impl $(<$($p,)*>)* $crate::runtime::MaybeTypeOf for $ty
+                where
+                    $(
+                        $($p: $crate::runtime::MaybeTypeOf,)*
+                    )*
+                {
+                    #[inline]
+                    fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
+                        Ok($crate::compile::meta::DocType::new(<$ty as $crate::TypeHash>::HASH))
+                    }
+                }
+            )*
+        )*
+    }
+}
+
 macro_rules! static_type {
     (
         $(
@@ -77,19 +134,19 @@ macro_rules! static_type {
     }
 }
 
-static_type! {
+any_type! {
     /// The specialized type information for a bool type.
-    pub(crate) static [BOOL, BOOL_HASH] = ::std::bool {
+    ::std::bool {
         impl for bool;
     }
 
     /// The specialized type information for a char type.
-    pub(crate) static [CHAR, CHAR_HASH] = ::std::char {
+    ::std::char {
         impl for char;
     }
 
     /// The specialized type information for a integer type.
-    pub(crate) static [SIGNED, SIGNED_HASH] = ::std::i64 {
+    ::std::i64 {
         impl for i8;
         impl for i16;
         impl for i32;
@@ -99,7 +156,7 @@ static_type! {
     }
 
     /// The specialized type information for an unsigned integer type.
-    pub(crate) static [UNSIGNED, UNSIGNED_HASH] = ::std::u64 {
+    ::std::u64 {
         impl for u8;
         impl for u16;
         impl for u32;
@@ -109,13 +166,26 @@ static_type! {
     }
 
     /// The specialized type information for a float type.
-    pub(crate) static [FLOAT, FLOAT_HASH] = ::std::f64 {
+    ::std::f64 {
         impl for f32;
         impl for f64;
     }
 
+    ::std::ops::ControlFlow {
+        impl<C, B> for ControlFlow<C, B>;
+    }
+
+    /// The specialized type information for the [`Bytes`] type.
+    ::std::bytes::Bytes {
+        impl for [u8];
+    }
+
+    ::std::cmp::Ordering {
+        impl for Ordering;
+    }
+
     /// The specialized type information for a float type.
-    pub(crate) static [STRING, STRING_HASH] = ::std::string::String {
+    ::std::string::String {
         #[cfg(feature = "alloc")]
         #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
         impl for ::rust_alloc::string::String;
@@ -124,13 +194,8 @@ static_type! {
         impl for str;
     }
 
-    /// The specialized type information for the [`Bytes`] type.
-    pub(crate) static [BYTES, BYTES_HASH] = ::std::bytes::Bytes {
-        impl for [u8];
-    }
-
     /// The specialized type information for the [`Vec`] type.
-    pub(crate) static [VEC, VEC_HASH] = ::std::vec::Vec {
+    ::std::vec::Vec {
         impl for [rt::Value];
         #[cfg(feature = "alloc")]
         #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
@@ -138,7 +203,9 @@ static_type! {
         impl<T> for alloc::Vec<T>;
         impl<T> for rt::VecTuple<T>;
     }
+}
 
+static_type! {
     /// The specialized type information for the [`Tuple`] type.
     pub(crate) static [TUPLE, TUPLE_HASH] = ::std::tuple::Tuple {
         impl for rt::OwnedTuple;
@@ -159,27 +226,9 @@ static_type! {
         impl<T> for ::std::collections::HashMap<alloc::String, T>;
     }
 
-    pub(crate) static [RANGE_FROM, RANGE_FROM_HASH] = ::std::ops::RangeFrom {}
-
-    pub(crate) static [RANGE_FULL, RANGE_FULL_HASH] = ::std::ops::RangeFull {}
-
-    pub(crate) static [RANGE_INCLUSIVE, RANGE_INCLUSIVE_HASH] = ::std::ops::RangeInclusive {}
-
-    pub(crate) static [RANGE_TO_INCLUSIVE, RANGE_TO_INCLUSIVE_HASH] = ::std::ops::RangeToInclusive {}
-
-    pub(crate) static [RANGE_TO, RANGE_TO_HASH] = ::std::ops::RangeTo {}
-
-    pub(crate) static [RANGE, RANGE_HASH] = ::std::ops::Range {}
-
-    pub(crate) static [CONTROL_FLOW, CONTROL_FLOW_HASH] = ::std::ops::ControlFlow {
-        impl<C, B> for ControlFlow<C, B>;
-    }
-
     pub(crate) static [FUTURE, FUTURE_HASH] = ::std::future::Future {}
 
     pub(crate) static [GENERATOR, GENERATOR_HASH] = ::std::ops::generator::Generator {}
-
-    pub(crate) static [GENERATOR_STATE, GENERATOR_STATE_HASH] = ::std::ops::generator::GeneratorState {}
 
     pub(crate) static [STREAM, STREAM_HASH] = ::std::stream::Stream {}
 
@@ -192,12 +241,6 @@ static_type! {
     }
 
     pub(crate) static [FUNCTION, FUNCTION_HASH] = ::std::ops::Function {}
-
-    pub(crate) static [FORMAT, FORMAT_HASH] = ::std::fmt::Format {}
-
-    pub(crate) static [ORDERING, ORDERING_HASH] = ::std::cmp::Ordering {
-        impl for Ordering;
-    }
 
     pub(crate) static [TYPE, TYPE_HASH] = ::std::any::Type {
         impl for rt::Type;

@@ -108,7 +108,7 @@ pub fn module() -> Result<Module, ContextError> {
     }
 
     split!(Function);
-    split!(Box<str>);
+    split!(String);
     split!(char);
     Ok(m)
 }
@@ -910,7 +910,7 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
 
                 vm_try!(rune::to_value(Split::new(
                     this,
-                    vm_try!(Box::try_from(s.as_str()))
+                    vm_try!(String::try_from(s.as_str()))
                 )))
             }
             _ => {
@@ -1476,9 +1476,9 @@ trait Pattern: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + 
     fn is_empty(&self) -> bool;
 }
 
-impl Pattern for Box<str> {
+impl Pattern for String {
     fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
-        if tail.starts_with(self.as_ref()) {
+        if tail.starts_with(self.as_str()) {
             VmResult::Ok((true, self.len()))
         } else {
             let Some(c) = tail.chars().next() else {
@@ -1491,7 +1491,7 @@ impl Pattern for Box<str> {
 
     #[inline]
     fn is_empty(&self) -> bool {
-        self.as_ref().is_empty()
+        String::is_empty(self)
     }
 }
 

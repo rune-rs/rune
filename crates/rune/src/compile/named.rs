@@ -3,7 +3,7 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate as rune;
-use crate::alloc::{Box, String};
+use crate::alloc::String;
 use crate::module::InstallWith;
 use crate::{item, Item};
 
@@ -48,14 +48,6 @@ pub trait Named {
 }
 
 impl Named for String {
-    const ITEM: &'static Item = item!(::std::string::String);
-}
-
-impl Named for &str {
-    const ITEM: &'static Item = item!(::std::string::String);
-}
-
-impl Named for Box<str> {
     const ITEM: &'static Item = item!(::std::string::String);
 }
 

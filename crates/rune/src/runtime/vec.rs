@@ -40,7 +40,6 @@ use super::{
 /// ```
 #[derive(Default, Any)]
 #[repr(transparent)]
-#[rune(static_type = VEC)]
 #[rune(item = ::std::vec)]
 pub struct Vec {
     inner: alloc::Vec<Value>,

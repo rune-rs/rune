@@ -54,8 +54,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(constructor, static_type = RANGE_FROM)]
-#[rune(item = ::std::ops)]
+#[rune(crate, constructor, item = ::std::ops)]
 pub struct RangeFrom {
     /// The start value of the range.
     #[rune(get, set)]
