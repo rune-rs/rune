@@ -1,7 +1,8 @@
 use crate::alloc;
 use crate::compile::meta;
-use crate::runtime::{Mut, Ref, Shared, TypeInfo};
 use crate::Hash;
+
+use super::{AnyTypeInfo, Mut, Ref, Shared, StaticType, TypeInfo};
 
 /// Static type hash for a given type.
 ///
@@ -59,6 +60,39 @@ where
     const HASH: Hash = T::HASH;
 }
 
+/// Static type information.
+#[derive(Clone, Copy)]
+pub struct StaticTypeInfo {
+    kind: StaticTypeInfoKind,
+}
+
+impl StaticTypeInfo {
+    #[inline]
+    pub(super) fn into_kind(self) -> StaticTypeInfoKind {
+        self.kind
+    }
+
+    #[doc(hidden)]
+    pub const fn static_type(ty: StaticType) -> Self {
+        Self {
+            kind: StaticTypeInfoKind::StaticType(ty),
+        }
+    }
+
+    #[doc(hidden)]
+    pub const fn any_type_info(ty: AnyTypeInfo) -> Self {
+        Self {
+            kind: StaticTypeInfoKind::AnyTypeInfo(ty),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum StaticTypeInfoKind {
+    StaticType(StaticType),
+    AnyTypeInfo(AnyTypeInfo),
+}
+
 /// Trait used for Rust types for which we can determine the runtime type of.
 pub trait TypeOf: TypeHash {
     /// Type parameters for the type.
@@ -68,14 +102,23 @@ pub trait TypeOf: TypeHash {
     /// [`ParametersBuilder`]: crate::hash::ParametersBuilder
     const PARAMETERS: Hash = Hash::EMPTY;
 
-    /// Diagnostical type information for the current type.
+    /// Access diagnostical type information for the current type.
     ///
-    /// Has reasonable [`Debug`] and [`Display`] implementations to identify a
-    /// given type.
+    /// This can be easily converted to a [`TypeInfo`] struct which provides
+    /// human-readable diagnostics that has a reasonable [`Display`] and
+    /// [`Debug`] implementation for humans.
+    ///
+    /// See [`Self::type_info()`].
     ///
     /// [`Debug`]: core::fmt::Debug
     /// [`Display`]: core::fmt::Display
-    fn type_info() -> TypeInfo;
+    const STATIC_TYPE_INFO: StaticTypeInfo;
+
+    #[inline]
+    /// Get type info associated with the current type.
+    fn type_info() -> TypeInfo {
+        TypeInfo::from(Self::STATIC_TYPE_INFO)
+    }
 }
 
 /// A type that might or might not have a concrete type.
@@ -140,11 +183,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for mutable references.
@@ -153,11 +192,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for owned references.
@@ -174,11 +209,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for owned mutable references.
@@ -195,11 +226,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for owned shared values.
@@ -216,9 +243,5 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-
-    #[inline]
-    fn type_info() -> TypeInfo {
-        T::type_info()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
 }

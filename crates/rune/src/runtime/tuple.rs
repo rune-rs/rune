@@ -18,6 +18,7 @@ use super::{Hasher, ProtocolCaller};
 /// The type of a tuple slice.
 #[derive(Any)]
 #[rune(builtin, static_type = TUPLE)]
+#[rune(item = ::std::tuple)]
 #[repr(transparent)]
 pub struct Tuple {
     values: [Value],
@@ -291,7 +292,7 @@ impl FromValue for OwnedTuple {
 macro_rules! impl_tuple {
     // Skip conflicting implementation with `()`.
     (0) => {
-        impl_static_type!((), crate::runtime::static_type::TUPLE, crate::runtime::static_type::TUPLE_HASH);
+        impl_static_type!(impl for (), TUPLE, TUPLE_HASH);
 
         impl FromValue for () {
             #[inline]
@@ -309,7 +310,7 @@ macro_rules! impl_tuple {
     };
 
     ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
-        impl_static_type!(impl <$($ty),*> ($($ty,)*), crate::runtime::static_type::TUPLE, crate::runtime::static_type::TUPLE_HASH);
+        impl_static_type!(impl <$($ty),*> for ($($ty,)*), TUPLE, TUPLE_HASH);
 
         impl <$($ty,)*> FromValue for ($($ty,)*)
         where

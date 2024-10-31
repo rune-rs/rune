@@ -12,7 +12,6 @@ use crate::alloc::{self, Box, String, Vec};
 #[cfg(feature = "alloc")]
 use crate::item::Component;
 use crate::item::{internal, ComponentRef};
-use crate::raw_str::RawStr;
 
 /// Trait for encoding the current type into a [Component].
 pub trait IntoComponent: Sized {
@@ -161,8 +160,6 @@ macro_rules! impl_into_component_for_str {
 
 impl_into_component_for_str!(&str, self, self.try_into()?);
 impl_into_component_for_str!(&&str, self, (*self).try_into()?);
-impl_into_component_for_str!(RawStr, self, (*self).try_into()?);
-impl_into_component_for_str!(&RawStr, self, (**self).try_into()?);
 #[cfg(feature = "alloc")]
 impl_into_component_for_str!(String, self, self.as_str().try_into()?);
 #[cfg(feature = "alloc")]

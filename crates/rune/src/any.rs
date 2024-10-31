@@ -113,7 +113,7 @@ pub use rune_macros::Any;
 /// ```
 pub trait Any: TypeHash + Named + any::Any {
     /// The compile-time type information know for the type.
-    const INFO: AnyTypeInfo = AnyTypeInfo::new(Self::BASE_NAME, Self::HASH);
+    const ANY_TYPE_INFO: AnyTypeInfo = AnyTypeInfo::new(Self::full_name, Self::HASH);
 }
 
 // Internal any impls for useful types in the std library.

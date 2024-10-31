@@ -35,7 +35,7 @@ use super::{
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Function, Future,
     Generator, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
     ProtocolCaller, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Stream, Type, TypeInfo,
-    Variant, Vec, Vm, VmErrorKind, VmIntegerRepr, VmResult,
+    Variant, Vec, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, Tuple};
@@ -341,8 +341,10 @@ impl Value {
     /// provided requires out-of-line formatting. This must be cleared between
     /// calls and can be re-used.
     ///
-    /// You must use [Vm::with] to specify which virtual machine this function
+    /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
+    ///
+    /// [`Vm::with`]: crate::Vm::with
     ///
     /// # Panics
     ///
@@ -403,8 +405,10 @@ impl Value {
     ///
     /// This requires read access to the underlying value.
     ///
-    /// You must use [Vm::with] to specify which virtual machine this function
+    /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
+    ///
+    /// [`Vm::with`]: crate::Vm::with
     ///
     /// # Panics
     ///
@@ -458,8 +462,10 @@ impl Value {
 
     /// Debug format the value using the [`STRING_DEBUG`] protocol.
     ///
-    /// You must use [Vm::with] to specify which virtual machine this function
+    /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
+    ///
+    /// [`Vm::with`]: crate::Vm::with
     ///
     /// # Panics
     ///
@@ -564,8 +570,10 @@ impl Value {
     /// Convert value into an iterator using the [`Protocol::INTO_ITER`]
     /// protocol.
     ///
-    /// You must use [Vm::with] to specify which virtual machine this function
+    /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
+    ///
+    /// [`Vm::with`]: crate::Vm::with
     ///
     /// # Errors
     ///
@@ -581,14 +589,18 @@ impl Value {
 
     /// Retrieves a human readable type name for the current value.
     ///
-    /// You must use [Vm::with] to specify which virtual machine this function
+    /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
+    ///
+    /// [`Vm::with`]: crate::Vm::with
     ///
     /// # Errors
     ///
     /// This function errors in case the provided type cannot be converted into
     /// a name without the use of a [`Vm`] and one is not provided through the
     /// environment.
+    ///
+    /// [`Vm`]: crate::Vm
     pub fn into_type_name(self) -> VmResult<String> {
         let hash = Hash::associated_function(vm_try!(self.type_hash()), Protocol::INTO_TYPE_NAME);
 
@@ -820,7 +832,7 @@ impl Value {
 
     into! {
         /// Coerce into a [`Generator`].
-        Generator(Generator<Vm>),
+        Generator(Generator),
         into_generator_ref,
         into_generator_mut,
         borrow_generator_ref,
@@ -860,7 +872,7 @@ impl Value {
 
     into! {
         /// Coerce into a [`Stream`].
-        Stream(Stream<Vm>),
+        Stream(Stream),
         into_stream_ref,
         into_stream_mut,
         borrow_stream_ref,
@@ -895,14 +907,18 @@ impl Value {
     /// Coerce into a future, or convert into a future using the
     /// [Protocol::INTO_FUTURE] protocol.
     ///
-    /// You must use [Vm::with] to specify which virtual machine this function
+    /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
+    ///
+    /// [`Vm::with`]: crate::Vm::with
     ///
     /// # Errors
     ///
     /// This function errors in case the provided type cannot be converted into
     /// a future without the use of a [`Vm`] and one is not provided through the
     /// environment.
+    ///
+    /// [`Vm`]: crate::Vm
     #[inline]
     pub fn into_future(self) -> Result<Future, RuntimeError> {
         let target = match self.take_repr()? {
@@ -1887,9 +1903,9 @@ from! {
     Variant => Variant,
     Object => Object,
     Tuple => OwnedTuple,
-    Generator => Generator<Vm>,
+    Generator => Generator,
     Future => Future,
-    Stream => Stream<Vm>,
+    Stream => Stream,
 }
 
 any_from! {
@@ -2025,9 +2041,9 @@ pub(crate) enum Mutable {
     /// A stored future.
     Future(Future),
     /// A Stream.
-    Stream(Stream<Vm>),
+    Stream(Stream),
     /// A stored generator.
-    Generator(Generator<Vm>),
+    Generator(Generator),
     /// An empty value indicating nothing.
     Option(Option<Value>),
     /// A stored result in a slot.

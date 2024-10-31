@@ -51,8 +51,8 @@ fn test_without_string_debug() {
     };
 
     assert!(
-        result.starts_with("<NativeStructWithoutProtocol object at 0x"),
-        "Expected '<NativeStructWithoutProtocol object at 0x', got: {:?}",
+        result.starts_with("<::native_crate::NativeStructWithoutProtocol object at 0x"),
+        "Expected '<::native_crate::NativeStructWithoutProtocol object at 0x', got: {:?}",
         result
     );
 }

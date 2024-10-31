@@ -10,9 +10,9 @@ use crate::alloc::{self, String};
 use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
-    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, BoxedPanic, CallFrame, DynArgsUsed,
-    ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError, StackError, TypeInfo, TypeOf, Unit,
-    Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnyTypeInfo, BoxedPanic, CallFrame,
+    DynArgsUsed, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError, StackError, TypeInfo,
+    TypeOf, Unit, Vm, VmHaltInfo,
 };
 use crate::{Any, Hash, ItemBuf};
 
@@ -499,14 +499,19 @@ impl RuntimeError {
 
     #[doc(hidden)]
     #[inline]
-    pub fn __rune_macros__unsupported_object_field_get(target: TypeInfo) -> Self {
-        Self::new(VmErrorKind::UnsupportedObjectFieldGet { target })
+    pub fn __rune_macros__unsupported_object_field_get(target: AnyTypeInfo) -> Self {
+        Self::new(VmErrorKind::UnsupportedObjectFieldGet {
+            target: TypeInfo::from(target),
+        })
     }
 
     #[doc(hidden)]
     #[inline]
-    pub fn __rune_macros__unsupported_tuple_index_get(target: TypeInfo, index: usize) -> Self {
-        Self::new(VmErrorKind::UnsupportedTupleIndexGet { target, index })
+    pub fn __rune_macros__unsupported_tuple_index_get(target: AnyTypeInfo, index: usize) -> Self {
+        Self::new(VmErrorKind::UnsupportedTupleIndexGet {
+            target: TypeInfo::from(target),
+            index,
+        })
     }
 }
 

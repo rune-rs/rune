@@ -21,7 +21,8 @@ use crate::module::{
 };
 use crate::runtime::{
     ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory, Output,
-    Protocol, RuntimeContext, StaticType, TypeCheck, TypeInfo, VariantRtti, VmResult,
+    Protocol, RuntimeContext, StaticType, StaticTypeInfo, TypeCheck, TypeInfo, VariantRtti,
+    VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -271,7 +272,7 @@ pub struct Context {
     /// Registered types.
     types: hash::Map<ContextType>,
     /// Registered internal enums.
-    internal_enums: HashSet<&'static StaticType>,
+    internal_enums: HashSet<StaticType>,
     /// All available names in the context.
     names: Names,
     /// Registered crates.
@@ -405,7 +406,7 @@ impl Context {
         self.install_module(module)?;
 
         for ty in &module.types {
-            self.install_type(module, ty)?;
+            self.install_type(ty)?;
         }
 
         for t in &module.traits {
@@ -421,7 +422,7 @@ impl Context {
         }
 
         for t in &module.trait_impls {
-            self.install_trait_impl(module, t)?;
+            self.install_trait_impl(t)?;
         }
 
         for r in &module.reexports {
@@ -666,11 +667,9 @@ impl Context {
     }
 
     /// Install a single type.
-    fn install_type(&mut self, module: &Module, ty: &ModuleType) -> Result<(), ContextError> {
-        let item = module.item.join(&ty.item)?;
-
+    fn install_type(&mut self, ty: &ModuleType) -> Result<(), ContextError> {
         self.install_type_info(ContextType {
-            item: item.try_clone()?,
+            item: ty.item.try_to_owned()?,
             hash: ty.hash,
             type_check: None,
             type_info: ty.type_info.try_clone()?,
@@ -684,8 +683,6 @@ impl Context {
                 TypeSpecification::Struct(fields) => {
                     let constructor = match &ty.constructor {
                         Some(c) => {
-                            let hash = Hash::type_hash(&item);
-
                             let signature = meta::Signature {
                                 #[cfg(feature = "doc")]
                                 is_async: false,
@@ -695,7 +692,7 @@ impl Context {
                                 return_type: meta::DocType::new(ty.hash),
                             };
 
-                            self.insert_native_fn(hash, c, None)?;
+                            self.insert_native_fn(ty.hash, c, None)?;
                             Some(signature)
                         }
                         None => None,
@@ -729,7 +726,7 @@ impl Context {
                             continue;
                         };
 
-                        let item = item.extended(variant.name)?;
+                        let item = ty.item.extended(variant.name)?;
                         let hash = Hash::type_hash(&item);
 
                         self.install_type_info(ContextType {
@@ -803,7 +800,7 @@ impl Context {
 
         self.install_meta(ContextMeta {
             hash: ty.hash,
-            item: Some(item),
+            item: Some(ty.item.try_to_owned()?),
             kind,
             #[cfg(feature = "doc")]
             deprecated: ty.common.deprecated.try_clone()?,
@@ -876,16 +873,10 @@ impl Context {
         Ok(())
     }
 
-    fn install_trait_impl(
-        &mut self,
-        module: &Module,
-        i: &ModuleTraitImpl,
-    ) -> Result<(), ContextError> {
-        let item = module.item.join(&i.item)?;
-
+    fn install_trait_impl(&mut self, i: &ModuleTraitImpl) -> Result<(), ContextError> {
         if !self.types.contains_key(&i.hash) {
             return Err(ContextError::MissingType {
-                item,
+                item: i.item.try_to_owned()?,
                 type_info: i.type_info.try_clone()?,
             });
         };
@@ -894,7 +885,7 @@ impl Context {
             return Err(ContextError::MissingTrait {
                 item: i.trait_item.try_clone()?,
                 hash: i.hash,
-                impl_item: item,
+                impl_item: i.item.try_to_owned()?,
                 impl_hash: i.hash,
             });
         };
@@ -902,7 +893,7 @@ impl Context {
         if let Some(handler) = handler {
             handler(&mut TraitContext {
                 cx: self,
-                item: &item,
+                item: &i.item,
                 hash: i.hash,
                 type_info: &i.type_info,
                 trait_item: &i.trait_item,
@@ -939,14 +930,14 @@ impl Context {
     fn install_construct(
         &mut self,
         hash: Hash,
-        type_info: &TypeInfo,
+        type_info: &StaticTypeInfo,
         construct: &Arc<dyn ConstConstruct>,
     ) -> Result<(), ContextError> {
         let old = self.construct.try_insert(hash, construct.clone())?;
 
         if old.is_some() {
             return Err(ContextError::ConflictingConstConstruct {
-                type_info: type_info.try_clone()?,
+                type_info: TypeInfo::from(*type_info),
                 hash,
             });
         }
@@ -983,26 +974,23 @@ impl Context {
     }
 
     /// Install a function and check for duplicates.
-    fn install_item(&mut self, module_item: &ModuleItem) -> Result<(), ContextError> {
-        let item = module_item.item.try_clone()?;
-        self.names.insert(&item)?;
+    fn install_item(&mut self, m: &ModuleItem) -> Result<(), ContextError> {
+        self.names.insert(&m.item)?;
 
-        let hash = Hash::type_hash(&item);
-
-        let kind = match &module_item.kind {
+        let kind = match &m.kind {
             rune::module::ModuleItemKind::Constant(value) => {
-                self.constants.try_insert(hash, value.try_clone()?)?;
+                self.constants.try_insert(m.hash, value.try_clone()?)?;
                 meta::Kind::Const
             }
             rune::module::ModuleItemKind::Function(f) => {
                 self.constants.try_insert(
-                    Hash::associated_function(hash, Protocol::INTO_TYPE_NAME),
-                    ConstValue::from(item.try_to_string()?),
+                    Hash::associated_function(m.hash, Protocol::INTO_TYPE_NAME),
+                    ConstValue::from(m.item.try_to_string()?),
                 )?;
 
-                let signature = meta::Signature::from_context(&f.doc, &module_item.common)?;
+                let signature = meta::Signature::from_context(&f.doc, &m.common)?;
 
-                self.insert_native_fn(hash, &f.handler, module_item.common.deprecated.as_deref())?;
+                self.insert_native_fn(m.hash, &f.handler, m.common.deprecated.as_deref())?;
 
                 meta::Kind::Function {
                     associated: None,
@@ -1017,12 +1005,13 @@ impl Context {
                     parameter_types: Vec::new(),
                 }
             }
-            rune::module::ModuleItemKind::Macro(m) => {
-                self.macros.try_insert(hash, m.handler.clone())?;
+            rune::module::ModuleItemKind::Macro(macro_) => {
+                self.macros.try_insert(m.hash, macro_.handler.clone())?;
                 meta::Kind::Macro
             }
-            rune::module::ModuleItemKind::AttributeMacro(m) => {
-                self.attribute_macros.try_insert(hash, m.handler.clone())?;
+            rune::module::ModuleItemKind::AttributeMacro(macro_) => {
+                self.attribute_macros
+                    .try_insert(m.hash, macro_.handler.clone())?;
                 meta::Kind::AttributeMacro
             }
             rune::module::ModuleItemKind::InternalEnum(internal_enum) => {
@@ -1033,18 +1022,18 @@ impl Context {
                 }
 
                 // Sanity check that the registered item is in the right location.
-                if internal_enum.static_type.hash != hash {
+                if internal_enum.static_type.hash != m.hash {
                     return Err(ContextError::TypeHashMismatch {
                         type_info: internal_enum.static_type.type_info(),
-                        item,
+                        item: m.item.try_clone()?,
                         hash: internal_enum.static_type.hash,
-                        item_hash: hash,
+                        item_hash: m.hash,
                     });
                 }
 
                 self.install_type_info(ContextType {
-                    item: item.try_clone()?,
-                    hash,
+                    item: m.item.try_clone()?,
+                    hash: m.hash,
                     type_check: None,
                     type_info: internal_enum.static_type.type_info(),
                     type_parameters: Hash::EMPTY,
@@ -1055,7 +1044,7 @@ impl Context {
                         continue;
                     };
 
-                    let variant_item = item.extended(variant.name)?;
+                    let variant_item = m.item.extended(variant.name)?;
                     let variant_hash = Hash::type_hash(&variant_item);
 
                     self.install_type_info(ContextType {
@@ -1079,7 +1068,7 @@ impl Context {
                             #[cfg(feature = "doc")]
                             arguments: Some(fields_to_arguments(fields)?),
                             #[cfg(feature = "doc")]
-                            return_type: meta::DocType::new(hash),
+                            return_type: meta::DocType::new(m.hash),
                         })
                     } else {
                         None
@@ -1089,7 +1078,7 @@ impl Context {
                         hash: variant_hash,
                         item: Some(variant_item),
                         kind: meta::Kind::Variant {
-                            enum_hash: hash,
+                            enum_hash: m.hash,
                             index,
                             fields: match fields {
                                 Fields::Named(fields) => meta::Fields::Named(meta::FieldsNamed {
@@ -1124,13 +1113,13 @@ impl Context {
         };
 
         self.install_meta(ContextMeta {
-            hash,
-            item: Some(item),
+            hash: m.hash,
+            item: Some(m.item.try_to_owned()?),
             kind,
             #[cfg(feature = "doc")]
-            deprecated: module_item.common.deprecated.try_clone()?,
+            deprecated: m.common.deprecated.try_clone()?,
             #[cfg(feature = "doc")]
-            docs: module_item.common.docs.try_clone()?,
+            docs: m.common.docs.try_clone()?,
         })?;
 
         Ok(())

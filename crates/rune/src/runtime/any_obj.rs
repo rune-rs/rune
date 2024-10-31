@@ -117,7 +117,7 @@ impl AnyObj {
             kind: Kind::Own,
             type_id: TypeId::of::<T>,
             debug: debug_ref_impl::<T>,
-            type_info: T::INFO,
+            type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
             drop_value: const {
                 if needs_drop::<T>() {
@@ -155,7 +155,7 @@ impl AnyObj {
             kind: Kind::Ref,
             type_id: TypeId::of::<T>,
             debug: debug_ref_impl::<T>,
-            type_info: T::INFO,
+            type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
             drop_value: None,
             drop: drop_box::<NonNull<T>>,
@@ -187,7 +187,7 @@ impl AnyObj {
             kind: Kind::Mut,
             type_id: TypeId::of::<T>,
             debug: debug_mut_impl::<T>,
-            type_info: T::INFO,
+            type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
             drop_value: None,
             drop: drop_box::<NonNull<T>>,
@@ -214,7 +214,7 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -284,7 +284,7 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -328,7 +328,7 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -370,7 +370,7 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -417,14 +417,14 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
 
         if matches!(vtable.kind, Kind::Ref) {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -449,7 +449,7 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -481,14 +481,14 @@ impl AnyObj {
 
         if (vtable.type_id)() != TypeId::of::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
 
         if matches!(vtable.kind, Kind::Ref) {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::INFO,
+                T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
@@ -733,14 +733,14 @@ fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
     T: ?Sized + Any,
 {
-    write!(f, "&{}", T::BASE_NAME)
+    write!(f, "&{}", T::ITEM)
 }
 
 fn debug_mut_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
 where
     T: ?Sized + Any,
 {
-    write!(f, "&mut {}", T::BASE_NAME)
+    write!(f, "&mut {}", T::ITEM)
 }
 
 unsafe fn drop_value<T>(this: NonNull<Shared>) {

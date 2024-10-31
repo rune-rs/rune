@@ -45,6 +45,7 @@ use crate::Hash;
 #[derive(Any, TryClone)]
 #[repr(transparent)]
 #[rune(builtin, static_type = FUNCTION)]
+#[rune(item = ::std::ops)]
 pub struct Function(FunctionImpl<Value>);
 
 impl Function {

@@ -43,6 +43,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[rune(constructor, static_type = RANGE_TO_INCLUSIVE)]
+#[rune(item = ::std::ops)]
 pub struct RangeToInclusive {
     /// The end value of the range.
     #[rune(get, set)]

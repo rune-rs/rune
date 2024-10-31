@@ -120,9 +120,6 @@ pub use self::range_inclusive::RangeInclusive;
 pub(crate) mod range;
 pub use self::range::Range;
 
-#[doc(inline)]
-pub use rune_core::raw_str::RawStr;
-
 mod runtime_context;
 pub(crate) use self::runtime_context::FunctionHandler;
 pub use self::runtime_context::RuntimeContext;
@@ -160,7 +157,8 @@ mod type_info;
 pub use self::type_info::{AnyTypeInfo, TypeInfo};
 
 mod type_of;
-pub use self::type_of::{MaybeTypeOf, TypeHash, TypeOf};
+use self::type_of::StaticTypeInfoKind;
+pub use self::type_of::{MaybeTypeOf, StaticTypeInfo, TypeHash, TypeOf};
 
 pub mod unit;
 pub(crate) use self::unit::UnitFn;

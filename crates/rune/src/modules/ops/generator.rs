@@ -2,7 +2,7 @@
 
 use crate as rune;
 use crate::runtime::generator::Iter;
-use crate::runtime::{EnvProtocolCaller, Generator, GeneratorState, Value, Vm, VmResult};
+use crate::runtime::{EnvProtocolCaller, Generator, GeneratorState, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// Types related to generators.
@@ -11,7 +11,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 
     {
-        m.ty::<Generator<Vm>>()?.docs(docstring! {
+        m.ty::<Generator>()?.docs(docstring! {
             /// A generator produced by a generator function.
             ///
             /// Generator are functions or closures which contain the `yield`
@@ -80,7 +80,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(g.next(), None);
 /// ``
 #[rune::function(instance, path = next)]
-fn generator_next(this: &mut Generator<Vm>) -> VmResult<Option<Value>> {
+fn generator_next(this: &mut Generator) -> VmResult<Option<Value>> {
     this.next()
 }
 
@@ -103,7 +103,7 @@ fn generator_next(this: &mut Generator<Vm>) -> VmResult<Option<Value>> {
 /// assert_eq!(g.resume(()), GeneratorState::Complete(()));
 /// ``
 #[rune::function(instance, path = resume)]
-fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<GeneratorState> {
+fn generator_resume(this: &mut Generator, value: Value) -> VmResult<GeneratorState> {
     this.resume(value)
 }
 
@@ -123,13 +123,13 @@ fn generator_resume(this: &mut Generator<Vm>, value: Value) -> VmResult<Generato
 /// ```
 #[rune::function(instance, path = iter)]
 #[inline]
-fn generator_iter(this: Generator<Vm>) -> Iter {
+fn generator_iter(this: Generator) -> Iter {
     this.rune_iter()
 }
 
 #[rune::function(instance, protocol = INTO_ITER)]
 #[inline]
-fn generator_into_iter(this: Generator<Vm>) -> Iter {
+fn generator_into_iter(this: Generator) -> Iter {
     this.rune_iter()
 }
 

@@ -15,6 +15,8 @@ use crate::Any;
 /// # Examples
 ///
 /// ```rune
+/// use std::ops::RangeFrom;
+///
 /// let range = 0..;
 ///
 /// assert!(!range.contains(-10));
@@ -22,7 +24,7 @@ use crate::Any;
 /// assert!(range.contains(10));
 /// assert!(range.contains(20));
 ///
-/// assert!(range is std::ops::RangeFrom);
+/// assert!(range is RangeFrom);
 /// ```
 ///
 /// Ranges can contain any type:
@@ -53,6 +55,7 @@ use crate::Any;
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
 #[rune(constructor, static_type = RANGE_FROM)]
+#[rune(item = ::std::ops)]
 pub struct RangeFrom {
     /// The start value of the range.
     #[rune(get, set)]
@@ -238,6 +241,8 @@ impl RangeFrom {
     /// # Examples
     ///
     /// ```rune
+    /// use std::ops::RangeFrom;
+    ///
     /// let range = 0..;
     ///
     /// assert!(!range.contains(-10));
@@ -245,7 +250,7 @@ impl RangeFrom {
     /// assert!(range.contains(10));
     /// assert!(range.contains(20));
     ///
-    /// assert!(range is std::ops::RangeFrom);
+    /// assert!(range is RangeFrom);
     /// ```
     #[rune::function(keep)]
     pub(crate) fn contains(&self, value: Value) -> VmResult<bool> {

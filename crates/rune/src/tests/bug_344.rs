@@ -13,6 +13,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use rune::compile::meta;
+use runtime::{AnyTypeInfo, StaticTypeInfo};
 
 #[test]
 fn bug_344_function() -> Result<()> {
@@ -166,7 +167,7 @@ impl GuardCheck {
 impl Any for GuardCheck {}
 
 impl Named for GuardCheck {
-    const BASE_NAME: RawStr = RawStr::from_str("GuardCheck");
+    const ITEM: &'static Item = rune_macros::item!(GuardCheck);
 }
 
 impl TypeHash for GuardCheck {
@@ -174,10 +175,8 @@ impl TypeHash for GuardCheck {
 }
 
 impl TypeOf for GuardCheck {
-    #[inline]
-    fn type_info() -> TypeInfo {
-        TypeInfo::any::<Self>()
-    }
+    const STATIC_TYPE_INFO: StaticTypeInfo =
+        StaticTypeInfo::any_type_info(AnyTypeInfo::new(Self::full_name, Self::HASH));
 }
 
 impl MaybeTypeOf for GuardCheck {

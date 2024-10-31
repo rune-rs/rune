@@ -23,6 +23,7 @@ struct Vtable {
 #[rune(crate)]
 #[rune(builtin, static_type = FUTURE)]
 #[rune(from_value = Value::into_future)]
+#[rune(item = ::std::future)]
 pub struct Future {
     future: Option<NonNull<()>>,
     vtable: &'static Vtable,

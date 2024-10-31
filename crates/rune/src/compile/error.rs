@@ -234,7 +234,7 @@ impl Error {
         Self::new(
             spanned,
             IrErrorKind::Expected {
-                expected: E::type_info(),
+                expected: TypeInfo::from(E::STATIC_TYPE_INFO),
                 actual,
             },
         )
