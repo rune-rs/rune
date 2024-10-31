@@ -42,7 +42,7 @@ pub fn test_bug_700() -> Result<()> {
         error.into_kind(),
         VmErrorKind::Expected {
             expected: TypeInfo::static_type(static_type::TUPLE),
-            actual: TypeInfo::static_type(static_type::SIGNED)
+            actual: TypeInfo::named::<i64>()
         }
     );
 

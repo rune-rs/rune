@@ -32,8 +32,7 @@ use crate::Any;
 /// ```
 #[derive(Any, Default, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(constructor, static_type = RANGE_FULL)]
-#[rune(item = ::std::ops)]
+#[rune(crate, constructor, item = ::std::ops)]
 pub struct RangeFull;
 
 impl RangeFull {

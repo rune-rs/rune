@@ -57,8 +57,7 @@ use super::StepsBetween;
 /// ```
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
-#[rune(constructor, static_type = RANGE)]
-#[rune(item = ::std::ops)]
+#[rune(crate, constructor, item = ::std::ops)]
 pub struct Range {
     /// The start value of the range.
     #[rune(get, set)]

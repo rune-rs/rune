@@ -44,8 +44,7 @@ use crate::Any;
 #[derive(Any, Clone, TryClone)]
 #[try_clone(crate)]
 #[rune(crate)]
-#[rune(constructor, static_type = RANGE_TO)]
-#[rune(item = ::std::ops)]
+#[rune(constructor, item = ::std::ops)]
 pub struct RangeTo {
     /// The end value of the range.
     #[rune(get, set)]
