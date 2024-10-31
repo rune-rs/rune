@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1730251130703,
+  "lastUpdate": 1730337569957,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -29425,6 +29425,106 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 476,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "9d3b87eb2bf81f96f86ca3286271917cf56932f3",
+          "message": "rune: Store Vec in AnyObj instead of Mutable (relates #844)",
+          "timestamp": "2024-10-30T22:31:33Z",
+          "url": "https://github.com/rune-rs/rune/commit/9d3b87eb2bf81f96f86ca3286271917cf56932f3"
+        },
+        "date": 1730337568704,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 9890965,
+            "range": "± 184618",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5600791,
+            "range": "± 73137",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 178033,
+            "range": "± 6069",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1140528,
+            "range": "± 21094",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 292248518,
+            "range": "± 2598369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 257475136,
+            "range": "± 1280561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 726538,
+            "range": "± 5856",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7789163,
+            "range": "± 49220",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 44607005,
+            "range": "± 799067",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6599419,
+            "range": "± 36653",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 255104,
+            "range": "± 1439",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2831432,
+            "range": "± 9356",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 444,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
