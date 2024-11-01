@@ -1,6 +1,5 @@
 use core::borrow;
 use core::cmp;
-use core::cmp::Ordering;
 use core::fmt;
 use core::hash;
 use core::iter;
@@ -13,7 +12,7 @@ use crate::alloc::{hash_map, HashMap};
 use crate::runtime::{
     FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError, VmResult,
 };
-use crate::{Any, ItemBuf};
+use crate::Any;
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -81,7 +80,6 @@ pub type Values<'a> = hash_map::Values<'a, String, Value>;
 /// ```
 #[derive(Any, Default)]
 #[repr(transparent)]
-#[rune(builtin, static_type = OBJECT)]
 #[rune(item = ::std::object)]
 pub struct Object {
     inner: HashMap<String, Value>,
@@ -408,72 +406,6 @@ impl Object {
 
         VmResult::Ok(true)
     }
-
-    pub(crate) fn partial_cmp_with(
-        a: &Self,
-        b: &Self,
-        caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
-        let mut b = b.inner.iter();
-
-        for (k1, v1) in a.inner.iter() {
-            let Some((k2, v2)) = b.next() else {
-                return VmResult::Ok(Some(Ordering::Greater));
-            };
-
-            match k1.partial_cmp(k2) {
-                Some(Ordering::Equal) => (),
-                other => return VmResult::Ok(other),
-            }
-
-            match Value::partial_cmp_with(v1, v2, caller) {
-                VmResult::Ok(Some(Ordering::Equal)) => (),
-                other => return other,
-            }
-        }
-
-        if b.next().is_some() {
-            return VmResult::Ok(Some(Ordering::Less));
-        }
-
-        VmResult::Ok(Some(Ordering::Equal))
-    }
-
-    pub(crate) fn cmp_with(
-        a: &Self,
-        b: &Self,
-        caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Ordering> {
-        let mut b = b.inner.iter();
-
-        for (k1, v1) in a.inner.iter() {
-            let Some((k2, v2)) = b.next() else {
-                return VmResult::Ok(Ordering::Greater);
-            };
-
-            match k1.cmp(k2) {
-                Ordering::Equal => (),
-                other => return VmResult::Ok(other),
-            }
-
-            match Value::cmp_with(v1, v2, caller) {
-                VmResult::Ok(Ordering::Equal) => (),
-                other => return other,
-            }
-        }
-
-        if b.next().is_some() {
-            return VmResult::Ok(Ordering::Less);
-        }
-
-        VmResult::Ok(Ordering::Equal)
-    }
-
-    /// Debug implementation for a struct. This assumes that all fields
-    /// corresponds to identifiers.
-    pub(crate) fn debug_struct<'a>(&'a self, item: &'a ItemBuf) -> DebugStruct<'a> {
-        DebugStruct { item, st: self }
-    }
 }
 
 impl TryClone for Object {
@@ -515,29 +447,9 @@ impl IntoIterator for Object {
 }
 
 impl fmt::Debug for Object {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.inner.iter()).finish()
-    }
-}
-
-from_value2!(Object, into_object_ref, into_object_mut, into_object);
-
-pub struct DebugStruct<'a> {
-    item: &'a ItemBuf,
-    st: &'a Object,
-}
-
-impl fmt::Display for DebugStruct<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use ::rust_alloc::string::ToString;
-
-        let mut d = f.debug_struct(&self.item.to_string());
-
-        for (key, value) in self.st.iter() {
-            d.field(key, value);
-        }
-
-        d.finish()
     }
 }
 

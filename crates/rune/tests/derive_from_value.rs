@@ -1,11 +1,8 @@
-#![allow(
-    unused,
-    clippy::enum_variant_names,
-    clippy::vec_init_then_push,
-    clippy::needless_return
-)]
+#![allow(unused)]
 
-prelude!();
+use rune::alloc::prelude::*;
+use rune::runtime::{Mut, Object, OwnedTuple, Ref, Tuple};
+use rune::{Any, FromValue, ToValue};
 
 #[derive(Any)]
 struct Custom {}
@@ -15,7 +12,7 @@ struct TestUnit;
 
 #[derive(FromValue)]
 struct TestNamed {
-    a: Mut<alloc::String>,
+    a: Mut<String>,
     b: Mut<Tuple>,
     c: Mut<Object>,
     d: Ref<Custom>,
@@ -23,11 +20,11 @@ struct TestNamed {
 }
 
 #[derive(FromValue)]
-struct TestUnnamed(Mut<alloc::String>, Mut<Custom>);
+struct TestUnnamed(Mut<String>, Mut<Custom>);
 
 #[derive(ToValue)]
 struct Test2 {
-    a: alloc::String,
+    a: String,
     b: OwnedTuple,
     c: Object,
     d: Custom,
@@ -35,20 +32,20 @@ struct Test2 {
 }
 
 #[derive(ToValue)]
-struct Test2Unnamed(alloc::String, Custom);
+struct Test2Unnamed(String, Custom);
 
 #[derive(FromValue)]
 enum TestEnum {
-    TestUnit,
-    TestNamed {
-        a: Mut<alloc::String>,
+    Unit,
+    Named {
+        a: Mut<String>,
         b: Mut<Tuple>,
         c: Mut<Object>,
         d: Ref<Custom>,
         e: Mut<Custom>,
     },
-    TestUnnamed(
-        Mut<alloc::String>,
+    Unnamed(
+        Mut<String>,
         Mut<Tuple>,
         Mut<Object>,
         Ref<Custom>,

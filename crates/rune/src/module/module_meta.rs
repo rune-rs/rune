@@ -5,6 +5,7 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
+use crate::alloc::HashMap;
 use crate::compile::context::{AttributeMacroHandler, MacroHandler, TraitHandler};
 use crate::compile::{meta, Docs};
 use crate::function_meta::AssociatedName;
@@ -87,6 +88,21 @@ pub(crate) enum Fields {
     Unnamed(usize),
     /// Empty.
     Empty,
+}
+
+impl Fields {
+    /// Coerce into fields hash map.
+    pub(crate) fn to_fields(&self) -> alloc::Result<HashMap<Box<str>, usize>> {
+        let mut fields = HashMap::new();
+
+        if let Fields::Named(names) = self {
+            for (index, name) in names.iter().copied().enumerate() {
+                fields.try_insert(name.try_into()?, index)?;
+            }
+        }
+
+        Ok(fields)
+    }
 }
 
 /// Metadata about a variant.

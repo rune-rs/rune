@@ -3,7 +3,7 @@ use core::mem::take;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{HashMap, VecDeque};
+use crate::alloc::VecDeque;
 use crate::ast::{self, OptionSpanned, Spanned};
 use crate::compile::{
     self, attrs, meta, Doc, DynLocation, ErrorKind, ItemMeta, Location, Visibility, WithSpan,
@@ -1336,14 +1336,19 @@ fn convert_fields(cx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<
         ast::Fields::Empty => meta::Fields::Empty,
         ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
         ast::Fields::Named(st) => {
-            let mut fields = HashMap::try_with_capacity(st.len())?;
+            let mut fields = Vec::try_with_capacity(st.len())?;
 
             for (position, (ast::Field { name, .. }, _)) in st.iter().enumerate() {
                 let name = name.resolve(cx)?;
-                fields.try_insert(name.try_into()?, meta::FieldMeta { position })?;
+                fields.try_push(meta::FieldMeta {
+                    name: name.try_into()?,
+                    position,
+                })?;
             }
 
-            meta::Fields::Named(meta::FieldsNamed { fields })
+            meta::Fields::Named(meta::FieldsNamed {
+                fields: fields.try_into()?,
+            })
         }
     })
 }

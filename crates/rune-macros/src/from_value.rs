@@ -159,9 +159,13 @@ impl Expander<'_> {
                     #variant_data::Tuple(tuple) => match name {
                         #(#unnamed_matches,)* #missing,
                     },
-                    #variant_data::Struct(object) => match name {
-                        #(#named_matches,)* #missing,
-                    },
+                    #variant_data::Struct(data) => {
+                        let object = variant.accessor(data);
+
+                        match name {
+                            #(#named_matches,)* #missing,
+                        }
+                    }
                 }
             }
         };

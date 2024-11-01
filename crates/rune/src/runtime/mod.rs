@@ -167,11 +167,11 @@ pub use self::unit::{Unit, UnitStorage};
 mod value;
 #[cfg(any(test, feature = "cli"))]
 pub(crate) use self::value::OwnedRepr;
-pub(crate) use self::value::{BorrowRefRepr, MutRepr, Mutable, RefRepr};
 pub use self::value::{
-    EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value, ValueMutGuard,
-    ValueRefGuard, VariantRtti,
+    Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
+    ValueMutGuard, ValueRefGuard, VariantRtti,
 };
+pub(crate) use self::value::{BorrowRefRepr, MutRepr, Mutable, RefRepr};
 
 mod variant;
 pub use self::variant::{Variant, VariantData};

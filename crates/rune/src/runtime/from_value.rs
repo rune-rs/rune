@@ -10,21 +10,29 @@ use super::{
 /// Derive macro for the [`FromValue`] trait for converting types from the
 /// dynamic `Value` container.
 ///
-/// # Examples
+/// This can be implemented for structs and variants.
 ///
-/// ```
-/// use rune::{FromValue, Vm};
+/// For structs, this will try to decode any struct-like data into the desired data type:
+///
+/// ```rust
 /// use std::sync::Arc;
+/// use rune::{FromValue, Vm};
 ///
-/// #[derive(FromValue)]
+/// #[derive(Debug, PartialEq, FromValue)]
 /// struct Foo {
-///     field: u64,
+///     a: u64,
+///     b: u64,
 /// }
 ///
 /// let mut sources = rune::sources! {
 ///     entry => {
+///         struct Foo {
+///             a,
+///             b,
+///         }
+///
 ///         pub fn main() {
-///             #{field: 42}
+///             Foo { a: 1, b: 2 }
 ///         }
 ///     }
 /// };
@@ -35,7 +43,41 @@ use super::{
 /// let foo = vm.call(["main"], ())?;
 /// let foo: Foo = rune::from_value(foo)?;
 ///
-/// assert_eq!(foo.field, 42);
+/// assert_eq!(foo, Foo { a: 1, b: 2 });
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+///
+/// For enums, the variant name of the rune-local variant is matched:
+///
+/// ```rust
+/// use std::sync::Arc;
+/// use rune::{FromValue, Vm};
+///
+/// #[derive(Debug, PartialEq, FromValue)]
+/// enum Enum {
+///     Variant(u32),
+///     Variant2 { a: u32, b: u32 },
+/// }
+///
+/// let mut sources = rune::sources! {
+///     entry => {
+///         enum Enum {
+///             Variant(a),
+///         }
+///
+///         pub fn main() {
+///             Enum::Variant(42)
+///         }
+///     }
+/// };
+///
+/// let unit = rune::prepare(&mut sources).build()?;
+///
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let foo = vm.call(["main"], ())?;
+/// let foo: Enum = rune::from_value(foo)?;
+///
+/// assert_eq!(foo, Enum::Variant(42));
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 pub use rune_macros::FromValue;
@@ -416,7 +458,7 @@ cfg_std! {
                 T: FromValue,
             {
                 fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                    let object = value.into_object()?;
+                    let object = value.into_any::<$crate::runtime::Object>()?;
 
                     let mut output = <$ty>::with_capacity(object.len());
 
@@ -443,7 +485,7 @@ macro_rules! impl_try_map {
             T: FromValue,
         {
             fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                let object = value.into_object()?;
+                let object = value.into_any::<$crate::runtime::Object>()?;
 
                 let mut output = <$ty>::try_with_capacity(object.len())?;
 

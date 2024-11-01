@@ -1,14 +1,15 @@
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash;
+use core::mem::take;
 
 use rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::runtime::{Object, OwnedTuple, TypeInfo};
+use crate::runtime::{OwnedTuple, TypeInfo};
 
-use super::{Hash, Rtti, Value};
+use super::{Rtti, Value};
 
 /// A empty with a well-defined type.
 #[derive(TryClone)]
@@ -88,58 +89,69 @@ impl fmt::Debug for TupleStruct {
 pub struct Struct {
     /// The type hash of the object.
     pub(crate) rtti: Arc<Rtti>,
-    /// Content of the object.
-    pub(crate) data: Object,
+    /// Contents of the object.
+    pub(crate) data: Box<[Value]>,
 }
 
 impl Struct {
-    /// Access runtime type information.
+    /// Access struct rtti.
     pub fn rtti(&self) -> &Arc<Rtti> {
         &self.rtti
     }
 
-    /// Access underlying data.
-    pub fn data(&self) -> &Object {
+    /// Access truct data.
+    pub fn data(&self) -> &[Value] {
         &self.data
     }
 
-    /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut Object {
+    /// Access struct data mutably.
+    pub fn data_mut(&mut self) -> &mut [Value] {
         &mut self.data
     }
 
+    /// Get a field through the accessor.
+    pub fn get<Q>(&self, key: &Q) -> Option<&Value>
+    where
+        Box<str>: Borrow<Q>,
+        Q: hash::Hash + Eq + ?Sized,
+    {
+        self.data.get(*self.rtti.fields.get(key)?)
+    }
+
+    /// Get a field through the accessor.
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut Value>
+    where
+        Box<str>: Borrow<Q>,
+        Q: hash::Hash + Eq + ?Sized,
+    {
+        self.data.get_mut(*self.rtti.fields.get(key)?)
+    }
+
     /// Get type info for the typed object.
-    pub fn type_info(&self) -> TypeInfo {
+    pub(crate) fn type_info(&self) -> TypeInfo {
         TypeInfo::typed(self.rtti.clone())
-    }
-
-    /// Get the type hash of the object.
-    #[inline]
-    pub fn type_hash(&self) -> Hash {
-        self.rtti.hash
-    }
-
-    /// Get the given key in the object.
-    pub fn get<Q>(&self, k: &Q) -> Option<&Value>
-    where
-        String: Borrow<Q>,
-        Q: ?Sized + hash::Hash + Eq + Ord,
-    {
-        self.data.get(k)
-    }
-
-    /// Get the given mutable value by key in the object.
-    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut Value>
-    where
-        String: Borrow<Q>,
-        Q: ?Sized + hash::Hash + Eq + Ord,
-    {
-        self.data.get_mut(k)
     }
 }
 
 impl fmt::Debug for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.data.debug_struct(&self.rtti.item))
+        write!(f, "{} {{", self.rtti.item)?;
+
+        let mut first = true;
+
+        for (index, field) in self.data.iter().enumerate() {
+            let Some((name, _)) = self.rtti.fields.iter().find(|t| *t.1 == index) else {
+                continue;
+            };
+
+            if !take(&mut first) {
+                write!(f, ", ")?;
+            }
+
+            write!(f, "{name}: {field:?}")?;
+        }
+
+        write!(f, "}}")?;
+        Ok(())
     }
 }

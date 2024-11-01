@@ -290,11 +290,15 @@ fn expr_object<'hir>(
         }
     });
 
-    let mut check_object_fields = |fields: &HashMap<_, meta::FieldMeta>, item: &Item| {
-        let mut fields = fields.try_clone()?;
+    let mut check_object_fields = |fields: &[meta::FieldMeta], item: &Item| {
+        let mut named = HashMap::new();
+
+        for f in fields.iter() {
+            named.try_insert(f.name.as_ref(), f)?;
+        }
 
         for assign in assignments.iter_mut() {
-            match fields.remove(assign.key.1) {
+            match named.remove(assign.key.1) {
                 Some(field_meta) => {
                     assign.position = Some(field_meta.position);
                 }
@@ -310,11 +314,11 @@ fn expr_object<'hir>(
             };
         }
 
-        if let Some(field) = fields.into_keys().next() {
+        if let Some(field) = named.into_keys().next() {
             return Err(compile::Error::new(
                 span,
                 ErrorKind::LitObjectMissingField {
-                    field,
+                    field: field.try_into()?,
                     item: item.try_to_owned()?,
                 },
             ));
@@ -335,7 +339,7 @@ fn expr_object<'hir>(
                     fields: meta::Fields::Empty,
                     ..
                 } => {
-                    check_object_fields(&HashMap::new(), item)?;
+                    check_object_fields(&[], item)?;
                     hir::ExprObjectKind::EmptyStruct { hash: meta.hash }
                 }
                 meta::Kind::Struct {
@@ -1675,8 +1679,8 @@ fn struct_match_for(
         meta::Fields::Empty if open => HashSet::new(),
         meta::Fields::Named(st) => st
             .fields
-            .keys()
-            .try_cloned()
+            .iter()
+            .map(|f| f.name.try_clone())
             .try_collect::<alloc::Result<_>>()??,
         _ => return Ok(None),
     };

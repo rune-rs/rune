@@ -5,9 +5,9 @@ use ::rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{
-    Object, OwnedTuple, ProtocolCaller, TypeInfo, Value, VariantRtti, Vec, VmResult,
-};
+use crate::alloc::Box;
+
+use super::{Accessor, OwnedTuple, ProtocolCaller, TypeInfo, Value, VariantRtti, Vec, VmResult};
 
 /// The variant of a type.
 #[derive(TryClone)]
@@ -17,8 +17,17 @@ pub struct Variant {
 }
 
 impl Variant {
+    /// Construct a field accessor from this variant.
+    #[doc(hidden)]
+    pub fn accessor<'a>(&'a self, data: &'a [Value]) -> Accessor<'a> {
+        Accessor {
+            fields: &self.rtti.fields,
+            data,
+        }
+    }
+
     /// Construct a unit variant.
-    pub fn unit(rtti: Arc<VariantRtti>) -> Self {
+    pub(crate) fn unit(rtti: Arc<VariantRtti>) -> Self {
         Self {
             rtti,
             data: VariantData::Empty,
@@ -26,7 +35,7 @@ impl Variant {
     }
 
     /// Construct a tuple variant.
-    pub fn tuple(rtti: Arc<VariantRtti>, tuple: OwnedTuple) -> Self {
+    pub(crate) fn tuple(rtti: Arc<VariantRtti>, tuple: OwnedTuple) -> Self {
         Self {
             rtti,
             data: VariantData::Tuple(tuple),
@@ -34,7 +43,7 @@ impl Variant {
     }
 
     /// Construct a struct variant.
-    pub fn struct_(rtti: Arc<VariantRtti>, data: Object) -> Self {
+    pub(crate) fn struct_(rtti: Arc<VariantRtti>, data: Box<[Value]>) -> Self {
         Self {
             rtti,
             data: VariantData::Struct(data),
@@ -57,7 +66,7 @@ impl Variant {
     }
 
     /// Get type info for the variant.
-    pub fn type_info(&self) -> TypeInfo {
+    pub(crate) fn type_info(&self) -> TypeInfo {
         TypeInfo::variant(self.rtti.clone())
     }
 
@@ -81,7 +90,7 @@ impl Variant {
                 Vec::eq_with(a, b, Value::partial_eq_with, caller)
             }
             (VariantData::Struct(a), VariantData::Struct(b)) => {
-                Object::eq_with(a, b, Value::partial_eq_with, caller)
+                Vec::eq_with(a, b, Value::partial_eq_with, caller)
             }
             _ => VmResult::panic("data mismatch between variants"),
         }
@@ -103,7 +112,7 @@ impl Variant {
                 Vec::eq_with(a, b, Value::eq_with, caller)
             }
             (VariantData::Struct(a), VariantData::Struct(b)) => {
-                Object::eq_with(a, b, Value::eq_with, caller)
+                Vec::eq_with(a, b, Value::eq_with, caller)
             }
             _ => VmResult::panic("data mismatch between variants"),
         }
@@ -127,9 +136,7 @@ impl Variant {
         match (&a.data, &b.data) {
             (VariantData::Empty, VariantData::Empty) => VmResult::Ok(Some(Ordering::Equal)),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Vec::partial_cmp_with(a, b, caller),
-            (VariantData::Struct(a), VariantData::Struct(b)) => {
-                Object::partial_cmp_with(a, b, caller)
-            }
+            (VariantData::Struct(a), VariantData::Struct(b)) => Vec::partial_cmp_with(a, b, caller),
             _ => VmResult::panic("data mismatch between variants"),
         }
     }
@@ -152,7 +159,7 @@ impl Variant {
         match (&a.data, &b.data) {
             (VariantData::Empty, VariantData::Empty) => VmResult::Ok(Ordering::Equal),
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Vec::cmp_with(a, b, caller),
-            (VariantData::Struct(a), VariantData::Struct(b)) => Object::cmp_with(a, b, caller),
+            (VariantData::Struct(a), VariantData::Struct(b)) => Vec::cmp_with(a, b, caller),
             _ => VmResult::panic("data mismatch between variants"),
         }
     }
@@ -164,7 +171,7 @@ pub enum VariantData {
     /// A unit variant.
     Empty,
     /// A struct variant.
-    Struct(Object),
+    Struct(Box<[Value]>),
     /// A tuple variant.
     Tuple(OwnedTuple),
 }
