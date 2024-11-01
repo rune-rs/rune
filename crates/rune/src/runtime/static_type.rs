@@ -200,8 +200,6 @@ static_type! {
         impl<T> for Option<T>;
     }
 
-    pub(crate) static [FUNCTION, FUNCTION_HASH] = ::std::ops::Function {}
-
     pub(crate) static [TYPE, TYPE_HASH] = ::std::any::Type {
         impl for rt::Type;
     }

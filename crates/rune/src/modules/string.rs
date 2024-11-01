@@ -12,9 +12,9 @@ use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    BorrowRefRepr, Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Mutable,
-    Panic, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, ToValue,
-    TypeOf, Value, VmErrorKind, VmResult,
+    Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Panic, Range, RangeFrom,
+    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, RefRepr, ToValue, TypeOf, Value,
+    VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module, TypeHash};
 
@@ -889,46 +889,40 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 /// [`split_whitespace`]: str::split_whitespace
 #[rune::function(instance, deprecated = "Use String::split instead")]
 fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
-    let split = match vm_try!(value.borrow_ref_repr()) {
-        BorrowRefRepr::Inline(Inline::Char(c)) => {
-            vm_try!(rune::to_value(Split::new(this, *c)))
+    match vm_try!(value.as_ref_repr()) {
+        RefRepr::Inline(Inline::Char(c)) => {
+            VmResult::Ok(vm_try!(rune::to_value(Split::new(this, *c))))
         }
-        BorrowRefRepr::Mutable(value) => match &*value {
-            Mutable::Function(ref f) => {
-                vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))))
-            }
-            actual => {
-                return VmResult::err([
-                    VmErrorKind::expected::<String>(actual.type_info()),
-                    VmErrorKind::bad_argument(0),
-                ])
-            }
-        },
-        BorrowRefRepr::Any(value) => match value.type_hash() {
+        RefRepr::Inline(value) => VmResult::err([
+            VmErrorKind::expected::<String>(value.type_info()),
+            VmErrorKind::bad_argument(0),
+        ]),
+        RefRepr::Mutable(value) => VmResult::err([
+            VmErrorKind::expected::<String>(vm_try!(value.borrow_ref()).type_info()),
+            VmErrorKind::bad_argument(0),
+        ]),
+        RefRepr::Any(value) => match value.type_hash() {
             String::HASH => {
                 let s = vm_try!(value.borrow_ref::<String>());
 
-                vm_try!(rune::to_value(Split::new(
+                let split = vm_try!(rune::to_value(Split::new(
                     this,
                     vm_try!(String::try_from(s.as_str()))
-                )))
+                )));
+
+                VmResult::Ok(split)
             }
-            _ => {
-                return VmResult::err([
-                    VmErrorKind::expected::<String>(value.type_info()),
-                    VmErrorKind::bad_argument(0),
-                ]);
+            Function::HASH => {
+                let f = vm_try!(value.borrow_ref::<Function>());
+                let split = vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))));
+                VmResult::Ok(split)
             }
-        },
-        value => {
-            return VmResult::err([
+            _ => VmResult::err([
                 VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
-            ]);
-        }
-    };
-
-    VmResult::Ok(split)
+            ]),
+        },
+    }
 }
 
 /// Splits the string on the first occurrence of the specified delimiter and
@@ -944,10 +938,27 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
 /// ```
 #[rune::function(instance)]
 fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
-    let outcome = match vm_try!(value.borrow_ref_repr()) {
-        BorrowRefRepr::Inline(Inline::Char(pat)) => this.split_once(*pat),
-        BorrowRefRepr::Mutable(value) => match &*value {
-            Mutable::Function(f) => {
+    let outcome = match vm_try!(value.as_ref_repr()) {
+        RefRepr::Inline(Inline::Char(pat)) => this.split_once(*pat),
+        RefRepr::Inline(value) => {
+            return VmResult::err([
+                VmErrorKind::expected::<String>(value.type_info()),
+                VmErrorKind::bad_argument(0),
+            ]);
+        }
+        RefRepr::Mutable(value) => {
+            return VmResult::err([
+                VmErrorKind::expected::<String>(vm_try!(value.borrow_ref()).type_info()),
+                VmErrorKind::bad_argument(0),
+            ]);
+        }
+        RefRepr::Any(value) => match value.type_hash() {
+            String::HASH => {
+                let s = vm_try!(value.borrow_ref::<String>());
+                this.split_once(s.as_str())
+            }
+            Function::HASH => {
+                let f = vm_try!(value.borrow_ref::<Function>());
                 let mut err = None;
 
                 let outcome = this.split_once(|c: char| match f.call::<bool>((c,)) {
@@ -967,18 +978,6 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
 
                 outcome
             }
-            actual => {
-                return VmResult::err([
-                    VmErrorKind::expected::<String>(actual.type_info()),
-                    VmErrorKind::bad_argument(0),
-                ])
-            }
-        },
-        BorrowRefRepr::Any(value) => match value.type_hash() {
-            String::HASH => {
-                let s = vm_try!(value.borrow_ref::<String>());
-                this.split_once(s.as_str())
-            }
             _ => {
                 return VmResult::err([
                     VmErrorKind::expected::<String>(value.type_info()),
@@ -986,12 +985,6 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
                 ]);
             }
         },
-        ref actual => {
-            return VmResult::err([
-                VmErrorKind::expected::<String>(actual.type_info()),
-                VmErrorKind::bad_argument(0),
-            ])
-        }
     };
 
     let Some((a, b)) = outcome else {
