@@ -734,10 +734,10 @@ impl Context {
                                     .copied()
                                     .enumerate()
                                     .map(|(position, name)| {
-                                        Ok((
-                                            Box::<str>::try_from(name)?,
-                                            meta::FieldMeta { position },
-                                        ))
+                                        Ok(meta::FieldMeta {
+                                            name: name.try_into()?,
+                                            position,
+                                        })
                                     })
                                     .try_collect::<alloc::Result<_>>()??,
                             }),
@@ -765,6 +765,7 @@ impl Context {
                                 enum_hash: ty.hash,
                                 hash,
                                 item: item.try_clone()?,
+                                fields: fields.to_fields()?,
                             })),
                             type_parameters: Hash::EMPTY,
                         })?;
@@ -799,10 +800,10 @@ impl Context {
                                                 .copied()
                                                 .enumerate()
                                                 .map(|(position, name)| {
-                                                    Ok((
-                                                        Box::<str>::try_from(name)?,
-                                                        meta::FieldMeta { position },
-                                                    ))
+                                                    Ok(meta::FieldMeta {
+                                                        name: name.try_into()?,
+                                                        position,
+                                                    })
                                                 })
                                                 .try_collect::<alloc::Result<_>>()??,
                                         })
@@ -1116,10 +1117,10 @@ impl Context {
                                         .copied()
                                         .enumerate()
                                         .map(|(position, name)| {
-                                            Ok((
-                                                Box::<str>::try_from(name)?,
-                                                meta::FieldMeta { position },
-                                            ))
+                                            Ok(meta::FieldMeta {
+                                                name: name.try_into()?,
+                                                position,
+                                            })
                                         })
                                         .try_collect::<alloc::Result<_>>()??,
                                 }),

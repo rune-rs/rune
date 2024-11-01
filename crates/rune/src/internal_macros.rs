@@ -163,17 +163,3 @@ macro_rules! from_value_ref {
         }
     };
 }
-
-/// Implements a set of common value conversions.
-macro_rules! from_value2 {
-    ($ty:ty, $into_ref:ident, $into_mut:ident, $into:ident) => {
-        impl $crate::runtime::FromValue for $ty {
-            fn from_value(value: Value) -> Result<Self, $crate::runtime::RuntimeError> {
-                let value = value.$into()?;
-                Ok(value)
-            }
-        }
-
-        from_value_ref!($ty, $into_ref, $into_mut, $into);
-    };
-}

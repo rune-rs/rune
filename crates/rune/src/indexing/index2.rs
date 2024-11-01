@@ -1,7 +1,7 @@
 use core::mem::replace;
 
+use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap};
 use crate::ast::{self, Kind, Span, Spanned};
 use crate::compile::{
     meta, Doc, DynLocation, Error, ErrorKind, Location, Result, Visibility, WithSpan,
@@ -1166,7 +1166,7 @@ fn fields(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<meta::Fields>
     match p.kind() {
         StructBody => {
             p.one(K!['{']).exactly_one(idx)?;
-            let mut fields = HashMap::new();
+            let mut fields = Vec::new();
             let mut comma = Remaining::default();
 
             while let MaybeNode::Some(field) = p.eat(Field) {
@@ -1174,13 +1174,18 @@ fn fields(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<meta::Fields>
                 let name = field.parse(|p| p.ast::<ast::Ident>())?;
                 let name = name.resolve(resolve_context!(idx.q))?;
                 let position = fields.len();
-                fields.try_insert(name.try_into()?, meta::FieldMeta { position })?;
+                fields.try_push(meta::FieldMeta {
+                    name: name.try_into()?,
+                    position,
+                })?;
                 comma = p.remaining(idx, K![,])?;
             }
 
             comma.at_most_one(idx)?;
             p.one(K!['}']).exactly_one(idx)?;
-            Ok(meta::Fields::Named(meta::FieldsNamed { fields }))
+            Ok(meta::Fields::Named(meta::FieldsNamed {
+                fields: fields.try_into()?,
+            }))
         }
         TupleBody => {
             p.one(K!['(']).exactly_one(idx)?;

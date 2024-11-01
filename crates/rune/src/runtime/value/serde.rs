@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{self, BorrowRefRepr, Bytes, Inline, Mutable, Object, Vec};
+use crate::runtime::{self, BorrowRefRepr, Bytes, Inline, Mutable, Object, OwnedTuple, Vec};
 use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
@@ -38,15 +38,6 @@ impl ser::Serialize for Value {
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
             BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Object(object) => {
-                    let mut serializer = serializer.serialize_map(Some(object.len()))?;
-
-                    for (key, value) in object {
-                        serializer.serialize_entry(key, value)?;
-                    }
-
-                    serializer.end()
-                }
                 Mutable::Option(option) => <Option<Value>>::serialize(option, serializer),
                 Mutable::EmptyStruct(..) => {
                     Err(ser::Error::custom("cannot serialize empty structs"))
@@ -77,14 +68,22 @@ impl ser::Serialize for Value {
 
                     serializer.end()
                 }
-                runtime::OwnedTuple::HASH => {
-                    let tuple = value
-                        .borrow_ref::<runtime::OwnedTuple>()
-                        .map_err(S::Error::custom)?;
+                OwnedTuple::HASH => {
+                    let tuple = value.borrow_ref::<OwnedTuple>().map_err(S::Error::custom)?;
                     let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
 
                     for value in tuple.iter() {
                         serializer.serialize_element(value)?;
+                    }
+
+                    serializer.end()
+                }
+                Object::HASH => {
+                    let object = value.borrow_ref::<Object>().map_err(S::Error::custom)?;
+                    let mut serializer = serializer.serialize_map(Some(object.len()))?;
+
+                    for (key, value) in object.iter() {
+                        serializer.serialize_entry(key, value)?;
                     }
 
                     serializer.end()

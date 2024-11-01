@@ -7,7 +7,7 @@ pub use self::inline::Inline;
 mod serde;
 
 mod rtti;
-pub use self::rtti::{Rtti, VariantRtti};
+pub use self::rtti::{Accessor, Rtti, VariantRtti};
 
 mod data;
 pub use self::data::{EmptyStruct, Struct, TupleStruct};
@@ -422,7 +422,6 @@ impl Value {
                     });
                 }
                 RefRepr::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
-                    Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
                     Mutable::Option(value) => Mutable::Option(vm_try!(value.try_clone())),
                     Mutable::Result(value) => Mutable::Result(vm_try!(value.try_clone())),
                     Mutable::EmptyStruct(value) => Mutable::EmptyStruct(vm_try!(value.try_clone())),
@@ -484,9 +483,6 @@ impl Value {
             };
 
             match &*vm_try!(value.borrow_ref()) {
-                Mutable::Object(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
                 Mutable::Option(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
@@ -701,7 +697,6 @@ impl Value {
                 value => Ok(TypeValue::NotTypedInline(NotTypedInlineValue(value))),
             },
             OwnedRepr::Mutable(value) => match value {
-                Mutable::Object(object) => Ok(TypeValue::Object(object)),
                 Mutable::EmptyStruct(empty) => Ok(TypeValue::EmptyStruct(empty)),
                 Mutable::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
                 Mutable::Struct(object) => Ok(TypeValue::Struct(object)),
@@ -710,7 +705,8 @@ impl Value {
             },
             OwnedRepr::Any(value) => match value.type_hash() {
                 OwnedTuple::HASH => Ok(TypeValue::Tuple(value.downcast()?)),
-                _ => Ok(TypeValue::NotTypedRef(NotTypedRefValue(value))),
+                Object::HASH => Ok(TypeValue::Object(value.downcast()?)),
+                _ => Ok(TypeValue::NotTypedAnyObj(NotTypedAnyObj(value))),
             },
         }
     }
@@ -801,16 +797,6 @@ impl Value {
         borrow_struct_ref,
         borrow_struct_mut,
         into_struct,
-    }
-
-    into! {
-        /// Coerce into a [`Object`].
-        Object(Object),
-        into_object_ref,
-        into_object_mut,
-        borrow_object_ref,
-        borrow_object_mut,
-        into_object,
     }
 
     /// Borrow as a tuple.
@@ -1167,12 +1153,7 @@ impl Value {
                     }
                     (Mutable::Struct(a), Mutable::Struct(b)) => {
                         if a.rtti.hash == b.rtti.hash {
-                            return Object::eq_with(
-                                &a.data,
-                                &b.data,
-                                Value::partial_eq_with,
-                                caller,
-                            );
+                            return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
                         }
                     }
                     (Mutable::Variant(a), Mutable::Variant(b)) => {
@@ -1326,9 +1307,6 @@ impl Value {
                 });
             }
             (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Object(a), Mutable::Object(b)) => {
-                    return Object::eq_with(a, b, Value::eq_with, caller);
-                }
                 (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
                         // NB: don't get any future ideas, this must fall through to
@@ -1346,7 +1324,7 @@ impl Value {
                 }
                 (Mutable::Struct(a), Mutable::Struct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
-                        return Object::eq_with(&a.data, &b.data, Value::eq_with, caller);
+                        return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
                     }
                 }
                 (Mutable::Variant(a), Mutable::Variant(b)) => {
@@ -1422,9 +1400,6 @@ impl Value {
                 })
             }
             (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Object(a), Mutable::Object(b)) => {
-                    return Object::partial_cmp_with(a, b, caller);
-                }
                 (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
                         // NB: don't get any future ideas, this must fall through to
@@ -1442,7 +1417,7 @@ impl Value {
                 }
                 (Mutable::Struct(a), Mutable::Struct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
-                        return Object::partial_cmp_with(&a.data, &b.data, caller);
+                        return Vec::partial_cmp_with(&a.data, &b.data, caller);
                     }
                 }
                 (Mutable::Variant(a), Mutable::Variant(b)) => {
@@ -1511,9 +1486,6 @@ impl Value {
         ) {
             (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => return a.cmp(b),
             (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::Object(a), Mutable::Object(b)) => {
-                    return Object::cmp_with(a, b, caller);
-                }
                 (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
                         // NB: don't get any future ideas, this must fall through to
@@ -1531,7 +1503,7 @@ impl Value {
                 }
                 (Mutable::Struct(a), Mutable::Struct(b)) => {
                     if a.rtti.hash == b.rtti.hash {
-                        return Object::cmp_with(&a.data, &b.data, caller);
+                        return Vec::cmp_with(&a.data, &b.data, caller);
                     }
                 }
                 (Mutable::Variant(a), Mutable::Variant(b)) => {
@@ -1903,7 +1875,6 @@ from! {
     TupleStruct => TupleStruct,
     Struct => Struct,
     Variant => Variant,
-    Object => Object,
 }
 
 any_from! {
@@ -1918,6 +1889,7 @@ any_from! {
     super::Stream,
     super::Function,
     super::Future,
+    super::Object,
 }
 
 from_container! {
@@ -1990,11 +1962,11 @@ pub struct NotTypedMutableValue(Mutable);
 
 /// Wrapper for an any ref value kind.
 #[doc(hidden)]
-pub struct NotTypedRefValue(AnyObj);
+pub struct NotTypedAnyObj(AnyObj);
 
 /// The coersion of a value into a typed value.
-#[doc(hidden)]
 #[non_exhaustive]
+#[doc(hidden)]
 pub enum TypeValue {
     /// The unit value.
     Unit,
@@ -2018,7 +1990,7 @@ pub enum TypeValue {
     NotTypedMutable(NotTypedMutableValue),
     /// Not a typed value.
     #[doc(hidden)]
-    NotTypedRef(NotTypedRefValue),
+    NotTypedAnyObj(NotTypedAnyObj),
 }
 
 impl TypeValue {
@@ -2028,21 +2000,19 @@ impl TypeValue {
         match self {
             TypeValue::Unit => TypeInfo::any::<OwnedTuple>(),
             TypeValue::Tuple(..) => TypeInfo::any::<OwnedTuple>(),
-            TypeValue::Object(..) => TypeInfo::static_type(static_type::OBJECT),
+            TypeValue::Object(..) => TypeInfo::any::<Object>(),
             TypeValue::EmptyStruct(empty) => empty.type_info(),
             TypeValue::TupleStruct(tuple) => tuple.type_info(),
             TypeValue::Struct(object) => object.type_info(),
             TypeValue::Variant(empty) => empty.type_info(),
             TypeValue::NotTypedInline(value) => value.0.type_info(),
             TypeValue::NotTypedMutable(value) => value.0.type_info(),
-            TypeValue::NotTypedRef(value) => value.0.type_info(),
+            TypeValue::NotTypedAnyObj(value) => value.0.type_info(),
         }
     }
 }
 
 pub(crate) enum Mutable {
-    /// An object.
-    Object(Object),
     /// An empty value indicating nothing.
     Option(Option<Value>),
     /// A stored result in a slot.
@@ -2060,7 +2030,6 @@ pub(crate) enum Mutable {
 impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
             Mutable::Option(..) => TypeInfo::static_type(static_type::OPTION),
             Mutable::Result(..) => TypeInfo::static_type(static_type::RESULT),
             Mutable::EmptyStruct(empty) => empty.type_info(),
@@ -2076,7 +2045,6 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::Object(..) => static_type::OBJECT.hash,
             Mutable::Result(..) => static_type::RESULT.hash,
             Mutable::Option(..) => static_type::OPTION.hash,
             Mutable::EmptyStruct(empty) => empty.rtti.hash,

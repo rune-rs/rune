@@ -295,13 +295,28 @@ pub struct Alias {
 #[non_exhaustive]
 pub struct FieldsNamed {
     /// Fields associated with the type.
-    pub(crate) fields: HashMap<Box<str>, FieldMeta>,
+    pub(crate) fields: Box<[FieldMeta]>,
+}
+
+impl FieldsNamed {
+    /// Coerce into a hashmap of fields.
+    pub(crate) fn to_fields(&self) -> alloc::Result<HashMap<Box<str>, usize>> {
+        let mut fields = HashMap::new();
+
+        for f in self.fields.iter() {
+            fields.try_insert(f.name.try_clone()?, f.position)?;
+        }
+
+        Ok(fields)
+    }
 }
 
 /// Metadata for a single named field.
 #[derive(Debug, TryClone)]
 pub struct FieldMeta {
     /// Position of the field in its containing type declaration.
+    pub(crate) name: Box<str>,
+    /// The position of the field.
     pub(crate) position: usize,
 }
 

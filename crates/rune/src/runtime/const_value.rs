@@ -139,7 +139,7 @@ impl ConstValueKind {
             ConstValueKind::Bytes(..) => TypeInfo::any::<Bytes>(),
             ConstValueKind::Vec(..) => TypeInfo::any::<runtime::Vec>(),
             ConstValueKind::Tuple(..) => TypeInfo::any::<OwnedTuple>(),
-            ConstValueKind::Object(..) => TypeInfo::static_type(static_type::OBJECT),
+            ConstValueKind::Object(..) => TypeInfo::any::<Object>(),
             ConstValueKind::Option(..) => TypeInfo::static_type(static_type::OPTION),
             ConstValueKind::Struct(hash, ..) => {
                 TypeInfo::any_type_info(AnyTypeInfo::new(full_name, *hash))
@@ -241,17 +241,6 @@ impl ConstValue {
                     Some(some) => Some(Box::try_new(Self::from_value_ref(some)?)?),
                     None => None,
                 }),
-                Mutable::Object(ref object) => {
-                    let mut const_object = HashMap::try_with_capacity(object.len())?;
-
-                    for (key, value) in object {
-                        let key = key.try_clone()?;
-                        let value = Self::from_value_ref(value)?;
-                        const_object.try_insert(key, value)?;
-                    }
-
-                    ConstValueKind::Object(const_object)
-                }
                 value => {
                     return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
                         actual: value.type_info(),
@@ -286,6 +275,18 @@ impl ConstValue {
                     }
 
                     ConstValueKind::Tuple(const_tuple.try_into_boxed_slice()?)
+                }
+                Object::HASH => {
+                    let object = value.borrow_ref::<Object>()?;
+                    let mut const_object = HashMap::try_with_capacity(object.len())?;
+
+                    for (key, value) in object.iter() {
+                        let key = key.try_clone()?;
+                        let value = Self::from_value_ref(value)?;
+                        const_object.try_insert(key, value)?;
+                    }
+
+                    ConstValueKind::Object(const_object)
                 }
                 _ => {
                     return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {

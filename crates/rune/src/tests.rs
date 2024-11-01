@@ -15,7 +15,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, Bytes, Formatter, Function, InstAddress, MaybeTypeOf, Mut, Mutable, Object, Output,
+        self, Bytes, Formatter, Function, InstAddress, MaybeTypeOf, Mutable, Object, Output,
         OwnedRepr, OwnedTuple, Protocol, RawAnyGuard, Ref, Stack, Tuple, TypeHash, TypeInfo,
         TypeOf, UnsafeToRef, VecTuple, VmErrorKind, VmResult,
     };
@@ -23,7 +23,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Item, ItemBuf, Module, Source, Sources, ToValue, Value, Vm,
+        FromValue, Hash, Item, ItemBuf, Module, Source, Sources, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 
@@ -432,7 +432,6 @@ mod core_macros;
 mod custom_macros;
 mod debug_fmt;
 mod deprecation;
-mod derive_from_to_value;
 mod destructuring;
 mod esoteric_impls;
 mod external_constructor;

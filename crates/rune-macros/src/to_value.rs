@@ -99,10 +99,10 @@ impl Expander<'_> {
             let ident = self.cx.field_ident(f)?;
             _ = self.cx.field_attrs(&f.attrs);
 
-            let name = &syn::LitStr::new(&ident.to_string(), ident.span());
+            let name = syn::LitStr::new(&ident.to_string(), ident.span());
 
             to_values.push(quote! {
-                object.insert(<#string as #try_from<_>>::try_from(#name)?, #to_value::to_value(self.#ident)?)
+                object.insert(<#string as #try_from<_>>::try_from(#name)?, #to_value::to_value(self.#ident)?)?
             });
         }
 

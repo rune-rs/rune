@@ -172,11 +172,9 @@ any_type! {
     ::std::tuple::Tuple {
         impl for rt::Tuple;
     }
-}
 
-static_type! {
     /// The specialized type information for the [`Object`] type.
-    pub(crate) static [OBJECT, OBJECT_HASH] = ::std::object::Object {
+    ::std::object::Object {
         impl for rt::Struct;
         impl<T> for HashMap<::rust_alloc::string::String, T>;
         impl<T> for HashMap<alloc::String, T>;
@@ -189,7 +187,9 @@ static_type! {
         #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
         impl<T> for ::std::collections::HashMap<alloc::String, T>;
     }
+}
 
+static_type! {
     pub(crate) static [RESULT, RESULT_HASH] = ::std::result::Result {
         impl<T, E> for Result<T, E>;
     }

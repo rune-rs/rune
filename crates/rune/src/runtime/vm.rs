@@ -832,28 +832,45 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_object_like_index_get(target: &Value, field: &str) -> VmResult<Option<Value>> {
-        let BorrowRefRepr::Mutable(target) = vm_try!(target.borrow_ref_repr()) else {
-            return VmResult::Ok(None);
-        };
+        match vm_try!(target.as_ref_repr()) {
+            RefRepr::Inline(..) => VmResult::Ok(None),
+            RefRepr::Mutable(target) => {
+                let target = vm_try!(target.borrow_ref());
 
-        let value = match &*target {
-            Mutable::Object(target) => target.get(field),
-            Mutable::Struct(target) => target.get(field),
-            Mutable::Variant(variant) => match variant.data() {
-                VariantData::Struct(target) => target.get(field),
-                _ => return VmResult::Ok(None),
+                let value = match &*target {
+                    Mutable::Struct(target) => target.get(field),
+                    Mutable::Variant(variant) => match variant.data() {
+                        VariantData::Struct(target) => variant.rtti.get_field(target, field),
+                        _ => return VmResult::Ok(None),
+                    },
+                    _ => return VmResult::Ok(None),
+                };
+
+                let Some(value) = value else {
+                    return err(VmErrorKind::MissingField {
+                        target: target.type_info(),
+                        field: vm_try!(field.try_to_owned()),
+                    });
+                };
+
+                VmResult::Ok(Some(value.clone()))
+            }
+            RefRepr::Any(value) => match value.type_hash() {
+                Object::HASH => {
+                    let target = vm_try!(value.borrow_ref::<Object>());
+
+                    let Some(value) = target.get(field) else {
+                        return err(VmErrorKind::MissingField {
+                            target: TypeInfo::any::<Object>(),
+                            field: vm_try!(field.try_to_owned()),
+                        });
+                    };
+
+                    VmResult::Ok(Some(value.clone()))
+                }
+                _ => VmResult::Ok(None),
             },
-            _ => return VmResult::Ok(None),
-        };
-
-        let Some(value) = value else {
-            return err(VmErrorKind::MissingField {
-                target: target.type_info(),
-                field: vm_try!(field.try_to_owned()),
-            });
-        };
-
-        VmResult::Ok(Some(value.clone()))
+        }
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -1037,18 +1054,16 @@ impl Vm {
                 let mut unsupported = false;
 
                 let result = BorrowMut::try_map(target, |value| {
-                    match value {
-                        Mutable::Object(target) => {
-                            return target.get_mut(field);
-                        }
-                        Mutable::Struct(target) => {
+                    match *value {
+                        Mutable::Struct(ref mut target) => {
                             return target.get_mut(field);
                         }
                         Mutable::Variant(Variant {
-                            data: VariantData::Struct(st),
+                            ref rtti,
+                            data: VariantData::Struct(ref mut st),
                             ..
                         }) => {
-                            return st.get_mut(field);
+                            return rtti.get_field_mut(st, field);
                         }
                         _ => {}
                     }
@@ -1069,7 +1084,21 @@ impl Vm {
                     }),
                 }
             }
-            RefRepr::Any(..) => VmResult::Ok(None),
+            RefRepr::Any(value) => match value.type_hash() {
+                Object::HASH => {
+                    let object = vm_try!(value.borrow_mut::<Object>());
+
+                    if let Ok(value) = BorrowMut::try_map(object, |object| object.get_mut(field)) {
+                        return VmResult::Ok(Some(value));
+                    }
+
+                    err(VmErrorKind::MissingField {
+                        target: value.type_info(),
+                        field: vm_try!(field.try_to_owned()),
+                    })
+                }
+                _ => VmResult::Ok(None),
+            },
         }
     }
 
@@ -1160,24 +1189,19 @@ impl Vm {
                 RefRepr::Inline(..) => {
                     return VmResult::Ok(CallResult::Unsupported(target.clone()));
                 }
-                RefRepr::Mutable(target) => match &mut *vm_try!(target.borrow_mut()) {
-                    Mutable::Object(object) => {
-                        if let Some(value) = object.get(index.as_str()) {
-                            vm_try!(out.store(&mut self.stack, || value.clone()));
-                            return VmResult::Ok(CallResult::Ok(()));
-                        }
-                    }
-                    Mutable::Struct(typed_object) => {
+                RefRepr::Mutable(target) => match *vm_try!(target.borrow_ref()) {
+                    Mutable::Struct(ref typed_object) => {
                         if let Some(value) = typed_object.get(index.as_str()) {
                             vm_try!(out.store(&mut self.stack, || value.clone()));
                             return VmResult::Ok(CallResult::Ok(()));
                         }
                     }
                     Mutable::Variant(Variant {
-                        data: VariantData::Struct(data),
+                        ref rtti,
+                        data: VariantData::Struct(ref data),
                         ..
                     }) => {
-                        if let Some(value) = data.get(index.as_str()) {
+                        if let Some(value) = rtti.get_field(data, index.as_str()) {
                             vm_try!(out.store(&mut self.stack, || value.clone()));
                             return VmResult::Ok(CallResult::Ok(()));
                         }
@@ -1186,7 +1210,17 @@ impl Vm {
                         break 'fallback;
                     }
                 },
-                RefRepr::Any(..) => break 'fallback,
+                RefRepr::Any(value) => match value.type_hash() {
+                    Object::HASH => {
+                        let object = vm_try!(value.borrow_ref::<Object>());
+
+                        if let Some(value) = object.get(index.as_str()) {
+                            vm_try!(out.store(&mut self.stack, || value.clone()));
+                            return VmResult::Ok(CallResult::Ok(()));
+                        }
+                    }
+                    _ => break 'fallback,
+                },
             }
 
             return err(VmErrorKind::ObjectIndexMissing { slot });
@@ -1207,11 +1241,6 @@ impl Vm {
                 let mut target = vm_try!(target.borrow_mut());
 
                 match &mut *target {
-                    Mutable::Object(object) => {
-                        let key = vm_try!(field.try_to_owned());
-                        vm_try!(object.insert(key, value.clone()));
-                        return VmResult::Ok(true);
-                    }
                     Mutable::Struct(object) => {
                         if let Some(v) = object.get_mut(field) {
                             v.clone_from(value);
@@ -1219,8 +1248,8 @@ impl Vm {
                         }
                     }
                     Mutable::Variant(variant) => {
-                        if let VariantData::Struct(data) = variant.data_mut() {
-                            if let Some(v) = data.get_mut(field) {
+                        if let VariantData::Struct(data) = &mut variant.data {
+                            if let Some(v) = variant.rtti.get_field_mut(data, field) {
                                 v.clone_from(value);
                                 return VmResult::Ok(true);
                             }
@@ -1236,7 +1265,15 @@ impl Vm {
                     field: vm_try!(field.try_to_owned()),
                 })
             }
-            RefRepr::Any(..) => VmResult::Ok(false),
+            RefRepr::Any(target) => match target.type_hash() {
+                Object::HASH => {
+                    let key = vm_try!(field.try_to_owned());
+                    let mut object = vm_try!(target.borrow_mut::<Object>());
+                    vm_try!(object.insert(key, value.clone()));
+                    VmResult::Ok(true)
+                }
+                _ => VmResult::Ok(false),
+            },
         }
     }
 
@@ -2893,7 +2930,7 @@ impl Vm {
             vm_try!(object.insert(key, take(value)));
         }
 
-        vm_try!(out.store(&mut self.stack, Mutable::Object(object)));
+        vm_try!(out.store(&mut self.stack, object));
         VmResult::Ok(())
     }
 
@@ -2950,36 +2987,24 @@ impl Vm {
 
     /// Operation to allocate an object struct.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_struct(
-        &mut self,
-        addr: InstAddress,
-        hash: Hash,
-        slot: usize,
-        out: Output,
-    ) -> VmResult<()> {
-        let keys = vm_try!(self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
-
+    fn op_struct(&mut self, addr: InstAddress, hash: Hash, _: usize, out: Output) -> VmResult<()> {
         let rtti = vm_try!(self
             .unit
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
-        let mut data = vm_try!(Object::with_capacity(keys.len()));
-        let values = vm_try!(self.stack.slice_at_mut(addr, keys.len()));
+        let values = vm_try!(self.stack.slice_at_mut(addr, rtti.fields.len()));
+        let mut data = vm_try!(alloc::Vec::try_with_capacity(rtti.fields.len()));
 
-        for (key, value) in keys.iter().zip(values) {
-            let key = vm_try!(String::try_from(key.as_str()));
-            vm_try!(data.insert(key, take(value)));
+        for value in values {
+            vm_try!(data.try_push(take(value)));
         }
 
         vm_try!(out.store(
             &mut self.stack,
             Mutable::Struct(Struct {
                 rtti: rtti.clone(),
-                data,
+                data: vm_try!(data.try_into()),
             })
         ));
 
@@ -3012,31 +3037,26 @@ impl Vm {
         &mut self,
         addr: InstAddress,
         hash: Hash,
-        slot: usize,
+        _: usize,
         out: Output,
     ) -> VmResult<()> {
-        let keys = vm_try!(self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
-
         let rtti = vm_try!(self
             .unit
             .lookup_variant_rtti(hash)
             .ok_or(VmErrorKind::MissingVariantRtti { hash }));
 
-        let mut data = vm_try!(Object::with_capacity(keys.len()));
-        let values = vm_try!(self.stack.slice_at_mut(addr, keys.len()));
+        let mut data = vm_try!(alloc::Vec::try_with_capacity(rtti.fields.len()));
+        let values = vm_try!(self.stack.slice_at_mut(addr, rtti.fields.len()));
 
-        for (key, value) in keys.iter().zip(values) {
-            let key = vm_try!(String::try_from(key.as_str()));
-            vm_try!(data.insert(key, take(value)));
+        for value in values {
+            vm_try!(data.try_push(take(value)));
         }
 
         vm_try!(out.store(
             &mut self.stack,
-            Mutable::Variant(Variant::struct_(rtti.clone(), data))
+            Mutable::Variant(Variant::struct_(rtti.clone(), vm_try!(data.try_into())))
         ));
+
         VmResult::Ok(())
     }
 
@@ -3365,19 +3385,16 @@ impl Vm {
 
         let value = vm_try!(self.stack.at(addr));
 
-        let is_match = match vm_try!(value.borrow_ref_repr()) {
-            BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Object(object) => {
-                    let keys = vm_try!(self
-                        .unit
-                        .lookup_object_keys(slot)
-                        .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
+        let is_match = match vm_try!(value.try_borrow_ref::<Object>()) {
+            Some(object) => {
+                let keys = vm_try!(self
+                    .unit
+                    .lookup_object_keys(slot)
+                    .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
 
-                    test(object, keys, exact)
-                }
-                _ => false,
-            },
-            _ => false,
+                test(&object, keys, exact)
+            }
+            None => false,
         };
 
         vm_try!(out.store(&mut self.stack, is_match));

@@ -318,6 +318,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(Rtti {
                     hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: HashMap::new(),
                 });
 
                 self.constants
@@ -348,6 +349,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(Rtti {
                     hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: HashMap::new(),
                 });
 
                 if self
@@ -404,6 +406,7 @@ impl UnitBuilder {
                 let rtti = Arc::new(Rtti {
                     hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: HashMap::new(),
                 });
 
                 if self
@@ -443,12 +446,16 @@ impl UnitBuilder {
                     .functions
                     .try_insert(meta.hash, signature)?;
             }
-            meta::Kind::Struct { .. } => {
+            meta::Kind::Struct {
+                fields: meta::Fields::Named(ref named),
+                ..
+            } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
                     hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: named.to_fields()?,
                 });
 
                 self.constants
@@ -474,6 +481,7 @@ impl UnitBuilder {
                     enum_hash,
                     hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: HashMap::new(),
                 });
 
                 if self
@@ -522,6 +530,7 @@ impl UnitBuilder {
                     enum_hash,
                     hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: HashMap::new(),
                 });
 
                 if self
@@ -566,7 +575,7 @@ impl UnitBuilder {
             }
             meta::Kind::Variant {
                 enum_hash,
-                fields: meta::Fields::Named(..),
+                fields: meta::Fields::Named(ref named),
                 ..
             } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
@@ -575,6 +584,7 @@ impl UnitBuilder {
                     enum_hash,
                     hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: named.to_fields()?,
                 });
 
                 if self
