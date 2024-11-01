@@ -121,16 +121,8 @@ let mut t = m.define_trait(["Iterator"])?;
 
 t.handler(|cx| {
     let next = cx.find(Protocol::NEXT)?;
-    cx.function_handler("next", &next)?;
 
-    let size_hint = if let Some(size_hint) = cx.try_find(Protocol::SIZE_HINT)? {
-        cx.function_handler("size_hint", &size_hint)?;
-        size_hint
-    } else {
-        let size_hint = cx.function("size_hint", |_: Value| (0usize, None::<usize>))?;
-        cx.function_handler(Protocol::SIZE_HINT, &size_hint)?;
-        size_hint
-    };
+    let size_hint = cx.find_or_define(Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?;
 
     /* more methods */
     Ok(())

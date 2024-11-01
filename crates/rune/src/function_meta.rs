@@ -93,9 +93,9 @@ impl FunctionData {
                 f.fn_call(stack, addr, args, output)
             }),
             #[cfg(feature = "doc")]
-            is_async: K::is_async(),
+            is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
-            args: Some(F::args()),
+            args: Some(F::ARGS),
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
             #[cfg(feature = "doc")]
@@ -303,9 +303,9 @@ impl AssociatedFunctionData {
                 f.fn_call(stack, addr, args, output)
             }),
             #[cfg(feature = "doc")]
-            is_async: K::is_async(),
+            is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
-            args: Some(F::args()),
+            args: Some(F::ARGS),
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
             #[cfg(feature = "doc")]
@@ -327,9 +327,9 @@ impl AssociatedFunctionData {
                 f.fn_call(stack, addr, args, output)
             }),
             #[cfg(feature = "doc")]
-            is_async: K::is_async(),
+            is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
-            args: Some(F::args()),
+            args: Some(F::ARGS),
             #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
             #[cfg(feature = "doc")]

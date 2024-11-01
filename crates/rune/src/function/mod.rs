@@ -40,7 +40,7 @@ macro_rules! access_memory {
 /// implemented separately for plain and async functions.
 pub trait FunctionKind {
     /// Indicates if the function is async.
-    fn is_async() -> bool;
+    const IS_ASYNC: bool;
 }
 
 /// Marker for plain functions.
@@ -48,10 +48,7 @@ pub trait FunctionKind {
 pub struct Plain;
 
 impl FunctionKind for Plain {
-    #[inline]
-    fn is_async() -> bool {
-        false
-    }
+    const IS_ASYNC: bool = false;
 }
 
 /// Marker for async functions.
@@ -59,10 +56,7 @@ impl FunctionKind for Plain {
 pub struct Async;
 
 impl FunctionKind for Async {
-    #[inline]
-    fn is_async() -> bool {
-        true
-    }
+    const IS_ASYNC: bool = true;
 }
 
 /// Trait used to provide the [function][crate::module::Module::function]
@@ -77,7 +71,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
 
     /// Get the number of arguments.
     #[doc(hidden)]
-    fn args() -> usize;
+    const ARGS: usize;
 
     /// Perform the vm call.
     #[doc(hidden)]
@@ -107,7 +101,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
 
     /// Get the number of arguments.
     #[doc(hidden)]
-    fn args() -> usize;
+    const ARGS: usize;
 
     /// Perform the vm call.
     #[doc(hidden)]
@@ -130,10 +124,7 @@ macro_rules! impl_instance_function_traits {
             type Instance = Instance;
             type Return = T::Return;
 
-            #[inline]
-            fn args() -> usize {
-                <T as Function<(Instance, $($ty,)*), Kind>>::args()
-            }
+            const ARGS: usize  = <T as Function<(Instance, $($ty,)*), Kind>>::ARGS;
 
             #[inline]
             fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
@@ -239,9 +230,7 @@ macro_rules! impl_function_traits {
         {
             type Return = U;
 
-            fn args() -> usize {
-                $count
-            }
+            const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
             fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
@@ -267,9 +256,7 @@ macro_rules! impl_function_traits {
         {
             type Return = U::Output;
 
-            fn args() -> usize {
-                $count
-            }
+            const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
             fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {

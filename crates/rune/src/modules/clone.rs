@@ -31,8 +31,7 @@ pub fn module() -> Result<Module, ContextError> {
     })?;
 
     t.handler(|cx| {
-        let clone = cx.find(Protocol::CLONE)?;
-        cx.function_handler("clone", &clone)?;
+        _ = cx.find(Protocol::CLONE)?;
         Ok(())
     })?;
 
