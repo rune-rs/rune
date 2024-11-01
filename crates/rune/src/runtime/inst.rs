@@ -1551,15 +1551,15 @@ pub enum InstOp {
     /// Compare two values on the stack for lt and push the result as a
     /// boolean on the stack.
     Lt,
+    /// Compare two values on the stack for lte and push the result as a
+    /// boolean on the stack.
+    Le,
     /// Compare two values on the stack for gt and push the result as a
     /// boolean on the stack.
     Gt,
-    /// Compare two values on the stack for lte and push the result as a
-    /// boolean on the stack.
-    Lte,
     /// Compare two values on the stack for gte and push the result as a
     /// boolean on the stack.
-    Gte,
+    Ge,
     /// Compare two values on the stack for equality and push the result as a
     /// boolean on the stack.
     ///
@@ -1676,10 +1676,10 @@ impl fmt::Display for InstOp {
             Self::Gt => {
                 write!(f, ">")?;
             }
-            Self::Lte => {
+            Self::Le => {
                 write!(f, "<=")?;
             }
-            Self::Gte => {
+            Self::Ge => {
                 write!(f, ">=")?;
             }
             Self::Eq => {

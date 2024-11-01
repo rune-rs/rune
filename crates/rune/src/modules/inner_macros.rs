@@ -7,8 +7,8 @@ macro_rules! unsigned {
         $m.function("parse", parse).build()?;
         $m.function_meta(to_float)?;
 
-        $m.function_meta(max)?;
-        $m.function_meta(min)?;
+        $m.function_meta(max__meta)?;
+        $m.function_meta(min__meta)?;
         $m.function_meta(pow)?;
 
         $m.function_meta(checked_add)?;
@@ -156,7 +156,7 @@ macro_rules! unsigned_fns {
         #[doc = concat!(" assert_eq!(1", $n, ".max(2", $n, "), 2", $n, ");")]
         #[doc = concat!(" assert_eq!(2", $n, ".max(2", $n, "), 2", $n, ");")]
         /// ```
-        #[rune::function(instance)]
+        #[rune::function(keep, instance, protocol = MAX)]
         #[inline]
         fn max(this: $ty, other: $ty) -> $ty {
             <$ty>::max(this, other)
@@ -172,7 +172,7 @@ macro_rules! unsigned_fns {
         #[doc = concat!(" assert_eq!(1", $n, ".min(2", $n, "), 1", $n, ");")]
         #[doc = concat!(" assert_eq!(2", $n, ".min(2", $n, "), 2", $n, ");")]
         /// ```
-        #[rune::function(instance)]
+        #[rune::function(keep, instance, protocol = MIN)]
         #[inline]
         fn min(this: $ty, other: $ty) -> $ty {
             <$ty>::min(this, other)

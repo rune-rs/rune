@@ -48,7 +48,6 @@ pub(super) struct Trait<'a> {
     #[serde(serialize_with = "super::serialize_item")]
     pub(super) item: &'a Item,
     pub(super) hash: Hash,
-    pub(super) module: String,
     pub(super) name: &'a str,
     pub(super) url: RelativePathBuf,
     pub(super) methods: Vec<Method<'a>>,
@@ -118,13 +117,11 @@ pub(super) fn build_assoc_fns<'m>(
             .and_then(|c| c.as_str())
             .context("Missing trait name")?;
 
-        let module = cx.module_path_html(meta, false)?;
         let url = cx.item_path(item, ItemKind::Trait)?;
 
         traits.try_push(Trait {
             item,
             hash,
-            module,
             name,
             url,
             methods,

@@ -22,8 +22,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(is_finite)?;
     m.function_meta(is_subnormal)?;
     m.function_meta(is_normal)?;
-    m.function_meta(max)?;
-    m.function_meta(min)?;
+    m.function_meta(max__meta)?;
+    m.function_meta(min__meta)?;
     #[cfg(feature = "std")]
     m.function_meta(sqrt)?;
     #[cfg(feature = "std")]
@@ -213,7 +213,7 @@ fn is_normal(this: f64) -> bool {
 ///
 /// assert_eq!(x.max(y), y);
 /// ```
-#[rune::function(instance)]
+#[rune::function(keep, instance, protocol = MAX)]
 fn max(this: f64, other: f64) -> f64 {
     this.max(other)
 }
@@ -234,7 +234,7 @@ fn max(this: f64, other: f64) -> f64 {
 ///
 /// assert_eq!(x.min(y), x);
 /// ```
-#[rune::function(instance)]
+#[rune::function(keep, instance, protocol = MIN)]
 fn min(this: f64, other: f64) -> f64 {
     this.min(other)
 }
