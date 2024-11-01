@@ -69,8 +69,8 @@ impl TraitContext<'_> {
     /// Find the given protocol function for the current type.
     ///
     /// This requires that the function is defined.
-    pub fn find(&self, name: impl ToInstance) -> Result<Arc<FunctionHandler>, ContextError> {
-        let name = name.to_instance()?;
+    pub fn find(&mut self, protocol: Protocol) -> Result<Arc<FunctionHandler>, ContextError> {
+        let name = protocol.to_instance()?;
 
         let hash = name
             .kind
@@ -87,7 +87,13 @@ impl TraitContext<'_> {
             });
         };
 
-        Ok(handler.clone())
+        let handler = handler.clone();
+
+        if let Some(method) = protocol.method {
+            self.function_handler(method, &handler)?;
+        }
+
+        Ok(handler)
     }
 
     /// Try to find the given associated function.
@@ -105,6 +111,28 @@ impl TraitContext<'_> {
             .with_function_parameters(name.function_parameters);
 
         Ok(self.cx.functions.get(&hash).cloned())
+    }
+
+    /// Find or define a protocol function.
+    pub fn find_or_define<A, F>(
+        &mut self,
+        protocol: Protocol,
+        function: F,
+    ) -> Result<Arc<FunctionHandler>, ContextError>
+    where
+        F: Function<A, Plain>,
+    {
+        let function = if let Some(function) = self.try_find(protocol)? {
+            function
+        } else {
+            self.function(protocol, function)?
+        };
+
+        if let Some(method) = protocol.method {
+            self.function_handler(method, &function)?;
+        }
+
+        Ok(function)
     }
 
     /// Define a new associated function for the current type.
@@ -137,7 +165,7 @@ impl TraitContext<'_> {
 
     /// Define a new associated function for the current type using a raw
     /// handler.
-    pub fn function_handler(
+    fn function_handler(
         &mut self,
         name: impl ToInstance,
         handler: &Arc<FunctionHandler>,

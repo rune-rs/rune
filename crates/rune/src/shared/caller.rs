@@ -10,13 +10,14 @@ use crate::FromValue;
 /// Note: This can only be used with functions that take at least one argument.
 /// Otherwise it will panic.
 #[derive(Clone)]
-pub(crate) struct Caller<T> {
+pub(crate) struct Caller<A, const N: usize, T> {
     handler: Arc<FunctionHandler>,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<(A, T)>,
 }
 
-impl<T> Caller<T>
+impl<A, const N: usize, T> Caller<A, N, T>
 where
+    A: FixedArgs<N>,
     T: FromValue,
 {
     /// Construct a new caller helper
@@ -28,7 +29,7 @@ where
     }
 
     /// Modify the return value of the caller.
-    pub(crate) fn with_return<U>(&self) -> Caller<U>
+    pub(crate) fn with_return<U>(&self) -> Caller<A, N, U>
     where
         U: FromValue,
     {
@@ -39,7 +40,7 @@ where
     }
 
     /// Perform a call.
-    pub(crate) fn call<const N: usize>(&self, args: impl FixedArgs<N>) -> VmResult<T> {
+    pub(crate) fn call(&self, args: A) -> VmResult<T> {
         const {
             assert!(N > 0, "Must be used with non-zero arguments");
         }
@@ -62,5 +63,5 @@ where
 }
 
 // SAFETY: The marker doesn't matter.
-unsafe impl<T> Send for Caller<T> {}
-unsafe impl<T> Sync for Caller<T> {}
+unsafe impl<A, const N: usize, T> Send for Caller<A, N, T> {}
+unsafe impl<A, const N: usize, T> Sync for Caller<A, N, T> {}

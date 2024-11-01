@@ -44,7 +44,7 @@ impl InternalEnum {
         self.variants.try_push(Variant {
             name,
             type_check: Some(type_check),
-            fields: Some(Fields::Unnamed(C::args())),
+            fields: Some(Fields::Unnamed(C::ARGS)),
             constructor: Some(constructor),
             deprecated: None,
             docs: Docs::EMPTY,

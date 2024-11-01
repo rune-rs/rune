@@ -155,8 +155,7 @@ pub fn module() -> Result<Module, ContextError> {
         })?;
 
         t.handler(|cx| {
-            let len = cx.find(Protocol::LEN)?;
-            cx.function_handler("len", &len)?;
+            _ = cx.find(Protocol::LEN)?;
             Ok(())
         })?;
 
@@ -204,26 +203,18 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.handler(|cx| {
             let next = cx.find(Protocol::NEXT)?;
-            cx.function_handler("next", &next)?;
+            let next = Caller::<(Value,), 1, Option<Value>>::new(next);
 
-            let size_hint = if let Some(size_hint) = cx.try_find(Protocol::SIZE_HINT)? {
-                size_hint
-            } else {
-                cx.function(Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?
-            };
+            let size_hint =
+                cx.find_or_define(Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?;
 
-            cx.function_handler("size_hint", &size_hint)?;
+            let size_hint = Caller::<(&Value,), 1, (usize, Option<usize>)>::new(size_hint);
 
-            let next = Caller::<Option<Value>>::new(next);
-            let size_hint = Caller::<(usize, Option<usize>)>::new(size_hint);
-
-            let nth = if let Some(nth) = cx.try_find(Protocol::NTH)? {
-                nth
-            } else {
+            cx.find_or_define(Protocol::NTH, {
                 let next = next.clone();
 
-                cx.function(Protocol::NTH, move |iterator: Value, mut n: usize| loop {
-                    let Some(value) = vm_try!(next.call((&iterator,))) else {
+                move |iter: Value, mut n: usize| loop {
+                    let Some(value) = vm_try!(next.call((iter.clone(),))) else {
                         break VmResult::Ok(None);
                     };
 
@@ -232,10 +223,8 @@ pub fn module() -> Result<Module, ContextError> {
                     }
 
                     n -= 1;
-                })?
-            };
-
-            cx.function_handler("nth", &nth)?;
+                }
+            })?;
 
             cx.function(Protocol::INTO_ITER, |value: Value| value)?;
 
@@ -248,7 +237,7 @@ pub fn module() -> Result<Module, ContextError> {
                     let mut n = 0usize;
 
                     loop {
-                        if vm_try!(next.call((&iter,))).is_none() {
+                        if vm_try!(next.call((iter.clone(),))).is_none() {
                             break VmResult::Ok(n);
                         };
 
@@ -262,7 +251,7 @@ pub fn module() -> Result<Module, ContextError> {
 
                 cx.function("fold", move |iter: Value, mut acc: Value, f: Function| {
                     loop {
-                        let Some(value) = vm_try!(next.call((&iter,))) else {
+                        let Some(value) = vm_try!(next.call((iter.clone(),))) else {
                             break VmResult::Ok(acc);
                         };
 
@@ -275,11 +264,11 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 cx.function("reduce", move |iter: Value, f: Function| {
-                    let Some(mut acc) = vm_try!(next.call((&iter,))) else {
+                    let Some(mut acc) = vm_try!(next.call((iter.clone(),))) else {
                         return VmResult::Ok(None);
                     };
 
-                    while let Some(value) = vm_try!(next.call((&iter,))) {
+                    while let Some(value) = vm_try!(next.call((iter.clone(),))) {
                         acc = vm_try!(f.call((acc, value)));
                     }
 
@@ -291,7 +280,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 cx.function("find", move |iter: Value, f: Function| loop {
-                    let Some(value) = vm_try!(next.call((&iter,))) else {
+                    let Some(value) = vm_try!(next.call((iter.clone(),))) else {
                         break VmResult::Ok(None);
                     };
 
@@ -305,7 +294,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 cx.function("any", move |iter: Value, f: Function| loop {
-                    let Some(value) = vm_try!(next.call((&iter,))) else {
+                    let Some(value) = vm_try!(next.call((iter.clone(),))) else {
                         break VmResult::Ok(false);
                     };
 
@@ -319,7 +308,7 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 cx.function("all", move |iter: Value, f: Function| loop {
-                    let Some(value) = vm_try!(next.call((&iter,))) else {
+                    let Some(value) = vm_try!(next.call((iter.clone(),))) else {
                         break VmResult::Ok(true);
                     };
 
@@ -372,7 +361,7 @@ pub fn module() -> Result<Module, ContextError> {
                     let (cap, _) = vm_try!(size_hint.call((&iter,)));
                     let mut vec = vm_try!(Vec::with_capacity(cap));
 
-                    while let Some(value) = vm_try!(next.call((&iter,))) {
+                    while let Some(value) = vm_try!(next.call((iter.clone(),))) {
                         vm_try!(vec.push(value));
                     }
 
@@ -390,7 +379,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut vec = vm_try!(Vec::with_capacity(cap));
 
-                        while let Some(value) = vm_try!(next.call((&iter,))) {
+                        while let Some(value) = vm_try!(next.call((iter.clone(),))) {
                             vm_try!(vec.push(value));
                         }
 
@@ -409,7 +398,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut set = vm_try!(HashSet::with_capacity(cap));
 
-                        while let Some(value) = vm_try!(next.call((&iter,))) {
+                        while let Some(value) = vm_try!(next.call((iter.clone(),))) {
                             vm_try!(set.insert(value));
                         }
 
@@ -428,7 +417,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut map = vm_try!(HashMap::with_capacity(cap));
 
-                        while let Some((key, value)) = vm_try!(next.call((&iter,))) {
+                        while let Some((key, value)) = vm_try!(next.call((iter.clone(),))) {
                             vm_try!(map.insert(key, value));
                         }
 
@@ -447,7 +436,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut map = vm_try!(Object::with_capacity(cap));
 
-                        while let Some((key, value)) = vm_try!(next.call((&iter,))) {
+                        while let Some((key, value)) = vm_try!(next.call((iter.clone(),))) {
                             vm_try!(map.insert(key, value));
                         }
 
@@ -466,7 +455,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let (cap, _) = vm_try!(size_hint.call((&iter,)));
                         let mut vec = vm_try!(alloc::Vec::try_with_capacity(cap));
 
-                        while let Some(value) = vm_try!(next.call((&iter,))) {
+                        while let Some(value) = vm_try!(next.call((iter.clone(),))) {
                             vm_try!(vec.try_push(value));
                         }
 
@@ -483,7 +472,7 @@ pub fn module() -> Result<Module, ContextError> {
                     move |iter: Value| {
                         let mut string = String::new();
 
-                        while let Some(value) = vm_try!(next.call((&iter,))) {
+                        while let Some(value) = vm_try!(next.call((iter.clone(),))) {
                             match vm_try!(value.borrow_ref_repr()) {
                                 BorrowRefRepr::Inline(Inline::Char(c)) => {
                                     vm_try!(string.try_push(*c));
@@ -1641,38 +1630,33 @@ pub fn module() -> Result<Module, ContextError> {
         })?;
 
         t.handler(|cx| {
-            let _ = cx.find(Protocol::NEXT)?;
             let next_back = cx.find(Protocol::NEXT_BACK)?;
 
-            let nth_back = if let Some(nth_back) = cx.try_find(Protocol::NTH_BACK)? {
-                nth_back
-            } else {
+            cx.find_or_define(Protocol::NTH_BACK, {
                 let next_back = next_back.clone();
 
-                cx.function(Protocol::NTH_BACK, move |iterator: Value, mut n: usize| {
-                    loop {
-                        let mut memory = [iterator.clone()];
+                move |iterator: Value, mut n: usize| loop {
+                    let mut memory = [iterator.clone()];
 
-                        vm_try!(next_back(
-                            &mut memory,
-                            InstAddress::ZERO,
-                            1,
-                            Output::keep(0)
-                        ));
-                        let [value] = memory;
+                    vm_try!(next_back(
+                        &mut memory,
+                        InstAddress::ZERO,
+                        1,
+                        Output::keep(0)
+                    ));
+                    let [value] = memory;
 
-                        let Some(value) = vm_try!(Option::<Value>::from_value(value)) else {
-                            break VmResult::Ok(None);
-                        };
+                    let Some(value) = vm_try!(Option::<Value>::from_value(value)) else {
+                        break VmResult::Ok(None);
+                    };
 
-                        if n == 0 {
-                            break VmResult::Ok(Some(value));
-                        }
-
-                        n -= 1;
+                    if n == 0 {
+                        break VmResult::Ok(Some(value));
                     }
-                })?
-            };
+
+                    n -= 1;
+                }
+            })?;
 
             cx.raw_function("rev", |stack, addr, len, out| {
                 let [value] = vm_try!(stack.slice_at(addr, len)) else {
@@ -1690,8 +1674,6 @@ pub fn module() -> Result<Module, ContextError> {
                 VmResult::Ok(())
             })?;
 
-            cx.function_handler("next_back", &next_back)?;
-            cx.function_handler("nth_back", &nth_back)?;
             Ok(())
         })?;
 

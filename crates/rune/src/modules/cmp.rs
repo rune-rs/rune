@@ -170,9 +170,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     t.handler(|cx| {
         let partial_eq = cx.find(Protocol::PARTIAL_EQ)?;
-        cx.function_handler("eq", &partial_eq)?;
-
-        let partial_eq = Caller::<bool>::new(partial_eq);
+        let partial_eq = Caller::<(Value, Value), 2, bool>::new(partial_eq);
 
         cx.function("ne", move |a: Value, b: Value| {
             VmResult::Ok(!vm_try!(partial_eq.call((a, b))))
@@ -393,70 +391,56 @@ pub fn module() -> Result<Module, ContextError> {
 
     t.handler(|cx| {
         let partial_cmp = cx.find(Protocol::PARTIAL_CMP)?;
-        cx.function_handler("partial_cmp", &partial_cmp)?;
+        let partial_cmp = Caller::<(Value, Value), 2, Option<Ordering>>::new(partial_cmp);
 
-        let partial_cmp = Caller::<Option<Ordering>>::new(partial_cmp);
-
-        let lt = if let Some(lt) = cx.try_find(Protocol::LT)? {
-            lt
-        } else {
+        cx.find_or_define(Protocol::LT, {
             let partial_cmp = partial_cmp.clone();
 
-            cx.function(Protocol::LT, move |a: Value, b: Value| {
+            move |a: Value, b: Value| {
                 let Some(o) = vm_try!(partial_cmp.call((a.clone(), b.clone()))) else {
                     return VmResult::Ok(false);
                 };
 
                 VmResult::Ok(matches!(o, Ordering::Less))
-            })?
-        };
+            }
+        })?;
 
-        let le = if let Some(le) = cx.try_find(Protocol::LE)? {
-            le
-        } else {
+        cx.find_or_define(Protocol::LE, {
             let partial_cmp = partial_cmp.clone();
 
-            cx.function(Protocol::LE, move |a: Value, b: Value| {
+            move |a: Value, b: Value| {
                 let Some(o) = vm_try!(partial_cmp.call((a.clone(), b.clone()))) else {
                     return VmResult::Ok(false);
                 };
 
                 VmResult::Ok(matches!(o, Ordering::Less | Ordering::Equal))
-            })?
-        };
+            }
+        })?;
 
-        let gt = if let Some(gt) = cx.try_find(Protocol::GT)? {
-            gt
-        } else {
+        cx.find_or_define(Protocol::GT, {
             let partial_cmp = partial_cmp.clone();
 
-            cx.function(Protocol::GT, move |a: Value, b: Value| {
+            move |a: Value, b: Value| {
                 let Some(o) = vm_try!(partial_cmp.call((a.clone(), b.clone()))) else {
                     return VmResult::Ok(false);
                 };
 
                 VmResult::Ok(matches!(o, Ordering::Greater))
-            })?
-        };
+            }
+        })?;
 
-        let ge = if let Some(ge) = cx.try_find(Protocol::GE)? {
-            ge
-        } else {
+        cx.find_or_define(Protocol::GE, {
             let partial_cmp = partial_cmp.clone();
 
-            cx.function(Protocol::GE, move |a: Value, b: Value| {
+            move |a: Value, b: Value| {
                 let Some(o) = vm_try!(partial_cmp.call((a.clone(), b.clone()))) else {
                     return VmResult::Ok(false);
                 };
 
                 VmResult::Ok(matches!(o, Ordering::Greater | Ordering::Equal))
-            })?
-        };
+            }
+        })?;
 
-        cx.function_handler("lt", &lt)?;
-        cx.function_handler("le", &le)?;
-        cx.function_handler("gt", &gt)?;
-        cx.function_handler("ge", &ge)?;
         Ok(())
     })?;
 
@@ -609,39 +593,26 @@ pub fn module() -> Result<Module, ContextError> {
 
     t.handler(|cx| {
         let cmp = cx.find(Protocol::CMP)?;
-        cx.function_handler("cmp", &cmp)?;
+        let cmp = Caller::<(Value, Value), 2, Ordering>::new(cmp);
 
-        let cmp = Caller::<Ordering>::new(cmp);
-
-        let min = if let Some(min) = cx.try_find(Protocol::MIN)? {
-            min
-        } else {
+        cx.find_or_define(Protocol::MIN, {
             let cmp = cmp.clone();
 
-            cx.function(Protocol::MIN, move |a: Value, b: Value| {
-                match vm_try!(cmp.call((a.clone(), b.clone()))) {
-                    Ordering::Less | Ordering::Equal => VmResult::Ok(a),
-                    Ordering::Greater => VmResult::Ok(b),
-                }
-            })?
-        };
+            move |a: Value, b: Value| match vm_try!(cmp.call((a.clone(), b.clone()))) {
+                Ordering::Less | Ordering::Equal => VmResult::Ok(a),
+                Ordering::Greater => VmResult::Ok(b),
+            }
+        })?;
 
-        cx.function_handler("min", &min)?;
-
-        let max = if let Some(max) = cx.try_find(Protocol::MAX)? {
-            max
-        } else {
+        cx.find_or_define(Protocol::MAX, {
             let cmp = cmp.clone();
 
-            cx.function(Protocol::MAX, move |a: Value, b: Value| {
-                match vm_try!(cmp.call((a.clone(), b.clone()))) {
-                    Ordering::Less | Ordering::Equal => VmResult::Ok(b),
-                    Ordering::Greater => VmResult::Ok(a),
-                }
-            })?
-        };
+            move |a: Value, b: Value| match vm_try!(cmp.call((a.clone(), b.clone()))) {
+                Ordering::Less | Ordering::Equal => VmResult::Ok(b),
+                Ordering::Greater => VmResult::Ok(a),
+            }
+        })?;
 
-        cx.function_handler("max", &max)?;
         Ok(())
     })?;
 
