@@ -33,9 +33,9 @@ use super::static_type;
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Function, Future,
-    Generator, IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol,
-    ProtocolCaller, RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Stream, Type, TypeInfo,
-    Variant, Vec, VmErrorKind, VmIntegerRepr, VmResult,
+    IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
+    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Type, TypeInfo, Variant, Vec, VmErrorKind,
+    VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, Tuple};
@@ -423,8 +423,6 @@ impl Value {
                 }
                 RefRepr::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
                     Mutable::Object(value) => Mutable::Object(vm_try!(value.try_clone())),
-                    Mutable::Stream(value) => Mutable::Stream(vm_try!(value.try_clone())),
-                    Mutable::Generator(value) => Mutable::Generator(vm_try!(value.try_clone())),
                     Mutable::Option(value) => Mutable::Option(vm_try!(value.try_clone())),
                     Mutable::Result(value) => Mutable::Result(vm_try!(value.try_clone())),
                     Mutable::EmptyStruct(value) => Mutable::EmptyStruct(vm_try!(value.try_clone())),
@@ -494,12 +492,6 @@ impl Value {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Future(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::Stream(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::Generator(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Option(value) => {
@@ -823,16 +815,6 @@ impl Value {
     }
 
     into! {
-        /// Coerce into a [`Generator`].
-        Generator(Generator),
-        into_generator_ref,
-        into_generator_mut,
-        borrow_generator_ref,
-        borrow_generator_mut,
-        into_generator,
-    }
-
-    into! {
         /// Coerce into [`Struct`]
         Struct(Struct),
         into_struct_ref,
@@ -850,16 +832,6 @@ impl Value {
         borrow_object_ref,
         borrow_object_mut,
         into_object,
-    }
-
-    into! {
-        /// Coerce into a [`Stream`].
-        Stream(Stream),
-        into_stream_ref,
-        into_stream_mut,
-        borrow_stream_ref,
-        borrow_stream_mut,
-        into_stream,
     }
 
     into_base! {
@@ -1940,9 +1912,7 @@ from! {
     Struct => Struct,
     Variant => Variant,
     Object => Object,
-    Generator => Generator,
     Future => Future,
-    Stream => Stream,
 }
 
 any_from! {
@@ -1953,6 +1923,8 @@ any_from! {
     super::GeneratorState,
     super::Vec,
     super::OwnedTuple,
+    super::Generator,
+    super::Stream,
 }
 
 from_container! {
@@ -2080,10 +2052,6 @@ pub(crate) enum Mutable {
     Object(Object),
     /// A stored future.
     Future(Future),
-    /// A Stream.
-    Stream(Stream),
-    /// A stored generator.
-    Generator(Generator),
     /// An empty value indicating nothing.
     Option(Option<Value>),
     /// A stored result in a slot.
@@ -2105,8 +2073,6 @@ impl Mutable {
         match self {
             Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
             Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
-            Mutable::Stream(..) => TypeInfo::static_type(static_type::STREAM),
-            Mutable::Generator(..) => TypeInfo::static_type(static_type::GENERATOR),
             Mutable::Option(..) => TypeInfo::static_type(static_type::OPTION),
             Mutable::Result(..) => TypeInfo::static_type(static_type::RESULT),
             Mutable::Function(..) => TypeInfo::static_type(static_type::FUNCTION),
@@ -2125,8 +2091,6 @@ impl Mutable {
         match self {
             Mutable::Object(..) => static_type::OBJECT.hash,
             Mutable::Future(..) => static_type::FUTURE.hash,
-            Mutable::Stream(..) => static_type::STREAM.hash,
-            Mutable::Generator(..) => static_type::GENERATOR.hash,
             Mutable::Result(..) => static_type::RESULT.hash,
             Mutable::Option(..) => static_type::OPTION.hash,
             Mutable::Function(..) => static_type::FUNCTION.hash,

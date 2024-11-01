@@ -192,10 +192,6 @@ static_type! {
 
     pub(crate) static [FUTURE, FUTURE_HASH] = ::std::future::Future {}
 
-    pub(crate) static [GENERATOR, GENERATOR_HASH] = ::std::ops::generator::Generator {}
-
-    pub(crate) static [STREAM, STREAM_HASH] = ::std::stream::Stream {}
-
     pub(crate) static [RESULT, RESULT_HASH] = ::std::result::Result {
         impl<T, E> for Result<T, E>;
     }

@@ -6,28 +6,26 @@ use crate::alloc::clone::TryClone;
 use crate::runtime::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmResult};
 use crate::Any;
 
-/// The return value of a function producing a generator.
+/// A generator produced by a generator function.
 ///
-/// Functions which contain the `yield` keyword produces generators.
+/// Generator are functions or closures which contain the `yield` expressions.
 ///
 /// # Examples
 ///
 /// ```rune
 /// use std::ops::generator::Generator;
 ///
-/// fn generate() {
-///     yield 1;
-///     yield 2;
-/// }
+/// let f = |n| {
+///     yield n;
+///     yield n + 1;
+/// };
 ///
-/// let g = generate();
-/// assert!(g is Generator)
+/// let g = f(10);
+///
+/// assert!(g is Generator);
 /// ```
 #[derive(Any)]
-#[rune(crate)]
-#[rune(builtin, static_type = GENERATOR, from_value_params = [Vm])]
-#[rune(from_value = Value::into_generator, from_value_ref = Value::into_generator_ref, from_value_mut = Value::into_generator_mut)]
-#[rune(item = ::std::ops::generator)]
+#[rune(crate, impl_params = [Vm], item = ::std::ops::generator)]
 pub struct Generator<T = Vm>
 where
     T: AsRef<Vm> + AsMut<Vm>,
