@@ -32,10 +32,10 @@ use crate::{Any, Hash, TypeHash};
 use super::static_type;
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
-    ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Function, Future,
-    IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
-    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Type, TypeInfo, Variant, Vec, VmErrorKind,
-    VmIntegerRepr, VmResult,
+    ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, IntoOutput,
+    Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref,
+    RuntimeError, Shared, Snapshot, Type, TypeInfo, Variant, Vec, VmErrorKind, VmIntegerRepr,
+    VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, Tuple};
@@ -429,7 +429,6 @@ impl Value {
                     Mutable::TupleStruct(value) => Mutable::TupleStruct(vm_try!(value.try_clone())),
                     Mutable::Struct(value) => Mutable::Struct(vm_try!(value.try_clone())),
                     Mutable::Variant(value) => Mutable::Variant(vm_try!(value.try_clone())),
-                    Mutable::Function(value) => Mutable::Function(vm_try!(value.try_clone())),
                     _ => {
                         break 'fallback;
                     }
@@ -510,9 +509,6 @@ impl Value {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Variant(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::Function(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
             };
@@ -801,16 +797,6 @@ impl Value {
         borrow_result_ref,
         borrow_result_mut,
         as_result,
-    }
-
-    into! {
-        /// Coerce into a [`Function`].
-        Function(Function),
-        into_function_ref,
-        into_function_mut,
-        borrow_function_ref,
-        borrow_function_mut,
-        into_function,
     }
 
     into! {
@@ -1905,7 +1891,6 @@ inline_from! {
 }
 
 from! {
-    Function => Function,
     EmptyStruct => EmptyStruct,
     TupleStruct => TupleStruct,
     Struct => Struct,
@@ -1924,6 +1909,7 @@ any_from! {
     super::OwnedTuple,
     super::Generator,
     super::Stream,
+    super::Function,
 }
 
 from_container! {
@@ -2063,8 +2049,6 @@ pub(crate) enum Mutable {
     Struct(Struct),
     /// The variant of an enum.
     Variant(Variant),
-    /// A stored function pointer.
-    Function(Function),
 }
 
 impl Mutable {
@@ -2074,7 +2058,6 @@ impl Mutable {
             Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
             Mutable::Option(..) => TypeInfo::static_type(static_type::OPTION),
             Mutable::Result(..) => TypeInfo::static_type(static_type::RESULT),
-            Mutable::Function(..) => TypeInfo::static_type(static_type::FUNCTION),
             Mutable::EmptyStruct(empty) => empty.type_info(),
             Mutable::TupleStruct(tuple) => tuple.type_info(),
             Mutable::Struct(object) => object.type_info(),
@@ -2092,7 +2075,6 @@ impl Mutable {
             Mutable::Future(..) => static_type::FUTURE.hash,
             Mutable::Result(..) => static_type::RESULT.hash,
             Mutable::Option(..) => static_type::OPTION.hash,
-            Mutable::Function(..) => static_type::FUNCTION.hash,
             Mutable::EmptyStruct(empty) => empty.rtti.hash,
             Mutable::TupleStruct(tuple) => tuple.rtti.hash,
             Mutable::Struct(object) => object.rtti.hash,

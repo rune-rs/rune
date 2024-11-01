@@ -4,18 +4,20 @@ use core::future::Future;
 use ::rust_alloc::sync::Arc;
 
 use crate as rune;
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::function;
 use crate::runtime::vm::Isolated;
-use crate::runtime::{
-    Args, Call, ConstValue, FromValue, FunctionHandler, GuardedArgs, InstAddress, Mutable, Output,
-    OwnedTuple, RefRepr, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, VariantRtti, Vm,
-    VmCall, VmErrorKind, VmHalt, VmResult,
-};
 use crate::shared::AssertSend;
 use crate::Any;
 use crate::Hash;
+
+use super::{
+    Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs, InstAddress,
+    Mutable, Output, OwnedTuple, RefRepr, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value,
+    VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
+};
 
 /// The type of a function in Rune.
 ///
@@ -44,7 +46,6 @@ use crate::Hash;
 /// ```
 #[derive(Any, TryClone)]
 #[repr(transparent)]
-#[rune(builtin, static_type = FUNCTION)]
 #[rune(item = ::std::ops)]
 pub struct Function(FunctionImpl<Value>);
 
@@ -363,6 +364,40 @@ impl Function {
     /// ```
     pub fn into_sync(self) -> Result<SyncFunction, RuntimeError> {
         Ok(SyncFunction(self.0.into_sync()?))
+    }
+
+    /// Clone a function.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// fn function() {
+    ///     42
+    /// }
+    ///
+    /// let a = function;
+    /// let b = a.clone();
+    /// assert_eq!(a(), b());
+    /// ```
+    #[rune::function(keep, protocol = CLONE)]
+    fn clone(&self) -> VmResult<Function> {
+        VmResult::Ok(vm_try!(self.try_clone()))
+    }
+
+    /// Debug format a function.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// fn function() {
+    ///     42
+    /// }
+    ///
+    /// println!("{function:?}");
+    /// ``
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        vm_write!(f, "{self:?}")
     }
 }
 
@@ -1025,16 +1060,9 @@ struct FnTupleVariant {
 impl FromValue for SyncFunction {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_function()?.into_sync()
+        value.into_any::<Function>()?.into_sync()
     }
 }
-
-from_value2!(
-    Function,
-    into_function_ref,
-    into_function_mut,
-    into_function
-);
 
 fn check_args(actual: usize, expected: usize) -> VmResult<()> {
     if actual != expected {

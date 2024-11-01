@@ -3412,7 +3412,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash, out: Output) -> VmResult<()> {
         let function = vm_try!(self.lookup_function_by_hash(hash));
-        vm_try!(out.store(&mut self.stack, Mutable::Function(function)));
+        vm_try!(out.store(&mut self.stack, function));
         VmResult::Ok(())
     }
 
@@ -3464,7 +3464,7 @@ impl Vm {
             hash,
         );
 
-        vm_try!(out.store(&mut self.stack, Mutable::Function(function)));
+        vm_try!(out.store(&mut self.stack, function));
         VmResult::Ok(())
     }
 
@@ -3629,19 +3629,18 @@ impl Vm {
             return VmResult::Ok(None);
         }
 
-        let function = function.clone();
-        let function = vm_try!(function.borrow_ref_repr());
-
-        match function {
-            BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Function(function) => function.call_with_vm(self, addr, args, out),
-                actual => err(VmErrorKind::UnsupportedCallFn {
-                    actual: actual.type_info(),
-                }),
-            },
-            actual => err(VmErrorKind::UnsupportedCallFn {
-                actual: actual.type_info(),
+        match vm_try!(function.as_ref_repr()) {
+            RefRepr::Inline(value) => err(VmErrorKind::UnsupportedCallFn {
+                actual: value.type_info(),
             }),
+            RefRepr::Mutable(value) => err(VmErrorKind::UnsupportedCallFn {
+                actual: vm_try!(value.borrow_ref()).type_info(),
+            }),
+            RefRepr::Any(value) => {
+                let value = value.clone();
+                let f = vm_try!(value.borrow_ref::<Function>());
+                f.call_with_vm(self, addr, args, out)
+            }
         }
     }
 
