@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::hash::Hash;
 use crate::runtime::{
-    static_type, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr, VmResult,
+    static_type, OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr,
+    VmResult,
 };
 use crate::TypeHash;
 
@@ -190,7 +191,7 @@ impl fmt::Debug for Inline {
 impl Inline {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Inline::Unit => TypeInfo::static_type(static_type::TUPLE),
+            Inline::Unit => TypeInfo::any::<OwnedTuple>(),
             Inline::Bool(..) => TypeInfo::named::<bool>(),
             Inline::Char(..) => TypeInfo::named::<char>(),
             Inline::Unsigned(..) => TypeInfo::named::<u64>(),
@@ -207,7 +208,7 @@ impl Inline {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Inline::Unit => static_type::TUPLE.hash,
+            Inline::Unit => OwnedTuple::HASH,
             Inline::Bool(..) => bool::HASH,
             Inline::Char(..) => char::HASH,
             Inline::Signed(..) => i64::HASH,

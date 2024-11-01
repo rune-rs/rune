@@ -96,10 +96,10 @@ fn test_const_collections() {
     let object: Object = rune!(pub fn main() { VALUE } const VALUE = #{};);
     assert!(object.is_empty());
 
-    let tuple: OwnedTuple = rune!(pub fn main() { VALUE } const VALUE = (););
+    let tuple: Box<Tuple> = rune!(pub fn main() { VALUE } const VALUE = (););
     assert!(tuple.is_empty());
 
-    let tuple: OwnedTuple = rune!(pub fn main() { VALUE } const VALUE = ("Hello World",););
+    let tuple: Box<Tuple> = rune!(pub fn main() { VALUE } const VALUE = ("Hello World",););
     assert_eq!(
         Some("Hello World"),
         tuple.get_value::<String>(0).unwrap().as_deref()

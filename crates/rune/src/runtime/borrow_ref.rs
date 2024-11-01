@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use core::ops::Deref;
 use core::ptr::NonNull;
 
-use super::AccessGuard;
+use super::RawAccessGuard;
 
 /// Guard for a data borrowed from a slot in the virtual machine.
 ///
@@ -11,11 +11,20 @@ use super::AccessGuard;
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowRef<'a, T: ?Sized + 'a> {
     data: NonNull<T>,
-    guard: AccessGuard<'a>,
+    guard: Option<RawAccessGuard>,
     _marker: PhantomData<&'a T>,
 }
 
 impl<'a, T: ?Sized> BorrowRef<'a, T> {
+    /// Construct a borrow ref from static data.
+    pub(crate) fn from_static(data: &'static T) -> Self {
+        Self {
+            data: NonNull::from(data),
+            guard: None,
+            _marker: PhantomData,
+        }
+    }
+
     /// Construct a new shared guard.
     ///
     /// # Safety
@@ -24,10 +33,10 @@ impl<'a, T: ?Sized> BorrowRef<'a, T> {
     /// ensure that access has been acquired correctly using e.g.
     /// [Access::shared]. Otherwise access can be release incorrectly once
     /// this guard is dropped.
-    pub(crate) unsafe fn new(data: NonNull<T>, guard: AccessGuard<'a>) -> Self {
+    pub(crate) unsafe fn new(data: NonNull<T>, guard: RawAccessGuard) -> Self {
         Self {
             data,
-            guard,
+            guard: Some(guard),
             _marker: PhantomData,
         }
     }

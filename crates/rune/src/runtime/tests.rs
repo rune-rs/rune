@@ -13,7 +13,7 @@ use crate::alloc::prelude::*;
 use crate::support::Result;
 use crate::Any;
 
-use super::{Access, AnyObj, Bytes, Mut, Ref, Shared, TypeHash, Value, VmResult};
+use super::{Access, AnyObj, Bytes, Mut, Ref, Shared, Tuple, TypeHash, Value, VmResult};
 
 #[derive(Debug, PartialEq, Eq, Any)]
 struct Thing(u32);
@@ -553,4 +553,12 @@ fn test_clone_issue() {
         let out = shared.try_clone().unwrap();
         out
     };
+}
+
+#[test]
+fn test_drop_boxed_tuple() {
+    let boxed =
+        crate::alloc::Box::<[Value]>::try_from([Value::from(1u32), Value::from(2u64)]).unwrap();
+    let boxed = Tuple::from_boxed(boxed);
+    drop(boxed);
 }

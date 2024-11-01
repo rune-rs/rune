@@ -2338,7 +2338,7 @@ mod const_status_code {
 
     #[inline]
     pub(super) fn to_const_value(status: reqwest::StatusCode) -> Result<ConstValue, RuntimeError> {
-        ConstValue::try_from(status.as_u16())
+        Ok(ConstValue::from(status.as_u16()))
     }
 
     #[inline]

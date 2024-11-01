@@ -24,9 +24,9 @@ use crate::doc::context::{Function, Kind, Meta, Signature};
 use crate::doc::templating;
 use crate::doc::{Artifacts, Context, Visitor};
 use crate::item::ComponentRef;
-use crate::runtime::static_type;
+use crate::runtime::OwnedTuple;
 use crate::std::borrow::ToOwned;
-use crate::{Hash, Item};
+use crate::{Hash, Item, TypeHash};
 
 use super::markdown;
 
@@ -440,7 +440,7 @@ impl<'m> Ctxt<'_, 'm> {
         match *ty {
             meta::DocType {
                 base, ref generics, ..
-            } if static_type::TUPLE == base && generics.is_empty() => Ok(None),
+            } if OwnedTuple::HASH == base && generics.is_empty() => Ok(None),
             meta::DocType {
                 base, ref generics, ..
             } => Ok(Some(self.link(base, None, generics)?)),
@@ -619,7 +619,7 @@ impl<'m> Ctxt<'_, 'm> {
             return Ok(());
         };
 
-        if static_type::TUPLE == hash && text.is_none() {
+        if OwnedTuple::HASH == hash && text.is_none() {
             write!(o, "(")?;
             self.write_generics(o, generics)?;
             write!(o, ")")?;

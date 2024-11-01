@@ -38,15 +38,6 @@ impl ser::Serialize for Value {
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
             BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Tuple(tuple) => {
-                    let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
-
-                    for value in tuple.iter() {
-                        serializer.serialize_element(value)?;
-                    }
-
-                    serializer.end()
-                }
                 Mutable::Object(object) => {
                     let mut serializer = serializer.serialize_map(Some(object.len()))?;
 
@@ -87,6 +78,18 @@ impl ser::Serialize for Value {
                     let mut serializer = serializer.serialize_seq(Some(vec.len()))?;
 
                     for value in vec.iter() {
+                        serializer.serialize_element(value)?;
+                    }
+
+                    serializer.end()
+                }
+                runtime::OwnedTuple::HASH => {
+                    let tuple = value
+                        .borrow_ref::<runtime::OwnedTuple>()
+                        .map_err(S::Error::custom)?;
+                    let mut serializer = serializer.serialize_seq(Some(tuple.len()))?;
+
+                    for value in tuple.iter() {
                         serializer.serialize_element(value)?;
                     }
 

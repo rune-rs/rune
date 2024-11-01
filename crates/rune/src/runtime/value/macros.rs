@@ -385,65 +385,128 @@ macro_rules! from_container {
 macro_rules! signed_value_trait {
     ($($ty:ty),* $(,)?) => {
         $(
+            #[allow(clippy::needless_question_mark)]
             impl $crate::runtime::ToValue for $ty {
                 #[inline]
                 fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
-                    Value::try_from(self)
+                    Ok($crate::runtime::Value::try_from(self)?)
                 }
             }
 
-            impl TryFrom<$ty> for Value {
-                type Error = $crate::runtime::RuntimeError;
-
-                #[inline]
-                fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
-                    match <i64>::try_from(value) {
-                        Ok(number) => Ok(Value::from(number)),
-                        #[allow(unreachable_patterns)]
-                        Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
-                            from: VmIntegerRepr::from(value),
-                            to: any::type_name::<i64>(),
-                        })),
-                    }
-                }
-            }
-
+            #[allow(clippy::needless_question_mark)]
             impl $crate::runtime::ToConstValue for $ty {
                 #[inline]
                 fn to_const_value(self) -> Result<$crate::runtime::ConstValue, $crate::runtime::RuntimeError> {
-                    $crate::runtime::ConstValue::try_from(self)
-                }
-            }
-
-            impl TryFrom<$ty> for ConstValue {
-                type Error = $crate::runtime::RuntimeError;
-
-                #[inline]
-                fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
-                    match <i64>::try_from(value) {
-                        Ok(number) => Ok($crate::runtime::ConstValue::from(number)),
-                        #[allow(unreachable_patterns)]
-                        Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
-                            from: VmIntegerRepr::from(value),
-                            to: any::type_name::<i64>(),
-                        })),
-                    }
+                    Ok($crate::runtime::ConstValue::try_from(self)?)
                 }
             }
         )*
     };
 }
 
-macro_rules! unsigned_value_trait {
+macro_rules! signed_value_from {
     ($($ty:ty),* $(,)?) => {
         $(
-            impl $crate::runtime::ToValue for $ty {
+            impl From<$ty> for $crate::runtime::Value {
                 #[inline]
-                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
-                    Value::try_from(self)
+                fn from(number: $ty) -> Self {
+                    $crate::runtime::Value::from(number as i64)
                 }
             }
 
+            impl From<$ty> for $crate::runtime::ConstValue {
+                #[inline]
+                fn from(number: $ty) -> Self {
+                    $crate::runtime::ConstValue::from(number as i64)
+                }
+            }
+        )*
+    }
+}
+
+macro_rules! signed_value_try_from {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl TryFrom<$ty> for Value {
+                type Error = $crate::runtime::RuntimeError;
+
+                #[inline]
+                fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
+                    match <i64>::try_from(value) {
+                        Ok(number) => Ok(Value::from(number)),
+                        #[allow(unreachable_patterns)]
+                        Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
+                            from: VmIntegerRepr::from(value),
+                            to: any::type_name::<i64>(),
+                        })),
+                    }
+                }
+            }
+
+            impl TryFrom<$ty> for ConstValue {
+                type Error = $crate::runtime::RuntimeError;
+
+                #[inline]
+                fn try_from(value: $ty) -> Result<Self, $crate::runtime::RuntimeError> {
+                    match <i64>::try_from(value) {
+                        Ok(number) => Ok($crate::runtime::ConstValue::from(number)),
+                        #[allow(unreachable_patterns)]
+                        Err(..) => Err($crate::runtime::RuntimeError::from(VmErrorKind::IntegerToValueCoercionError {
+                            from: VmIntegerRepr::from(value),
+                            to: any::type_name::<i64>(),
+                        })),
+                    }
+                }
+            }
+        )*
+    }
+}
+
+macro_rules! unsigned_value_trait {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            #[allow(clippy::needless_question_mark)]
+            impl $crate::runtime::ToValue for $ty {
+                #[inline]
+                fn to_value(self) -> Result<Value, $crate::runtime::RuntimeError> {
+                    Ok($crate::runtime::Value::try_from(self)?)
+                }
+            }
+
+            #[allow(clippy::needless_question_mark)]
+            impl $crate::runtime::ToConstValue for $ty {
+                #[inline]
+                fn to_const_value(self) -> Result<$crate::runtime::ConstValue, $crate::runtime::RuntimeError> {
+                    Ok($crate::runtime::ConstValue::try_from(self)?)
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! unsigned_value_from {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl From<$ty> for Value {
+                #[inline]
+                fn from(number: $ty) -> Self {
+                    Value::from(number as u64)
+                }
+            }
+
+            impl From<$ty> for ConstValue {
+                #[inline]
+                fn from(number: $ty) -> Self {
+                    ConstValue::from(number as u64)
+                }
+            }
+        )*
+    }
+}
+
+macro_rules! unsigned_value_try_from {
+    ($($ty:ty),* $(,)?) => {
+        $(
             impl TryFrom<$ty> for Value {
                 type Error = $crate::runtime::RuntimeError;
 
@@ -457,13 +520,6 @@ macro_rules! unsigned_value_trait {
                             to: any::type_name::<u64>(),
                         })),
                     }
-                }
-            }
-
-            impl $crate::runtime::ToConstValue for $ty {
-                #[inline]
-                fn to_const_value(self) -> Result<$crate::runtime::ConstValue, $crate::runtime::RuntimeError> {
-                    $crate::runtime::ConstValue::try_from(self)
                 }
             }
 
@@ -483,7 +539,7 @@ macro_rules! unsigned_value_trait {
                 }
             }
         )*
-    };
+    }
 }
 
 macro_rules! float_value_trait {

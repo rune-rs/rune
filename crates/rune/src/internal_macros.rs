@@ -8,6 +8,42 @@ macro_rules! resolve_context {
     };
 }
 
+macro_rules! impl_any_type {
+    (impl $(<$($p:ident),*>)? for $ty:ty, $path:path) => {
+        impl $(<$($p,)*>)* $crate::TypeHash for $ty {
+            const HASH: $crate::Hash = ::rune_macros::hash!($path);
+        }
+
+        impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
+        where
+            $($($p: $crate::runtime::MaybeTypeOf,)*)*
+        {
+            const STATIC_TYPE_INFO: $crate::runtime::StaticTypeInfo = $crate::runtime::StaticTypeInfo::any_type_info(
+                $crate::runtime::AnyTypeInfo::new(
+                    {
+                        fn full_name(f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                            write!(f, "{}", ::rune_macros::item!($path))
+                        }
+
+                        full_name
+                    },
+                    <Self as $crate::TypeHash>::HASH,
+                )
+            );
+        }
+
+        impl $(<$($p,)*>)* $crate::runtime::MaybeTypeOf for $ty
+        where
+            $($($p: $crate::runtime::MaybeTypeOf,)*)*
+        {
+            #[inline]
+            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
+                Ok($crate::compile::meta::DocType::new(<$ty as $crate::TypeHash>::HASH))
+            }
+        }
+    }
+}
+
 /// Build an implementation of `TypeOf` basic of a static type.
 macro_rules! impl_static_type {
     (impl $(<$($p:ident),*>)? for $ty:ty, $name:ident, $hash:ident) => {

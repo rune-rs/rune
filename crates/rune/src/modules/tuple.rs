@@ -4,7 +4,9 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::runtime::slice::Iter;
-use crate::runtime::{EnvProtocolCaller, Hasher, Ref, Tuple, Value, Vec, VmResult};
+use crate::runtime::{
+    EnvProtocolCaller, Formatter, Hasher, OwnedTuple, Ref, Tuple, Value, Vec, VmResult,
+};
 use crate::{docstring, ContextError, Module};
 
 /// The [`Tuple`] fixed collection.
@@ -42,7 +44,7 @@ use crate::{docstring, ContextError, Module};
 #[rune::module(::std::tuple)]
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
-    m.ty::<Tuple>()?.docs(docstring! {
+    m.ty::<OwnedTuple>()?.docs(docstring! {
         /// The tuple type.
     })?;
     m.function_meta(len)?;
@@ -52,18 +54,22 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(into_iter)?;
 
     m.function_meta(partial_eq__meta)?;
-    m.implement_trait::<Tuple>(rune::item!(::std::cmp::PartialEq))?;
+    m.implement_trait::<OwnedTuple>(rune::item!(::std::cmp::PartialEq))?;
 
     m.function_meta(eq__meta)?;
-    m.implement_trait::<Tuple>(rune::item!(::std::cmp::Eq))?;
+    m.implement_trait::<OwnedTuple>(rune::item!(::std::cmp::Eq))?;
 
     m.function_meta(partial_cmp__meta)?;
-    m.implement_trait::<Tuple>(rune::item!(::std::cmp::PartialOrd))?;
+    m.implement_trait::<OwnedTuple>(rune::item!(::std::cmp::PartialOrd))?;
 
     m.function_meta(cmp__meta)?;
-    m.implement_trait::<Tuple>(rune::item!(::std::cmp::Ord))?;
+    m.implement_trait::<OwnedTuple>(rune::item!(::std::cmp::Ord))?;
 
-    m.function_meta(hash)?;
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<OwnedTuple>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(hash__meta)?;
+    m.function_meta(string_debug__meta)?;
     Ok(m)
 }
 
@@ -230,7 +236,42 @@ fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
 /// // Note: this is not guaranteed to be true forever, but it's true right now.
 /// assert_eq!(hash((0, 2, 3)), hash([0, 2, 3]));
 /// ```
-#[rune::function(instance, protocol = HASH)]
+#[rune::function(keep, instance, protocol = HASH)]
 fn hash(this: &Tuple, hasher: &mut Hasher) -> VmResult<()> {
     Tuple::hash_with(this, hasher, &mut EnvProtocolCaller)
+}
+
+/// Clone a tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::hash;
+///
+/// let a = (0, 2, 3);
+/// let b = a;
+/// let c = a.clone();
+///
+/// c.0 = 1;
+///
+/// assert_eq!(a, (0, 2, 3));
+/// assert_eq!(c, (1, 2, 3));
+/// ```
+#[rune::function(keep, instance, protocol = CLONE)]
+fn clone(this: &Tuple) -> VmResult<OwnedTuple> {
+    VmResult::Ok(vm_try!(this.clone_with(&mut EnvProtocolCaller)))
+}
+
+/// Write a debug representation of a tuple.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = (1, 2, 3);
+/// println!("{a:?}");
+/// ```
+#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[inline]
+fn string_debug(this: &Tuple, f: &mut Formatter) -> VmResult<()> {
+    this.string_debug_with(f, &mut EnvProtocolCaller)
 }
