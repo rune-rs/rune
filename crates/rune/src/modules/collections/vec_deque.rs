@@ -16,28 +16,7 @@ use crate::{Any, ContextError, Module};
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
 
-    m.ty::<VecDeque>()?.docs(docstring! {
-        /// A double-ended queue implemented with a growable ring buffer.
-        ///
-        /// The "default" usage of this type as a queue is to use [`push_back`]
-        /// to add to the queue, and [`pop_front`] to remove from the queue.
-        /// [`extend`] and [`append`] push onto the back in this manner, and
-        /// iterating over `VecDeque` goes front to back.
-        ///
-        /// A `VecDeque` with a known list of items can be initialized from an
-        /// array:
-        ///
-        /// ```rune
-        /// use std::collections::VecDeque;
-        ///
-        /// let deq = VecDeque::from::<Vec>([-1, 0, 1]);
-        /// ```
-        ///
-        /// [`push_back`]: VecDeque::push_back
-        /// [`pop_front`]: VecDeque::pop_front
-        /// [`extend`]: VecDeque::extend
-        /// [`append`]: VecDeque::append
-    })?;
+    m.ty::<VecDeque>()?;
 
     m.function_meta(VecDeque::new)?;
     m.function_meta(VecDeque::with_capacity__meta)?;
@@ -92,6 +71,25 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(m)
 }
 
+/// A double-ended queue implemented with a growable ring buffer.
+///
+/// The "default" usage of this type as a queue is to use [`push_back`] to add
+/// to the queue, and [`pop_front`] to remove from the queue. [`extend`] and
+/// [`append`] push onto the back in this manner, and iterating over `VecDeque`
+/// goes front to back.
+///
+/// A `VecDeque` with a known list of items can be initialized from an array:
+///
+/// ```rune
+/// use std::collections::VecDeque;
+///
+/// let deq = VecDeque::from::<Vec>([-1, 0, 1]);
+/// ```
+///
+/// [`push_back`]: VecDeque::push_back
+/// [`pop_front`]: VecDeque::pop_front
+/// [`extend`]: VecDeque::extend
+/// [`append`]: VecDeque::append
 #[derive(Any, Default)]
 #[rune(module = crate, item = ::std::collections::vec_deque)]
 pub(crate) struct VecDeque {

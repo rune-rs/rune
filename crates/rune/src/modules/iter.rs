@@ -207,23 +207,22 @@ pub fn module() -> Result<Module, ContextError> {
             cx.function_handler("next", &next)?;
 
             let size_hint = if let Some(size_hint) = cx.try_find(Protocol::SIZE_HINT)? {
-                cx.function_handler("size_hint", &size_hint)?;
                 size_hint
             } else {
-                let size_hint = cx.function("size_hint", |_: Value| (0usize, None::<usize>))?;
-                cx.function_handler(Protocol::SIZE_HINT, &size_hint)?;
-                size_hint
+                cx.function(Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?
             };
+
+            cx.function_handler("size_hint", &size_hint)?;
 
             let next = Caller::<Option<Value>>::new(next);
             let size_hint = Caller::<(usize, Option<usize>)>::new(size_hint);
 
-            if let Some(nth) = cx.try_find(Protocol::NTH)? {
-                cx.function_handler("nth", &nth)?;
+            let nth = if let Some(nth) = cx.try_find(Protocol::NTH)? {
+                nth
             } else {
                 let next = next.clone();
 
-                let nth = cx.function("nth", move |iterator: Value, mut n: usize| loop {
+                cx.function(Protocol::NTH, move |iterator: Value, mut n: usize| loop {
                     let Some(value) = vm_try!(next.call((&iterator,))) else {
                         break VmResult::Ok(None);
                     };
@@ -233,10 +232,10 @@ pub fn module() -> Result<Module, ContextError> {
                     }
 
                     n -= 1;
-                })?;
+                })?
+            };
 
-                cx.function_handler(Protocol::NTH, &nth)?;
-            }
+            cx.function_handler("nth", &nth)?;
 
             cx.function(Protocol::INTO_ITER, |value: Value| value)?;
 
@@ -1644,36 +1643,36 @@ pub fn module() -> Result<Module, ContextError> {
         t.handler(|cx| {
             let _ = cx.find(Protocol::NEXT)?;
             let next_back = cx.find(Protocol::NEXT_BACK)?;
-            cx.function_handler("next_back", &next_back)?;
 
-            if let Some(nth) = cx.try_find(Protocol::NTH)? {
-                cx.function_handler("nth_back", &nth)?;
+            let nth_back = if let Some(nth_back) = cx.try_find(Protocol::NTH_BACK)? {
+                nth_back
             } else {
                 let next_back = next_back.clone();
 
-                let nth = cx.function("nth_back", move |iterator: Value, mut n: usize| loop {
-                    let mut memory = [iterator.clone()];
-                    vm_try!(next_back(
-                        &mut memory,
-                        InstAddress::ZERO,
-                        1,
-                        Output::keep(0)
-                    ));
-                    let [value] = memory;
+                cx.function(Protocol::NTH_BACK, move |iterator: Value, mut n: usize| {
+                    loop {
+                        let mut memory = [iterator.clone()];
 
-                    let Some(value) = vm_try!(Option::<Value>::from_value(value)) else {
-                        break VmResult::Ok(None);
-                    };
+                        vm_try!(next_back(
+                            &mut memory,
+                            InstAddress::ZERO,
+                            1,
+                            Output::keep(0)
+                        ));
+                        let [value] = memory;
 
-                    if n == 0 {
-                        break VmResult::Ok(Some(value));
+                        let Some(value) = vm_try!(Option::<Value>::from_value(value)) else {
+                            break VmResult::Ok(None);
+                        };
+
+                        if n == 0 {
+                            break VmResult::Ok(Some(value));
+                        }
+
+                        n -= 1;
                     }
-
-                    n -= 1;
-                })?;
-
-                cx.function_handler(Protocol::NTH, &nth)?;
-            }
+                })?
+            };
 
             cx.raw_function("rev", |stack, addr, len, out| {
                 let [value] = vm_try!(stack.slice_at(addr, len)) else {
@@ -1691,6 +1690,8 @@ pub fn module() -> Result<Module, ContextError> {
                 VmResult::Ok(())
             })?;
 
+            cx.function_handler("next_back", &next_back)?;
+            cx.function_handler("nth_back", &nth_back)?;
             Ok(())
         })?;
 
@@ -1719,6 +1720,55 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(Some(4), iter.next());
                 /// assert_eq!(None, iter.next());
                 /// assert_eq!(None, iter.next_back());
+                /// ```
+            })?;
+
+        t.function("nth_back")?
+            .argument_types::<(Value, usize)>()?
+            .return_type::<Option<Value>>()?
+            .docs(docstring! {
+                /// Returns the `n`th element from the end of the iterator.
+                ///
+                /// This is essentially the reversed version of
+                /// [`Iterator::nth()`]. Although like most indexing operations,
+                /// the count starts from zero, so `nth_back(0)` returns the
+                /// first value from the end, `nth_back(1)` the second, and so
+                /// on.
+                ///
+                /// Note that all elements between the end and the returned
+                /// element will be consumed, including the returned element.
+                /// This also means that calling `nth_back(0)` multiple times on
+                /// the same iterator will return different elements.
+                ///
+                /// `nth_back()` will return [`None`] if `n` is greater than or
+                /// equal to the length of the iterator.
+                ///
+                /// # Examples
+                ///
+                /// Basic usage:
+                ///
+                /// ```rune
+                /// let a = [1, 2, 3];
+                /// assert_eq!(a.iter().nth_back(2), Some(1));
+                /// ```
+                ///
+                /// Calling `nth_back()` multiple times doesn't rewind the
+                /// iterator:
+                ///
+                /// ```rune
+                /// let a = [1, 2, 3];
+                ///
+                /// let iter = a.iter();
+                ///
+                /// assert_eq!(iter.nth_back(1), Some(2));
+                /// assert_eq!(iter.nth_back(1), None);
+                /// ```
+                ///
+                /// Returning `None` if there are less than `n + 1` elements:
+                ///
+                /// ```rune
+                /// let a = [1, 2, 3];
+                /// assert_eq!(a.iter().nth_back(10), None);
                 /// ```
             })?;
 

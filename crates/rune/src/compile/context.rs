@@ -692,7 +692,7 @@ impl Context {
                                 return_type: meta::DocType::new(ty.hash),
                             };
 
-                            self.insert_native_fn(ty.hash, c, None)?;
+                            self.insert_native_fn(&ty.type_info, ty.hash, c, None)?;
                             Some(signature)
                         }
                         None => None,
@@ -751,7 +751,7 @@ impl Context {
                                 return_type: meta::DocType::new(ty.hash),
                             };
 
-                            self.insert_native_fn(hash, c, variant.deprecated.as_deref())?;
+                            self.insert_native_fn(&item, hash, c, variant.deprecated.as_deref())?;
                             Some(signature)
                         } else {
                             None
@@ -990,7 +990,7 @@ impl Context {
 
                 let signature = meta::Signature::from_context(&f.doc, &m.common)?;
 
-                self.insert_native_fn(m.hash, &f.handler, m.common.deprecated.as_deref())?;
+                self.insert_native_fn(&m.item, m.hash, &f.handler, m.common.deprecated.as_deref())?;
 
                 meta::Kind::Function {
                     associated: None,
@@ -1057,6 +1057,7 @@ impl Context {
 
                     let constructor = if let Some(constructor) = &variant.constructor {
                         self.insert_native_fn(
+                            &internal_enum.static_type.type_info(),
                             variant_hash,
                             constructor,
                             variant.deprecated.as_deref(),
@@ -1174,10 +1175,20 @@ impl Context {
                         ConstValue::from(item.try_to_string()?),
                     )?;
 
-                    self.insert_native_fn(*hash, &f.handler, assoc.common.deprecated.as_deref())?;
+                    self.insert_native_fn(
+                        &assoc.container_type_info,
+                        *hash,
+                        &f.handler,
+                        assoc.common.deprecated.as_deref(),
+                    )?;
                 }
 
-                self.insert_native_fn(hash, &f.handler, assoc.common.deprecated.as_deref())?;
+                self.insert_native_fn(
+                    &assoc.container_type_info,
+                    hash,
+                    &f.handler,
+                    assoc.common.deprecated.as_deref(),
+                )?;
 
                 meta::Kind::Function {
                     associated: Some(assoc.name.kind.try_clone()?),
@@ -1211,12 +1222,16 @@ impl Context {
 
     fn insert_native_fn(
         &mut self,
+        display: &dyn fmt::Display,
         hash: Hash,
         handler: &Arc<FunctionHandler>,
         deprecation: Option<&str>,
     ) -> Result<(), ContextError> {
         if self.functions.contains_key(&hash) {
-            return Err(ContextError::ConflictingFunction { hash });
+            return Err(ContextError::ConflictingFunction {
+                part: display.try_to_string()?.try_into()?,
+                hash,
+            });
         }
 
         self.functions.try_insert(hash, handler.clone())?;

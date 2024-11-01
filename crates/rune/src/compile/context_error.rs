@@ -28,6 +28,7 @@ pub enum ContextError {
         name: &'static str,
     },
     ConflictingFunction {
+        part: Box<str>,
         hash: Hash,
     },
     ConflictingFunctionName {
@@ -199,8 +200,11 @@ impl fmt::Display for ContextError {
             ContextError::InternalAlreadyPresent { name } => {
                 write!(f, "Type for name `{name}` is already present")?;
             }
-            ContextError::ConflictingFunction { hash } => {
-                write!(f, "Function with hash `{hash}` already exists")?;
+            ContextError::ConflictingFunction { part, hash } => {
+                write!(
+                    f,
+                    "Function with hash `{hash}` part of `{part}` already exists"
+                )?;
             }
             ContextError::ConflictingFunctionName { item, hash } => {
                 write!(f, "Function `{item}` already exists with hash `{hash}`")?;

@@ -2369,23 +2369,23 @@ impl Vm {
                     out
                 ));
             }
-            InstOp::Gt => {
-                vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Greater), lhs, rhs, out));
+            InstOp::Lt => {
+                vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Less), lhs, rhs, out));
             }
-            InstOp::Gte => {
+            InstOp::Le => {
                 vm_try!(self.internal_cmp(
-                    |o| matches!(o, Ordering::Greater | Ordering::Equal),
+                    |o| matches!(o, Ordering::Less | Ordering::Equal),
                     lhs,
                     rhs,
                     out
                 ));
             }
-            InstOp::Lt => {
-                vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Less), lhs, rhs, out));
+            InstOp::Gt => {
+                vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Greater), lhs, rhs, out));
             }
-            InstOp::Lte => {
+            InstOp::Ge => {
                 vm_try!(self.internal_cmp(
-                    |o| matches!(o, Ordering::Less | Ordering::Equal),
+                    |o| matches!(o, Ordering::Greater | Ordering::Equal),
                     lhs,
                     rhs,
                     out
