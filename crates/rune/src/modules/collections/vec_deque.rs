@@ -43,7 +43,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
     m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
 
-    m.function_meta(VecDeque::string_debug)?;
+    m.function_meta(VecDeque::debug_fmt)?;
 
     m.function_meta(VecDeque::partial_eq__meta)?;
     m.implement_trait::<VecDeque>(rune::item!(::std::cmp::PartialEq))?;
@@ -562,7 +562,7 @@ impl VecDeque {
 
     /// Write a debug representation to a string.
     ///
-    /// This calls the [`STRING_DEBUG`] protocol over all elements of the
+    /// This calls the [`DEBUG_FMT`] protocol over all elements of the
     /// collection.
     ///
     /// # Examples
@@ -573,23 +573,19 @@ impl VecDeque {
     /// let deque = VecDeque::from::<Vec>([1, 2, 3]);
     /// assert_eq!(format!("{:?}", deque), "[1, 2, 3]");
     /// ```
-    #[rune::function(protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
-        self.string_debug_with(f, &mut EnvProtocolCaller)
+    #[rune::function(protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
     #[inline]
-    fn string_debug_with(
-        &self,
-        f: &mut Formatter,
-        caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    fn debug_fmt_with(&self, f: &mut Formatter, caller: &mut dyn ProtocolCaller) -> VmResult<()> {
         let mut it = self.inner.iter().peekable();
 
         vm_try!(vm_write!(f, "["));
 
         while let Some(value) = it.next() {
-            vm_try!(value.string_debug_with(f, caller));
+            vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
                 vm_try!(vm_write!(f, ", "));

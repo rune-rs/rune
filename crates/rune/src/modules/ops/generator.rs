@@ -179,7 +179,7 @@ fn generator_into_iter(this: Generator) -> Iter {
 ///
 /// println!("{a:?}");
 /// ``
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
 fn generator_debug(this: &Generator, f: &mut Formatter) -> VmResult<()> {
     vm_write!(f, "{this:?}")
 }
@@ -274,17 +274,17 @@ fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult
 /// println!("{a:?}");
 /// println!("{b:?}");
 /// ``
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
 fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> VmResult<()> {
     match this {
         GeneratorState::Yielded(value) => {
             vm_try!(vm_write!(f, "Yielded("));
-            vm_try!(value.string_debug_with(f, &mut EnvProtocolCaller));
+            vm_try!(value.debug_fmt_with(f, &mut EnvProtocolCaller));
             vm_try!(vm_write!(f, ")"));
         }
         GeneratorState::Complete(value) => {
             vm_try!(vm_write!(f, "Complete("));
-            vm_try!(value.string_debug_with(f, &mut EnvProtocolCaller));
+            vm_try!(value.debug_fmt_with(f, &mut EnvProtocolCaller));
             vm_try!(vm_write!(f, ")"));
         }
     }

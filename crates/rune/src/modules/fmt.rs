@@ -28,20 +28,20 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.ty::<Formatter>()?;
     m.ty::<fmt::Error>()?;
-    m.function_meta(fmt_error_string_display)?;
+    m.function_meta(fmt_error_display_fmt)?;
     m.macro_meta(format)?;
 
     m.ty::<Format>()?;
-    m.function_meta(format_string_display__meta)?;
-    m.function_meta(format_string_debug__meta)?;
+    m.function_meta(format_display_fmt__meta)?;
+    m.function_meta(format_debug_fmt__meta)?;
     m.function_meta(format_clone__meta)?;
     m.implement_trait::<Format>(rune::item!(::std::clone::Clone))?;
 
     Ok(m)
 }
 
-#[rune::function(instance, protocol = STRING_DISPLAY)]
-fn fmt_error_string_display(error: &fmt::Error, f: &mut Formatter) -> VmResult<()> {
+#[rune::function(instance, protocol = DISPLAY_FMT)]
+fn fmt_error_display_fmt(error: &fmt::Error, f: &mut Formatter) -> VmResult<()> {
     vm_write!(f, "{error}")
 }
 
@@ -74,8 +74,8 @@ pub(crate) fn format(
 /// let value = #[builtin] format!("Hello", fill = '0', width = 10);
 /// assert_eq!(format!("{value}"), "Hello00000");
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DISPLAY)]
-fn format_string_display(format: &Format, f: &mut Formatter) -> VmResult<()> {
+#[rune::function(keep, instance, protocol = DISPLAY_FMT)]
+fn format_display_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
     VmResult::Ok(vm_try!(format.spec.format(
         &format.value,
         f,
@@ -92,8 +92,8 @@ fn format_string_display(format: &Format, f: &mut Formatter) -> VmResult<()> {
 /// let string = format!("{value:?}");
 /// assert!(string is String);
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
-fn format_string_debug(format: &Format, f: &mut Formatter) -> VmResult<()> {
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
+fn format_debug_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
     VmResult::Ok(vm_try!(vm_write!(f, "{format:?}")))
 }
 

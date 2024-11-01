@@ -113,8 +113,8 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(StatusCode::cmp__meta)?;
     module.implement_trait::<StatusCode>(item!(::std::cmp::Ord))?;
     module.function_meta(StatusCode::hash__meta)?;
-    module.function_meta(StatusCode::string_debug__meta)?;
-    module.function_meta(StatusCode::string_display__meta)?;
+    module.function_meta(StatusCode::debug_fmt__meta)?;
+    module.function_meta(StatusCode::display_fmt__meta)?;
 
     module
         .constant(
@@ -1326,7 +1326,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Version::cmp__meta)?;
     module.implement_trait::<Version>(item!(::std::cmp::Ord))?;
     module.function_meta(Version::hash__meta)?;
-    module.function_meta(Version::string_debug__meta)?;
+    module.function_meta(Version::debug_fmt__meta)?;
 
     module
         .constant(
@@ -1429,7 +1429,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         })?;
 
     module.ty::<Error>()?;
-    module.function_meta(Error::string_display__meta)?;
+    module.function_meta(Error::display_fmt__meta)?;
     Ok(module)
 }
 
@@ -1448,8 +1448,8 @@ impl From<reqwest::Error> for Error {
 
 impl Error {
     /// Write a display representation the error.
-    #[rune::function(keep, instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
+    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{}", self.inner)
     }
 }
@@ -1800,8 +1800,8 @@ impl StatusCode {
     ///
     /// println!("{not_found:?}");
     /// ```
-    #[rune::function(keep, instance, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, instance, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{:?}", self.inner)
     }
 
@@ -1816,8 +1816,8 @@ impl StatusCode {
     ///
     /// println!("{not_found}");
     /// ```
-    #[rune::function(keep, instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
+    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{}", self.inner)
     }
 }
@@ -1983,8 +1983,8 @@ impl Version {
     ///
     /// println!("{:?}", http2);
     /// ```
-    #[rune::function(keep, instance, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, instance, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{:?}", self.inner)
     }
 }

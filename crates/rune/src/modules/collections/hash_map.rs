@@ -32,7 +32,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(HashMap::extend__meta)?;
     m.function_meta(HashMap::index_set__meta)?;
     m.function_meta(HashMap::index_get__meta)?;
-    m.function_meta(HashMap::string_debug__meta)?;
+    m.function_meta(HashMap::debug_fmt__meta)?;
 
     m.function_meta(HashMap::clone__meta)?;
     m.implement_trait::<HashMap>(rune::item!(::std::clone::Clone))?;
@@ -506,12 +506,12 @@ impl HashMap {
     ///
     /// assert_eq!(format!("{:?}", map), "{1: \"a\"}");
     /// ```
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
-        self.string_debug_with(f, &mut EnvProtocolCaller)
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn string_debug_with(
+    pub(crate) fn debug_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
@@ -521,9 +521,9 @@ impl HashMap {
         let mut it = self.table.iter().peekable();
 
         while let Some((key, value)) = it.next() {
-            vm_try!(key.string_debug_with(f, caller));
+            vm_try!(key.debug_fmt_with(f, caller));
             vm_try!(vm_write!(f, ": "));
-            vm_try!(value.string_debug_with(f, caller));
+            vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
                 vm_try!(vm_write!(f, ", "));

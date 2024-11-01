@@ -187,7 +187,7 @@ pub fn module() -> Result<Module, ContextError> {
         m.function_meta(ControlFlow::eq__meta)?;
         m.implement_trait::<ControlFlow>(rune::item!(::std::cmp::Eq))?;
 
-        m.function_meta(ControlFlow::string_debug__meta)?;
+        m.function_meta(ControlFlow::debug_fmt__meta)?;
 
         m.function_meta(ControlFlow::clone__meta)?;
         m.implement_trait::<ControlFlow>(rune::item!(::std::clone::Clone))?;

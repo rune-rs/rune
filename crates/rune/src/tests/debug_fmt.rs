@@ -7,8 +7,8 @@ prelude!();
 pub struct NativeStructWithProtocol;
 
 impl NativeStructWithProtocol {
-    #[rune::function(protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{self:?}")
     }
 }
@@ -20,14 +20,14 @@ pub struct NativeStructWithoutProtocol;
 fn make_native_module() -> Result<Module, ContextError> {
     let mut module = Module::with_crate("native_crate")?;
     module.ty::<NativeStructWithProtocol>()?;
-    module.function_meta(NativeStructWithProtocol::string_debug)?;
+    module.function_meta(NativeStructWithProtocol::debug_fmt)?;
     module.ty::<NativeStructWithoutProtocol>()?;
 
     Ok(module)
 }
 
 #[test]
-fn test_with_string_debug() {
+fn test_with_debug_fmt() {
     let t1 = NativeStructWithProtocol;
     assert_eq!(
         rune_n! {
@@ -41,7 +41,7 @@ fn test_with_string_debug() {
 }
 
 #[test]
-fn test_without_string_debug() {
+fn test_without_debug_fmt() {
     let t1 = NativeStructWithoutProtocol;
     let result = rune_n! {
         make_native_module().expect("failed making native module"),

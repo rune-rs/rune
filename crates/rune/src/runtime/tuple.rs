@@ -69,7 +69,7 @@ impl Tuple {
         VmResult::Ok(())
     }
 
-    pub(crate) fn string_debug_with(
+    pub(crate) fn debug_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
@@ -78,7 +78,7 @@ impl Tuple {
         vm_try!(vm_write!(f, "("));
 
         while let Some(value) = it.next() {
-            vm_try!(value.string_debug_with(f, caller));
+            vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
                 vm_try!(vm_write!(f, ", "));

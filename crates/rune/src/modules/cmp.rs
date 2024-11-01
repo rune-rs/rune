@@ -64,7 +64,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(ordering_eq__meta)?;
     m.implement_trait::<Ordering>(rune::item!(::std::cmp::Eq))?;
 
-    m.function_meta(ordering_string_debug)?;
+    m.function_meta(ordering_debug_fmt)?;
     m.function_meta(min__meta)?;
     m.function_meta(max__meta)?;
 
@@ -779,7 +779,7 @@ fn ordering_eq(this: Ordering, other: Ordering) -> bool {
 ///
 /// assert_eq!(format!("{:?}", Ordering::Less), "Less");
 /// ```
-#[rune::function(instance, protocol = STRING_DEBUG)]
-fn ordering_string_debug(this: Ordering, s: &mut Formatter) -> VmResult<()> {
+#[rune::function(instance, protocol = DEBUG_FMT)]
+fn ordering_debug_fmt(this: Ordering, s: &mut Formatter) -> VmResult<()> {
     vm_write!(s, "{:?}", this)
 }

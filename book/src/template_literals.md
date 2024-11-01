@@ -21,9 +21,9 @@ protocol* and it can be very efficient to build complex strings out of it.
 
 [a concept borrowed from EcmaScript]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Template_literals
 
-## The `STRING_DISPLAY` protocol
+## The `DISPLAY_FMT` protocol
 
-The `STRING_DISPLAY` protocol is a function that can be implemented by any
+The `DISPLAY_FMT` protocol is a function that can be implemented by any
 *external* type which allows it to be used in a template string.
 
 It expects a function with the signature `fn(&self, buf: &mut String) -> fmt::Result`.
@@ -40,15 +40,15 @@ pub struct StatusCode {
 }
 
 impl StatusCode {
-    #[rune::function(protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> fmt::Result {
+    #[rune::function(protocol = DISPLAY_FMT)]
+    fn display_fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", self.inner)
     }
 }
 
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::new(["http"]);
-    module.function_meta(StatusCode::string_display)?;
+    module.function_meta(StatusCode::display_fmt)?;
     Ok(module)
 }
 ```
@@ -62,10 +62,10 @@ types which do not implement this protocol will fail to run.
 
 ```text
 $> cargo run -- run scripts/book/template_literals/not_a_template.rn
-== ! (`Vec` does not implement the `string_display` protocol (at 5)) (77.7µs)
+== ! (`Vec` does not implement the `display_fmt` protocol (at 5)) (77.7µs)
 error: virtual machine error
   ┌─ scripts/book/template_literals/not_a_template.rn:3:9
   │
 3 │     dbg!(`${vec}`);
-  │          ^^^^^^^^ `Vec` does not implement the `string_display` protocol
+  │          ^^^^^^^^ `Vec` does not implement the `display_fmt` protocol
 ```

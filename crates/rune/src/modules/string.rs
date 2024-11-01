@@ -90,8 +90,8 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.function_meta(hash__meta)?;
 
-    m.function_meta(string_display__meta)?;
-    m.function_meta(string_debug__meta)?;
+    m.function_meta(display_fmt__meta)?;
+    m.function_meta(debug_fmt__meta)?;
 
     m.ty::<Chars>()?;
     m.function_meta(Chars::next__meta)?;
@@ -741,9 +741,9 @@ fn hash(this: &str, hasher: &mut Hasher) {
 /// ```rune
 /// println!("{}", "Hello");
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DISPLAY)]
+#[rune::function(keep, instance, protocol = DISPLAY_FMT)]
 #[inline]
-fn string_display(this: &str, f: &mut Formatter) -> VmResult<()> {
+fn display_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
     rune::vm_write!(f, "{this}")
 }
 
@@ -754,9 +754,9 @@ fn string_display(this: &str, f: &mut Formatter) -> VmResult<()> {
 /// ```rune
 /// println!("{:?}", "Hello");
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
-fn string_debug(this: &str, f: &mut Formatter) -> VmResult<()> {
+fn debug_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
     rune::vm_write!(f, "{this:?}")
 }
 

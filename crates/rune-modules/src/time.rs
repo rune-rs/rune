@@ -74,7 +74,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     m.function_meta(Duration::cmp__meta)?;
     m.implement_trait::<Duration>(item!(::std::cmp::Ord))?;
     m.function_meta(Duration::hash__meta)?;
-    m.function_meta(Duration::string_debug__meta)?;
+    m.function_meta(Duration::debug_fmt__meta)?;
     m.function_meta(Duration::clone__meta)?;
     m.implement_trait::<Duration>(item!(::std::clone::Clone))?;
 
@@ -208,7 +208,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     m.function_meta(Instant::cmp__meta)?;
     m.implement_trait::<Instant>(item!(::std::cmp::Ord))?;
     m.function_meta(Instant::hash__meta)?;
-    m.function_meta(Instant::string_debug__meta)?;
+    m.function_meta(Instant::debug_fmt__meta)?;
     m.function_meta(Instant::clone__meta)?;
     m.implement_trait::<Instant>(item!(::std::clone::Clone))?;
 
@@ -841,8 +841,8 @@ impl Duration {
     ///
     /// println!("{second:?}");
     /// ```
-    #[rune::function(keep, instance, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, instance, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{:?}", self.inner)
     }
 
@@ -1290,8 +1290,8 @@ impl Instant {
     ///
     /// println!("{now:?}");
     /// ```
-    #[rune::function(keep, instance, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, instance, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{:?}", self.inner)
     }
 

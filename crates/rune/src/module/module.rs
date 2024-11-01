@@ -1114,8 +1114,8 @@ impl Module {
     ///     /* .. */
     /// }
     ///
-    /// #[rune::function(instance, protocol = STRING_DISPLAY)]
-    /// fn string_display(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
+    /// #[rune::function(instance, protocol = DISPLAY_FMT)]
+    /// fn display_fmt(this: &Struct, f: &mut Formatter) -> std::fmt::Result {
     ///     /* .. */
     ///     # todo!()
     /// }

@@ -84,12 +84,12 @@ impl Snapshot {
         self.inner.is_exclusive()
     }
 
-    #[rune::function(protocol = STRING_DISPLAY)]
+    #[rune::function(protocol = DISPLAY_FMT)]
     fn display(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{}", self.inner)
     }
 
-    #[rune::function(protocol = STRING_DEBUG)]
+    #[rune::function(protocol = DEBUG_FMT)]
     fn debug(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{:?}", self.inner)
     }

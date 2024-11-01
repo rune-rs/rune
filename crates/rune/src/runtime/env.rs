@@ -2,7 +2,7 @@
 //!
 //! This provides access to functions to call specific protocol functions, like:
 //! * [super::Value::into_iter]
-//! * [super::Value::string_debug]
+//! * [super::Value::debug_fmt]
 //! * [super::Value::into_type_name]
 //!
 //! See the corresponding function for documentation.
