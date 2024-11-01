@@ -98,7 +98,7 @@ pub(crate) struct TypeAttr {
     /// Method to use to convert from value mut.
     pub(crate) from_value_mut: Option<syn::Path>,
     /// Method to use to convert from value.
-    pub(crate) from_value_params: Option<syn::punctuated::Punctuated<syn::Type, Token![,]>>,
+    pub(crate) impl_params: Option<syn::punctuated::Punctuated<syn::TypeParam, Token![,]>>,
 }
 
 /// Parsed #[const_value(..)] field attributes.
@@ -610,11 +610,11 @@ impl Context {
                     } else if meta.path == FROM_VALUE_MUT {
                         meta.input.parse::<Token![=]>()?;
                         attr.from_value_mut = Some(meta.input.parse()?);
-                    } else if meta.path == FROM_VALUE_PARAMS {
+                    } else if meta.path.is_ident("impl_params") {
                         meta.input.parse::<Token![=]>()?;
                         let content;
                         syn::bracketed!(content in meta.input);
-                        attr.from_value_params =
+                        attr.impl_params =
                             Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
                     } else {
                         return Err(syn::Error::new_spanned(

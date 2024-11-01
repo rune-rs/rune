@@ -28,7 +28,6 @@ pub mod disable_io;
 pub mod f64;
 pub mod fmt;
 pub mod future;
-pub mod generator;
 pub mod hash;
 pub mod i64;
 pub mod io;

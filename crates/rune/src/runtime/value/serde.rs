@@ -58,8 +58,6 @@ impl ser::Serialize for Value {
                 Mutable::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
                 Mutable::Result(..) => Err(ser::Error::custom("cannot serialize results")),
                 Mutable::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
-                Mutable::Stream(..) => Err(ser::Error::custom("cannot serialize streams")),
-                Mutable::Generator(..) => Err(ser::Error::custom("cannot serialize generators")),
                 Mutable::Function(..) => {
                     Err(ser::Error::custom("cannot serialize function pointers"))
                 }

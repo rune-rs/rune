@@ -553,12 +553,29 @@ where
             ..
         } = &tokens;
 
-        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+        let empty;
+        let mut current;
+        let generic_names;
 
-        let generic_names = if attr.static_type.is_some() {
-            vec![]
-        } else {
-            generics.type_params().map(|v| &v.ident).collect::<Vec<_>>()
+        let (impl_generics, type_generics, where_clause) = match &attr.impl_params {
+            Some(params) => {
+                empty = syn::Generics::default();
+                current = syn::Generics::default();
+
+                for p in params {
+                    current.params.push(syn::GenericParam::Type(p.clone()));
+                }
+
+                let (impl_generics, _, where_clause) = empty.split_for_impl();
+                let (_, type_generics, _) = current.split_for_impl();
+                generic_names = Vec::new();
+                (impl_generics, type_generics, where_clause)
+            }
+            None => {
+                current = generics;
+                generic_names = current.type_params().map(|v| &v.ident).collect::<Vec<_>>();
+                current.split_for_impl()
+            }
         };
 
         let impl_named = if let [first_name, remainder @ ..] = &generic_names[..] {
@@ -720,85 +737,51 @@ where
             }
         });
 
-        let impl_from_value = 'out: {
-            if let Some(path) = attr.from_value {
-                let ty = match &attr.from_value_params {
-                    Some(params) => quote!(#ident<#params>),
-                    None if generics.params.is_empty() => quote!(#ident),
-                    _ => break 'out None,
-                };
-
-                Some(quote! {
-                    impl #from_value for #ty {
-                        fn from_value(value: Value) -> #result<Self, #runtime_error> {
-                            #path(value)
-                        }
+        let impl_from_value = attr.from_value.as_ref().map(|path| {
+            quote! {
+                impl #impl_generics #from_value for #ident #type_generics {
+                    fn from_value(value: #value) -> #result<Self, #runtime_error> {
+                        #path(value)
                     }
-                })
-            } else {
-                None
+                }
             }
-        };
+        });
 
-        let impl_from_value_ref = 'out: {
-            if let Some(path) = attr.from_value_ref {
-                let ty = match &attr.from_value_params {
-                    Some(params) => quote!(#ident<#params>),
-                    None if generics.params.is_empty() => quote!(#ident),
-                    _ => break 'out None,
-                };
+        let impl_from_value_ref = attr.from_value_ref.as_ref().map(|path| quote! {
+            impl #impl_generics #unsafe_to_ref for #ident #type_generics {
+                type Guard = #raw_any_guard;
 
-                Some(quote! {
-                    impl #unsafe_to_ref for #ty {
-                        type Guard = #raw_any_guard;
-
-                        unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
-                            let value = #vm_try!(#path(value));
-                            let (value, guard) = #ref_::into_raw(value);
-                            #vm_result::Ok((value.as_ref(), guard))
-                        }
-                    }
-
-                    impl #from_value for #ref_<#ty> {
-                        fn from_value(value: #value) -> #result<Self, #runtime_error> {
-                            #path(value)
-                        }
-                    }
-                })
-            } else {
-                None
+                unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
+                    let value = #vm_try!(#path(value));
+                    let (value, guard) = #ref_::into_raw(value);
+                    #vm_result::Ok((value.as_ref(), guard))
+                }
             }
-        };
 
-        let impl_from_value_mut = 'out: {
-            if let Some(path) = attr.from_value_mut {
-                let ty = match &attr.from_value_params {
-                    Some(params) => quote!(#ident<#params>),
-                    None if generics.params.is_empty() => quote!(#ident),
-                    _ => break 'out None,
-                };
-
-                Some(quote! {
-                    impl #unsafe_to_mut for #ty {
-                        type Guard = #raw_any_guard;
-
-                        unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                            let value = #vm_try!(#path(value));
-                            let (mut value, guard) = #mut_::into_raw(value);
-                            #vm_result::Ok((value.as_mut(), guard))
-                        }
-                    }
-
-                    impl #from_value for #mut_<#ty> {
-                        fn from_value(value: #value) -> #result<Self, #runtime_error> {
-                            #path(value)
-                        }
-                    }
-                })
-            } else {
-                None
+            impl #impl_generics #from_value for #ref_<#ident #type_generics> {
+                fn from_value(value: #value) -> #result<Self, #runtime_error> {
+                    #path(value)
+                }
             }
-        };
+        });
+
+        let impl_from_value_mut = attr.from_value_mut.as_ref().map(|path| quote! {
+            impl #impl_generics #unsafe_to_mut for #ident #type_generics {
+                type Guard = #raw_any_guard;
+
+                unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
+                    let value = #vm_try!(#path(value));
+                    let (mut value, guard) = #mut_::into_raw(value);
+                    #vm_result::Ok((value.as_mut(), guard))
+                }
+            }
+
+            impl #impl_generics #from_value for #mut_<#ident #type_generics> {
+                fn from_value(value: #value) -> #result<Self, #runtime_error> {
+                    #path(value)
+                }
+            }
+        });
 
         quote! {
             #install_with
