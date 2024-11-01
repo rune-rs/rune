@@ -2042,7 +2042,7 @@ impl Vm {
         let futures = futures_util::stream::FuturesUnordered::new();
 
         for (branch, value) in vm_try!(self.stack.slice_at(addr, len)).iter().enumerate() {
-            let future = vm_try!(value.clone().into_future_mut());
+            let future = vm_try!(value.clone().into_any_mut::<Future>());
 
             if !future.is_completed() {
                 futures.push(SelectFuture::new(self.ip + branch, future));

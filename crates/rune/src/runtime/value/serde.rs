@@ -57,7 +57,6 @@ impl ser::Serialize for Value {
                 Mutable::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
                 Mutable::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
                 Mutable::Result(..) => Err(ser::Error::custom("cannot serialize results")),
-                Mutable::Future(..) => Err(ser::Error::custom("cannot serialize futures")),
             },
             BorrowRefRepr::Any(value) => match value.type_hash() {
                 String::HASH => {

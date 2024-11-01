@@ -2,9 +2,7 @@
 
 use crate as rune;
 use crate::alloc::Vec;
-use crate::runtime::{
-    self, Future, Inline, Mut, Mutable, RefRepr, SelectFuture, Value, VmErrorKind, VmResult,
-};
+use crate::runtime::{self, Future, Inline, RefRepr, SelectFuture, Value, VmErrorKind, VmResult};
 use crate::{ContextError, Module, TypeHash};
 
 /// Asynchronous computations.
@@ -12,7 +10,7 @@ use crate::{ContextError, Module, TypeHash};
 pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module_meta)?;
     module.ty::<Future>()?;
-    module.function_meta(join)?;
+    module.function_meta(join__meta)?;
     Ok(module)
 }
 
@@ -27,39 +25,33 @@ where
     let mut results = vm_try!(Vec::try_with_capacity(len));
 
     for (index, value) in values.into_iter().enumerate() {
-        let value = match vm_try!(value.as_ref_repr()) {
+        match vm_try!(value.as_ref_repr()) {
             RefRepr::Inline(value) => {
                 return VmResult::err([
                     VmErrorKind::expected::<Future>(value.type_info()),
                     VmErrorKind::bad_argument(index),
                 ]);
             }
-            RefRepr::Mutable(value) => vm_try!(value.clone().into_mut()),
-            RefRepr::Any(value) => {
+            RefRepr::Mutable(value) => {
                 return VmResult::err([
-                    VmErrorKind::expected::<Future>(value.type_info()),
+                    VmErrorKind::expected::<Future>(vm_try!(value.borrow_ref()).type_info()),
                     VmErrorKind::bad_argument(index),
                 ]);
             }
-        };
-
-        let future = Mut::try_map(value, |kind| match kind {
-            Mutable::Future(future) => Some(future),
-            _ => None,
-        });
-
-        let future = match future {
-            Ok(future) => future,
-            Err(actual) => {
-                return VmResult::err([
-                    VmErrorKind::expected::<Future>(actual.type_info()),
-                    VmErrorKind::bad_argument(index),
-                ]);
-            }
-        };
-
-        futures.push(SelectFuture::new(index, future));
-        vm_try!(results.try_push(Value::empty()));
+            RefRepr::Any(value) => match value.type_hash() {
+                Future::HASH => {
+                    let future = vm_try!(Value::from(value.clone()).into_future());
+                    futures.push(SelectFuture::new(index, future));
+                    vm_try!(results.try_push(Value::empty()));
+                }
+                _ => {
+                    return VmResult::err([
+                        VmErrorKind::expected::<Future>(value.type_info()),
+                        VmErrorKind::bad_argument(index),
+                    ]);
+                }
+            },
+        }
     }
 
     while !futures.is_empty() {
@@ -75,9 +67,11 @@ where
 /// # Examples
 ///
 /// ```rune
+/// use std::future;
+///
 /// let a = async { 1 };
 /// let b = async { 2 };
-/// let (a, b) = std::future::join((a, b)).await;
+/// let (a, b) = future::join((a, b)).await;
 /// assert_eq!(1, a);
 /// assert_eq!(2, b);
 /// ```
@@ -85,9 +79,11 @@ where
 /// Using a vector:
 ///
 /// ```rune
+/// use std::future;
+///
 /// let a = async { 1 };
 /// let b = async { 2 };
-/// let [a, b] = std::future::join([a, b]).await;
+/// let [a, b] = future::join([a, b]).await;
 /// assert_eq!(1, a);
 /// assert_eq!(2, b);
 /// ```
@@ -95,10 +91,12 @@ where
 /// Joining an empty collection:
 ///
 /// ```rune
-/// let () = std::future::join(()).await;
-/// let [] = std::future::join([]).await;
+/// use std::future;
+///
+/// let () = future::join(()).await;
+/// let [] = future::join([]).await;
 /// ```
-#[rune::function]
+#[rune::function(keep)]
 async fn join(value: Value) -> VmResult<Value> {
     match vm_try!(value.as_ref_repr()) {
         RefRepr::Inline(value) => match value {

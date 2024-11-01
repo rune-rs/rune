@@ -190,8 +190,6 @@ static_type! {
         impl<T> for ::std::collections::HashMap<alloc::String, T>;
     }
 
-    pub(crate) static [FUTURE, FUTURE_HASH] = ::std::future::Future {}
-
     pub(crate) static [RESULT, RESULT_HASH] = ::std::result::Result {
         impl<T, E> for Result<T, E>;
     }
