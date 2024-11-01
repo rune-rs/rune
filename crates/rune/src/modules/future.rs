@@ -3,8 +3,7 @@
 use crate as rune;
 use crate::alloc::Vec;
 use crate::runtime::{
-    self, BorrowRefRepr, Future, Inline, Mut, Mutable, RefRepr, SelectFuture, Value, VmErrorKind,
-    VmResult,
+    self, Future, Inline, Mut, Mutable, RefRepr, SelectFuture, Value, VmErrorKind, VmResult,
 };
 use crate::{ContextError, Module, TypeHash};
 
@@ -101,35 +100,35 @@ where
 /// ```
 #[rune::function]
 async fn join(value: Value) -> VmResult<Value> {
-    match vm_try!(value.borrow_ref_repr()) {
-        BorrowRefRepr::Inline(value) => match value {
+    match vm_try!(value.as_ref_repr()) {
+        RefRepr::Inline(value) => match value {
             Inline::Unit => VmResult::Ok(Value::unit()),
             value => VmResult::err([
                 VmErrorKind::bad_argument(0),
                 VmErrorKind::expected::<runtime::Vec>(value.type_info()),
             ]),
         },
-        BorrowRefRepr::Mutable(value) => match *value {
-            Mutable::Tuple(ref tuple) => {
-                let result = try_join_impl(tuple.iter(), tuple.len(), |vec| {
-                    VmResult::Ok(vm_try!(Value::tuple(vec)))
-                })
-                .await;
-
-                VmResult::Ok(vm_try!(result))
-            }
-            ref value => VmResult::err([
-                VmErrorKind::bad_argument(0),
-                VmErrorKind::expected::<runtime::Vec>(value.type_info()),
-            ]),
-        },
-        BorrowRefRepr::Any(value) => match value.type_hash() {
+        RefRepr::Mutable(value) => VmResult::err([
+            VmErrorKind::bad_argument(0),
+            VmErrorKind::expected::<runtime::Vec>(vm_try!(value.borrow_ref()).type_info()),
+        ]),
+        RefRepr::Any(value) => match value.type_hash() {
             runtime::Vec::HASH => {
                 let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
                 let result = try_join_impl(vec.iter(), vec.len(), |vec| {
                     VmResult::Ok(vm_try!(Value::vec(vec)))
                 })
                 .await;
+                VmResult::Ok(vm_try!(result))
+            }
+            runtime::OwnedTuple::HASH => {
+                let tuple = vm_try!(value.borrow_ref::<runtime::OwnedTuple>());
+
+                let result = try_join_impl(tuple.iter(), tuple.len(), |vec| {
+                    VmResult::Ok(vm_try!(Value::tuple(vec)))
+                })
+                .await;
+
                 VmResult::Ok(vm_try!(result))
             }
             _ => VmResult::err([

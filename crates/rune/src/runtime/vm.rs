@@ -864,10 +864,6 @@ impl Vm {
                 _ => return VmResult::Ok(None),
             },
             BorrowRefRepr::Mutable(target) => match &*target {
-                Mutable::Tuple(tuple) => match tuple.get(index) {
-                    Some(value) => Ok(value.clone()),
-                    None => Err(target.type_info()),
-                },
                 Mutable::Result(result) => match (index, result) {
                     (0, Ok(value)) => Ok(value.clone()),
                     (0, Err(value)) => Ok(value.clone()),
@@ -904,6 +900,14 @@ impl Vm {
                         None => Err(target.type_info()),
                     }
                 }
+                runtime::OwnedTuple::HASH => {
+                    let tuple = vm_try!(target.borrow_ref::<runtime::OwnedTuple>());
+
+                    match tuple.get(index) {
+                        Some(value) => Ok(value.clone()),
+                        None => Err(target.type_info()),
+                    }
+                }
                 _ => {
                     return VmResult::Ok(None);
                 }
@@ -930,7 +934,6 @@ impl Vm {
 
                 let result = BorrowMut::try_map(vm_try!(value.borrow_mut()), |kind| {
                     match kind {
-                        Mutable::Tuple(tuple) => return tuple.get_mut(index),
                         Mutable::Result(result) => match (index, result) {
                             (0, Ok(value)) => return Some(value),
                             (0, Err(value)) => return Some(value),
@@ -995,7 +998,20 @@ impl Vm {
                     }
 
                     err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::any::<GeneratorState>(),
+                        target: TypeInfo::any::<runtime::Vec>(),
+                        index: VmIntegerRepr::from(index),
+                    })
+                }
+                runtime::OwnedTuple::HASH => {
+                    let tuple = vm_try!(value.borrow_mut::<runtime::OwnedTuple>());
+                    let result = BorrowMut::try_map(tuple, |tuple| tuple.get_mut(index));
+
+                    if let Ok(value) = result {
+                        return VmResult::Ok(Some(value));
+                    }
+
+                    err(VmErrorKind::MissingIndexInteger {
+                        target: TypeInfo::any::<runtime::OwnedTuple>(),
                         index: VmIntegerRepr::from(index),
                     })
                 }
@@ -1065,14 +1081,6 @@ impl Vm {
                 _ => VmResult::Ok(false),
             },
             RefRepr::Mutable(target) => match &mut *vm_try!(target.borrow_mut()) {
-                Mutable::Tuple(tuple) => {
-                    if let Some(target) = tuple.get_mut(index) {
-                        target.clone_from(from);
-                        return VmResult::Ok(true);
-                    }
-
-                    VmResult::Ok(false)
-                }
                 Mutable::Result(result) => {
                     let target = match result {
                         Ok(ok) if index == 0 => ok,
@@ -1117,6 +1125,16 @@ impl Vm {
                     let mut vec = vm_try!(value.borrow_mut::<runtime::Vec>());
 
                     if let Some(target) = vec.get_mut(index) {
+                        target.clone_from(from);
+                        return VmResult::Ok(true);
+                    }
+
+                    VmResult::Ok(false)
+                }
+                runtime::OwnedTuple::HASH => {
+                    let mut tuple = vm_try!(value.borrow_mut::<runtime::OwnedTuple>());
+
+                    if let Some(target) = tuple.get_mut(index) {
                         target.clone_from(from);
                         return VmResult::Ok(true);
                     }
@@ -1232,7 +1250,6 @@ impl Vm {
                 _ => None,
             },
             BorrowRefRepr::Mutable(value) => match (ty, &*value) {
-                (TypeCheck::Tuple, Mutable::Tuple(tuple)) => Some(f(tuple)),
                 (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
                     (0, Ok(ok)) => Some(f(slice::from_ref(ok))),
                     (1, Err(err)) => Some(f(slice::from_ref(err))),
@@ -1249,6 +1266,10 @@ impl Vm {
                 (TypeCheck::Vec, runtime::Vec::HASH) => {
                     let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
                     Some(f(&vec))
+                }
+                (TypeCheck::Tuple, runtime::OwnedTuple::HASH) => {
+                    let tuple = vm_try!(value.borrow_ref::<runtime::OwnedTuple>());
+                    Some(f(&tuple))
                 }
                 _ => None,
             },
@@ -2120,11 +2141,9 @@ impl Vm {
             .map(take)
             .try_collect::<alloc::Vec<Value>>());
 
-        vm_try!(
-            out.store(&mut self.stack, || VmResult::Ok(Mutable::Tuple(vm_try!(
-                OwnedTuple::try_from(tuple)
-            ))))
-        );
+        vm_try!(out.store(&mut self.stack, || VmResult::Ok(vm_try!(
+            OwnedTuple::try_from(tuple)
+        ))));
 
         VmResult::Ok(())
     }
@@ -2139,11 +2158,9 @@ impl Vm {
             vm_try!(tuple.try_push(value));
         }
 
-        vm_try!(
-            out.store(&mut self.stack, || VmResult::Ok(Mutable::Tuple(vm_try!(
-                OwnedTuple::try_from(tuple)
-            ))))
-        );
+        vm_try!(out.store(&mut self.stack, || VmResult::Ok(vm_try!(
+            OwnedTuple::try_from(tuple)
+        ))));
 
         VmResult::Ok(())
     }
@@ -3297,7 +3314,6 @@ impl Vm {
                 _ => false,
             },
             BorrowRefRepr::Mutable(value) => match (type_check, &*value) {
-                (TypeCheck::Tuple, Mutable::Tuple(..)) => true,
                 (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
                     (0, Ok(..)) => true,
                     (1, Err(..)) => true,
@@ -3312,6 +3328,7 @@ impl Vm {
             },
             BorrowRefRepr::Any(value) => match (type_check, value.type_hash()) {
                 (TypeCheck::Vec, runtime::Vec::HASH) => true,
+                (TypeCheck::Tuple, runtime::OwnedTuple::HASH) => true,
                 _ => false,
             },
         };

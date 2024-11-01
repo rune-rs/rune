@@ -1,24 +1,24 @@
+use core::borrow::Borrow;
 use core::fmt;
-use core::ops;
+use core::ops::{self, Deref, DerefMut};
 use core::slice;
 
 use crate as rune;
+use crate::alloc::alloc::Global;
+use crate::alloc::borrow::TryToOwned;
 use crate::alloc::clone::TryClone;
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::{self, Box};
 use crate::Any;
 
 use super::{
-    ConstValue, EmptyConstContext, FromConstValue, FromValue, Inline, Mut, Mutable, OwnedRepr,
-    RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue, UnsafeToMut, UnsafeToRef, Value,
-    ValueShared, VmErrorKind, VmResult,
+    ConstValue, EmptyConstContext, Formatter, FromConstValue, FromValue, Mut, RawAnyGuard, Ref,
+    RuntimeError, ToConstValue, ToValue, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, ProtocolCaller};
 
 /// The type of a tuple slice.
-#[derive(Any)]
-#[rune(builtin, static_type = TUPLE)]
-#[rune(item = ::std::tuple)]
 #[repr(transparent)]
 pub struct Tuple {
     values: [Value],
@@ -29,6 +29,13 @@ impl Tuple {
     pub const fn new(values: &[Value]) -> &Self {
         // SAFETY: Tuple is repr transparent over [Value].
         unsafe { &*(values as *const _ as *const Self) }
+    }
+
+    /// Construct a boxed tuple over a boxed slice of values.
+    pub(crate) fn from_boxed(boxed: Box<[Value]>) -> Box<Self> {
+        let (values, Global) = Box::into_raw_with_allocator(boxed);
+        // SAFETY: Tuple is repr transparent over [Value].
+        unsafe { Box::from_raw_in(values as *mut Tuple, Global) }
     }
 
     /// Construct a new tuple slice from a mutable reference.
@@ -60,6 +67,37 @@ impl Tuple {
         }
 
         VmResult::Ok(())
+    }
+
+    pub(crate) fn string_debug_with(
+        &self,
+        f: &mut Formatter,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<()> {
+        let mut it = self.iter().peekable();
+        vm_try!(vm_write!(f, "("));
+
+        while let Some(value) = it.next() {
+            vm_try!(value.string_debug_with(f, caller));
+
+            if it.peek().is_some() {
+                vm_try!(vm_write!(f, ", "));
+            }
+        }
+
+        vm_try!(vm_write!(f, ")"));
+        VmResult::Ok(())
+    }
+
+    pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<OwnedTuple> {
+        let mut vec = vm_try!(alloc::Vec::try_with_capacity(self.len()));
+
+        for value in self.values.iter() {
+            let value = vm_try!(value.clone_with(caller));
+            vm_try!(vec.try_push(value));
+        }
+
+        VmResult::Ok(vm_try!(OwnedTuple::try_from(vec)))
     }
 }
 
@@ -102,6 +140,8 @@ impl<'a> IntoIterator for &'a mut Tuple {
 /// Struct representing a dynamic anonymous object.
 ///
 /// To access borrowed values of a tuple in native functions, use [`Tuple`].
+#[derive(Any)]
+#[rune(item = ::std::tuple, name = Tuple)]
 #[repr(transparent)]
 pub struct OwnedTuple {
     inner: Box<[Value]>,
@@ -123,9 +163,51 @@ impl OwnedTuple {
         }
     }
 
+    /// Coerce this owned tuple into a boxed tuple.
+    pub fn into_boxed_tuple(self) -> Box<Tuple> {
+        Tuple::from_boxed(self.inner)
+    }
+
     /// Convert into inner std boxed slice.
     pub fn into_inner(self) -> Box<[Value]> {
         self.inner
+    }
+}
+
+impl Deref for OwnedTuple {
+    type Target = Tuple;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        Tuple::new(&self.inner)
+    }
+}
+
+impl DerefMut for OwnedTuple {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Tuple::new_mut(&mut self.inner)
+    }
+}
+
+impl AsRef<Tuple> for OwnedTuple {
+    #[inline]
+    fn as_ref(&self) -> &Tuple {
+        self
+    }
+}
+
+impl AsMut<Tuple> for OwnedTuple {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Tuple {
+        self
+    }
+}
+
+impl Borrow<Tuple> for OwnedTuple {
+    #[inline]
+    fn borrow(&self) -> &Tuple {
+        self
     }
 }
 
@@ -166,22 +248,6 @@ impl fmt::Debug for OwnedTuple {
 
         write!(f, ")")?;
         Ok(())
-    }
-}
-
-impl ops::Deref for OwnedTuple {
-    type Target = Tuple;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        Tuple::new(&self.inner)
-    }
-}
-
-impl ops::DerefMut for OwnedTuple {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        Tuple::new_mut(&mut self.inner)
     }
 }
 
@@ -279,20 +345,10 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
     }
 }
 
-impl FromValue for OwnedTuple {
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            OwnedRepr::Inline(Inline::Unit) => Ok(Self::new()),
-            OwnedRepr::Mutable(Mutable::Tuple(tuple)) => Ok(tuple),
-            value => Err(RuntimeError::expected::<Self>(value.type_info())),
-        }
-    }
-}
-
 macro_rules! impl_tuple {
     // Skip conflicting implementation with `()`.
     (0) => {
-        impl_static_type!(impl for (), TUPLE, TUPLE_HASH);
+        impl_any_type!(impl for (), ::std::tuple::Tuple);
 
         impl FromValue for () {
             #[inline]
@@ -310,7 +366,7 @@ macro_rules! impl_tuple {
     };
 
     ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
-        impl_static_type!(impl <$($ty),*> for ($($ty,)*), TUPLE, TUPLE_HASH);
+        impl_any_type!(impl <$($ty),*> for ($($ty,)*), ::std::tuple::Tuple);
 
         impl <$($ty,)*> FromValue for ($($ty,)*)
         where
@@ -383,63 +439,24 @@ macro_rules! impl_tuple {
 
 repeat_macro!(impl_tuple);
 
-impl FromValue for Ref<Tuple> {
+impl FromValue for Box<Tuple> {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let result = match value.into_value_shared()? {
-            ValueShared::Inline(value) => match value {
-                Inline::Unit => Ok(Ref::from_static(Tuple::new(&[]))),
-                actual => Err(actual.type_info()),
-            },
-            ValueShared::Mutable(value) => {
-                let value = value.into_ref()?;
+        value.into_tuple()
+    }
+}
 
-                let result = Ref::try_map(value, |value| match value {
-                    Mutable::Tuple(tuple) => Some(&**tuple),
-                    _ => None,
-                });
-
-                match result {
-                    Ok(tuple) => Ok(tuple),
-                    Err(actual) => Err(actual.type_info()),
-                }
-            }
-            ValueShared::Any(value) => Err(value.type_info()),
-        };
-
-        match result {
-            Ok(tuple) => Ok(tuple),
-            Err(actual) => Err(RuntimeError::expected::<Self>(actual)),
-        }
+impl FromValue for Ref<Tuple> {
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_tuple_ref()
     }
 }
 
 impl FromValue for Mut<Tuple> {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let result = match value.into_value_shared()? {
-            ValueShared::Inline(value) => match value {
-                Inline::Unit => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
-                actual => Err(actual.type_info()),
-            },
-            ValueShared::Mutable(value) => {
-                let value = value.into_mut()?;
-
-                let result = Mut::try_map(value, |kind| match kind {
-                    Mutable::Tuple(tuple) => Some(&mut **tuple),
-                    _ => None,
-                });
-
-                match result {
-                    Ok(value) => Ok(value),
-                    Err(actual) => Err(actual.type_info()),
-                }
-            }
-            ValueShared::Any(value) => Err(value.type_info()),
-        };
-
-        match result {
-            Ok(tuple) => Ok(tuple),
-            Err(actual) => Err(RuntimeError::expected::<Self>(actual)),
-        }
+        value.into_tuple_mut()
     }
 }
 
@@ -458,5 +475,20 @@ impl UnsafeToMut for Tuple {
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
         let (mut value, guard) = Mut::into_raw(vm_try!(Mut::from_value(value)));
         VmResult::Ok((value.as_mut(), guard))
+    }
+}
+
+impl TryToOwned for Tuple {
+    type Owned = OwnedTuple;
+
+    #[inline]
+    fn try_to_owned(&self) -> alloc::Result<Self::Owned> {
+        let mut vec = alloc::Vec::try_with_capacity(self.len())?;
+
+        for value in self.iter() {
+            vec.try_push(value.clone())?;
+        }
+
+        OwnedTuple::try_from(vec)
     }
 }

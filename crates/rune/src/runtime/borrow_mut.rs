@@ -6,7 +6,7 @@ use core::pin::Pin;
 use core::ptr::NonNull;
 use core::task::{Context, Poll};
 
-use super::AccessGuard;
+use super::RawAccessGuard;
 
 /// Guard for data exclusively borrowed from a slot in the virtual machine.
 ///
@@ -14,11 +14,20 @@ use super::AccessGuard;
 /// access depending on what we do. Releasing the guard releases the access.
 pub struct BorrowMut<'a, T: ?Sized> {
     data: NonNull<T>,
-    guard: AccessGuard<'a>,
+    guard: Option<RawAccessGuard>,
     _marker: PhantomData<&'a mut T>,
 }
 
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
+    /// Construct a borrow mut from static data.
+    pub(crate) fn from_static(data: &mut T) -> Self {
+        Self {
+            data: NonNull::from(data),
+            guard: None,
+            _marker: PhantomData,
+        }
+    }
+
     /// Construct a new exclusive guard.
     ///
     /// # Safety
@@ -27,10 +36,10 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ensure that access has been acquired correctly using e.g.
     /// [Access::exclusive]. Otherwise access can be release incorrectly once
     /// this guard is dropped.
-    pub(crate) unsafe fn new(data: NonNull<T>, guard: AccessGuard<'a>) -> Self {
+    pub(crate) unsafe fn new(data: NonNull<T>, guard: RawAccessGuard) -> Self {
         Self {
             data,
-            guard,
+            guard: Some(guard),
             _marker: PhantomData,
         }
     }

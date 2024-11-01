@@ -379,7 +379,7 @@ impl AnyObj {
         unsafe {
             let guard = self.shared.as_ref().access.shared()?;
             let data = vtable.as_ptr(self.shared);
-            Ok(BorrowRef::new(data, guard))
+            Ok(BorrowRef::new(data, guard.into_raw()))
         }
     }
 
@@ -404,7 +404,7 @@ impl AnyObj {
         unsafe {
             let guard = self.shared.as_ref().access.shared()?;
             let data = vtable.as_ptr(self.shared);
-            Ok(Some(BorrowRef::new(data, guard)))
+            Ok(Some(BorrowRef::new(data, guard.into_raw())))
         }
     }
 
@@ -433,7 +433,7 @@ impl AnyObj {
         unsafe {
             let guard = self.shared.as_ref().access.exclusive()?;
             let data = vtable.as_ptr(self.shared);
-            Ok(BorrowMut::new(data, guard))
+            Ok(BorrowMut::new(data, guard.into_raw()))
         }
     }
 

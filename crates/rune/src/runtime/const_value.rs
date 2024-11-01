@@ -16,8 +16,8 @@ use crate::runtime;
 use crate::{Hash, TypeHash};
 
 use super::{
-    BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, Tuple, Type,
-    TypeInfo, Value, VmErrorKind,
+    static_type, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue,
+    Tuple, Type, TypeInfo, Value, VmErrorKind,
 };
 
 /// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
@@ -138,9 +138,9 @@ impl ConstValueKind {
             ConstValueKind::String(..) => TypeInfo::any::<String>(),
             ConstValueKind::Bytes(..) => TypeInfo::any::<Bytes>(),
             ConstValueKind::Vec(..) => TypeInfo::any::<runtime::Vec>(),
-            ConstValueKind::Tuple(..) => TypeInfo::static_type(runtime::static_type::TUPLE),
-            ConstValueKind::Object(..) => TypeInfo::static_type(runtime::static_type::OBJECT),
-            ConstValueKind::Option(..) => TypeInfo::static_type(runtime::static_type::OPTION),
+            ConstValueKind::Tuple(..) => TypeInfo::any::<OwnedTuple>(),
+            ConstValueKind::Object(..) => TypeInfo::static_type(static_type::OBJECT),
+            ConstValueKind::Option(..) => TypeInfo::static_type(static_type::OPTION),
             ConstValueKind::Struct(hash, ..) => {
                 TypeInfo::any_type_info(AnyTypeInfo::new(full_name, *hash))
             }
@@ -241,15 +241,6 @@ impl ConstValue {
                     Some(some) => Some(Box::try_new(Self::from_value_ref(some)?)?),
                     None => None,
                 }),
-                Mutable::Tuple(ref tuple) => {
-                    let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
-
-                    for value in tuple.iter() {
-                        const_tuple.try_push(Self::from_value_ref(value)?)?;
-                    }
-
-                    ConstValueKind::Tuple(const_tuple.try_into_boxed_slice()?)
-                }
                 Mutable::Object(ref object) => {
                     let mut const_object = HashMap::try_with_capacity(object.len())?;
 
@@ -286,6 +277,16 @@ impl ConstValue {
 
                     ConstValueKind::Vec(const_vec)
                 }
+                runtime::OwnedTuple::HASH => {
+                    let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
+                    let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
+
+                    for value in tuple.iter() {
+                        const_tuple.try_push(Self::from_value_ref(value)?)?;
+                    }
+
+                    ConstValueKind::Tuple(const_tuple.try_into_boxed_slice()?)
+                }
                 _ => {
                     return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
                         actual: value.type_info(),
@@ -318,7 +319,7 @@ impl ConstValue {
                 None => None,
             })?),
             ConstValueKind::Vec(vec) => {
-                let mut v = super::Vec::with_capacity(vec.len())?;
+                let mut v = runtime::Vec::with_capacity(vec.len())?;
 
                 for value in vec {
                     v.push(Self::to_value_with(value, cx)?)?;

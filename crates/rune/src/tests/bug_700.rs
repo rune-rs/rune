@@ -1,5 +1,3 @@
-use crate::runtime::static_type;
-
 prelude!();
 
 /// See https://github.com/rune-rs/rune/issues/700
@@ -41,7 +39,7 @@ pub fn test_bug_700() -> Result<()> {
     assert_eq!(
         error.into_kind(),
         VmErrorKind::Expected {
-            expected: TypeInfo::static_type(static_type::TUPLE),
+            expected: TypeInfo::any::<OwnedTuple>(),
             actual: TypeInfo::named::<i64>()
         }
     );

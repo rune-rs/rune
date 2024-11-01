@@ -63,43 +63,7 @@ macro_rules! any_type {
         $(
             $(
                 $(#[$($impl_meta)*])*
-                impl $(<$($p,)*>)* $crate::TypeHash for $ty {
-                    const HASH: $crate::Hash = ::rune_macros::hash!($path);
-                }
-
-                $(#[$($impl_meta)*])*
-                impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
-                where
-                    $(
-                        $($p: $crate::runtime::MaybeTypeOf,)*
-                    )*
-                {
-                    const STATIC_TYPE_INFO: $crate::runtime::StaticTypeInfo = $crate::runtime::StaticTypeInfo::any_type_info(
-                        $crate::runtime::AnyTypeInfo::new(
-                            {
-                                fn full_name(f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                                    write!(f, "{}", ::rune_macros::item!($path))
-                                }
-
-                                full_name
-                            },
-                            <Self as $crate::TypeHash>::HASH,
-                        )
-                    );
-                }
-
-                $(#[$($impl_meta)*])*
-                impl $(<$($p,)*>)* $crate::runtime::MaybeTypeOf for $ty
-                where
-                    $(
-                        $($p: $crate::runtime::MaybeTypeOf,)*
-                    )*
-                {
-                    #[inline]
-                    fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
-                        Ok($crate::compile::meta::DocType::new(<$ty as $crate::TypeHash>::HASH))
-                    }
-                }
+                impl_any_type!(impl $(<$($p),*>)* for $ty, $path);
             )*
         )*
     }
@@ -203,14 +167,14 @@ any_type! {
         impl<T> for alloc::Vec<T>;
         impl<T> for rt::VecTuple<T>;
     }
+
+    /// The specialized type information for the [`Tuple`] type.
+    ::std::tuple::Tuple {
+        impl for rt::Tuple;
+    }
 }
 
 static_type! {
-    /// The specialized type information for the [`Tuple`] type.
-    pub(crate) static [TUPLE, TUPLE_HASH] = ::std::tuple::Tuple {
-        impl for rt::OwnedTuple;
-    }
-
     /// The specialized type information for the [`Object`] type.
     pub(crate) static [OBJECT, OBJECT_HASH] = ::std::object::Object {
         impl for rt::Struct;

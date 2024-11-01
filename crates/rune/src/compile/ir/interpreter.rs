@@ -222,29 +222,35 @@ impl ir::Scopes {
             }
             ir::IrTargetKind::Index(target, index) => {
                 let value = self.get_target(target)?;
-                let target = value.borrow_ref_repr().with_span(ir_target)?;
+                let target = value.as_ref_repr().with_span(ir_target)?;
 
                 match target {
-                    BorrowRefRepr::Mutable(value) => {
-                        match &*value {
-                            Mutable::Tuple(tuple) => {
-                                if let Some(value) = tuple.get(*index) {
-                                    return Ok(value.clone());
-                                }
-                            }
-                            actual => {
-                                return Err(compile::Error::expected_type::<OwnedTuple>(
-                                    ir_target,
-                                    actual.type_info(),
-                                ))
-                            }
-                        };
+                    RefRepr::Inline(value) => {
+                        return Err(compile::Error::expected_type::<OwnedTuple>(
+                            ir_target,
+                            value.type_info(),
+                        ));
                     }
-                    BorrowRefRepr::Any(value) => match value.type_hash() {
+                    RefRepr::Mutable(value) => {
+                        return Err(compile::Error::expected_type::<OwnedTuple>(
+                            ir_target,
+                            value.borrow_ref().with_span(ir_target)?.type_info(),
+                        ));
+                    }
+                    RefRepr::Any(value) => match value.type_hash() {
                         runtime::Vec::HASH => {
                             let vec = value.borrow_ref::<runtime::Vec>().with_span(ir_target)?;
 
                             if let Some(value) = vec.get(*index) {
+                                return Ok(value.clone());
+                            }
+                        }
+                        runtime::OwnedTuple::HASH => {
+                            let tuple = value
+                                .borrow_ref::<runtime::OwnedTuple>()
+                                .with_span(ir_target)?;
+
+                            if let Some(value) = tuple.get(*index) {
                                 return Ok(value.clone());
                             }
                         }
@@ -255,12 +261,6 @@ impl ir::Scopes {
                             ));
                         }
                     },
-                    value => {
-                        return Err(compile::Error::expected_type::<OwnedTuple>(
-                            ir_target,
-                            value.type_info(),
-                        ));
-                    }
                 }
 
                 Err(compile::Error::new(
@@ -321,28 +321,28 @@ impl ir::Scopes {
                         ));
                     }
                     RefRepr::Mutable(current) => {
-                        let mut mutable = current.borrow_mut().with_span(ir_target)?;
+                        let mutable = current.borrow_mut().with_span(ir_target)?;
 
-                        match &mut *mutable {
-                            Mutable::Tuple(tuple) => {
-                                if let Some(current) = tuple.get_mut(*index) {
-                                    *current = value;
-                                    return Ok(());
-                                }
-                            }
-                            value => {
-                                return Err(compile::Error::expected_type::<OwnedTuple>(
-                                    ir_target,
-                                    value.type_info(),
-                                ));
-                            }
-                        };
+                        return Err(compile::Error::expected_type::<OwnedTuple>(
+                            ir_target,
+                            mutable.type_info(),
+                        ));
                     }
                     RefRepr::Any(any) => match any.type_hash() {
                         runtime::Vec::HASH => {
                             let mut vec = any.borrow_mut::<runtime::Vec>().with_span(ir_target)?;
 
                             if let Some(current) = vec.get_mut(*index) {
+                                *current = value;
+                                return Ok(());
+                            }
+                        }
+                        runtime::OwnedTuple::HASH => {
+                            let mut tuple = any
+                                .borrow_mut::<runtime::OwnedTuple>()
+                                .with_span(ir_target)?;
+
+                            if let Some(current) = tuple.get_mut(*index) {
                                 *current = value;
                                 return Ok(());
                             }
@@ -409,24 +409,12 @@ impl ir::Scopes {
 
                 match current.as_ref_repr().with_span(ir_target)? {
                     RefRepr::Mutable(value) => {
-                        let mut value = value.borrow_mut().with_span(ir_target)?;
+                        let value = value.borrow_ref().with_span(ir_target)?;
 
-                        match &mut *value {
-                            Mutable::Tuple(tuple) => {
-                                let value = tuple.get_mut(*index).ok_or_else(|| {
-                                    compile::Error::new(
-                                        ir_target,
-                                        IrErrorKind::MissingIndex { index: *index },
-                                    )
-                                })?;
-
-                                op(value)
-                            }
-                            actual => Err(compile::Error::expected_type::<OwnedTuple>(
-                                ir_target,
-                                actual.type_info(),
-                            )),
-                        }
+                        Err(compile::Error::expected_type::<OwnedTuple>(
+                            ir_target,
+                            value.type_info(),
+                        ))
                     }
                     RefRepr::Any(value) => match value.type_hash() {
                         runtime::Vec::HASH => {
@@ -434,6 +422,20 @@ impl ir::Scopes {
                                 value.borrow_mut::<runtime::Vec>().with_span(ir_target)?;
 
                             let value = vec.get_mut(*index).ok_or_else(|| {
+                                compile::Error::new(
+                                    ir_target,
+                                    IrErrorKind::MissingIndex { index: *index },
+                                )
+                            })?;
+
+                            op(value)
+                        }
+                        runtime::OwnedTuple::HASH => {
+                            let mut tuple = value
+                                .borrow_mut::<runtime::OwnedTuple>()
+                                .with_span(ir_target)?;
+
+                            let value = tuple.get_mut(*index).ok_or_else(|| {
                                 compile::Error::new(
                                     ir_target,
                                     IrErrorKind::MissingIndex { index: *index },

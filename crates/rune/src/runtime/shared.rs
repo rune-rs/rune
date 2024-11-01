@@ -128,7 +128,7 @@ impl<T: ?Sized> Shared<T> {
 
             Ok(BorrowRef::new(
                 NonNull::new_unchecked(inner.data.get()),
-                guard,
+                guard.into_raw(),
             ))
         }
     }
@@ -148,7 +148,7 @@ impl<T: ?Sized> Shared<T> {
 
             Ok(BorrowMut::new(
                 NonNull::new_unchecked(inner.data.get()),
-                guard,
+                guard.into_raw(),
             ))
         }
     }
