@@ -52,7 +52,7 @@ fn type_of_val(value: Value) -> VmResult<Type> {
 ///
 /// assert_eq!(format!("{}", any::Type::of_val(42)), "Type(0x1cad9186c9641c4f)");
 /// ```
-#[rune::function(instance, protocol = STRING_DISPLAY)]
+#[rune::function(instance, protocol = DISPLAY_FMT)]
 fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
     vm_write!(f, "{:?}", ty)
 }

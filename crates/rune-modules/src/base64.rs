@@ -94,8 +94,8 @@ impl From<base64::DecodeSliceError> for DecodeError {
 }
 
 impl DecodeError {
-    #[rune::function(instance, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(instance, protocol = DISPLAY_FMT)]
+    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         rune::vm_write!(f, "{}", self.inner)
     }
 }

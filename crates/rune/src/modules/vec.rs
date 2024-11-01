@@ -80,7 +80,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(index_get)?;
     m.function_meta(index_set)?;
     m.function_meta(resize)?;
-    m.function_meta(string_debug__meta)?;
+    m.function_meta(debug_fmt__meta)?;
 
     m.function_meta(clone__meta)?;
     m.implement_trait::<Vec>(rune::item!(::std::clone::Clone))?;
@@ -603,7 +603,7 @@ fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
 
 /// Write a debug representation to a string.
 ///
-/// This calls the [`STRING_DEBUG`] protocol over all elements of the
+/// This calls the [`DEBUG_FMT`] protocol over all elements of the
 /// collection.
 ///
 /// # Examples
@@ -612,9 +612,9 @@ fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
 /// let vec = [1, 2, 3];
 /// assert_eq!(format!("{:?}", vec), "[1, 2, 3]");
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
-fn string_debug(this: &Vec, f: &mut Formatter) -> VmResult<()> {
-    Vec::string_debug_with(this, f, &mut EnvProtocolCaller)
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
+fn debug_fmt(this: &Vec, f: &mut Formatter) -> VmResult<()> {
+    Vec::debug_fmt_with(this, f, &mut EnvProtocolCaller)
 }
 
 /// Perform a partial equality check with this vector.

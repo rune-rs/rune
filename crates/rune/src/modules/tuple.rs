@@ -69,7 +69,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.implement_trait::<OwnedTuple>(rune::item!(::std::clone::Clone))?;
 
     m.function_meta(hash__meta)?;
-    m.function_meta(string_debug__meta)?;
+    m.function_meta(debug_fmt__meta)?;
     Ok(m)
 }
 
@@ -270,8 +270,8 @@ fn clone(this: &Tuple) -> VmResult<OwnedTuple> {
 /// let a = (1, 2, 3);
 /// println!("{a:?}");
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
-fn string_debug(this: &Tuple, f: &mut Formatter) -> VmResult<()> {
-    this.string_debug_with(f, &mut EnvProtocolCaller)
+fn debug_fmt(this: &Tuple, f: &mut Formatter) -> VmResult<()> {
+    this.debug_fmt_with(f, &mut EnvProtocolCaller)
 }

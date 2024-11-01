@@ -65,12 +65,12 @@ pub mod de {
     }
 
     impl Error {
-        #[rune::function(protocol = STRING_DISPLAY)]
+        #[rune::function(protocol = DISPLAY_FMT)]
         pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
             vm_write!(f, "{}", self.error)
         }
 
-        #[rune::function(protocol = STRING_DEBUG)]
+        #[rune::function(protocol = DEBUG_FMT)]
         pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
             vm_write!(f, "{:?}", self.error)
         }
@@ -105,12 +105,12 @@ pub mod ser {
     }
 
     impl Error {
-        #[rune::function(protocol = STRING_DISPLAY)]
+        #[rune::function(protocol = DISPLAY_FMT)]
         pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
             vm_write!(f, "{}", self.error)
         }
 
-        #[rune::function(protocol = STRING_DEBUG)]
+        #[rune::function(protocol = DEBUG_FMT)]
         pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
             vm_write!(f, "{:?}", self.error)
         }

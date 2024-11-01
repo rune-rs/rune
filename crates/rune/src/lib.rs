@@ -297,7 +297,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///   Type::name)]` argument. If `instance` is specified it is an associated
 ///   instance function that can be defined externally.
 /// * Instance functions can be made a protocol function
-///   `#[rune::function(protocol = STRING_DISPLAY)]`.
+///   `#[rune::function(protocol = DISPLAY_FMT)]`.
 ///
 /// # Instance and associated functions
 ///
@@ -408,8 +408,8 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     /* .. */
 /// }
 ///
-/// #[rune::function(instance, protocol = STRING_DISPLAY)]
-/// fn string_display(this: &Struct, f: &mut Formatter) -> VmResult<()> {
+/// #[rune::function(instance, protocol = DISPLAY_FMT)]
+/// fn display_fmt(this: &Struct, f: &mut Formatter) -> VmResult<()> {
 ///     /* .. */
 ///     # todo!()
 /// }
@@ -497,7 +497,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///         }
 ///     }
 ///
-///     /// Display the string using the [`STRING_DISPLAY`] protocol.
+///     /// Display the string using the [`DISPLAY_FMT`] protocol.
 ///     ///
 ///     /// # Examples
 ///     ///
@@ -505,7 +505,7 @@ pub(crate) use rune_macros::__internal_impl_any;
 ///     /// let string = String::new("hello");
 ///     /// assert_eq!(format!("{}", string), "hello");
 ///     /// ```
-///     #[rune::function(protocol = STRING_DISPLAY)]
+///     #[rune::function(protocol = DISPLAY_FMT)]
 ///     fn display(&self, f: &mut Formatter) -> VmResult<()> {
 ///         vm_write!(f, "{}", self.inner);
 ///         VmResult::Ok(())

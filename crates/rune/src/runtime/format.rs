@@ -246,7 +246,7 @@ impl FormatSpec {
             return VmResult::Ok(());
         }
 
-        value.string_display_with(f, caller)
+        value.display_fmt_with(f, caller)
     }
 
     fn format_debug(
@@ -289,7 +289,7 @@ impl FormatSpec {
             return VmResult::Ok(());
         };
 
-        value.string_debug_with(f, caller)
+        value.debug_fmt_with(f, caller)
     }
 
     fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {

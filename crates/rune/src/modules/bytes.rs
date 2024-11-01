@@ -50,7 +50,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.function_meta(hash__meta)?;
 
-    m.function_meta(string_debug__meta)?;
+    m.function_meta(debug_fmt__meta)?;
 
     Ok(m)
 }
@@ -439,9 +439,9 @@ fn hash(this: &[u8], hasher: &mut Hasher) {
 /// ```rune
 /// println!("{:?}", b"Hello");
 /// ```
-#[rune::function(keep, instance, protocol = STRING_DEBUG)]
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
-fn string_debug(this: &[u8], f: &mut Formatter) -> VmResult<()> {
+fn debug_fmt(this: &[u8], f: &mut Formatter) -> VmResult<()> {
     rune::vm_write!(f, "{this:?}")
 }
 

@@ -479,8 +479,8 @@ define! {
     };
 
     /// Protocol function used by template strings.
-    pub const STRING_DISPLAY: Protocol = Protocol {
-        name: "STRING_DISPLAY",
+    pub const DISPLAY_FMT: Protocol = Protocol {
+        name: "DISPLAY_FMT",
         hash: 0x811b62957ea9d9f9u64,
         repr: Some("println(\"{}\", $value)"),
         doc: docstring! {
@@ -489,8 +489,8 @@ define! {
     };
 
     /// Protocol function used by custom debug impls.
-    pub const STRING_DEBUG: Protocol = Protocol {
-        name: "STRING_DEBUG",
+    pub const DEBUG_FMT: Protocol = Protocol {
+        name: "DEBUG_FMT",
         hash: 0x4064e3867aaa0717u64,
         repr: Some("println(\"{:?}\", $value)"),
         doc: docstring! {

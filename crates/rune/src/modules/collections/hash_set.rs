@@ -32,7 +32,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(HashSet::iter__meta)?;
     m.function_meta(HashSet::into_iter__meta)?;
     m.function_meta(HashSet::from_iter__meta)?;
-    m.function_meta(HashSet::string_debug__meta)?;
+    m.function_meta(HashSet::debug_fmt__meta)?;
 
     m.function_meta(HashSet::clone__meta)?;
     m.implement_trait::<HashSet>(rune::item!(::std::clone::Clone))?;
@@ -411,7 +411,7 @@ impl HashSet {
 
     /// Write a debug representation to a string.
     ///
-    /// This calls the [`STRING_DEBUG`] protocol over all elements of the
+    /// This calls the [`DEBUG_FMT`] protocol over all elements of the
     /// collection.
     ///
     /// # Examples
@@ -422,12 +422,12 @@ impl HashSet {
     /// let set = HashSet::from_iter([1, 2, 3]);
     /// println!("{:?}", set);
     /// ```
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
-        self.string_debug_with(f, &mut EnvProtocolCaller)
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
-    fn string_debug_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> VmResult<()> {
+    fn debug_fmt_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> VmResult<()> {
         vm_try!(vm_write!(f, "{{"));
 
         let mut it = self.table.iter().peekable();

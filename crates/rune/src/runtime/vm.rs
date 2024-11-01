@@ -3071,7 +3071,7 @@ impl Vm {
         let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
 
         for value in values {
-            vm_try!(value.string_display_with(&mut f, &mut *self));
+            vm_try!(value.display_fmt_with(&mut f, &mut *self));
         }
 
         vm_try!(out.store(&mut self.stack, s));
@@ -3678,14 +3678,14 @@ impl Vm {
     /// Call the provided closure within the context of this virtual machine.
     ///
     /// This allows for calling protocol function helpers like
-    /// [Value::string_display] which requires access to a virtual machine.
+    /// [Value::display_fmt] which requires access to a virtual machine.
     ///
     /// ```no_run
     /// use rune::{Value, Vm};
     /// use rune::runtime::{Formatter, VmError};
     ///
     /// fn use_with(vm: &Vm, output: &Value, f: &mut Formatter) -> Result<(), VmError> {
-    ///     vm.with(|| output.string_display(f)).into_result()?;
+    ///     vm.with(|| output.display_fmt(f)).into_result()?;
     ///     Ok(())
     /// }
     /// ```

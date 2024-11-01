@@ -122,12 +122,12 @@ impl ControlFlow {
     ///
     /// let string = format!("{:?}", ControlFlow::Continue(true));
     /// ```
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    pub(crate) fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
-        Self::string_debug_with(self, f, &mut EnvProtocolCaller)
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    pub(crate) fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        Self::debug_fmt_with(self, f, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn string_debug_with(
+    pub(crate) fn debug_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
@@ -135,12 +135,12 @@ impl ControlFlow {
         match self {
             ControlFlow::Continue(value) => {
                 vm_try!(vm_write!(f, "Continue("));
-                vm_try!(Value::string_debug_with(value, f, caller));
+                vm_try!(Value::debug_fmt_with(value, f, caller));
                 vm_try!(vm_write!(f, ")"));
             }
             ControlFlow::Break(value) => {
                 vm_try!(vm_write!(f, "Break("));
-                vm_try!(Value::string_debug_with(value, f, caller));
+                vm_try!(Value::debug_fmt_with(value, f, caller));
                 vm_try!(vm_write!(f, ")"));
             }
         }

@@ -60,7 +60,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Command::new__meta)?;
     module.function_meta(Command::arg__meta)?;
     module.function_meta(Command::args__meta)?;
-    module.function_meta(Command::string_debug__meta)?;
+    module.function_meta(Command::debug_fmt__meta)?;
     #[cfg(unix)]
     module.function_meta(Command::arg0__meta)?;
     module.function_meta(Command::stdin__meta)?;
@@ -70,7 +70,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.function_meta(Command::spawn__meta)?;
 
     module.ty::<Child>()?;
-    module.function_meta(Child::string_debug__meta)?;
+    module.function_meta(Child::debug_fmt__meta)?;
     module.function_meta(Child::stdin__meta)?;
     module.function_meta(Child::stdout__meta)?;
     module.function_meta(Child::stderr__meta)?;
@@ -83,28 +83,28 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     module.ty::<ExitStatus>()?;
     module.function_meta(ExitStatus::code__meta)?;
     module.function_meta(ExitStatus::success__meta)?;
-    module.function_meta(ExitStatus::string_display__meta)?;
-    module.function_meta(ExitStatus::string_debug__meta)?;
+    module.function_meta(ExitStatus::display_fmt__meta)?;
+    module.function_meta(ExitStatus::debug_fmt__meta)?;
 
     module.ty::<Output>()?;
-    module.function_meta(Output::string_debug__meta)?;
+    module.function_meta(Output::debug_fmt__meta)?;
 
     module.ty::<Stdio>()?;
     module.function_meta(Stdio::null__meta)?;
     module.function_meta(Stdio::inherit__meta)?;
     module.function_meta(Stdio::piped__meta)?;
-    module.function_meta(Stdio::string_debug__meta)?;
+    module.function_meta(Stdio::debug_fmt__meta)?;
 
     module.ty::<ChildStdin>()?;
-    module.function_meta(ChildStdin::string_debug__meta)?;
+    module.function_meta(ChildStdin::debug_fmt__meta)?;
     module.function_meta(ChildStdin::try_into_stdio__meta)?;
 
     module.ty::<ChildStdout>()?;
-    module.function_meta(ChildStdout::string_debug__meta)?;
+    module.function_meta(ChildStdout::debug_fmt__meta)?;
     module.function_meta(ChildStdout::try_into_stdio__meta)?;
 
     module.ty::<ChildStderr>()?;
-    module.function_meta(ChildStderr::string_debug__meta)?;
+    module.function_meta(ChildStderr::debug_fmt__meta)?;
     module.function_meta(ChildStderr::try_into_stdio__meta)?;
 
     Ok(module)
@@ -424,8 +424,8 @@ impl Command {
         })
     }
 
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{self:?}")
     }
 }
@@ -616,8 +616,8 @@ impl Child {
         })
     }
 
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{:?}", self.inner)
     }
 }
@@ -644,8 +644,8 @@ struct Output {
 }
 
 impl Output {
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{self:?}")
     }
 }
@@ -713,13 +713,13 @@ impl ExitStatus {
         self.inner.code()
     }
 
-    #[rune::function(keep, protocol = STRING_DISPLAY)]
-    fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, protocol = DISPLAY_FMT)]
+    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{}", self.inner)
     }
 
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{:?}", self.inner)
     }
 }
@@ -756,8 +756,8 @@ impl Stdio {
         }
     }
 
-    #[rune::function(keep, protocol = STRING_DEBUG)]
-    fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+    #[rune::function(keep, protocol = DEBUG_FMT)]
+    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{:?}", self.inner)
     }
 }
@@ -784,8 +784,8 @@ macro_rules! stdio_stream {
                 })
             }
 
-            #[rune::function(keep, protocol = STRING_DEBUG)]
-            fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
+            #[rune::function(keep, protocol = DEBUG_FMT)]
+            fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
                 vm_write!(f, "{:?}", self.inner)
             }
         }

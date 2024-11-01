@@ -6,11 +6,11 @@ use crate::Any;
 
 /// A formatter for the rune virtual machine.
 ///
-/// This is used as a receiver to functions implementing the [`STRING_DEBUG`]
-/// and [`STRING_DISPLAY`] protocols.
+/// This is used as a receiver to functions implementing the [`DEBUG_FMT`]
+/// and [`DISPLAY_FMT`] protocols.
 ///
-/// [`STRING_DEBUG`]: crate::runtime::Protocol::STRING_DEBUG
-/// [`STRING_DISPLAY`]: crate::runtime::Protocol::STRING_DISPLAY
+/// [`DEBUG_FMT`]: crate::runtime::Protocol::DEBUG_FMT
+/// [`DISPLAY_FMT`]: crate::runtime::Protocol::DISPLAY_FMT
 #[derive(Any)]
 #[rune(crate, item = ::std::fmt)]
 pub struct Formatter {

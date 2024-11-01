@@ -206,9 +206,9 @@ fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
             let mut s = String::new();
             // SAFETY: Formatter does not outlive the string it references.
             let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
-            vm_try!(message.string_display(&mut f));
+            vm_try!(message.display_fmt(&mut f));
             vm_try!(f.try_write_str(": "));
-            vm_try!(err.string_debug(&mut f));
+            vm_try!(err.debug_fmt(&mut f));
             VmResult::err(Panic::custom(s))
         }
     }

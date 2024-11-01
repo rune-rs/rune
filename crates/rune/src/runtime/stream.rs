@@ -192,7 +192,7 @@ impl Stream {
     ///
     /// println!("{a:?}");
     /// ``
-    #[rune::function(keep, instance, protocol = STRING_DEBUG)]
+    #[rune::function(keep, instance, protocol = DEBUG_FMT)]
     fn debug(&self, f: &mut Formatter) -> VmResult<()> {
         vm_write!(f, "{self:?}")
     }

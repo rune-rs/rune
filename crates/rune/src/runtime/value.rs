@@ -329,7 +329,7 @@ impl Value {
         Self { repr: Repr::Empty }
     }
 
-    /// Format the value using the [Protocol::STRING_DISPLAY] protocol.
+    /// Format the value using the [Protocol::DISPLAY_FMT] protocol.
     ///
     /// Requires a work buffer `buf` which will be used in case the value
     /// provided requires out-of-line formatting. This must be cleared between
@@ -343,13 +343,13 @@ impl Value {
     /// # Panics
     ///
     /// This function will panic if called outside of a virtual machine.
-    pub fn string_display(&self, f: &mut Formatter) -> VmResult<()> {
-        self.string_display_with(f, &mut EnvProtocolCaller)
+    pub fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        self.display_fmt_with(f, &mut EnvProtocolCaller)
     }
 
-    /// Internal impl of string_display with a customizable caller.
+    /// Internal impl of display_fmt with a customizable caller.
     #[cfg_attr(feature = "bench", inline(never))]
-    pub(crate) fn string_display_with(
+    pub(crate) fn display_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
@@ -390,7 +390,7 @@ impl Value {
         let mut args = DynGuardedArgs::new((f,));
 
         let result =
-            vm_try!(caller.call_protocol_fn(Protocol::STRING_DISPLAY, self.clone(), &mut args));
+            vm_try!(caller.call_protocol_fn(Protocol::DISPLAY_FMT, self.clone(), &mut args));
 
         VmResult::Ok(vm_try!(<()>::from_value(result)))
     }
@@ -451,7 +451,7 @@ impl Value {
         )))
     }
 
-    /// Debug format the value using the [`STRING_DEBUG`] protocol.
+    /// Debug format the value using the [`DEBUG_FMT`] protocol.
     ///
     /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
@@ -462,13 +462,13 @@ impl Value {
     ///
     /// This function will panic if called outside of a virtual machine.
     ///
-    /// [`STRING_DEBUG`]: Protocol::STRING_DEBUG
-    pub fn string_debug(&self, f: &mut Formatter) -> VmResult<()> {
-        self.string_debug_with(f, &mut EnvProtocolCaller)
+    /// [`DEBUG_FMT`]: Protocol::DEBUG_FMT
+    pub fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+        self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
-    /// Internal impl of string_debug with a customizable caller.
-    pub(crate) fn string_debug_with(
+    /// Internal impl of debug_fmt with a customizable caller.
+    pub(crate) fn debug_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
@@ -523,8 +523,7 @@ impl Value {
         // reborrow f to avoid moving it
         let mut args = DynGuardedArgs::new((&mut *f,));
 
-        match vm_try!(caller.try_call_protocol_fn(Protocol::STRING_DEBUG, self.clone(), &mut args))
-        {
+        match vm_try!(caller.try_call_protocol_fn(Protocol::DEBUG_FMT, self.clone(), &mut args)) {
             CallResultOnly::Ok(value) => {
                 vm_try!(<()>::from_value(value));
             }
@@ -1792,7 +1791,7 @@ impl fmt::Debug for Value {
         // SAFETY: Formatter does not outlive the string it references.
         let mut o = unsafe { Formatter::new(NonNull::from(&mut s)) };
 
-        if let Err(e) = self.string_debug(&mut o).into_result() {
+        if let Err(e) = self.debug_fmt(&mut o).into_result() {
             match &self.repr {
                 Repr::Empty => {
                     write!(f, "<empty: {e}>")?;
