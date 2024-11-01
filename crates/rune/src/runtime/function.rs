@@ -8,6 +8,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::function;
+use crate::runtime;
 use crate::runtime::vm::Isolated;
 use crate::shared::AssertSend;
 use crate::Any;
@@ -15,8 +16,8 @@ use crate::Hash;
 
 use super::{
     Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs, InstAddress,
-    Mutable, Output, OwnedTuple, RefRepr, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value,
-    VariantRtti, Vm, VmCall, VmErrorKind, VmHalt, VmResult,
+    Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, VariantRtti, Vm,
+    VmCall, VmErrorKind, VmHalt, VmResult,
 };
 
 /// The type of a function in Rune.
@@ -611,16 +612,9 @@ where
         let future = async move {
             let value: Value = vm_try!(self.call(args));
 
-            let value = 'out: {
-                if let RefRepr::Mutable(value) = vm_try!(value.as_ref_repr()) {
-                    let mut value = vm_try!(value.borrow_mut());
-
-                    if let Mutable::Future(future) = &mut *value {
-                        break 'out vm_try!(future.await);
-                    }
-                }
-
-                value
+            let value = match vm_try!(value.try_borrow_mut::<runtime::Future>()) {
+                Some(future) => vm_try!(future.await),
+                None => value,
             };
 
             VmResult::Ok(vm_try!(T::from_value(value)))

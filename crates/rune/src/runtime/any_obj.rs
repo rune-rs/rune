@@ -389,7 +389,7 @@ impl AnyObj {
     /// Returns `None` if the interior type is not `T`.
     ///
     /// This prevents other exclusive accesses from being performed while the
-    /// guard returned from this function is live.
+    /// guard returned from this function is alive.
     pub fn try_borrow_ref<T>(&self) -> Result<Option<BorrowRef<'_, T>>, AccessError>
     where
         T: Any,
@@ -405,6 +405,31 @@ impl AnyObj {
             let guard = self.shared.as_ref().access.shared()?;
             let data = vtable.as_ptr(self.shared);
             Ok(Some(BorrowRef::new(data, guard.into_raw())))
+        }
+    }
+
+    /// Try to borrow a reference to the interior value while checking for
+    /// exclusive access.
+    ///
+    /// Returns `None` if the interior type is not `T`.
+    ///
+    /// This prevents other exclusive accesses from being performed while the
+    /// guard returned from this function is alive.
+    pub fn try_borrow_mut<T>(&self) -> Result<Option<BorrowMut<'_, T>>, AccessError>
+    where
+        T: Any,
+    {
+        let vtable = vtable(self);
+
+        if (vtable.type_id)() != TypeId::of::<T>() {
+            return Ok(None);
+        }
+
+        // SAFETY: We've checked for the appropriate type just above.
+        unsafe {
+            let guard = self.shared.as_ref().access.exclusive()?;
+            let data = vtable.as_ptr(self.shared);
+            Ok(Some(BorrowMut::new(data, guard.into_raw())))
         }
     }
 

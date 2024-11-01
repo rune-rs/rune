@@ -21,8 +21,6 @@ struct Vtable {
 /// the virtual machine that created it.
 #[derive(Any)]
 #[rune(crate)]
-#[rune(builtin, static_type = FUTURE)]
-#[rune(from_value = Value::into_future)]
 #[rune(item = ::std::future)]
 pub struct Future {
     future: Option<NonNull<()>>,
@@ -31,7 +29,7 @@ pub struct Future {
 
 impl Future {
     /// Construct a new wrapped future.
-    pub fn new<T, O>(future: T) -> alloc::Result<Self>
+    pub(crate) fn new<T, O>(future: T) -> alloc::Result<Self>
     where
         T: 'static + future::Future<Output = VmResult<O>>,
         O: ToValue,

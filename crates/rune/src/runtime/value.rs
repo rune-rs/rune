@@ -429,9 +429,6 @@ impl Value {
                     Mutable::TupleStruct(value) => Mutable::TupleStruct(vm_try!(value.try_clone())),
                     Mutable::Struct(value) => Mutable::Struct(vm_try!(value.try_clone())),
                     Mutable::Variant(value) => Mutable::Variant(vm_try!(value.try_clone())),
-                    _ => {
-                        break 'fallback;
-                    }
                 },
                 RefRepr::Any(..) => {
                     break 'fallback;
@@ -488,9 +485,6 @@ impl Value {
 
             match &*vm_try!(value.borrow_ref()) {
                 Mutable::Object(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::Future(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Option(value) => {
@@ -819,15 +813,6 @@ impl Value {
         into_object,
     }
 
-    into_base! {
-        /// Coerce into a [`Future`].
-        Future(Future),
-        into_future_ref,
-        into_future_mut,
-        borrow_future_ref,
-        borrow_future_mut,
-    }
-
     /// Borrow as a tuple.
     ///
     /// This ensures that the value has read access to the underlying value
@@ -956,11 +941,15 @@ impl Value {
     /// [`Vm`]: crate::Vm
     #[inline]
     pub fn into_future(self) -> Result<Future, RuntimeError> {
-        let target = match self.take_repr()? {
-            OwnedRepr::Mutable(Mutable::Future(future)) => return Ok(future),
-            OwnedRepr::Inline(value) => Value::from(value),
-            OwnedRepr::Mutable(value) => Value::try_from(value)?,
-            OwnedRepr::Any(value) => Value::from(value),
+        let target = match self.repr {
+            Repr::Empty => return Err(RuntimeError::from(AccessError::empty())),
+            Repr::Any(value) => match value.type_hash() {
+                Future::HASH => {
+                    return Ok(value.downcast::<Future>()?);
+                }
+                _ => Value::from(value),
+            },
+            repr => Value::from(repr),
         };
 
         let value = EnvProtocolCaller
@@ -1710,6 +1699,18 @@ impl Value {
         }
     }
 
+    pub(crate) fn try_borrow_mut<T>(&self) -> Result<Option<BorrowMut<'_, T>>, AccessError>
+    where
+        T: Any,
+    {
+        match &self.repr {
+            Repr::Inline(..) => Ok(None),
+            Repr::Mutable(..) => Ok(None),
+            Repr::Any(value) => value.try_borrow_mut(),
+            Repr::Empty => Err(AccessError::empty()),
+        }
+    }
+
     pub(crate) fn protocol_into_iter(&self) -> VmResult<Value> {
         EnvProtocolCaller.call_protocol_fn(Protocol::INTO_ITER, self.clone(), &mut ())
     }
@@ -1808,6 +1809,13 @@ impl fmt::Debug for Value {
     }
 }
 
+impl From<Repr> for Value {
+    #[inline]
+    fn from(repr: Repr) -> Self {
+        Self { repr }
+    }
+}
+
 impl From<()> for Value {
     #[inline]
     fn from((): ()) -> Self {
@@ -1896,7 +1904,6 @@ from! {
     Struct => Struct,
     Variant => Variant,
     Object => Object,
-    Future => Future,
 }
 
 any_from! {
@@ -1910,6 +1917,7 @@ any_from! {
     super::Generator,
     super::Stream,
     super::Function,
+    super::Future,
 }
 
 from_container! {
@@ -2035,8 +2043,6 @@ impl TypeValue {
 pub(crate) enum Mutable {
     /// An object.
     Object(Object),
-    /// A stored future.
-    Future(Future),
     /// An empty value indicating nothing.
     Option(Option<Value>),
     /// A stored result in a slot.
@@ -2055,7 +2061,6 @@ impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
             Mutable::Object(..) => TypeInfo::static_type(static_type::OBJECT),
-            Mutable::Future(..) => TypeInfo::static_type(static_type::FUTURE),
             Mutable::Option(..) => TypeInfo::static_type(static_type::OPTION),
             Mutable::Result(..) => TypeInfo::static_type(static_type::RESULT),
             Mutable::EmptyStruct(empty) => empty.type_info(),
@@ -2072,7 +2077,6 @@ impl Mutable {
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
             Mutable::Object(..) => static_type::OBJECT.hash,
-            Mutable::Future(..) => static_type::FUTURE.hash,
             Mutable::Result(..) => static_type::RESULT.hash,
             Mutable::Option(..) => static_type::OPTION.hash,
             Mutable::EmptyStruct(empty) => empty.rtti.hash,
