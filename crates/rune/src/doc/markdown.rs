@@ -37,11 +37,14 @@ impl StrWrite for StringWriter<'_> {
 }
 
 struct Writer<'a, 'o, I> {
-    syntax_set: &'a SyntaxSet,
+    syntax_set: Option<&'a SyntaxSet>,
     iter: I,
     out: StringWriter<'o>,
     tests: Option<&'o mut Vec<(String, TestParams)>>,
-    codeblock: Option<(&'a SyntaxReference, Option<TestParams>)>,
+    codeblock: Option<(
+        Option<(&'a SyntaxSet, &'a SyntaxReference)>,
+        Option<TestParams>,
+    )>,
     table_state: TableState,
     table_alignments: Vec<Alignment>,
     table_cell_index: usize,
@@ -72,7 +75,13 @@ where
                         let mut string = String::new();
 
                         let s = (self.tests.is_some() && params.is_some()).then_some(&mut string);
-                        let html = render_code_by_syntax(self.syntax_set, text.lines(), syntax, s)?;
+
+                        let html = match syntax {
+                            Some((syntax_set, syntax)) => {
+                                render_code_by_syntax(syntax_set, syntax, text.lines(), s)?
+                            }
+                            None => render_code_without_syntax(text.lines(), s)?,
+                        };
 
                         if let Some(params) = params {
                             if let Some(tests) = self.tests.as_mut() {
@@ -307,7 +316,11 @@ where
     fn find_syntax<'input>(
         &mut self,
         kind: &'input CodeBlockKind<'input>,
-    ) -> (&'input str, &'a SyntaxReference, Option<TestParams>) {
+    ) -> (
+        &'input str,
+        Option<(&'a SyntaxSet, &'a SyntaxReference)>,
+        Option<TestParams>,
+    ) {
         let mut syntax = None;
         let mut params = TestParams::default();
 
@@ -331,8 +344,17 @@ where
                 };
 
                 if syntax.is_none() {
-                    if let Some(s) = self.syntax_set.find_syntax_by_token(lookup) {
-                        syntax = Some((token, s, is_rune));
+                    match self.syntax_set {
+                        Some(syntax_set) => {
+                            if let Some(s) = syntax_set.find_syntax_by_token(lookup) {
+                                syntax = Some((token, Some((syntax_set, s)), is_rune));
+                            }
+                        }
+                        None => {
+                            if is_rune {
+                                syntax = Some((token, None, is_rune));
+                            }
+                        }
                     }
                 }
             }
@@ -342,15 +364,19 @@ where
             return (token, syntax, is_rune.then_some(params));
         }
 
-        let Some(syntax) = self.syntax_set.find_syntax_by_token(RUST_TOKEN) else {
-            return (
-                "text",
-                self.syntax_set.find_syntax_plain_text(),
-                Some(params),
-            );
-        };
+        if let Some(syntax_set) = self.syntax_set {
+            let Some(syntax) = syntax_set.find_syntax_by_token(RUST_TOKEN) else {
+                return (
+                    "text",
+                    Some((syntax_set, syntax_set.find_syntax_plain_text())),
+                    Some(params),
+                );
+            };
 
-        (RUNE_TOKEN, syntax, Some(params))
+            (RUNE_TOKEN, Some((syntax_set, syntax)), Some(params))
+        } else {
+            (RUNE_TOKEN, None, Some(params))
+        }
     }
 
     fn end_tag(&mut self, tag: TagEnd) -> Result<()> {
@@ -467,7 +493,7 @@ where
 
 /// Process markdown html and captures tests.
 pub(crate) fn push_html<'a, I>(
-    syntax_set: &'a SyntaxSet,
+    syntax_set: Option<&'a SyntaxSet>,
     string: &'a mut String,
     iter: I,
     tests: Option<&'a mut Vec<(String, TestParams)>>,
@@ -494,8 +520,8 @@ where
 /// Render documentation.
 pub(super) fn render_code_by_syntax<I>(
     syntax_set: &SyntaxSet,
-    lines: I,
     syntax: &SyntaxReference,
+    lines: I,
     mut out: Option<&mut String>,
 ) -> Result<String>
 where
@@ -503,7 +529,6 @@ where
     I::Item: AsRef<str>,
 {
     let mut buf = String::new();
-
     let mut gen =
         ClassedHTMLGenerator::new_with_class_style(syntax, syntax_set, ClassStyle::Spaced);
 
@@ -532,4 +557,39 @@ where
     }
 
     Ok(gen.finalize().try_into()?)
+}
+
+pub(super) fn render_code_without_syntax<I>(
+    lines: I,
+    mut out: Option<&mut String>,
+) -> Result<String>
+where
+    I: IntoIterator,
+    I::Item: AsRef<str>,
+{
+    let mut buf = String::new();
+
+    for line in lines {
+        let line = line.as_ref();
+        let line = line.strip_prefix(' ').unwrap_or(line);
+
+        if line.starts_with('#') {
+            if let Some(o) = out.as_mut() {
+                o.try_push_str(line.trim_start_matches('#'))?;
+                o.try_push('\n')?;
+            }
+
+            continue;
+        }
+
+        if let Some(o) = out.as_mut() {
+            o.try_push_str(line)?;
+            o.try_push('\n')?;
+        }
+
+        buf.try_push_str(line)?;
+        buf.try_push('\n')?;
+    }
+
+    Ok(buf)
 }

@@ -204,7 +204,6 @@ where
         })?;
 
         let mut artifacts = crate::doc::Artifacts::without_assets();
-
         crate::doc::build("root", &mut artifacts, None, slice::from_ref(&doc_visitor))?;
 
         if !c.filtered {

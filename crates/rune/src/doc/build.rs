@@ -85,9 +85,6 @@ pub(crate) fn build(
 
     let templating = templating::Templating::new(partials, paths.clone())?;
 
-    let syntax_set = SyntaxSet::load_defaults_newlines();
-    let theme_set = ThemeSet::load_defaults();
-
     let mut fonts = Vec::new();
     let mut css = Vec::new();
     let mut js = Vec::new();
@@ -103,15 +100,19 @@ pub(crate) fn build(
         };
 
         let file = embed::Assets::get(file.as_ref()).context("missing asset")?;
-        let data = Cow::try_from(file.data)?;
-        let builder_path = artifacts.asset(true, path, move || Ok(data))?;
+
+        let builder_path = artifacts.asset(true, path, move || {
+            let data = Cow::try_from(file.data)?;
+            Ok(data)
+        })?;
+
         paths.insert(path.as_str(), builder_path.as_str())?;
         out.try_push(builder_path)?;
     }
 
-    let theme = theme_set.themes.get(THEME).context("missing theme")?;
-
     let syntax_css = artifacts.asset(true, "syntax.css", || {
+        let theme_set = ThemeSet::load_defaults();
+        let theme = theme_set.themes.get(THEME).context("missing theme")?;
         let content = String::try_from(html::css_for_theme_with_class_style(
             theme,
             html::ClassStyle::Spaced,
@@ -171,7 +172,7 @@ pub(crate) fn build(
         type_template: compile(&templating, "type.html.hbs")?,
         macro_template: compile(&templating, "macro.html.hbs")?,
         function_template: compile(&templating, "function.html.hbs")?,
-        syntax_set,
+        syntax_set: artifacts.enabled.then(SyntaxSet::load_defaults_newlines),
         tests: Vec::new(),
     };
 
@@ -360,7 +361,7 @@ pub(crate) struct Ctxt<'a, 'm> {
     type_template: templating::Template,
     macro_template: templating::Template,
     function_template: templating::Template,
-    syntax_set: SyntaxSet,
+    syntax_set: Option<SyntaxSet>,
     tests: Vec<Test>,
 }
 
@@ -418,18 +419,23 @@ impl<'m> Ctxt<'_, 'm> {
         I: IntoIterator,
         I::Item: AsRef<str>,
     {
-        let syntax = match self
-            .syntax_set
-            .find_syntax_by_token(self::markdown::RUST_TOKEN)
-        {
-            Some(syntax) => syntax,
-            None => self.syntax_set.find_syntax_plain_text(),
-        };
+        match &self.syntax_set {
+            Some(syntax_set) => {
+                let syntax = match syntax_set.find_syntax_by_token(self::markdown::RUST_TOKEN) {
+                    Some(syntax) => syntax,
+                    None => syntax_set.find_syntax_plain_text(),
+                };
 
-        Ok(try_format!(
-            "<pre><code class=\"language-rune\">{}</code></pre>",
-            markdown::render_code_by_syntax(&self.syntax_set, lines, syntax, None)?
-        ))
+                Ok(try_format!(
+                    "<pre><code class=\"language-rune\">{}</code></pre>",
+                    markdown::render_code_by_syntax(syntax_set, syntax, lines, None)?
+                ))
+            }
+            None => Ok(try_format!(
+                "<pre><code class=\"language-rune\">{}</code></pre>",
+                markdown::render_code_without_syntax(lines, None)?
+            )),
+        }
     }
 
     /// Render an optional return type parameter.
@@ -504,7 +510,7 @@ impl<'m> Ctxt<'_, 'm> {
         let mut tests = Vec::new();
 
         markdown::push_html(
-            &self.syntax_set,
+            self.syntax_set.as_ref(),
             &mut o,
             iter,
             capture_tests.then_some(&mut tests),
