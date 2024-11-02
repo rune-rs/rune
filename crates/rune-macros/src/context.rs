@@ -86,17 +86,6 @@ pub(crate) struct TypeAttr {
     pub(crate) constructor: Option<Span>,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
-    /// Indicates that this is a builtin type, so don't generate an `Any`
-    /// implementation for it.
-    pub(crate) builtin: Option<Span>,
-    /// Indicate a static type to use.
-    pub(crate) static_type: Option<syn::Ident>,
-    /// Method to use to convert from value.
-    pub(crate) from_value: Option<syn::Path>,
-    /// Method to use to convert from value ref.
-    pub(crate) from_value_ref: Option<syn::Path>,
-    /// Method to use to convert from value mut.
-    pub(crate) from_value_mut: Option<syn::Path>,
     /// Method to use to convert from value.
     pub(crate) impl_params: Option<syn::punctuated::Punctuated<syn::TypeParam, Token![,]>>,
 }
@@ -509,7 +498,7 @@ impl Context {
             }
 
             let result = a.parse_nested_meta(|meta| {
-                if meta.path == MODULE || meta.path == CRATE {
+                if meta.path.is_ident("module") || meta.path.is_ident("crate") {
                     // Parse `#[rune(crate [= <path>])]`
                     if meta.input.parse::<Option<Token![=]>>()?.is_some() {
                         attr.module = Some(parse_path_compat(meta.input)?);
@@ -547,89 +536,93 @@ impl Context {
                 continue;
             }
 
-            if a.path() == RUNE {
-                let result = a.parse_nested_meta(|meta| {
-                    if meta.path == PARSE {
-                        // Parse `#[rune(parse = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        let s: syn::LitStr = meta.input.parse()?;
+            if a.path() != RUNE {
+                continue;
+            }
 
-                        match s.value().as_str() {
-                            "meta_only" => {
-                                attr.parse = ParseKind::MetaOnly;
-                            }
-                            other => {
-                                return Err(syn::Error::new(
-                                    meta.input.span(),
-                                    format!(
-                                        "Unsupported `#[rune(parse = ..)]` argument `{}`",
-                                        other
-                                    ),
-                                ));
-                            }
-                        };
-                    } else if meta.path == ITEM {
-                        // Parse `#[rune(item = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.item = Some(meta.input.parse()?);
-                    } else if meta.path == NAME {
-                        // Parse `#[rune(name = "..")]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.name = Some(meta.input.parse()?);
-                    } else if meta.path == MODULE || meta.path == CRATE {
-                        // Parse `#[rune(crate [= <path>])]`
-                        if meta.input.parse::<Option<Token![=]>>()?.is_some() {
-                            attr.module = Some(parse_path_compat(meta.input)?);
-                        } else {
-                            attr.module = Some(syn::parse_quote!(crate));
+            let result = a.parse_nested_meta(|meta| {
+                if meta.path.is_ident("parse") {
+                    // Parse `#[rune(parse = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    let s: syn::LitStr = meta.input.parse()?;
+
+                    match s.value().as_str() {
+                        "meta_only" => {
+                            attr.parse = ParseKind::MetaOnly;
                         }
-                    } else if meta.path == INSTALL_WITH {
-                        // Parse `#[rune(install_with = <path>)]`
-                        meta.input.parse::<Token![=]>()?;
-                        attr.install_with = Some(parse_path_compat(meta.input)?);
-                    } else if meta.path == CONSTRUCTOR {
-                        if attr.constructor.is_some() {
+                        other => {
                             return Err(syn::Error::new(
-                                meta.path.span(),
-                                "#[rune(constructor)] must only be used once",
+                                meta.input.span(),
+                                format!("Unsupported `#[rune(parse = ..)]` argument `{}`", other),
                             ));
                         }
+                    };
 
-                        attr.constructor = Some(meta.path.span());
-                    } else if meta.path == BUILTIN {
-                        attr.builtin = Some(meta.path.span());
-                    } else if meta.path == STATIC_TYPE {
-                        meta.input.parse::<Token![=]>()?;
-                        attr.static_type = Some(meta.input.parse()?);
-                    } else if meta.path == FROM_VALUE {
-                        meta.input.parse::<Token![=]>()?;
-                        attr.from_value = Some(meta.input.parse()?);
-                    } else if meta.path == FROM_VALUE_REF {
-                        meta.input.parse::<Token![=]>()?;
-                        attr.from_value_ref = Some(meta.input.parse()?);
-                    } else if meta.path == FROM_VALUE_MUT {
-                        meta.input.parse::<Token![=]>()?;
-                        attr.from_value_mut = Some(meta.input.parse()?);
-                    } else if meta.path.is_ident("impl_params") {
-                        meta.input.parse::<Token![=]>()?;
-                        let content;
-                        syn::bracketed!(content in meta.input);
-                        attr.impl_params =
-                            Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("item") {
+                    // Parse `#[rune(item = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    attr.item = Some(meta.input.parse()?);
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("name") {
+                    // Parse `#[rune(name = "..")]`
+                    meta.input.parse::<Token![=]>()?;
+                    attr.name = Some(meta.input.parse()?);
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("module") || meta.path.is_ident("crate") {
+                    // Parse `#[rune(crate [= <path>])]`
+                    if meta.input.parse::<Option<Token![=]>>()?.is_some() {
+                        attr.module = Some(parse_path_compat(meta.input)?);
                     } else {
-                        return Err(syn::Error::new_spanned(
-                            &meta.path,
-                            "Unsupported type attribute",
+                        attr.module = Some(syn::parse_quote!(crate));
+                    }
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("install_with") {
+                    // Parse `#[rune(install_with = <path>)]`
+                    meta.input.parse::<Token![=]>()?;
+                    attr.install_with = Some(parse_path_compat(meta.input)?);
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("constructor") {
+                    if attr.constructor.is_some() {
+                        return Err(syn::Error::new(
+                            meta.path.span(),
+                            "#[rune(constructor)] must only be used once",
                         ));
                     }
 
-                    Ok(())
-                });
+                    attr.constructor = Some(meta.path.span());
+                    return Ok(());
+                }
 
-                if let Err(e) = result {
-                    self.error(e);
-                };
-            }
+                if meta.path.is_ident("impl_params") {
+                    meta.input.parse::<Token![=]>()?;
+                    let content;
+                    syn::bracketed!(content in meta.input);
+                    attr.impl_params =
+                        Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
+                    return Ok(());
+                }
+
+                Err(syn::Error::new_spanned(
+                    &meta.path,
+                    "Unsupported type attribute",
+                ))
+            });
+
+            if let Err(e) = result {
+                self.error(e);
+            };
         }
 
         attr
@@ -747,7 +740,6 @@ impl Context {
             maybe_type_of: path(m, ["runtime", "MaybeTypeOf"]),
             meta: path(m, ["compile", "meta"]),
             module: path(m, ["__private", "Module"]),
-            mut_: path(m, ["runtime", "Mut"]),
             named: path(m, ["compile", "Named"]),
             non_null: path(core, ["ptr", "NonNull"]),
             object: path(m, ["runtime", "Object"]),
@@ -758,15 +750,12 @@ impl Context {
             parse: path(m, ["parse", "Parse"]),
             parser: path(m, ["parse", "Parser"]),
             protocol: path(m, ["runtime", "Protocol"]),
-            raw_any_guard: path(m, ["runtime", "RawAnyGuard"]),
             raw_value_guard: path(m, ["runtime", "RawValueGuard"]),
-            ref_: path(m, ["runtime", "Ref"]),
             result: path(core, ["result", "Result"]),
             runtime_error: path(m, ["runtime", "RuntimeError"]),
             span: path(m, ["ast", "Span"]),
             spanned: path(m, ["ast", "Spanned"]),
             static_type_info: path(m, ["runtime", "StaticTypeInfo"]),
-            static_type_mod: path(m, ["runtime", "static_type"]),
             string: path(m, ["alloc", "String"]),
             to_const_value_t: path(m, ["runtime", "ToConstValue"]),
             to_tokens: path(m, ["macros", "ToTokens"]),
@@ -845,7 +834,6 @@ pub(crate) struct Tokens {
     pub(crate) maybe_type_of: syn::Path,
     pub(crate) meta: syn::Path,
     pub(crate) module: syn::Path,
-    pub(crate) mut_: syn::Path,
     pub(crate) named: syn::Path,
     pub(crate) non_null: syn::Path,
     pub(crate) object: syn::Path,
@@ -856,15 +844,12 @@ pub(crate) struct Tokens {
     pub(crate) parse: syn::Path,
     pub(crate) parser: syn::Path,
     pub(crate) protocol: syn::Path,
-    pub(crate) raw_any_guard: syn::Path,
     pub(crate) raw_value_guard: syn::Path,
-    pub(crate) ref_: syn::Path,
     pub(crate) result: syn::Path,
     pub(crate) runtime_error: syn::Path,
     pub(crate) span: syn::Path,
     pub(crate) spanned: syn::Path,
     pub(crate) static_type_info: syn::Path,
-    pub(crate) static_type_mod: syn::Path,
     pub(crate) string: syn::Path,
     pub(crate) to_const_value_t: syn::Path,
     pub(crate) to_tokens: syn::Path,

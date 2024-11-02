@@ -80,7 +80,7 @@ where
         };
 
         // SAFETY: We've setup the type so that the caller cannot ignore the guard.
-        self.guard = unsafe { Some(vm_try!(GuardedArgs::unsafe_into_stack(value, stack))) };
+        self.guard = unsafe { Some(vm_try!(GuardedArgs::guarded_into_stack(value, stack))) };
 
         VmResult::Ok(())
     }

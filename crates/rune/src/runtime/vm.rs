@@ -494,7 +494,7 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { args.unsafe_into_stack(&mut self.stack).into_result()? };
+        let guard = unsafe { args.guarded_into_stack(&mut self.stack).into_result()? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
@@ -535,7 +535,7 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { args.unsafe_into_stack(&mut self.stack).into_result()? };
+        let guard = unsafe { args.guarded_into_stack(&mut self.stack).into_result()? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
@@ -578,7 +578,7 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { args.unsafe_into_stack(&mut self.stack).into_result()? };
+        let guard = unsafe { args.guarded_into_stack(&mut self.stack).into_result()? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see

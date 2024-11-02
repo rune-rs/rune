@@ -154,10 +154,6 @@ pub trait UnsafeToValue: Sized {
     /// The value returned must not be used after the guard associated with it
     /// has been dropped.
     unsafe fn unsafe_to_value(self) -> VmResult<(Value, Self::Guard)>;
-
-    /// Attempts to convert this UnsafeToValue into a ToValue, which is only
-    /// possible if it is not a reference to an Any type.
-    fn try_into_to_value(self) -> Option<impl ToValue>;
 }
 
 impl<T> ToValue for T
@@ -178,10 +174,6 @@ where
 
     unsafe fn unsafe_to_value(self) -> VmResult<(Value, Self::Guard)> {
         VmResult::Ok((vm_try!(self.to_value()), ()))
-    }
-
-    fn try_into_to_value(self) -> Option<impl ToValue> {
-        Some(self)
     }
 }
 

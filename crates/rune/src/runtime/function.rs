@@ -553,7 +553,7 @@ where
                 let size = count.max(1);
                 // Ensure we have space for the return value.
                 let mut stack = vm_try!(Stack::with_capacity(size));
-                let _guard = vm_try!(unsafe { args.unsafe_into_stack(&mut stack) });
+                let _guard = vm_try!(unsafe { args.guarded_into_stack(&mut stack) });
                 vm_try!(stack.resize(size));
                 vm_try!((handler.handler)(
                     &mut stack,
@@ -577,13 +577,9 @@ where
             }
             Inner::FnTupleStruct(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
-                let Some(args) = args.try_into_args() else {
-                    return VmResult::err(VmErrorKind::InvalidTupleCall);
-                };
-                vm_try!(Value::tuple_struct(
-                    tuple.rtti.clone(),
-                    vm_try!(args.try_into_vec())
-                ))
+                // SAFETY: We don't let the guard outlive the value.
+                let (args, _guard) = vm_try!(unsafe { args.guarded_into_vec() });
+                vm_try!(Value::tuple_struct(tuple.rtti.clone(), args))
             }
             Inner::FnUnitVariant(unit) => {
                 vm_try!(check_args(args.count(), 0));
@@ -591,13 +587,9 @@ where
             }
             Inner::FnTupleVariant(tuple) => {
                 vm_try!(check_args(args.count(), tuple.args));
-                let Some(args) = args.try_into_args() else {
-                    return VmResult::err(VmErrorKind::InvalidTupleCall);
-                };
-                vm_try!(Value::tuple_variant(
-                    tuple.rtti.clone(),
-                    vm_try!(args.try_into_vec())
-                ))
+                // SAFETY: We don't let the guard outlive the value.
+                let (args, _guard) = vm_try!(unsafe { args.guarded_into_vec() });
+                vm_try!(Value::tuple_variant(tuple.rtti.clone(), args))
             }
         };
 
@@ -947,7 +939,7 @@ impl FnOffset {
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 
         vm.set_ip(self.offset);
-        let _guard = vm_try!(unsafe { args.unsafe_into_stack(vm.stack_mut()) });
+        let _guard = vm_try!(unsafe { args.guarded_into_stack(vm.stack_mut()) });
         vm_try!(extra.into_stack(vm.stack_mut()));
 
         self.call.call_with_vm(vm)

@@ -415,11 +415,13 @@ impl Context {
     /// This installs everything that has been declared in the given [Module]
     /// and ensures that they are compatible with the overall context, like
     /// ensuring that a given type is only declared once.
+    #[tracing::instrument(skip_all, fields(item = ?module.as_ref().item))]
     pub fn install<M>(&mut self, module: M) -> Result<(), ContextError>
     where
         M: AsRef<Module>,
     {
         let module = module.as_ref();
+        tracing::trace!("installing");
 
         if let Some(id) = module.unique {
             if !self.unique.try_insert(id)? {
@@ -431,32 +433,40 @@ impl Context {
             self.crates.try_insert(name.try_into()?)?;
         }
 
+        tracing::trace!("module");
         self.install_module(module)?;
 
+        tracing::trace!(types = module.types.len(), "types");
         for ty in &module.types {
             self.install_type(ty)?;
         }
 
+        tracing::trace!(traits = module.traits.len(), "traits");
         for t in &module.traits {
             self.install_trait(t)?;
         }
 
+        tracing::trace!(items = module.items.len(), "items");
         for item in &module.items {
             self.install_item(item)?;
         }
 
+        tracing::trace!(associated = module.associated.len(), "associated");
         for assoc in &module.associated {
             self.install_associated(assoc)?;
         }
 
+        tracing::trace!(trait_impls = module.trait_impls.len(), "trait impls");
         for t in &module.trait_impls {
             self.install_trait_impl(t)?;
         }
 
+        tracing::trace!(reexports = module.reexports.len(), "reexports");
         for r in &module.reexports {
             self.install_reexport(r)?;
         }
 
+        tracing::trace!(construct = module.construct.len(), "construct");
         for (hash, type_info, construct) in &module.construct {
             self.install_construct(*hash, type_info, construct)?;
         }
@@ -623,8 +633,11 @@ impl Context {
     }
 
     /// Install the given meta.
+    #[tracing::instrument(skip_all)]
     fn install_meta(&mut self, meta: ContextMeta) -> Result<(), ContextError> {
         if let Some(item) = &meta.item {
+            tracing::trace!(?item);
+
             self.names.insert(item)?;
 
             self.item_to_hash
