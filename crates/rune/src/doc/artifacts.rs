@@ -55,7 +55,7 @@ pub(crate) struct Test {
 /// This can be disabled through the [`AssetsQueue::disabled`] constructor in
 /// case you don't want any static assets to be built.
 pub(crate) struct Artifacts {
-    enabled: bool,
+    pub(crate) enabled: bool,
     assets: Vec<Asset>,
     tests: Vec<Test>,
 }

@@ -129,7 +129,7 @@ impl<'a> AutoCompleteCtx<'a> {
 
         let iter = Parser::new_ext(&input, options);
 
-        markdown::push_html(&self.syntax_set, &mut o, iter, None)?;
+        markdown::push_html(Some(&self.syntax_set), &mut o, iter, None)?;
 
         write!(o, "</div>")?;
         let o = String::try_from(o.replace('`', "\\`"))?;
