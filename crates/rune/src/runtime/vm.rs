@@ -3279,9 +3279,7 @@ impl Vm {
                     Mutable::Variant(variant) => {
                         break 'out variant.rtti().hash == variant_hash;
                     }
-                    _ => {
-                        break 'out false;
-                    }
+                    _ => {}
                 },
                 BorrowRefRepr::Any(any) => {
                     if any.type_hash() != enum_hash {

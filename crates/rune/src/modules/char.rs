@@ -319,5 +319,3 @@ fn to_digit(c: char, radix: u32) -> VmResult<Option<u32>> {
 
     VmResult::Ok(char::to_digit(c, radix))
 }
-
-crate::__internal_impl_any!(::std::char, ParseCharError);

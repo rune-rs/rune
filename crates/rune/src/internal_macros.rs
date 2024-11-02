@@ -123,7 +123,7 @@ macro_rules! cfg_std {
 }
 
 macro_rules! from_value_ref {
-    ($ty:ty, $into_ref:ident, $into_mut:ident, $into:ident) => {
+    ($ty:ty, $into_ref:ident, $into_mut:ident) => {
         impl $crate::runtime::UnsafeToRef for $ty {
             type Guard = $crate::runtime::RawAnyGuard;
 

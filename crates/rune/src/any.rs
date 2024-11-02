@@ -1,6 +1,5 @@
 use core::any;
 
-use crate::alloc::String;
 use crate::compile::Named;
 use crate::runtime::{AnyTypeInfo, TypeHash};
 
@@ -116,14 +115,21 @@ pub trait Any: TypeHash + Named + any::Any {
     const ANY_TYPE_INFO: AnyTypeInfo = AnyTypeInfo::new(Self::full_name, Self::HASH);
 }
 
-// Internal any impls for useful types in the std library.
-
-crate::__internal_impl_any!(::std::fmt, core::fmt::Error);
-
-cfg_std! {
-    crate::__internal_impl_any!(::std::io, std::io::Error);
-}
-
-crate::__internal_impl_any!(::std::error, anyhow::Error);
-
-impl Any for String {}
+/// Trait implemented for types which can be automatically converted to a
+/// [`Value`].
+///
+/// We can't use a blanked implementation over `T: Any` because it only governs
+/// what can be stored in any [`AnyObj`].
+///
+/// This trait in contrast is selectively implemented for types which we want to
+/// generate [`ToValue`] and [`FromValue`] implementations for.
+///
+/// [`AnyObj`]: crate::runtime::AnyObj
+/// [`ToValue`]: crate::runtime::ToValue
+/// [`FromValue`]: crate::runtime::FromValue
+///
+/// Note that you are *not* supposed to implement this directly. Make use of the
+/// [`Any`] derive instead.
+///
+/// [`Any`]: derive@Any
+pub trait AnyFrom: Any {}

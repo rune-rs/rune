@@ -4,7 +4,9 @@ use core::ptr::NonNull;
 
 use crate as rune;
 use crate::alloc::String;
-use crate::runtime::{ControlFlow, Formatter, Function, Panic, Value, VmResult};
+use crate::runtime::{
+    ControlFlow, Formatter, Function, Panic, Protocol, RuntimeError, Value, VmResult,
+};
 use crate::Any;
 use crate::{ContextError, Module};
 
@@ -14,7 +16,38 @@ use crate::{ContextError, Module};
 #[rune::module(::std::option)]
 pub fn module() -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module_meta)?;
-    m.option(["Option"])?;
+    let mut option = m.ty::<Option<Value>>()?.make_enum(&["Some", "None"])?;
+
+    option
+        .variant_mut(0)?
+        .make_unnamed(1)?
+        .constructor(Option::Some)?
+        .static_docs(&["A some value."])?;
+
+    option
+        .variant_mut(1)?
+        .make_empty()?
+        .constructor(|| Option::None)?
+        .static_docs(&["The empty value."])?;
+
+    m.associated_function(
+        Protocol::IS_VARIANT,
+        |this: &Option<Value>, index: usize| match (this, index) {
+            (Option::Some(_), 0) => true,
+            (Option::None, 1) => true,
+            _ => false,
+        },
+    )?;
+
+    m.index_function(Protocol::GET, 0, |this: &Option<Value>| match this {
+        Option::Some(value) => VmResult::Ok(value.clone()),
+        _ => {
+            return VmResult::err(RuntimeError::__rune_macros__unsupported_tuple_index_get(
+                <Option<Value> as Any>::ANY_TYPE_INFO,
+                0,
+            ))
+        }
+    })?;
 
     // Sorted for ease of finding
     m.function_meta(expect)?;

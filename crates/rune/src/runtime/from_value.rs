@@ -1,7 +1,7 @@
 use core::cmp::Ordering;
 
 use crate::alloc::{self, String};
-use crate::Any;
+use crate::any::AnyFrom;
 
 use super::{
     AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult,
@@ -243,8 +243,9 @@ pub trait UnsafeFromValue: Sized {
 
 impl<T> FromValue for T
 where
-    T: Any,
+    T: AnyFrom,
 {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         value.into_any()
     }
@@ -252,7 +253,7 @@ where
 
 impl<T> FromValue for Mut<T>
 where
-    T: Any,
+    T: AnyFrom,
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -262,7 +263,7 @@ where
 
 impl<T> FromValue for Ref<T>
 where
-    T: Any,
+    T: AnyFrom,
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -296,8 +297,6 @@ where
         })
     }
 }
-
-from_value_ref!(Option<Value>, into_option_ref, into_option_mut, into_option);
 
 impl FromValue for ::rust_alloc::string::String {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -350,26 +349,6 @@ impl UnsafeToMut for str {
     }
 }
 
-impl UnsafeToRef for String {
-    type Guard = RawAnyGuard;
-
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let string = vm_try!(value.into_any_ref::<String>());
-        let (string, guard) = Ref::into_raw(string);
-        VmResult::Ok((string.as_ref(), guard))
-    }
-}
-
-impl UnsafeToMut for String {
-    type Guard = RawAnyGuard;
-
-    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        let string = vm_try!(value.into_any_mut::<String>());
-        let (mut string, guard) = Mut::into_raw(string);
-        VmResult::Ok((string.as_mut(), guard))
-    }
-}
-
 impl<T, E> FromValue for Result<T, E>
 where
     T: FromValue,
@@ -383,8 +362,6 @@ where
         })
     }
 }
-
-from_value_ref!(Result<Value, Value>, into_result_ref, into_result_mut, into_result);
 
 impl FromValue for bool {
     #[inline]

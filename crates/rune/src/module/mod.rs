@@ -9,9 +9,6 @@ pub(crate) mod install_with;
 #[doc(inline)]
 pub use self::install_with::InstallWith;
 
-mod internal_enum;
-use self::internal_enum::InternalEnum;
-
 mod module_meta;
 pub(crate) use self::module_meta::{
     AssociatedKey, DocFunction, Fields, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
@@ -41,10 +38,6 @@ pub use self::variant_mut::VariantMut;
 mod enum_mut;
 #[doc(inline)]
 pub use self::enum_mut::EnumMut;
-
-mod internal_enum_mut;
-#[doc(inline)]
-pub use self::internal_enum_mut::InternalEnumMut;
 
 mod type_mut;
 #[doc(inline)]

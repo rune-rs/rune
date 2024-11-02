@@ -29,7 +29,6 @@ use crate::compile::meta;
 use crate::runtime;
 use crate::{Any, Hash, TypeHash};
 
-use super::static_type;
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, IntoOutput,
@@ -2030,8 +2029,8 @@ pub(crate) enum Mutable {
 impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Mutable::Option(..) => TypeInfo::static_type(static_type::OPTION),
-            Mutable::Result(..) => TypeInfo::static_type(static_type::RESULT),
+            Mutable::Result(..) => TypeInfo::any::<Result<Value, Value>>(),
+            Mutable::Option(..) => TypeInfo::any::<Option<Value>>(),
             Mutable::EmptyStruct(empty) => empty.type_info(),
             Mutable::TupleStruct(tuple) => tuple.type_info(),
             Mutable::Struct(object) => object.type_info(),
@@ -2045,8 +2044,8 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::Result(..) => static_type::RESULT.hash,
-            Mutable::Option(..) => static_type::OPTION.hash,
+            Mutable::Result(..) => Result::<Value, Value>::HASH,
+            Mutable::Option(..) => Option::<Value>::HASH,
             Mutable::EmptyStruct(empty) => empty.rtti.hash,
             Mutable::TupleStruct(tuple) => tuple.rtti.hash,
             Mutable::Struct(object) => object.rtti.hash,
