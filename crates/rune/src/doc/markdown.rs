@@ -351,9 +351,7 @@ where
                             }
                         }
                         None => {
-                            if is_rune {
-                                syntax = Some((token, None, is_rune));
-                            }
+                            syntax = Some((token, None, is_rune));
                         }
                     }
                 }

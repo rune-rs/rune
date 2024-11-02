@@ -15,14 +15,19 @@ pub trait GuardedArgs {
     ///
     /// # Safety
     ///
-    /// This is implemented for and allows encoding references on the stack.
-    /// The returned guard must be dropped before any used references are
-    /// invalidated.
-    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard>;
+    /// This can encode references onto the stack. The caller must ensure that
+    /// the guard is dropped before any references which have been encoded are
+    /// no longer alive.
+    unsafe fn guarded_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard>;
 
-    /// Attempts to convert this type into Args, which will only succeed as long
-    /// as it doesn't contain any references to Any types.
-    fn try_into_args(self) -> Option<impl Args>;
+    /// Encode arguments into a vector.
+    ///
+    /// # Safety
+    ///
+    /// This can encode references into the vector. The caller must ensure that
+    /// the guard is dropped before any references which have been encoded are
+    /// no longer alive.
+    unsafe fn guarded_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)>;
 
     /// The number of arguments.
     fn count(&self) -> usize;
@@ -37,18 +42,25 @@ macro_rules! impl_into_args {
             type Guard = ($($ty::Guard,)*);
 
             #[allow(unused)]
-            unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+            #[inline]
+            unsafe fn guarded_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
                 let ($($value,)*) = self;
                 $(let $value = vm_try!($value.unsafe_to_value());)*
                 $(vm_try!(stack.push($value.0));)*
                 VmResult::Ok(($($value.1,)*))
             }
 
-            fn try_into_args(self) -> Option<impl Args> {
+            #[allow(unused)]
+            #[inline]
+            unsafe fn guarded_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
                 let ($($value,)*) = self;
-                Some(($($value.try_into_to_value()?,)*))
+                $(let $value = vm_try!($value.unsafe_to_value());)*
+                let mut out = vm_try!(Vec::try_with_capacity($count));
+                $(vm_try!(out.try_push($value.0));)*
+                VmResult::Ok((out, ($($value.1,)*)))
             }
 
+            #[inline]
             fn count(&self) -> usize {
                 $count
             }
@@ -62,12 +74,13 @@ impl GuardedArgs for Vec<Value> {
     type Guard = ();
 
     #[inline]
-    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+    unsafe fn guarded_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
         self.into_stack(stack)
     }
 
-    fn try_into_args(self) -> Option<impl Args> {
-        Some(self)
+    #[inline]
+    unsafe fn guarded_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
+        VmResult::Ok((self, ()))
     }
 
     #[inline]
@@ -81,16 +94,17 @@ impl GuardedArgs for ::rust_alloc::vec::Vec<Value> {
     type Guard = ();
 
     #[inline]
-    unsafe fn unsafe_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
+    unsafe fn guarded_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
         self.into_stack(stack)
     }
 
-    fn try_into_args(self) -> Option<impl Args> {
-        Some(self)
+    #[inline]
+    unsafe fn guarded_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
+        VmResult::Ok((vm_try!(Vec::try_from(self)), ()))
     }
 
     #[inline]
     fn count(&self) -> usize {
-        (self as &dyn Args).count()
+        self.len()
     }
 }

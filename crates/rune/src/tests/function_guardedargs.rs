@@ -1,9 +1,7 @@
 prelude!();
 
-#[derive(Default)]
-struct MyAny {}
-
-crate::__internal_impl_any!(self, MyAny);
+#[derive(Any)]
+struct MyAny;
 
 fn get_vm() -> crate::support::Result<crate::Vm> {
     use std::sync::Arc;
@@ -33,7 +31,7 @@ fn references_allowed_for_function_calls() {
     let value_result = function.call::<crate::Value>((crate::Value::unit(),));
     assert!(value_result.is_ok());
 
-    let mut mine = MyAny::default();
+    let mut mine = MyAny;
 
     let ref_result = function.call::<crate::Value>((&mine,));
     assert!(ref_result.is_ok());
@@ -55,17 +53,23 @@ fn references_disallowed_for_tuple_variant() {
     let value_result = constructor.call::<crate::Value>((crate::Value::unit(),));
     assert!(value_result.is_ok());
 
-    let mut mine = MyAny::default();
+    let mut mine = MyAny;
 
-    let VmResult::Err(ref_error) = constructor.call::<crate::Value>((&mine,)) else {
+    let VmResult::Err(err) = constructor.call::<crate::Value>((&mine,)) else {
         panic!("expected ref call to return an error")
     };
-    assert_eq!(ref_error.into_kind(), VmErrorKind::InvalidTupleCall);
+    assert!(
+        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
+        "{err:?}"
+    );
 
-    let VmResult::Err(mut_error) = constructor.call::<crate::Value>((&mut mine,)) else {
+    let VmResult::Err(err) = constructor.call::<crate::Value>((&mut mine,)) else {
         panic!("expected mut call to return an error")
     };
-    assert_eq!(mut_error.into_kind(), VmErrorKind::InvalidTupleCall);
+    assert!(
+        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
+        "{err:?}"
+    );
 
     let any_result = constructor.call::<crate::Value>((mine,));
     assert!(any_result.is_ok());
@@ -81,17 +85,23 @@ fn references_disallowed_for_tuple_struct() {
     let value_result = constructor.call::<crate::Value>((crate::Value::unit(),));
     assert!(value_result.is_ok());
 
-    let mut mine = MyAny::default();
+    let mut mine = MyAny;
 
-    let VmResult::Err(ref_error) = constructor.call::<crate::Value>((&mine,)) else {
+    let VmResult::Err(err) = constructor.call::<crate::Value>((&mine,)) else {
         panic!("expected ref call to return an error")
     };
-    assert_eq!(ref_error.into_kind(), VmErrorKind::InvalidTupleCall);
+    assert!(
+        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
+        "{err:?}"
+    );
 
-    let VmResult::Err(mut_error) = constructor.call::<crate::Value>((&mut mine,)) else {
+    let VmResult::Err(err) = constructor.call::<crate::Value>((&mut mine,)) else {
         panic!("expected mut call to return an error")
     };
-    assert_eq!(mut_error.into_kind(), VmErrorKind::InvalidTupleCall);
+    assert!(
+        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
+        "{err:?}"
+    );
 
     let any_result = constructor.call::<crate::Value>((mine,));
     assert!(any_result.is_ok());

@@ -39,6 +39,10 @@ mod cli {
         /// Break on the first test failed.
         #[arg(long)]
         pub fail_fast: bool,
+        /// Skip building dynamic lib tests from entrypoints. This means only
+        /// tests found in runtime contexts will be run.
+        #[arg(long)]
+        pub skip_lib_tests: bool,
         /// Filter tests by name.
         pub filters: Vec<String>,
     }
@@ -108,6 +112,7 @@ where
     let mut executed = 0usize;
     let mut skipped = 0usize;
     let mut build_errors = 0usize;
+    let mut skipped_entries = 0usize;
     let mut collected = Vec::new();
 
     let capture = crate::modules::capture_io::CaptureIo::new();
@@ -134,6 +139,10 @@ where
     };
 
     for e in entries {
+        if flags.skip_lib_tests {
+            continue;
+        }
+
         let mut options = options.clone();
 
         if e.is_argument() {
@@ -215,6 +224,7 @@ where
                 &options,
                 &context,
                 &mut build_errors,
+                &mut skipped_entries,
                 &mut collected,
                 &mut filter,
             )?;
@@ -239,6 +249,7 @@ where
             options,
             &context,
             &mut build_errors,
+            &mut skipped_entries,
             &mut collected,
             &mut filter,
         )?;
@@ -343,7 +354,7 @@ where
 
     section.append(format_args!(" {executed} tests"))?;
 
-    let any = failures > 0 || build_errors > 0 || skipped > 0;
+    let any = failures > 0 || build_errors > 0 || skipped > 0 || skipped_entries > 0;
 
     if any {
         section.append(" with")?;
@@ -370,7 +381,13 @@ where
 
         emit(Color::Error, failures, "failure", "failures")?;
         emit(Color::Error, build_errors, "build error", "build errors")?;
-        emit(Color::Ignore, skipped, "ignored", "ignored")?;
+        emit(Color::Ignore, skipped, "filtered", "filtered")?;
+        emit(
+            Color::Ignore,
+            skipped_entries,
+            "filtered entries",
+            "filtered entries",
+        )?;
     }
 
     writeln!(io.stdout, " in {:.3} seconds", elapsed.as_secs_f64())?;
@@ -390,6 +407,7 @@ fn populate_doc_tests(
     options: &Options,
     context: &crate::Context,
     build_errors: &mut usize,
+    skipped_entries: &mut usize,
     collected: &mut Vec<(Diagnostics, Sources)>,
     filter: &mut dyn FnMut(&Item) -> Result<bool>,
 ) -> Result<Vec<TestCase>> {
@@ -397,6 +415,13 @@ fn populate_doc_tests(
 
     for test in artifacts.tests() {
         if !options.test_std && test.item.as_crate() == Some("std") || test.params.ignore {
+            continue;
+        }
+
+        let is_filtered = filter(&test.item)?;
+
+        if is_filtered {
+            *skipped_entries = skipped_entries.wrapping_add(1);
             continue;
         }
 
@@ -442,10 +467,11 @@ fn populate_doc_tests(
                 unit.clone(),
                 sources.clone(),
                 test.params,
-                filter(&test.item)?,
+                is_filtered,
             ))?;
         }
     }
+
     Ok(cases)
 }
 
