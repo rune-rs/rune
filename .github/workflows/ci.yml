@@ -132,18 +132,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-        - crate: rune
-          target: >
-            runtime:: hir::arena:: --skip runtime::vm:: --skip runtime::vm_execution::
-        - crate: rune-alloc
+        crate:
+        - rune
+        - rune-core
+        - rune-alloc
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
     - uses: Swatinem/rust-cache@v2
-    - run: cargo miri test -p ${{matrix.crate}} --all-features -- ${{matrix.target}}
+    - run: cargo miri test -p ${{matrix.crate}} --all-features --all-targets
+    - run: cargo miri test -p ${{matrix.crate}} --all-features --doc
 
   test_lib:
     runs-on: ubuntu-latest

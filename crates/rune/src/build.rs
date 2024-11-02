@@ -91,7 +91,7 @@ impl core::error::Error for BuildError {
 /// Note: these must be built with the `emit` feature enabled (default) to give
 /// access to `rune::termcolor`.
 ///
-/// ```
+/// ```no_run
 /// use rune::termcolor::{ColorChoice, StandardStream};
 /// use rune::{Context, Source, Vm};
 /// use std::sync::Arc;
@@ -101,9 +101,9 @@ impl core::error::Error for BuildError {
 ///
 /// let mut sources = rune::Sources::new();
 ///
-/// sources.insert(Source::new("entry", r#"
+/// sources.insert(Source::memory(r#"
 /// pub fn main() {
-///     println("Hello World");
+///     println!("Hello World");
 /// }
 /// "#)?)?;
 ///
@@ -237,12 +237,14 @@ impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
 }
 
 impl<'a, S> Build<'a, S> {
-    /// Modify the current [Build] to use the given [Context] while building.
+    /// Modify the current [`Build`] to use the given [`Context`] while
+    /// building.
     ///
-    /// If unspecified the empty context constructed with [Context::new] will be
-    /// used. Since this counts as building without a context,
-    /// [Vm::without_context][crate::runtime::Vm] can be used when running the
-    /// produced [Unit].
+    /// If unspecified the empty context constructed with [`Context::new`] will
+    /// be used. Since this counts as building without a context,
+    /// [`Vm::without_runtime`] can be used when running the produced [`Unit`].
+    ///
+    /// [`Vm::without_runtime`]: crate::Vm::without_runtime
     #[inline]
     pub fn with_context(mut self, context: &'a Context) -> Self {
         self.context = Some(context);

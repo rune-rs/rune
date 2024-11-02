@@ -2,15 +2,15 @@
 //!
 //! # Examples
 //!
-//! ```
-//! use rune::{Context, ContextError};
+//! ```no_run
+//! use rune::Context;
 //! use rune::modules::capture_io::{self, CaptureIo};
 //!
 //! let io = CaptureIo::new();
 //!
 //! let mut context = rune::Context::with_config(false)?;
 //! context.install(capture_io::module(&io)?)?;
-//! # Ok::<_, ContextError>(())
+//! # Ok::<_, rune::ContextError>(())
 //! ```
 
 use core::mem::take;

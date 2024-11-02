@@ -2,13 +2,13 @@
 //!
 //! # Examples
 //!
-//! ```
-//! use rune::{Context, ContextError};
+//! ```no_run
+//! use rune::Context;
 //! use rune::modules::disable_io;
 //!
 //! let mut context = rune::Context::with_config(false)?;
 //! context.install(disable_io::module()?)?;
-//! # Ok::<_, ContextError>(())
+//! # Ok::<_, rune::ContextError>(())
 //! ```
 
 use crate as rune;

@@ -2,6 +2,7 @@
 
 #![allow(clippy::bool_assert_comparison)]
 #![allow(clippy::approx_constant)]
+#![cfg_attr(miri, allow(unused))]
 
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
@@ -16,8 +17,8 @@ pub(crate) mod prelude {
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
         self, Bytes, Formatter, Function, InstAddress, MaybeTypeOf, Mutable, Object, Output,
-        OwnedRepr, OwnedTuple, Protocol, RawAnyGuard, Ref, Stack, Tuple, TypeHash, TypeInfo,
-        TypeOf, UnsafeToRef, VecTuple, VmErrorKind, VmResult,
+        OwnedRepr, OwnedTuple, Protocol, RawAnyGuard, Ref, Stack, Tuple, TupleStruct, TypeHash,
+        TypeInfo, TypeOf, UnsafeToRef, Variant, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
     pub(crate) use crate::tests::{eval, run};
@@ -403,75 +404,146 @@ macro_rules! prelude {
     };
 }
 
+#[cfg(not(miri))]
 mod attribute;
+#[cfg(not(miri))]
 mod binary;
+#[cfg(not(miri))]
 mod bug_326;
+#[cfg(not(miri))]
 mod bug_344;
+#[cfg(not(miri))]
 mod bug_417;
+#[cfg(not(miri))]
 mod bug_422;
+#[cfg(not(miri))]
 mod bug_428;
+#[cfg(not(miri))]
 mod bug_454;
+#[cfg(not(miri))]
 mod bug_700;
+#[cfg(not(miri))]
 mod bugfixes;
+#[cfg(not(miri))]
 mod builtin_macros;
+#[cfg(not(miri))]
 mod capture;
+#[cfg(not(miri))]
 mod collections;
+#[cfg(not(miri))]
 mod comments;
+#[cfg(not(miri))]
 mod compiler_docs;
+#[cfg(not(miri))]
 mod compiler_expr_assign;
+#[cfg(not(miri))]
 mod compiler_fn;
+#[cfg(not(miri))]
 mod compiler_general;
+#[cfg(not(miri))]
 mod compiler_literals;
+#[cfg(not(miri))]
 mod compiler_paths;
+#[cfg(not(miri))]
 mod compiler_patterns;
+#[cfg(not(miri))]
 mod compiler_use;
+#[cfg(not(miri))]
 mod compiler_visibility;
+#[cfg(not(miri))]
 mod compiler_warnings;
+#[cfg(not(miri))]
 mod continue_;
+#[cfg(not(miri))]
 mod core_macros;
+#[cfg(not(miri))]
 mod custom_macros;
+#[cfg(not(miri))]
 mod debug_fmt;
+#[cfg(not(miri))]
 mod deprecation;
+#[cfg(not(miri))]
 mod destructuring;
+#[cfg(not(miri))]
 mod esoteric_impls;
+#[cfg(not(miri))]
 mod external_constructor;
+#[cfg(not(miri))]
 mod external_generic;
+#[cfg(not(miri))]
 mod external_match;
+#[cfg(not(miri))]
 mod external_ops;
 mod function_guardedargs;
+#[cfg(not(miri))]
 mod getter_setter;
+#[cfg(not(miri))]
 mod iterator;
+#[cfg(not(miri))]
 mod macros;
+#[cfg(not(miri))]
 mod moved;
+#[cfg(not(miri))]
 mod option;
+#[cfg(not(miri))]
 mod patterns;
+#[cfg(not(miri))]
 mod quote;
+#[cfg(not(miri))]
 mod range;
+#[cfg(not(miri))]
 mod reference_error;
+#[cfg(not(miri))]
 mod rename_type;
+#[cfg(not(miri))]
 mod result;
+#[cfg(not(miri))]
 mod tuple;
+#[cfg(not(miri))]
 mod type_name_native;
+#[cfg(not(miri))]
 mod unit_constants;
+#[cfg(not(miri))]
 mod unreachable;
+#[cfg(not(miri))]
 mod variants;
+#[cfg(not(miri))]
 mod vm_arithmetic;
+#[cfg(not(miri))]
 mod vm_assign_exprs;
+#[cfg(not(miri))]
 mod vm_async_block;
+#[cfg(not(miri))]
 mod vm_blocks;
+#[cfg(not(miri))]
 mod vm_closures;
+#[cfg(not(miri))]
 mod vm_const_exprs;
+#[cfg(not(miri))]
 mod vm_early_termination;
+#[cfg(not(miri))]
 mod vm_function;
+#[cfg(not(miri))]
 mod vm_function_pointers;
+#[cfg(not(miri))]
 mod vm_general;
+#[cfg(not(miri))]
 mod vm_literals;
+#[cfg(not(miri))]
 mod vm_not_used;
+#[cfg(not(miri))]
 mod vm_result;
+#[cfg(not(miri))]
 mod vm_test_from_value_derive;
+#[cfg(not(miri))]
 mod vm_test_imports;
+#[cfg(not(miri))]
 mod vm_test_instance_fns;
+#[cfg(not(miri))]
 mod vm_test_linked_list;
+#[cfg(not(miri))]
 mod vm_test_mod;
+#[cfg(not(miri))]
 mod vm_try;
+#[cfg(not(miri))]
 mod wildcard_imports;

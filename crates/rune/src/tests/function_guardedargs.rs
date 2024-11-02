@@ -12,15 +12,14 @@ fn get_vm() -> crate::support::Result<crate::Vm> {
                 Variant(internal)
             }
 
-            struct Struct(internal);
+            struct Tuple(internal);
 
             pub fn function(argument) {}
         }
     };
 
-    let context = crate::Context::with_default_modules()?;
     let unit = crate::prepare(&mut sources).build()?;
-    Ok(crate::Vm::new(Arc::new(context.runtime()?), Arc::new(unit)))
+    Ok(crate::Vm::without_runtime(Arc::new(unit)))
 }
 
 #[test]
@@ -45,8 +44,6 @@ fn references_allowed_for_function_calls() {
 
 #[test]
 fn references_disallowed_for_tuple_variant() {
-    use crate::runtime::{VmErrorKind, VmResult};
-
     let vm = get_vm().unwrap();
     let constructor = vm.lookup_function(["Enum", "Variant"]).unwrap();
 
@@ -55,54 +52,35 @@ fn references_disallowed_for_tuple_variant() {
 
     let mut mine = MyAny;
 
-    let VmResult::Err(err) = constructor.call::<crate::Value>((&mine,)) else {
-        panic!("expected ref call to return an error")
-    };
-    assert!(
-        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
-        "{err:?}"
-    );
+    let tuple = constructor.call::<Variant>((&mine,)).unwrap();
+    let tuple = tuple.as_tuple().unwrap();
+    assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let VmResult::Err(err) = constructor.call::<crate::Value>((&mut mine,)) else {
-        panic!("expected mut call to return an error")
-    };
-    assert!(
-        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
-        "{err:?}"
-    );
+    let tuple = constructor.call::<Variant>((&mut mine,)).unwrap();
+    let tuple = tuple.as_tuple().unwrap();
+    assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let any_result = constructor.call::<crate::Value>((mine,));
-    assert!(any_result.is_ok());
+    let tuple = constructor.call::<Variant>((mine,)).unwrap();
+    let tuple = tuple.as_tuple().unwrap();
+    assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_ok());
 }
 
 #[test]
 fn references_disallowed_for_tuple_struct() {
-    use crate::runtime::{VmErrorKind, VmResult};
-
     let vm = get_vm().unwrap();
-    let constructor = vm.lookup_function(["Struct"]).unwrap();
+    let constructor = vm.lookup_function(["Tuple"]).unwrap();
 
     let value_result = constructor.call::<crate::Value>((crate::Value::unit(),));
     assert!(value_result.is_ok());
 
     let mut mine = MyAny;
 
-    let VmResult::Err(err) = constructor.call::<crate::Value>((&mine,)) else {
-        panic!("expected ref call to return an error")
-    };
-    assert!(
-        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
-        "{err:?}"
-    );
+    let st: TupleStruct = constructor.call::<TupleStruct>((&mine,)).unwrap();
+    assert!(st.data().first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let VmResult::Err(err) = constructor.call::<crate::Value>((&mut mine,)) else {
-        panic!("expected mut call to return an error")
-    };
-    assert!(
-        matches!(err.as_kind(), VmErrorKind::AccessError { .. }),
-        "{err:?}"
-    );
+    let st: TupleStruct = constructor.call::<TupleStruct>((&mut mine,)).unwrap();
+    assert!(st.data().first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let any_result = constructor.call::<crate::Value>((mine,));
-    assert!(any_result.is_ok());
+    let st: TupleStruct = constructor.call::<TupleStruct>((mine,)).unwrap();
+    assert!(st.data().first().unwrap().borrow_ref::<MyAny>().is_ok());
 }

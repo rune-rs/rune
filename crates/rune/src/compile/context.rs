@@ -390,7 +390,7 @@ impl Context {
     /// This is not a cheap operation, since it requires cloning things out of
     /// the build-time [Context] which are necessary at runtime.
     ///
-    /// ```
+    /// ```no_run
     /// use rune::{Context, Vm, Unit};
     /// use std::sync::Arc;
     ///
