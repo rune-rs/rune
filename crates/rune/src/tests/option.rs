@@ -38,11 +38,10 @@ fn test_expect() {
         r#"
         pub fn main() {
             None.expect("None")
-       }
-    "#,
+        }
+        "#,
         Panic { reason} => {
-            assert_eq!(reason.to_string(),
-                       "None")
+            assert_eq!(reason.to_string(), "None")
         }
     );
 }
@@ -63,11 +62,10 @@ fn test_unwrap() {
         r#"
         pub fn main() {
             None.unwrap()
-       }
-    "#,
+        }
+        "#,
         Panic { reason} => {
-            assert_eq!(reason.to_string(),
-                       "Called `Option::unwrap()` on a `None` value")
+            assert_eq!(reason.to_string(), "Called `Option::unwrap()` on a `None` value")
         }
     );
 }

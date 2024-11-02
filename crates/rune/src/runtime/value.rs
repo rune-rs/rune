@@ -1746,10 +1746,9 @@ impl fmt::Debug for Value {
         }
 
         let mut s = String::new();
-        // SAFETY: Formatter does not outlive the string it references.
-        let mut o = unsafe { Formatter::new(NonNull::from(&mut s)) };
+        let result = Formatter::format_with(&mut s, |f| self.debug_fmt(f));
 
-        if let Err(e) = self.debug_fmt(&mut o).into_result() {
+        if let Err(e) = result.into_result() {
             match &self.repr {
                 Repr::Empty => {
                     write!(f, "<empty: {e}>")?;

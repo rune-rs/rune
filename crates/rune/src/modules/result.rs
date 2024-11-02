@@ -1,7 +1,5 @@
 //! The [`Result`] type.
 
-use core::ptr::NonNull;
-
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -130,16 +128,17 @@ fn is_err(result: &Result<Value, Value>) -> bool {
 /// x.unwrap(); // panics with `emergency failure`
 /// ```
 #[rune::function(instance)]
-fn unwrap(result: Result<Value, Value>) -> VmResult<Value> {
+fn unwrap(result: &Result<Value, Value>) -> VmResult<Value> {
     match result {
-        Ok(value) => VmResult::Ok(value),
+        Ok(value) => VmResult::Ok(value.clone()),
         Err(err) => {
-            let message = vm_try!(format_args!(
-                "Called `Result::unwrap()` on an `Err` value: {:?}",
-                err
-            )
-            .try_to_string());
-            VmResult::err(Panic::custom(message))
+            let mut m = String::new();
+            vm_try!(vm_write!(
+                m,
+                "Called `Result::unwrap()` on an `Err` value: "
+            ));
+            vm_try!(Formatter::format_with(&mut m, |f| err.debug_fmt(f)));
+            VmResult::err(Panic::custom(m))
         }
     }
 }
@@ -163,8 +162,11 @@ fn unwrap(result: Result<Value, Value>) -> VmResult<Value> {
 /// assert_eq!(x.unwrap_or(default_value), default_value);
 /// ```
 #[rune::function(instance)]
-fn unwrap_or(this: Result<Value, Value>, default: Value) -> Value {
-    this.unwrap_or(default)
+fn unwrap_or(this: &Result<Value, Value>, default: Value) -> Value {
+    match this {
+        Ok(value) => value.clone(),
+        Err(_) => default.clone(),
+    }
 }
 
 /// Returns the contained [`Ok`] value or computes it from a closure.
@@ -181,9 +183,9 @@ fn unwrap_or(this: Result<Value, Value>, default: Value) -> Value {
 /// assert_eq!(Err("foo").unwrap_or_else(count), 3);
 /// ```
 #[rune::function(instance)]
-fn unwrap_or_else(this: Result<Value, Value>, default: Function) -> VmResult<Value> {
+fn unwrap_or_else(this: &Result<Value, Value>, default: Function) -> VmResult<Value> {
     match this {
-        Ok(value) => VmResult::Ok(value),
+        Ok(value) => VmResult::Ok(value.clone()),
         Err(error) => default.call((error,)),
     }
 }
@@ -218,16 +220,17 @@ fn unwrap_or_else(this: Result<Value, Value>, default: Function) -> VmResult<Val
 /// as in "env variable should be set by blah" or "the given binary should be
 /// available and executable by the current user".
 #[rune::function(instance)]
-fn expect(result: Result<Value, Value>, message: Value) -> VmResult<Value> {
+fn expect(result: &Result<Value, Value>, message: Value) -> VmResult<Value> {
     match result {
-        Ok(value) => VmResult::Ok(value),
+        Ok(value) => VmResult::Ok(value.clone()),
         Err(err) => {
             let mut s = String::new();
-            // SAFETY: Formatter does not outlive the string it references.
-            let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
-            vm_try!(message.display_fmt(&mut f));
-            vm_try!(f.try_write_str(": "));
-            vm_try!(err.debug_fmt(&mut f));
+            vm_try!(Formatter::format_with(&mut s, |f| {
+                vm_try!(message.display_fmt(f));
+                vm_try!(f.try_write_str(": "));
+                vm_try!(err.debug_fmt(f));
+                VmResult::Ok(())
+            }));
             VmResult::err(Panic::custom(s))
         }
     }

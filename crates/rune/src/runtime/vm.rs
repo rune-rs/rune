@@ -3073,13 +3073,16 @@ impl Vm {
         let values = vm_try!(values.iter().cloned().try_collect::<alloc::Vec<_>>());
 
         let mut s = vm_try!(String::try_with_capacity(size_hint));
-        // SAFETY: Formatter does not outlive the string it references.
-        let mut f = unsafe { Formatter::new(NonNull::from(&mut s)) };
 
-        for value in values {
-            vm_try!(value.display_fmt_with(&mut f, &mut *self));
-        }
+        let result = Formatter::format_with(&mut s, |f| {
+            for value in values {
+                vm_try!(value.display_fmt_with(f, &mut *self));
+            }
 
+            VmResult::Ok(())
+        });
+
+        vm_try!(result);
         vm_try!(out.store(&mut self.stack, s));
         VmResult::Ok(())
     }
