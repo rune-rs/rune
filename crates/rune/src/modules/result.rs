@@ -5,7 +5,7 @@ use core::ptr::NonNull;
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::runtime::{ControlFlow, Formatter, Function, Panic, Value, VmResult};
+use crate::runtime::{ControlFlow, Formatter, Function, Panic, Protocol, Value, VmResult};
 use crate::{ContextError, Module};
 
 /// The [`Result`] type.
@@ -17,16 +17,35 @@ pub fn module() -> Result<Module, ContextError> {
 
     // Sorted for ease of finding
     let mut result = module
-        .result("Result")?
-        .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."])?;
+        .ty::<Result<Value, Value>>()?
+        .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."])?
+        .make_enum(&["Ok", "Err"])?;
 
     result
         .variant_mut(0)?
+        .make_unnamed(1)?
+        .constructor(Result::Ok)?
         .static_docs(&["Contains the success value"])?;
 
     result
         .variant_mut(1)?
+        .make_unnamed(1)?
+        .constructor(Result::Err)?
         .static_docs(&["Contains the error value"])?;
+
+    module.associated_function(
+        Protocol::IS_VARIANT,
+        |this: &Result<Value, Value>, index: usize| match (this, index) {
+            (Result::Ok(_), 0) => true,
+            (Result::Err(_), 1) => true,
+            _ => false,
+        },
+    )?;
+
+    module.index_function(Protocol::GET, 0, |this: &Result<Value, Value>| match this {
+        Result::Ok(value) => VmResult::Ok(value.clone()),
+        Result::Err(value) => VmResult::Ok(value.clone()),
+    })?;
 
     module.function_meta(ok)?;
     module.function_meta(is_ok)?;

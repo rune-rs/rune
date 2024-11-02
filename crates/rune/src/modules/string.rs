@@ -3,7 +3,6 @@
 use core::char;
 use core::cmp::Ordering;
 use core::num::{ParseFloatError, ParseIntError};
-use core::str::Utf8Error;
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
@@ -1424,9 +1423,6 @@ fn to_uppercase(s: &str) -> VmResult<String> {
     vm_try!(uppercase.try_extend(s.chars().flat_map(|c| c.to_uppercase())));
     VmResult::Ok(uppercase)
 }
-
-crate::__internal_impl_any!(::std::string, FromUtf8Error);
-crate::__internal_impl_any!(::std::string, Utf8Error);
 
 #[derive(Any)]
 #[rune(item = ::std::string)]

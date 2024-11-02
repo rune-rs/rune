@@ -1,6 +1,6 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
-use crate::Any;
+use crate::any::AnyFrom;
 
 use super::{AnyObj, Object, RuntimeError, Value, VmResult};
 
@@ -158,7 +158,7 @@ pub trait UnsafeToValue: Sized {
 
 impl<T> ToValue for T
 where
-    T: Any,
+    T: AnyFrom,
 {
     #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {

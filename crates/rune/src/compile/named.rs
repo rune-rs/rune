@@ -3,7 +3,6 @@ use core::fmt;
 use core::marker::PhantomData;
 
 use crate as rune;
-use crate::alloc::String;
 use crate::module::InstallWith;
 use crate::{item, Item};
 
@@ -46,12 +45,6 @@ pub trait Named {
         DisplayNamed::<Self>::new()
     }
 }
-
-impl Named for String {
-    const ITEM: &'static Item = item!(::std::string::String);
-}
-
-impl InstallWith for String {}
 
 impl Named for i64 {
     const ITEM: &'static Item = item!(::std::i64);

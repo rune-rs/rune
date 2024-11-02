@@ -16,8 +16,8 @@ use crate::runtime;
 use crate::{Hash, TypeHash};
 
 use super::{
-    static_type, BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue,
-    Tuple, Type, TypeInfo, Value, VmErrorKind,
+    BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, Tuple, Type,
+    TypeInfo, Value, VmErrorKind,
 };
 
 /// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
@@ -140,7 +140,7 @@ impl ConstValueKind {
             ConstValueKind::Vec(..) => TypeInfo::any::<runtime::Vec>(),
             ConstValueKind::Tuple(..) => TypeInfo::any::<OwnedTuple>(),
             ConstValueKind::Object(..) => TypeInfo::any::<Object>(),
-            ConstValueKind::Option(..) => TypeInfo::static_type(static_type::OPTION),
+            ConstValueKind::Option(..) => TypeInfo::any::<Option<Value>>(),
             ConstValueKind::Struct(hash, ..) => {
                 TypeInfo::any_type_info(AnyTypeInfo::new(full_name, *hash))
             }

@@ -9,10 +9,8 @@ use crate::alloc::HashMap;
 use crate::compile::context::{AttributeMacroHandler, MacroHandler, TraitHandler};
 use crate::compile::{meta, Docs};
 use crate::function_meta::AssociatedName;
-use crate::runtime::{ConstValue, FunctionHandler, TypeCheck, TypeInfo};
+use crate::runtime::{ConstValue, FunctionHandler, TypeInfo};
 use crate::{Hash, ItemBuf};
-
-use super::InternalEnum;
 
 #[doc(hidden)]
 pub struct ModuleMetaData {
@@ -109,8 +107,6 @@ impl Fields {
 pub struct Variant {
     /// The name of the variant.
     pub(crate) name: &'static str,
-    /// Type check for the variant.
-    pub(crate) type_check: Option<TypeCheck>,
     /// Variant metadata.
     pub(crate) fields: Option<Fields>,
     /// Handler to use if this variant can be constructed through a regular function call.
@@ -125,7 +121,6 @@ impl Variant {
     pub(super) fn new(name: &'static str) -> Self {
         Self {
             name,
-            type_check: None,
             fields: None,
             constructor: None,
             deprecated: None,
@@ -175,7 +170,6 @@ pub(crate) enum ModuleItemKind {
     Function(ModuleFunction),
     Macro(ModuleMacro),
     AttributeMacro(ModuleAttributeMacro),
-    InternalEnum(InternalEnum),
 }
 
 pub(crate) struct ModuleItem {

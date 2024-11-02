@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use rune_core::hash::Hash;
 use syn::punctuated::Punctuated;
@@ -9,70 +9,106 @@ use syn::Token;
 
 use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttr};
 
-/// An internal call to the macro.
-pub struct InternalCall {
+struct InternalItem {
+    attrs: Vec<syn::Attribute>,
+    #[allow(unused)]
+    impl_token: Token![impl],
     item: syn::Path,
-    path: syn::Path,
+    #[allow(unused)]
+    for_token: Token![for],
+    ty: syn::Type,
 }
 
-impl syn::parse::Parse for InternalCall {
+impl syn::parse::Parse for InternalItem {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let attrs = syn::Attribute::parse_outer(input)?;
+        let impl_token = input.parse()?;
         let item = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let path = input.parse()?;
-        Ok(Self { item, path })
-    }
-}
-
-impl InternalCall {
-    pub(super) fn into_any_builder(self, cx: &Context) -> Result<TypeBuilder<syn::Path>, ()> {
-        let tokens = cx.tokens_with_module(None);
-
-        let name = match self.path.segments.last() {
-            Some(last) if last.arguments.is_empty() => last.ident.clone(),
-            _ => {
-                cx.error(syn::Error::new(
-                    self.path.span(),
-                    "expected last component in path to be without parameters,
-                    give it an explicit name instead with `, \"Type\"`",
-                ));
-                return Err(());
-            }
-        };
-
-        let generics = syn::Generics::default();
-
-        let mut item = self.item.clone();
-        item.segments.push(syn::PathSegment::from(name.clone()));
-
-        let type_item = match crate::item::build_item(&item) {
-            Ok(type_item) => type_item,
-            Err(error) => {
-                cx.error(error);
-                return Err(());
-            }
-        };
-
-        let args = crate::hash::Arguments::new(item);
-        let type_hash = args.build_type_hash(cx)?;
-
-        let attr = TypeAttr::default();
-
-        Ok(TypeBuilder {
-            attr,
-            ident: self.path,
-            type_hash,
-            type_item,
-            installers: Vec::new(),
-            tokens,
-            generics,
+        let for_token = input.parse()?;
+        let ty = input.parse()?;
+        Ok(Self {
+            impl_token,
+            item,
+            attrs,
+            for_token,
+            ty,
         })
     }
 }
 
 /// An internal call to the macro.
-pub struct Derive {
-    input: syn::DeriveInput,
+pub struct InternalCall {
+    items: Vec<(InternalItem, Token![;])>,
+}
+
+impl syn::parse::Parse for InternalCall {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut items = Vec::new();
+
+        while !input.is_empty() {
+            items.push((input.parse()?, input.parse()?));
+        }
+
+        Ok(Self { items })
+    }
+}
+
+impl InternalCall {
+    pub(super) fn into_any_builders<'a>(
+        self,
+        cx: &Context,
+        attr: &'a TypeAttr,
+        tokens: &'a Tokens,
+    ) -> Vec<TypeBuilder<'a, syn::Type>> {
+        let mut output = Vec::new();
+
+        for (item, _) in self.items {
+            let type_item = match crate::item::build_item(&item.item) {
+                Ok(type_item) => type_item,
+                Err(error) => {
+                    cx.error(error);
+                    continue;
+                }
+            };
+
+            let mut is_generic = None;
+            let mut attrs = Vec::new();
+
+            for attr in item.attrs {
+                if attr.path().is_ident("generic") {
+                    is_generic = Some(attr.path().span());
+                    continue;
+                }
+
+                attrs.push(attr);
+            }
+
+            let args = crate::hash::Arguments::new(item.item);
+
+            let Ok(type_hash) = args.build_type_hash(cx) else {
+                continue;
+            };
+
+            output.push(TypeBuilder {
+                attr,
+                ident: item.ty,
+                type_hash,
+                type_item,
+                installers: Vec::new(),
+                tokens,
+                is_generic,
+                generics: syn::Generics::default(),
+                attrs,
+            });
+        }
+
+        output
+    }
+}
+
+/// An internal call to the macro.
+pub(super) struct Derive {
+    pub(super) input: syn::DeriveInput,
 }
 
 impl syn::parse::Parse for Derive {
@@ -84,10 +120,12 @@ impl syn::parse::Parse for Derive {
 }
 
 impl Derive {
-    pub(super) fn into_any_builder(self, cx: &Context) -> Result<TypeBuilder<syn::Ident>, ()> {
-        let attr = cx.type_attrs(&self.input.attrs);
-        let tokens = cx.tokens_with_module(attr.module.as_ref());
-
+    pub(super) fn into_any_builder<'a>(
+        self,
+        cx: &Context,
+        attr: &'a TypeAttr,
+        tokens: &'a Tokens,
+    ) -> Result<TypeBuilder<'a, syn::Ident>, ()> {
         let mut installers = Vec::new();
 
         expand_install_with(cx, &self.input, &tokens, &attr, &mut installers)?;
@@ -127,7 +165,9 @@ impl Derive {
             type_item,
             installers,
             tokens,
+            is_generic: None,
             generics: self.input.generics,
+            attrs: Vec::new(),
         })
     }
 }
@@ -488,19 +528,21 @@ fn expand_enum_install_with(
     Ok(())
 }
 
-pub struct TypeBuilder<T> {
-    attr: TypeAttr,
+pub struct TypeBuilder<'a, T> {
+    attr: &'a TypeAttr,
     ident: T,
     /// Hash of the type.
     type_hash: Hash,
     /// Bytes corresponding to the item array.
     type_item: syn::ExprArray,
     installers: Vec<TokenStream>,
-    tokens: Tokens,
+    tokens: &'a Tokens,
+    is_generic: Option<Span>,
     generics: syn::Generics,
+    attrs: Vec<syn::Attribute>,
 }
 
-impl<T> TypeBuilder<T>
+impl<T> TypeBuilder<'_, T>
 where
     T: ToTokens,
 {
@@ -513,12 +555,15 @@ where
             type_item,
             installers,
             tokens,
+            is_generic,
             generics,
+            attrs,
         } = self;
 
         let Tokens {
             alloc,
             any_t,
+            any_from_t,
             context_error,
             fmt,
             hash,
@@ -544,7 +589,7 @@ where
             vm_try,
             write,
             ..
-        } = &tokens;
+        } = tokens;
 
         let empty;
         let mut current;
@@ -574,6 +619,7 @@ where
         let impl_named = if let [first_name, remainder @ ..] = &generic_names[..] {
             quote! {
                 #[automatically_derived]
+                #(#attrs)*
                 impl #impl_generics #named for #ident #type_generics #where_clause {
                     const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
 
@@ -594,6 +640,7 @@ where
         } else {
             quote! {
                 #[automatically_derived]
+                #(#attrs)*
                 impl #impl_generics #named for #ident #type_generics #where_clause {
                     const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
                 }
@@ -602,6 +649,7 @@ where
 
         let install_with = quote! {
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #install_with for #ident #type_generics #where_clause {
                 fn install_with(#[allow(unused)] module: &mut #module) -> core::result::Result<(), #context_error> {
                     #(#installers)*
@@ -621,19 +669,22 @@ where
         let type_parameters =
             quote!(#hash::parameters([#(<#generic_names as #type_hash_t>::HASH),*]));
 
-        let impl_type_of = Some(quote! {
+        let impl_type_of = is_generic.is_none().then(|| quote! {
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
                 const HASH: #hash = #make_hash;
             }
 
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #type_of for #ident #type_generics #where_clause {
                 const PARAMETERS: #hash = #type_parameters;
                 const STATIC_TYPE_INFO: #static_type_info = #static_type_info::any_type_info(<Self as #any_t>::ANY_TYPE_INFO);
             }
 
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
                 #[inline]
                 fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
@@ -643,14 +694,9 @@ where
                     )
                 }
             }
-        });
-
-        let impl_any = quote! {
-            #[automatically_derived]
-            impl #impl_generics #any_t for #ident #type_generics #where_clause {
-            }
 
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
                 type Guard = #raw_value_guard;
 
@@ -661,6 +707,7 @@ where
             }
 
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
                 type Guard = #raw_value_guard;
 
@@ -671,6 +718,7 @@ where
             }
 
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
                 type Guard = #value_ref_guard;
 
@@ -681,6 +729,7 @@ where
             }
 
             #[automatically_derived]
+            #(#attrs)*
             impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
                 type Guard = #value_mut_guard;
 
@@ -689,13 +738,30 @@ where
                     #vm_result::Ok((shared, guard))
                 }
             }
+        });
+
+        let impl_any = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #any_t for #ident #type_generics #where_clause {
+            }
         };
+
+        let impl_non_generic = is_generic.is_none().then(|| {
+            quote! {
+                #[automatically_derived]
+                #(#attrs)*
+                impl #impl_generics #any_from_t for #ident #type_generics #where_clause {
+                }
+            }
+        });
 
         quote! {
             #install_with
             #impl_named
             #impl_type_of
             #impl_any
+            #impl_non_generic
         }
     }
 }

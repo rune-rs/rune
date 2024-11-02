@@ -201,7 +201,7 @@ pub mod fmt;
 #[doc(inline)]
 pub use ::codespan_reporting::term::termcolor;
 
-mod any;
+pub(crate) mod any;
 pub use self::any::Any;
 
 mod build;
@@ -278,9 +278,6 @@ pub mod support;
 #[cfg(feature = "workspace")]
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
 pub mod workspace;
-
-// Macros used internally and re-exported.
-pub(crate) use rune_macros::__internal_impl_any;
 
 /// Macro used to annotate native functions which can be loaded into rune.
 ///
@@ -664,6 +661,7 @@ pub(crate) mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
+    pub use crate::any::AnyFrom;
     pub use crate::function_meta::{
         FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
@@ -680,3 +678,32 @@ mod serde;
 
 #[cfg(test)]
 mod tests;
+
+rune_macros::binding! {
+    #[generic]
+    impl ::std::option::Option for Option<Value>;
+
+    #[generic]
+    impl ::std::result::Result for Result<Value, Value>;
+
+    impl ::std::string::String for crate::alloc::String;
+
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    impl ::std::io::Error for std::io::Error;
+
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
+    impl ::std::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
+
+    impl ::std::error::Error for anyhow::Error;
+
+    impl ::std::fmt::Error for core::fmt::Error;
+    impl ::std::char::ParseCharError for core::char::ParseCharError;
+    impl ::std::num::ParseFloatError for core::num::ParseFloatError;
+    impl ::std::num::ParseIntError for core::num::ParseIntError;
+    impl ::std::string::Utf8Error for core::str::Utf8Error;
+}
+
+from_value_ref!(Result<Value, Value>, into_result_ref, into_result_mut);
+from_value_ref!(Option<Value>, into_option_ref, into_option_mut);

@@ -721,6 +721,7 @@ impl Context {
         Tokens {
             alloc: path(m, ["alloc"]),
             any_t: path(m, ["Any"]),
+            any_from_t: path(m, ["__private", "AnyFrom"]),
             arc: path(m, ["__private", "Arc"]),
             compile_error: path(m, ["compile", "Error"]),
             const_construct_t: path(m, ["runtime", "ConstConstruct"]),
@@ -814,6 +815,7 @@ fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path 
 
 pub(crate) struct Tokens {
     pub(crate) alloc: syn::Path,
+    pub(crate) any_from_t: syn::Path,
     pub(crate) any_t: syn::Path,
     pub(crate) arc: syn::Path,
     pub(crate) compile_error: syn::Path,

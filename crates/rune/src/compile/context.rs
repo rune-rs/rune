@@ -21,8 +21,7 @@ use crate::module::{
 };
 use crate::runtime::{
     ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory, Output,
-    Protocol, RuntimeContext, StaticType, StaticTypeInfo, TypeCheck, TypeInfo, VariantRtti,
-    VmResult,
+    Protocol, RuntimeContext, StaticTypeInfo, TypeCheck, TypeInfo, VariantRtti, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -299,8 +298,6 @@ pub struct Context {
     attribute_macros: hash::Map<Arc<AttributeMacroHandler>>,
     /// Registered types.
     types: hash::Map<ContextType>,
-    /// Registered internal enums.
-    internal_enums: HashSet<StaticType>,
     /// All available names in the context.
     names: Names,
     /// Registered crates.
@@ -1055,103 +1052,6 @@ impl Context {
                 self.attribute_macros
                     .try_insert(m.hash, macro_.handler.clone())?;
                 meta::Kind::AttributeMacro
-            }
-            rune::module::ModuleItemKind::InternalEnum(internal_enum) => {
-                if !self.internal_enums.try_insert(internal_enum.static_type)? {
-                    return Err(ContextError::InternalAlreadyPresent {
-                        name: internal_enum.name,
-                    });
-                }
-
-                // Sanity check that the registered item is in the right location.
-                if internal_enum.static_type.hash != m.hash {
-                    return Err(ContextError::TypeHashMismatch {
-                        type_info: internal_enum.static_type.type_info(),
-                        item: m.item.try_clone()?,
-                        hash: internal_enum.static_type.hash,
-                        item_hash: m.hash,
-                    });
-                }
-
-                self.install_type_info(ContextType {
-                    item: m.item.try_clone()?,
-                    hash: m.hash,
-                    type_check: None,
-                    type_info: internal_enum.static_type.type_info(),
-                    type_parameters: Hash::EMPTY,
-                })?;
-
-                for (index, variant) in internal_enum.variants.iter().enumerate() {
-                    let Some(fields) = &variant.fields else {
-                        continue;
-                    };
-
-                    let variant_item = m.item.extended(variant.name)?;
-                    let variant_hash = Hash::type_hash(&variant_item);
-
-                    self.install_type_info(ContextType {
-                        item: variant_item.try_clone()?,
-                        hash: variant_hash,
-                        type_check: variant.type_check,
-                        type_info: internal_enum.static_type.type_info(),
-                        type_parameters: Hash::EMPTY,
-                    })?;
-
-                    let constructor = if let Some(constructor) = &variant.constructor {
-                        self.insert_native_fn(
-                            &internal_enum.static_type.type_info(),
-                            variant_hash,
-                            constructor,
-                            variant.deprecated.as_deref(),
-                        )?;
-
-                        Some(meta::Signature {
-                            #[cfg(feature = "doc")]
-                            is_async: false,
-                            #[cfg(feature = "doc")]
-                            arguments: Some(fields_to_arguments(fields)?),
-                            #[cfg(feature = "doc")]
-                            return_type: meta::DocType::new(m.hash),
-                        })
-                    } else {
-                        None
-                    };
-
-                    self.install_meta(ContextMeta {
-                        hash: variant_hash,
-                        item: Some(variant_item),
-                        kind: meta::Kind::Variant {
-                            enum_hash: m.hash,
-                            index,
-                            fields: match fields {
-                                Fields::Named(fields) => meta::Fields::Named(meta::FieldsNamed {
-                                    fields: fields
-                                        .iter()
-                                        .copied()
-                                        .enumerate()
-                                        .map(|(position, name)| {
-                                            Ok(meta::FieldMeta {
-                                                name: name.try_into()?,
-                                                position,
-                                            })
-                                        })
-                                        .try_collect::<alloc::Result<_>>()??,
-                                }),
-                                Fields::Unnamed(args) => meta::Fields::Unnamed(*args),
-                                Fields::Empty => meta::Fields::Empty,
-                            },
-                            constructor,
-                        },
-                        #[cfg(feature = "doc")]
-                        deprecated: variant.deprecated.try_clone()?,
-                        #[cfg(feature = "doc")]
-                        docs: variant.docs.try_clone()?,
-                    })?;
-                }
-
-                meta::Kind::Enum {
-                    parameters: Hash::EMPTY,
-                }
             }
         };
 

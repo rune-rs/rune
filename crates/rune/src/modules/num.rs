@@ -16,6 +16,3 @@ pub fn module() -> Result<Module, ContextError> {
     module.ty::<ParseIntError>()?;
     Ok(module)
 }
-
-crate::__internal_impl_any!(::std::num, ParseFloatError);
-crate::__internal_impl_any!(::std::num, ParseIntError);

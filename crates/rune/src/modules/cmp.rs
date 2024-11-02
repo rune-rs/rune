@@ -56,6 +56,15 @@ pub fn module() -> Result<Module, ContextError> {
             .docs(docstring! {
                 /// "An ordering where a compared value is greater than another.
             })?;
+
+        m.associated_function(Protocol::IS_VARIANT, |this: Ordering, index: usize| match (
+            this, index,
+        ) {
+            (Ordering::Less, 0) => true,
+            (Ordering::Equal, 1) => true,
+            (Ordering::Greater, 2) => true,
+            _ => false,
+        })?;
     }
 
     m.function_meta(ordering_partial_eq__meta)?;

@@ -18,16 +18,16 @@ use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
     ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, StaticTypeInfo,
-    ToConstValue, TypeCheck, TypeHash, TypeOf, Value, VmResult,
+    ToConstValue, TypeHash, TypeOf, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
 use super::{
-    AssociatedKey, EnumMut, InstallWith, InternalEnum, InternalEnumMut, ItemFnMut, ItemMut,
-    ModuleAssociated, ModuleAssociatedKind, ModuleAttributeMacro, ModuleConstantBuilder,
-    ModuleFunction, ModuleFunctionBuilder, ModuleItem, ModuleItemCommon, ModuleItemKind,
-    ModuleMacro, ModuleMeta, ModuleRawFunctionBuilder, ModuleReexport, ModuleTrait,
-    ModuleTraitImpl, ModuleType, TraitMut, TypeMut, TypeSpecification, VariantMut,
+    AssociatedKey, EnumMut, InstallWith, ItemFnMut, ItemMut, ModuleAssociated,
+    ModuleAssociatedKind, ModuleAttributeMacro, ModuleConstantBuilder, ModuleFunction,
+    ModuleFunctionBuilder, ModuleItem, ModuleItemCommon, ModuleItemKind, ModuleMacro, ModuleMeta,
+    ModuleRawFunctionBuilder, ModuleReexport, ModuleTrait, ModuleTraitImpl, ModuleType, TraitMut,
+    TypeMut, TypeSpecification, VariantMut,
 };
 
 #[derive(Debug, TryClone, PartialEq, Eq, Hash)]
@@ -346,104 +346,6 @@ impl Module {
         self.variant_meta::<F::Return>(index)?
             .constructor(constructor)?;
         Ok(())
-    }
-
-    /// Construct type information for the `Option` type.
-    ///
-    /// Registering this allows the given type to be used in Rune scripts when
-    /// referring to the `Option` type.
-    ///
-    /// # Examples
-    ///
-    /// This shows how to register the `Option` as `nonstd::option::Option`.
-    ///
-    /// ```
-    /// use rune::Module;
-    ///
-    /// let mut module = Module::with_crate_item("nonstd", ["option"])?;
-    /// module.option(["Option"])?;
-    ///
-    /// Ok::<_, rune::support::Error>(())
-    pub fn option<N>(&mut self, name: N) -> Result<InternalEnumMut<'_, Option<Value>>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let mut enum_ = InternalEnum::new("Option", crate::runtime::static_type::OPTION);
-
-        // Note: these numeric variants are magic, and must simply match up with
-        // what's being used in the virtual machine implementation for these
-        // types.
-        enum_.variant("Some", TypeCheck::Option(0), Option::<Value>::Some)?;
-        enum_.variant("None", TypeCheck::Option(1), || Option::<Value>::None)?;
-
-        self.install_internal_enum(name, enum_)
-    }
-
-    /// Construct type information for the internal `Result` type.
-    ///
-    /// Registering this allows the given type to be used in Rune scripts when
-    /// referring to the `Result` type.
-    ///
-    /// # Examples
-    ///
-    /// This shows how to register the `Result` as `nonstd::result::Result`.
-    ///
-    /// ```
-    /// use rune::Module;
-    ///
-    /// let mut module = Module::with_crate_item("nonstd", ["result"])?;
-    /// module.result(["Result"])?;
-    ///
-    /// Ok::<_, rune::support::Error>(())
-    pub fn result<N>(
-        &mut self,
-        name: N,
-    ) -> Result<InternalEnumMut<'_, Result<Value, Value>>, ContextError>
-    where
-        N: IntoComponent,
-    {
-        let mut enum_ = InternalEnum::new("Result", crate::runtime::static_type::RESULT);
-
-        // Note: these numeric variants are magic, and must simply match up with
-        // what's being used in the virtual machine implementation for these
-        // types.
-        enum_.variant("Ok", TypeCheck::Result(0), Result::<Value, Value>::Ok)?;
-        enum_.variant("Err", TypeCheck::Result(1), Result::<Value, Value>::Err)?;
-
-        self.install_internal_enum(name, enum_)
-    }
-
-    fn install_internal_enum<N, T>(
-        &mut self,
-        name: N,
-        enum_: InternalEnum,
-    ) -> Result<InternalEnumMut<'_, T>, ContextError>
-    where
-        N: IntoComponent,
-        T: ?Sized + TypeOf,
-    {
-        let item = self.item.join([name])?;
-        let hash = Hash::type_hash(&item);
-
-        self.items.try_push(ModuleItem {
-            item,
-            hash,
-            common: ModuleItemCommon::default(),
-            kind: ModuleItemKind::InternalEnum(enum_),
-        })?;
-
-        let item = self.items.last_mut().unwrap();
-
-        let internal_enum = match &mut item.kind {
-            ModuleItemKind::InternalEnum(internal_enum) => internal_enum,
-            _ => unreachable!(),
-        };
-
-        Ok(InternalEnumMut {
-            enum_: internal_enum,
-            common: &mut item.common,
-            _marker: PhantomData,
-        })
     }
 
     /// Register a constant value, at a crate, module or associated level.

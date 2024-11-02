@@ -17,11 +17,3 @@ fn test_template_without_variables() {
         span!(16, 29), TemplateWithoutExpansions { context: Some(span!(14, 31)), .. }
     };
 }
-
-#[test]
-fn test_remove_variant_parens() {
-    assert_warnings! {
-        r#"pub fn main() { None() }"#,
-        span!(20, 22), RemoveTupleCallParams { variant: span!(16, 20), .. }
-    };
-}

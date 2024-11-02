@@ -48,6 +48,7 @@ mod to_tokens;
 mod to_value;
 
 use self::context::{Context, Tokens};
+use proc_macro2::TokenStream;
 
 #[proc_macro]
 pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -176,7 +177,14 @@ pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro_derive(Any, attributes(rune))]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::Derive);
-    Context::build(|cx| Ok(derive.into_any_builder(cx)?.expand())).into()
+
+    let stream = Context::build(|cx| {
+        let attr = cx.type_attrs(&derive.input.attrs);
+        let tokens = cx.tokens_with_module(attr.module.as_ref());
+        Ok(derive.into_any_builder(cx, &attr, &tokens)?.expand())
+    });
+
+    stream.into()
 }
 
 #[proc_macro_derive(ToConstValue, attributes(const_value))]
@@ -238,11 +246,27 @@ pub fn item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     stream.into()
 }
 
+/// Helper to generate bindings for an external type.
+///
+/// This can *only* be used inside of the `rune` crate itself.
 #[proc_macro]
 #[doc(hidden)]
-pub fn __internal_impl_any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn binding(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::InternalCall);
-    Context::build_with_crate(|cx| Ok(derive.into_any_builder(cx)?.expand())).into()
+
+    let stream = Context::build_with_crate(|cx| {
+        let mut stream = TokenStream::default();
+        let attr = context::TypeAttr::default();
+        let tokens = cx.tokens_with_module(None);
+
+        for builder in derive.into_any_builders(cx, &attr, &tokens) {
+            stream.extend(builder.expand());
+        }
+
+        Ok(stream)
+    });
+
+    stream.into()
 }
 
 /// Shim for an ignored `#[stable]` attribute.

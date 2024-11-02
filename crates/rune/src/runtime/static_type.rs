@@ -7,7 +7,6 @@ use core::ops::ControlFlow;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, HashMap};
 use crate::runtime as rt;
-use crate::runtime::TypeInfo;
 use crate::{Hash, Item};
 
 /// Static type information.
@@ -19,13 +18,6 @@ pub struct StaticType {
     /// The hash of the static type.
     #[try_clone(copy)]
     pub(crate) hash: Hash,
-}
-
-impl StaticType {
-    #[inline]
-    pub(crate) fn type_info(self) -> TypeInfo {
-        TypeInfo::static_type(self)
-    }
 }
 
 impl PartialEq for StaticType {
@@ -99,6 +91,14 @@ macro_rules! static_type {
 }
 
 any_type! {
+    ::std::result::Result {
+        impl<T, E> for Result<T, E>;
+    }
+
+    ::std::option::Option {
+        impl<T> for Option<T>;
+    }
+
     /// The specialized type information for a bool type.
     ::std::bool {
         impl for bool;
@@ -153,7 +153,6 @@ any_type! {
         #[cfg(feature = "alloc")]
         #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
         impl for ::rust_alloc::string::String;
-        impl for alloc::String;
         impl for alloc::Box<str>;
         impl for str;
     }
@@ -190,14 +189,6 @@ any_type! {
 }
 
 static_type! {
-    pub(crate) static [RESULT, RESULT_HASH] = ::std::result::Result {
-        impl<T, E> for Result<T, E>;
-    }
-
-    pub(crate) static [OPTION, OPTION_HASH] = ::std::option::Option {
-        impl<T> for Option<T>;
-    }
-
     pub(crate) static [TYPE, TYPE_HASH] = ::std::any::Type {
         impl for rt::Type;
     }
