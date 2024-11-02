@@ -318,13 +318,10 @@ impl Vm {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use rune::{Context, Unit, Vm};
     ///
     /// use std::sync::Arc;
-    ///
-    /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime()?);
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -338,10 +335,13 @@ impl Vm {
     ///     }
     /// };
     ///
+    /// let context = Context::with_default_modules()?;
+    /// let runtime = Arc::new(context.runtime()?);
+    ///
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let unit = Arc::new(unit);
     ///
-    /// let vm = Vm::new(context, unit);
+    /// let vm = Vm::new(runtime, unit);
     ///
     /// // Looking up an item from the source.
     /// let dynamic_max = vm.lookup_function(["max"])?;
@@ -394,18 +394,12 @@ impl Vm {
     ///
     /// # Examples
     ///
-    /// ```,no_run
+    /// ```no_run
     /// use rune::{Context, Unit};
     /// use std::sync::Arc;
     ///
-    /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime()?);
-    ///
-    /// // Normally the unit would be created by compiling some source,
-    /// // and since this one is empty it won't do anything.
     /// let unit = Arc::new(Unit::default());
-    ///
-    /// let mut vm = rune::Vm::new(context, unit);
+    /// let mut vm = rune::Vm::without_runtime(unit);
     ///
     /// let output = vm.execute(["main"], (33i64,))?.complete().into_result()?;
     /// let output: i64 = rune::from_value(output)?;
@@ -417,18 +411,14 @@ impl Vm {
     /// You can use a `Vec<Value>` to provide a variadic collection of
     /// arguments.
     ///
-    /// ```,no_run
+    /// ```no_run
     /// use rune::{Context, Unit};
     /// use std::sync::Arc;
-    ///
-    /// let context = Context::with_default_modules()?;
-    /// let context = Arc::new(context.runtime()?);
     ///
     /// // Normally the unit would be created by compiling some source,
     /// // and since this one is empty it won't do anything.
     /// let unit = Arc::new(Unit::default());
-    ///
-    /// let mut vm = rune::Vm::new(context, unit);
+    /// let mut vm = rune::Vm::without_runtime(unit);
     ///
     /// let mut args = Vec::new();
     /// args.push(rune::to_value(1u32)?);

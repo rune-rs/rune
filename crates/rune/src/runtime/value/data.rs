@@ -9,7 +9,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::runtime::{OwnedTuple, TypeInfo};
 
-use super::{Rtti, Value};
+use super::{FromValue, Mutable, OwnedRepr, Rtti, RuntimeError, Value};
 
 /// A empty with a well-defined type.
 #[derive(TryClone)]
@@ -28,6 +28,17 @@ impl EmptyStruct {
     /// Get type info for the typed tuple.
     pub fn type_info(&self) -> TypeInfo {
         TypeInfo::typed(self.rtti.clone())
+    }
+}
+
+impl FromValue for EmptyStruct {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        match value.take_repr()? {
+            OwnedRepr::Inline(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
+            OwnedRepr::Mutable(Mutable::EmptyStruct(value)) => Ok(value),
+            OwnedRepr::Mutable(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
+            OwnedRepr::Any(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
+        }
     }
 }
 
@@ -75,6 +86,19 @@ impl TupleStruct {
     /// Get the mutable value at the given index in the tuple.
     pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
         self.data.get_mut(index)
+    }
+}
+
+impl FromValue for TupleStruct {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        match value.take_repr()? {
+            OwnedRepr::Inline(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
+            OwnedRepr::Mutable(Mutable::TupleStruct(value)) => Ok(value),
+            OwnedRepr::Mutable(value) => {
+                Err(RuntimeError::expected_tuple_struct(value.type_info()))
+            }
+            OwnedRepr::Any(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
+        }
     }
 }
 
@@ -130,6 +154,17 @@ impl Struct {
     /// Get type info for the typed object.
     pub(crate) fn type_info(&self) -> TypeInfo {
         TypeInfo::typed(self.rtti.clone())
+    }
+}
+
+impl FromValue for Struct {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        match value.take_repr()? {
+            OwnedRepr::Inline(value) => Err(RuntimeError::expected_struct(value.type_info())),
+            OwnedRepr::Mutable(Mutable::Struct(value)) => Ok(value),
+            OwnedRepr::Mutable(value) => Err(RuntimeError::expected_struct(value.type_info())),
+            OwnedRepr::Any(value) => Err(RuntimeError::expected_struct(value.type_info())),
+        }
     }
 }
 

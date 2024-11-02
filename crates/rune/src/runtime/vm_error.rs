@@ -79,11 +79,6 @@ impl VmError {
     pub(crate) fn into_kind(self) -> VmErrorKind {
         self.inner.error.kind
     }
-
-    #[cfg(test)]
-    pub(crate) fn as_kind(&self) -> &VmErrorKind {
-        &self.inner.error.kind
-    }
 }
 
 impl fmt::Display for VmError {
@@ -444,6 +439,26 @@ impl RuntimeError {
             expected: T::type_info(),
             actual,
         })
+    }
+
+    /// Construct an expected error for a variant.
+    pub(crate) fn expected_variant(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedVariant { actual })
+    }
+
+    /// Construct an expected expecting a unit struct.
+    pub(crate) fn expected_unit_struct(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedUnitStruct { actual })
+    }
+
+    /// Construct an expected expecting a tuple struct.
+    pub(crate) fn expected_tuple_struct(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedTupleStruct { actual })
+    }
+
+    /// Construct an expected expecting a struct.
+    pub(crate) fn expected_struct(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedStruct { actual })
     }
 
     /// Construct an expected error from any.
@@ -819,6 +834,15 @@ pub(crate) enum VmErrorKind {
     ExpectedVariant {
         actual: TypeInfo,
     },
+    ExpectedUnitStruct {
+        actual: TypeInfo,
+    },
+    ExpectedTupleStruct {
+        actual: TypeInfo,
+    },
+    ExpectedStruct {
+        actual: TypeInfo,
+    },
     UnsupportedObjectFieldGet {
         target: TypeInfo,
     },
@@ -1025,6 +1049,15 @@ impl fmt::Display for VmErrorKind {
             ),
             VmErrorKind::ExpectedVariant { actual } => {
                 write!(f, "Expected an enum variant, but got `{actual}`")
+            }
+            VmErrorKind::ExpectedUnitStruct { actual } => {
+                write!(f, "Expected a unit struct, but got `{actual}`")
+            }
+            VmErrorKind::ExpectedTupleStruct { actual } => {
+                write!(f, "Expected a tuple struct, but got `{actual}`")
+            }
+            VmErrorKind::ExpectedStruct { actual } => {
+                write!(f, "Expected a struct, but got `{actual}`")
             }
             VmErrorKind::UnsupportedObjectFieldGet { target } => write!(
                 f,

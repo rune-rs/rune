@@ -73,7 +73,7 @@
 //!
 //! [`termcolor`]: https://docs.rs/termcolor
 //!
-//! ```rust
+//! ```no_run
 //! use rune::{Context, Diagnostics, Source, Sources, Vm};
 //! use rune::termcolor::{ColorChoice, StandardStream};
 //! use std::sync::Arc;

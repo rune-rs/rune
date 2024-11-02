@@ -7,7 +7,10 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::Box;
 
-use super::{Accessor, OwnedTuple, ProtocolCaller, TypeInfo, Value, VariantRtti, Vec, VmResult};
+use super::{
+    Accessor, FromValue, Mutable, OwnedRepr, OwnedTuple, ProtocolCaller, RuntimeError, Tuple,
+    TypeInfo, Value, VariantRtti, Vec, VmResult,
+};
 
 /// The variant of a type.
 #[derive(TryClone)]
@@ -23,6 +26,14 @@ impl Variant {
         Accessor {
             fields: &self.rtti.fields,
             data,
+        }
+    }
+
+    /// Try to access variant data as a tuple.
+    pub fn as_tuple(&self) -> Option<&Tuple> {
+        match &self.data {
+            VariantData::Tuple(tuple) => Some(tuple),
+            _ => None,
         }
     }
 
@@ -61,7 +72,7 @@ impl Variant {
     }
 
     /// Access the underlying variant data mutably.
-    pub fn data_mut(&mut self) -> &mut VariantData {
+    pub(crate) fn data_mut(&mut self) -> &mut VariantData {
         &mut self.data
     }
 
@@ -161,6 +172,17 @@ impl Variant {
             (VariantData::Tuple(a), VariantData::Tuple(b)) => Vec::cmp_with(a, b, caller),
             (VariantData::Struct(a), VariantData::Struct(b)) => Vec::cmp_with(a, b, caller),
             _ => VmResult::panic("data mismatch between variants"),
+        }
+    }
+}
+
+impl FromValue for Variant {
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        match value.take_repr()? {
+            OwnedRepr::Inline(value) => Err(RuntimeError::expected_variant(value.type_info())),
+            OwnedRepr::Mutable(Mutable::Variant(value)) => Ok(value),
+            OwnedRepr::Mutable(value) => Err(RuntimeError::expected_variant(value.type_info())),
+            OwnedRepr::Any(value) => Err(RuntimeError::expected_variant(value.type_info())),
         }
     }
 }
