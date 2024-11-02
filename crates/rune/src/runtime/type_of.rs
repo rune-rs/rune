@@ -2,7 +2,7 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::Hash;
 
-use super::{AnyTypeInfo, Mut, Ref, Shared, StaticType, TypeInfo};
+use super::{AnyTypeInfo, Mut, Ref, Shared, TypeInfo};
 
 /// Static type hash for a given type.
 ///
@@ -60,39 +60,6 @@ where
     const HASH: Hash = T::HASH;
 }
 
-/// Static type information.
-#[derive(Clone, Copy)]
-pub struct StaticTypeInfo {
-    kind: StaticTypeInfoKind,
-}
-
-impl StaticTypeInfo {
-    #[inline]
-    pub(super) fn into_kind(self) -> StaticTypeInfoKind {
-        self.kind
-    }
-
-    #[doc(hidden)]
-    pub const fn static_type(ty: StaticType) -> Self {
-        Self {
-            kind: StaticTypeInfoKind::StaticType(ty),
-        }
-    }
-
-    #[doc(hidden)]
-    pub const fn any_type_info(ty: AnyTypeInfo) -> Self {
-        Self {
-            kind: StaticTypeInfoKind::AnyTypeInfo(ty),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(super) enum StaticTypeInfoKind {
-    StaticType(StaticType),
-    AnyTypeInfo(AnyTypeInfo),
-}
-
 /// Trait used for Rust types for which we can determine the runtime type of.
 pub trait TypeOf: TypeHash {
     /// Type parameters for the type.
@@ -112,7 +79,7 @@ pub trait TypeOf: TypeHash {
     ///
     /// [`Debug`]: core::fmt::Debug
     /// [`Display`]: core::fmt::Display
-    const STATIC_TYPE_INFO: StaticTypeInfo;
+    const STATIC_TYPE_INFO: AnyTypeInfo;
 
     #[inline]
     /// Get type info associated with the current type.
@@ -183,7 +150,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
+    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for mutable references.
@@ -192,7 +159,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
+    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for owned references.
@@ -209,7 +176,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
+    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for owned mutable references.
@@ -226,7 +193,7 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
+    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
 }
 
 /// Blanket implementation for owned shared values.
@@ -243,5 +210,5 @@ where
     T: ?Sized + TypeOf,
 {
     const PARAMETERS: Hash = T::PARAMETERS;
-    const STATIC_TYPE_INFO: StaticTypeInfo = T::STATIC_TYPE_INFO;
+    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
 }

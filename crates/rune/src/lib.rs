@@ -661,7 +661,7 @@ pub(crate) mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __private {
-    pub use crate::any::AnyFrom;
+    pub use crate::any::AnyMarker;
     pub use crate::function_meta::{
         FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
@@ -703,6 +703,65 @@ rune_macros::binding! {
     impl ::std::num::ParseFloatError for core::num::ParseFloatError;
     impl ::std::num::ParseIntError for core::num::ParseIntError;
     impl ::std::string::Utf8Error for core::str::Utf8Error;
+}
+
+impl_builtin_type_of! {
+    impl<T, E> ::std::result::Result, core::result::Result<T, E>;
+    impl<T> ::std::option::Option, core::option::Option<T>;
+
+    impl ::std::bool, bool;
+    impl ::std::char, char;
+
+    impl ::std::i64, i8;
+    impl ::std::i64, i16;
+    impl ::std::i64, i32;
+    impl ::std::i64, i64;
+    impl ::std::i64, i128;
+    impl ::std::i64, isize;
+    impl ::std::u64, u8;
+    impl ::std::u64, u16;
+    impl ::std::u64, u32;
+    impl ::std::u64, u64;
+    impl ::std::u64, u128;
+    impl ::std::u64, usize;
+
+    impl ::std::f64, f32;
+    impl ::std::f64, f64;
+
+    impl<C, B> ::std::ops::ControlFlow, core::ops::ControlFlow<C, B>;
+
+    impl ::std::bytes::Bytes, [u8];
+
+    impl ::std::cmp::Ordering, core::cmp::Ordering;
+
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
+    impl ::std::string::String, ::rust_alloc::string::String;
+    impl ::std::string::String, crate::alloc::Box<str>;
+    impl ::std::string::String, str;
+
+    impl ::std::vec::Vec, [Value];
+    #[cfg(feature = "alloc")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
+    impl<T> ::std::vec::Vec, ::rust_alloc::vec::Vec<T>;
+    impl<T> ::std::vec::Vec, crate::alloc::Vec<T>;
+    impl<T> ::std::vec::Vec, crate::runtime::VecTuple<T>;
+
+    impl ::std::tuple::Tuple, crate::runtime::Tuple;
+
+    impl ::std::object::Object, crate::runtime::Struct;
+    impl<T> ::std::object::Object, crate::alloc::HashMap<::rust_alloc::string::String, T>;
+    impl<T> ::std::object::Object, crate::alloc::HashMap<alloc::String, T>;
+
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    impl<T> ::std::object::Object, std::collections::HashMap<::rust_alloc::string::String, T>;
+
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    impl<T> ::std::object::Object, std::collections::HashMap<alloc::String, T>;
+
+    impl ::std::any::Type, crate::runtime::Type;
 }
 
 from_value_ref!(Result<Value, Value>, into_result_ref, into_result_mut);

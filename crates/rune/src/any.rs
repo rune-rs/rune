@@ -124,6 +124,7 @@ pub trait Any: TypeHash + Named + any::Any {
 /// This trait in contrast is selectively implemented for types which we want to
 /// generate [`ToValue`] and [`FromValue`] implementations for.
 ///
+/// [`Value`]: crate::runtime::Value
 /// [`AnyObj`]: crate::runtime::AnyObj
 /// [`ToValue`]: crate::runtime::ToValue
 /// [`FromValue`]: crate::runtime::FromValue
@@ -132,4 +133,4 @@ pub trait Any: TypeHash + Named + any::Any {
 /// [`Any`] derive instead.
 ///
 /// [`Any`]: derive@Any
-pub trait AnyFrom: Any {}
+pub trait AnyMarker: Any {}

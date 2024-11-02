@@ -348,7 +348,7 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 macro_rules! impl_tuple {
     // Skip conflicting implementation with `()`.
     (0) => {
-        impl_any_type!(impl for (), ::std::tuple::Tuple);
+        impl_one_builtin_type_of!(impl ::std::tuple::Tuple, ());
 
         impl FromValue for () {
             #[inline]
@@ -366,7 +366,7 @@ macro_rules! impl_tuple {
     };
 
     ($count:expr $(, $ty:ident $var:ident $ignore_count:expr)*) => {
-        impl_any_type!(impl <$($ty),*> for ($($ty,)*), ::std::tuple::Tuple);
+        impl_one_builtin_type_of!(impl <$($ty),*> ::std::tuple::Tuple, ($($ty,)*));
 
         impl <$($ty,)*> FromValue for ($($ty,)*)
         where

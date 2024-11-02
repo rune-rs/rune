@@ -128,7 +128,7 @@ impl Derive {
     ) -> Result<TypeBuilder<'a, syn::Ident>, ()> {
         let mut installers = Vec::new();
 
-        expand_install_with(cx, &self.input, &tokens, &attr, &mut installers)?;
+        expand_install_with(cx, &self.input, tokens, attr, &mut installers)?;
 
         if matches!(&self.input.data, syn::Data::Enum(..)) {
             if let Some(span) = attr.constructor {
@@ -563,7 +563,7 @@ where
         let Tokens {
             alloc,
             any_t,
-            any_from_t,
+            any_marker_t,
             context_error,
             fmt,
             hash,
@@ -576,7 +576,7 @@ where
             non_null,
             raw_value_guard,
             result,
-            static_type_info,
+            any_type_info,
             type_hash_t,
             type_of,
             unsafe_to_mut,
@@ -680,7 +680,7 @@ where
             #(#attrs)*
             impl #impl_generics #type_of for #ident #type_generics #where_clause {
                 const PARAMETERS: #hash = #type_parameters;
-                const STATIC_TYPE_INFO: #static_type_info = #static_type_info::any_type_info(<Self as #any_t>::ANY_TYPE_INFO);
+                const STATIC_TYPE_INFO: #any_type_info = <Self as #any_t>::ANY_TYPE_INFO;
             }
 
             #[automatically_derived]
@@ -751,7 +751,7 @@ where
             quote! {
                 #[automatically_derived]
                 #(#attrs)*
-                impl #impl_generics #any_from_t for #ident #type_generics #where_clause {
+                impl #impl_generics #any_marker_t for #ident #type_generics #where_clause {
                 }
             }
         });

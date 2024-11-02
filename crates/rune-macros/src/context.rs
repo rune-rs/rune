@@ -720,8 +720,9 @@ impl Context {
 
         Tokens {
             alloc: path(m, ["alloc"]),
+            any_marker_t: path(m, ["__private", "AnyMarker"]),
             any_t: path(m, ["Any"]),
-            any_from_t: path(m, ["__private", "AnyFrom"]),
+            any_type_info: path(m, ["runtime", "AnyTypeInfo"]),
             arc: path(m, ["__private", "Arc"]),
             compile_error: path(m, ["compile", "Error"]),
             const_construct_t: path(m, ["runtime", "ConstConstruct"]),
@@ -756,7 +757,6 @@ impl Context {
             runtime_error: path(m, ["runtime", "RuntimeError"]),
             span: path(m, ["ast", "Span"]),
             spanned: path(m, ["ast", "Spanned"]),
-            static_type_info: path(m, ["runtime", "StaticTypeInfo"]),
             string: path(m, ["alloc", "String"]),
             to_const_value_t: path(m, ["runtime", "ToConstValue"]),
             to_tokens: path(m, ["macros", "ToTokens"]),
@@ -815,8 +815,9 @@ fn path<const N: usize>(base: &syn::Path, path: [&'static str; N]) -> syn::Path 
 
 pub(crate) struct Tokens {
     pub(crate) alloc: syn::Path,
-    pub(crate) any_from_t: syn::Path,
+    pub(crate) any_marker_t: syn::Path,
     pub(crate) any_t: syn::Path,
+    pub(crate) any_type_info: syn::Path,
     pub(crate) arc: syn::Path,
     pub(crate) compile_error: syn::Path,
     pub(crate) const_construct_t: syn::Path,
@@ -851,7 +852,6 @@ pub(crate) struct Tokens {
     pub(crate) runtime_error: syn::Path,
     pub(crate) span: syn::Path,
     pub(crate) spanned: syn::Path,
-    pub(crate) static_type_info: syn::Path,
     pub(crate) string: syn::Path,
     pub(crate) to_const_value_t: syn::Path,
     pub(crate) to_tokens: syn::Path,
