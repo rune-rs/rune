@@ -2979,7 +2979,7 @@ impl Vm {
 
     /// Operation to allocate an object struct.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_struct(&mut self, addr: InstAddress, hash: Hash, _: usize, out: Output) -> VmResult<()> {
+    fn op_struct(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
         let rtti = vm_try!(self
             .unit
             .lookup_rtti(hash)
@@ -3025,13 +3025,7 @@ impl Vm {
 
     /// Operation to allocate an object variant.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_struct_variant(
-        &mut self,
-        addr: InstAddress,
-        hash: Hash,
-        _: usize,
-        out: Output,
-    ) -> VmResult<()> {
+    fn op_struct_variant(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
         let rtti = vm_try!(self
             .unit
             .lookup_variant_rtti(hash)
@@ -3917,13 +3911,8 @@ impl Vm {
                 Inst::EmptyStruct { hash, out } => {
                     vm_try!(self.op_empty_struct(hash, out));
                 }
-                Inst::Struct {
-                    addr,
-                    hash,
-                    slot,
-                    out,
-                } => {
-                    vm_try!(self.op_struct(addr, hash, slot, out));
+                Inst::Struct { addr, hash, out } => {
+                    vm_try!(self.op_struct(addr, hash, out));
                 }
                 Inst::ConstConstruct {
                     addr,
@@ -3933,13 +3922,8 @@ impl Vm {
                 } => {
                     vm_try!(self.op_const_construct(addr, hash, count, out));
                 }
-                Inst::StructVariant {
-                    addr,
-                    hash,
-                    slot,
-                    out,
-                } => {
-                    vm_try!(self.op_struct_variant(addr, hash, slot, out));
+                Inst::StructVariant { addr, hash, out } => {
+                    vm_try!(self.op_struct_variant(addr, hash, out));
                 }
                 Inst::String { slot, out } => {
                     vm_try!(self.op_string(slot, out));

@@ -2517,10 +2517,6 @@ fn expr_object<'a, 'hir>(
     if let Some(linear) =
         exprs_with(cx, span, hir.assignments, |hir| &hir.assign)?.into_converging()
     {
-        let slot =
-            cx.q.unit
-                .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
-
         match hir.kind {
             hir::ExprObjectKind::EmptyStruct { hash } => {
                 cx.asm.push(
@@ -2536,7 +2532,6 @@ fn expr_object<'a, 'hir>(
                     Inst::Struct {
                         addr: linear.addr(),
                         hash,
-                        slot,
                         out: needs.alloc_output()?,
                     },
                     span,
@@ -2547,7 +2542,6 @@ fn expr_object<'a, 'hir>(
                     Inst::StructVariant {
                         addr: linear.addr(),
                         hash,
-                        slot,
                         out: needs.alloc_output()?,
                     },
                     span,
@@ -2567,6 +2561,11 @@ fn expr_object<'a, 'hir>(
                 )?;
             }
             hir::ExprObjectKind::Anonymous => {
+                let slot = cx
+                    .q
+                    .unit
+                    .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
+
                 cx.asm.push(
                     Inst::Object {
                         addr: linear.addr(),

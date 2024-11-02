@@ -657,8 +657,6 @@ pub enum Inst {
         addr: InstAddress,
         /// The type of the struct to construct.
         hash: Hash,
-        /// The static slot of the object keys.
-        slot: usize,
         /// Where to write the constructed struct.
         out: Output,
     },
@@ -694,8 +692,6 @@ pub enum Inst {
         addr: InstAddress,
         /// The type hash of the object variant to construct.
         hash: Hash,
-        /// The static slot of the object keys.
-        slot: usize,
         /// Where to write the constructed variant.
         out: Output,
     },
