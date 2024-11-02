@@ -7,8 +7,10 @@ use core::slice;
 
 use ::rust_alloc::sync::Arc;
 
+use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
+use crate::hash;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime;
@@ -3275,11 +3277,28 @@ impl Vm {
 
         let is_match = 'out: {
             match vm_try!(value.borrow_ref_repr()) {
-                BorrowRefRepr::Mutable(value) => match &*value {
-                    Mutable::Variant(variant) => {
-                        break 'out variant.rtti().hash == variant_hash;
+                BorrowRefRepr::Mutable(value) => match (enum_hash, &*value) {
+                    (hash!(::std::result::Result), Mutable::Result(result)) => {
+                        break 'out match (variant_hash, result) {
+                            (hash!(::std::result::Result::Ok), Ok(..)) => true,
+                            (hash!(::std::result::Result::Err), Err(..)) => true,
+                            _ => false,
+                        };
                     }
-                    _ => {}
+                    (hash!(::std::option::Option), Mutable::Option(option)) => {
+                        break 'out match (variant_hash, option) {
+                            (hash!(::std::option::Option::None), None) => true,
+                            (hash!(::std::option::Option::Some), Some(..)) => true,
+                            _ => false,
+                        };
+                    }
+                    (enum_hash, Mutable::Variant(variant)) => {
+                        let rtti = variant.rtti();
+                        break 'out rtti.enum_hash == enum_hash && rtti.hash == variant_hash;
+                    }
+                    _ => {
+                        break 'out false;
+                    }
                 },
                 BorrowRefRepr::Any(any) => {
                     if any.type_hash() != enum_hash {

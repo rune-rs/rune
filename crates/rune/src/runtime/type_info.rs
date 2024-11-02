@@ -9,12 +9,10 @@ use crate::{Any, TypeHash};
 
 use ::rust_alloc::sync::Arc;
 
-use super::{Rtti, StaticType, StaticTypeInfo, StaticTypeInfoKind, VariantRtti};
+use super::{Rtti, VariantRtti};
 
 #[derive(Debug, TryClone, PartialEq, Eq)]
 enum TypeInfoKind {
-    /// The static type of a value.
-    StaticType(StaticType),
     /// Reference to an external type.
     Any(AnyTypeInfo),
     /// A named type.
@@ -67,11 +65,6 @@ impl TypeInfo {
         Self::new(TypeInfoKind::Any(type_info))
     }
 
-    #[doc(hidden)]
-    pub(crate) const fn static_type(ty: StaticType) -> Self {
-        Self::new(TypeInfoKind::StaticType(ty))
-    }
-
     #[inline]
     pub(crate) const fn typed(rtti: Arc<Rtti>) -> Self {
         Self::new(TypeInfoKind::Typed(rtti))
@@ -85,7 +78,6 @@ impl TypeInfo {
     #[cfg(feature = "emit")]
     pub(crate) fn type_hash(&self) -> Hash {
         match &self.kind {
-            TypeInfoKind::StaticType(ty) => ty.hash,
             TypeInfoKind::Typed(ty) => ty.hash,
             TypeInfoKind::Variant(ty) => ty.hash,
             TypeInfoKind::Any(ty) => ty.hash,
@@ -103,9 +95,6 @@ impl fmt::Debug for TypeInfo {
 impl fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            TypeInfoKind::StaticType(ty) => {
-                write!(f, "{}", ty.item)?;
-            }
             TypeInfoKind::Typed(rtti) => {
                 write!(f, "{}", rtti.item)?;
             }
@@ -125,16 +114,6 @@ impl From<AnyTypeInfo> for TypeInfo {
     #[inline]
     fn from(type_info: AnyTypeInfo) -> Self {
         Self::any_type_info(type_info)
-    }
-}
-
-impl From<StaticTypeInfo> for TypeInfo {
-    #[inline]
-    fn from(type_info: StaticTypeInfo) -> Self {
-        match type_info.into_kind() {
-            StaticTypeInfoKind::StaticType(static_type) => Self::static_type(static_type),
-            StaticTypeInfoKind::AnyTypeInfo(any_type_info) => Self::any_type_info(any_type_info),
-        }
     }
 }
 

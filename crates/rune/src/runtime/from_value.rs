@@ -1,7 +1,7 @@
 use core::cmp::Ordering;
 
 use crate::alloc::{self, String};
-use crate::any::AnyFrom;
+use crate::any::AnyMarker;
 
 use super::{
     AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult,
@@ -243,7 +243,7 @@ pub trait UnsafeFromValue: Sized {
 
 impl<T> FromValue for T
 where
-    T: AnyFrom,
+    T: AnyMarker,
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -253,7 +253,7 @@ where
 
 impl<T> FromValue for Mut<T>
 where
-    T: AnyFrom,
+    T: AnyMarker,
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -263,7 +263,7 @@ where
 
 impl<T> FromValue for Ref<T>
 where
-    T: AnyFrom,
+    T: AnyMarker,
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {

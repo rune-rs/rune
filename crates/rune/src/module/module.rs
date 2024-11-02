@@ -17,8 +17,8 @@ use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
-    ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, StaticTypeInfo,
-    ToConstValue, TypeHash, TypeOf, VmResult,
+    AnyTypeInfo, ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
+    TypeHash, TypeOf, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -71,7 +71,7 @@ pub struct Module {
     /// A re-export in the current module.
     pub(crate) reexports: Vec<ModuleReexport>,
     /// Constant constructors.
-    pub(crate) construct: Vec<(Hash, StaticTypeInfo, Arc<dyn ConstConstruct>)>,
+    pub(crate) construct: Vec<(Hash, AnyTypeInfo, Arc<dyn ConstConstruct>)>,
     /// Defines construct hashes.
     pub(crate) construct_hash: HashSet<Hash>,
     /// Module level metadata.

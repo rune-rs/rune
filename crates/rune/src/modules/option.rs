@@ -41,12 +41,10 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.index_function(Protocol::GET, 0, |this: &Option<Value>| match this {
         Option::Some(value) => VmResult::Ok(value.clone()),
-        _ => {
-            return VmResult::err(RuntimeError::__rune_macros__unsupported_tuple_index_get(
-                <Option<Value> as Any>::ANY_TYPE_INFO,
-                0,
-            ))
-        }
+        _ => VmResult::err(RuntimeError::__rune_macros__unsupported_tuple_index_get(
+            <Option<Value> as Any>::ANY_TYPE_INFO,
+            0,
+        )),
     })?;
 
     // Sorted for ease of finding

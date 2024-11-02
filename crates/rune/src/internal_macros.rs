@@ -8,27 +8,25 @@ macro_rules! resolve_context {
     };
 }
 
-macro_rules! impl_any_type {
-    (impl $(<$($p:ident),*>)? for $ty:ty, $path:path) => {
+macro_rules! impl_one_builtin_type_of {
+    (impl $(<$($p:ident),*>)? $path:path, $ty:ty) => {
         impl $(<$($p,)*>)* $crate::TypeHash for $ty {
-            const HASH: $crate::Hash = ::rune_macros::hash!($path);
+            const HASH: $crate::Hash = ::rune_macros::hash_in!(crate, $path);
         }
 
         impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
         where
             $($($p: $crate::runtime::MaybeTypeOf,)*)*
         {
-            const STATIC_TYPE_INFO: $crate::runtime::StaticTypeInfo = $crate::runtime::StaticTypeInfo::any_type_info(
-                $crate::runtime::AnyTypeInfo::new(
-                    {
-                        fn full_name(f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                            write!(f, "{}", ::rune_macros::item!($path))
-                        }
+            const STATIC_TYPE_INFO: $crate::runtime::AnyTypeInfo = $crate::runtime::AnyTypeInfo::new(
+                {
+                    fn full_name(f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                        write!(f, "{}", ::rune_macros::item_in!(crate, $path))
+                    }
 
-                        full_name
-                    },
-                    <Self as $crate::TypeHash>::HASH,
-                )
+                    full_name
+                },
+                <Self as $crate::TypeHash>::HASH,
             );
         }
 
@@ -42,39 +40,6 @@ macro_rules! impl_any_type {
             }
         }
     }
-}
-
-/// Build an implementation of `TypeOf` basic of a static type.
-macro_rules! impl_static_type {
-    (impl $(<$($p:ident),*>)? for $ty:ty, $name:ident, $hash:ident) => {
-        impl $(<$($p,)*>)* $crate::TypeHash for $ty {
-            const HASH: $crate::Hash = $crate::runtime::static_type::$hash;
-        }
-
-        impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
-        where
-            $(
-                $($p: $crate::runtime::MaybeTypeOf,)*
-            )*
-        {
-            const STATIC_TYPE_INFO: $crate::runtime::StaticTypeInfo = $crate::runtime::StaticTypeInfo::static_type($crate::runtime::static_type::$name);
-        }
-
-        impl $(<$($p,)*>)* $crate::runtime::MaybeTypeOf for $ty
-        where
-            $(
-                $($p: $crate::runtime::MaybeTypeOf,)*
-            )*
-        {
-            #[inline]
-            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
-                $crate::compile::meta::DocType::with_generics(
-                    <$ty as $crate::TypeHash>::HASH,
-                    [$($(<$p as $crate::runtime::MaybeTypeOf>::maybe_type_of()?),*)*]
-                )
-            }
-        }
-    };
 }
 
 /// Call the given macro with repeated type arguments and counts.
@@ -162,4 +127,18 @@ macro_rules! from_value_ref {
             }
         }
     };
+}
+
+macro_rules! impl_builtin_type_of {
+    (
+        $(
+            $(#[$($impl_meta:meta)*])*
+            impl $(<$($p:ident),*>)? $path:path, $ty:ty;
+        )*
+    ) => {
+        $(
+            $(#[$($impl_meta)*])*
+            impl_one_builtin_type_of!(impl $(<$($p),*>)* $path, $ty);
+        )*
+    }
 }

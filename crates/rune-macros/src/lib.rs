@@ -42,6 +42,7 @@ mod macro_;
 mod module;
 mod opaque;
 mod parse;
+mod path_in;
 mod quote;
 mod spanned;
 mod to_tokens;
@@ -215,6 +216,20 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     stream.into()
 }
 
+#[doc(hidden)]
+#[proc_macro]
+pub fn hash_in(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let path_in::PathIn { in_crate, item, .. } =
+        syn::parse_macro_input!(input as path_in::PathIn<self::hash::Arguments>);
+
+    let stream = Context::build(|cx| {
+        let value = item.build_type_hash(cx)?.into_inner();
+        Ok(::quote::quote!(#in_crate::Hash(#value)))
+    });
+
+    stream.into()
+}
+
 /// Calculate an item reference at compile time.
 ///
 /// # Examples
@@ -239,6 +254,21 @@ pub fn item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let stream = match self::item::build_item(&path) {
         Ok(hash) => {
             ::quote::quote!(unsafe { rune::Item::from_bytes(&#hash) })
+        }
+        Err(error) => to_compile_errors([error]),
+    };
+
+    stream.into()
+}
+
+#[proc_macro]
+#[doc(hidden)]
+pub fn item_in(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let path_in::PathIn { in_crate, item, .. } = syn::parse_macro_input!(input as path_in::PathIn);
+
+    let stream = match self::item::build_item(&item) {
+        Ok(hash) => {
+            ::quote::quote!(unsafe { #in_crate::Item::from_bytes(&#hash) })
         }
         Err(error) => to_compile_errors([error]),
     };

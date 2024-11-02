@@ -20,8 +20,8 @@ use crate::module::{
     TypeSpecification,
 };
 use crate::runtime::{
-    ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory, Output,
-    Protocol, RuntimeContext, StaticTypeInfo, TypeCheck, TypeInfo, VariantRtti, VmResult,
+    AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory,
+    Output, Protocol, RuntimeContext, TypeCheck, TypeInfo, VariantRtti, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -969,7 +969,7 @@ impl Context {
     fn install_construct(
         &mut self,
         hash: Hash,
-        type_info: &StaticTypeInfo,
+        type_info: &AnyTypeInfo,
         construct: &Arc<dyn ConstConstruct>,
     ) -> Result<(), ContextError> {
         let old = self.construct.try_insert(hash, construct.clone())?;

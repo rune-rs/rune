@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::hash::Hash;
 use crate::runtime::{
-    static_type, OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr,
-    VmResult,
+    OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr, VmResult,
 };
 use crate::TypeHash;
 
@@ -197,7 +196,7 @@ impl Inline {
             Inline::Unsigned(..) => TypeInfo::named::<u64>(),
             Inline::Signed(..) => TypeInfo::named::<i64>(),
             Inline::Float(..) => TypeInfo::named::<f64>(),
-            Inline::Type(..) => TypeInfo::static_type(static_type::TYPE),
+            Inline::Type(..) => TypeInfo::named::<Type>(),
             Inline::Ordering(..) => TypeInfo::named::<Ordering>(),
         }
     }
@@ -214,7 +213,7 @@ impl Inline {
             Inline::Signed(..) => i64::HASH,
             Inline::Unsigned(..) => u64::HASH,
             Inline::Float(..) => f64::HASH,
-            Inline::Type(..) => static_type::TYPE.hash,
+            Inline::Type(..) => Type::HASH,
             Inline::Ordering(..) => Ordering::HASH,
         }
     }

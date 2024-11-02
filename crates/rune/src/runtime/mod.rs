@@ -141,9 +141,6 @@ pub use self::stack::{Memory, SliceError, Stack, StackError};
 mod static_string;
 pub use self::static_string::StaticString;
 
-pub(crate) mod static_type;
-pub use self::static_type::StaticType;
-
 mod stream;
 pub use self::stream::Stream;
 
@@ -157,8 +154,7 @@ mod type_info;
 pub use self::type_info::{AnyTypeInfo, TypeInfo};
 
 mod type_of;
-use self::type_of::StaticTypeInfoKind;
-pub use self::type_of::{MaybeTypeOf, StaticTypeInfo, TypeHash, TypeOf};
+pub use self::type_of::{MaybeTypeOf, TypeHash, TypeOf};
 
 pub mod unit;
 pub(crate) use self::unit::UnitFn;
