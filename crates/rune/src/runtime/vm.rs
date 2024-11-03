@@ -469,12 +469,12 @@ impl Vm {
     /// # Panics
     ///
     /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`]
-    /// this call will panic as we are trying to free the metadata relatedc to
-    /// the reference.
+    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`] this call
+    /// will panic as we are trying to free the metadata relatedc to the
+    /// reference.
     ///
-    /// [`Mut<T>`]: runtime::Mut
-    /// [`Ref<T>`]: runtime::Ref
+    /// [`Mut<T>`]: crate::Mut
+    /// [`Ref<T>`]: crate::Ref
     pub fn call(
         &mut self,
         name: impl ToTypeHash,
@@ -509,12 +509,12 @@ impl Vm {
     /// # Panics
     ///
     /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`]
-    /// this call will panic as we are trying to free the metadata relatedc to
-    /// the reference.
+    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`] this call
+    /// will panic as we are trying to free the metadata relatedc to the
+    /// reference.
     ///
-    /// [`Mut<T>`]: runtime::Mut
-    /// [`Ref<T>`]: runtime::Ref
+    /// [`Mut<T>`]: crate::Mut
+    /// [`Ref<T>`]: crate::Ref
     pub fn call_with_diagnostics(
         &mut self,
         name: impl ToTypeHash,

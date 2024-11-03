@@ -1083,23 +1083,27 @@ impl Value {
     /// Try to coerce value into a typed mutable reference of type `T`.
     ///
     /// You should usually prefer to use [`rune::from_value`] instead of this
-    /// directly.
+    /// directly since it supports transparently coercing into types like
+    /// [`Mut<str>`].
     ///
     /// [`rune::from_value`]: crate::from_value
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use rune::Value;
+    /// use rune::{Mut, Value};
     /// use rune::alloc::String;
     ///
     /// let mut a = Value::try_from("Hello World")?;
     /// let b = a.clone();
     ///
-    /// let s = a.into_mut::<String>()?;
-    /// assert_eq!(s.as_str(), "Hello World");
-    /// s.make_ascii_lowercase();
-    /// assert_eq!(s.as_str(), "hello world");
+    /// fn modify_string(mut s: Mut<String>) {
+    ///     assert_eq!(s.as_str(), "Hello World");
+    ///     s.make_ascii_lowercase();
+    ///     assert_eq!(s.as_str(), "hello world");
+    /// }
+    ///
+    /// modify_string(a.into_mut::<String>()?);
     ///
     /// assert_eq!(b.borrow_mut::<String>()?.as_str(), "hello world");
     /// # Ok::<_, rune::support::Error>(())

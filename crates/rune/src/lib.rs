@@ -255,8 +255,8 @@ pub mod query;
 pub mod runtime;
 #[doc(inline)]
 pub use self::runtime::{
-    from_const_value, from_value, to_const_value, to_value, FromValue, ToConstValue, ToValue,
-    TypeHash, Unit, Value, Vm,
+    from_const_value, from_value, to_const_value, to_value, FromValue, Mut, Ref, ToConstValue,
+    ToValue, TypeHash, Unit, Value, Vm,
 };
 
 mod shared;

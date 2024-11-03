@@ -16,7 +16,17 @@ pub(super) struct RefVtable {
 
 type DropFn = unsafe fn(NonNull<()>);
 
-/// A strong reference to the given type.
+/// A strong owned reference to the given type that can be safely dereferenced.
+///
+/// # Examples
+///
+/// Constructed from a static value:
+///
+/// ```rust
+/// use rune::Ref;
+///
+/// let value: Ref<str> = Ref::from_static("hello world");
+/// ```
 pub struct Ref<T: ?Sized> {
     value: NonNull<T>,
     guard: RawAnyGuard,
@@ -30,7 +40,7 @@ impl<T> From<Rc<T>> for Ref<T> {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use rune::runtime::Ref;
+    /// use rune::Ref;
     ///
     /// let value: Ref<String> = Ref::from(Rc::new(String::from("hello world")));
     /// assert_eq!(value.as_ref(), "hello world");
@@ -57,7 +67,7 @@ impl<T> From<Arc<T>> for Ref<T> {
     ///
     /// ```
     /// use std::sync::Arc;
-    /// use rune::runtime::Ref;
+    /// use rune::Ref;
     ///
     /// let value: Ref<String> = Ref::from(Arc::new(String::from("hello world")));
     /// assert_eq!(value.as_ref(), "hello world");
@@ -81,7 +91,16 @@ impl<T: ?Sized> Ref<T> {
         Self { value, guard }
     }
 
-    /// Construct a static reference.
+    /// Construct an owned reference from a static value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::Ref;
+    ///
+    /// let value: Ref<str> = Ref::from_static("Hello World");
+    /// assert_eq!(value.as_ref(), "Hello World");
+    /// ```
     pub const fn from_static(value: &'static T) -> Ref<T> {
         let value = unsafe { NonNull::new_unchecked((value as *const T).cast_mut()) };
         let guard = RawAnyGuard::new(NonNull::dangling(), &RefVtable { drop: |_| {} });
@@ -93,7 +112,8 @@ impl<T: ?Sized> Ref<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Bytes, Ref};
+    /// use rune::Ref;
+    /// use rune::runtime::Bytes;
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
@@ -123,7 +143,8 @@ impl<T: ?Sized> Ref<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Bytes, Ref};
+    /// use rune::Ref;
+    /// use rune::runtime::Bytes;
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
@@ -206,7 +227,19 @@ where
     }
 }
 
-/// A strong mutable reference to the given type.
+/// A strong owned mutable reference to the given type that can be safely
+/// dereferenced.
+///
+/// # Examples
+///
+/// Constructed from a static value:
+///
+/// ```rust
+/// use rune::Mut;
+///
+/// let value: Mut<[u8]> = Mut::from_static(&mut [][..]);
+/// assert_eq!(&value[..], b"");
+/// ```
 pub struct Mut<T: ?Sized> {
     value: NonNull<T>,
     guard: RawAnyGuard,
@@ -217,7 +250,16 @@ impl<T: ?Sized> Mut<T> {
         Self { value, guard }
     }
 
-    /// Construct a static mutable reference.
+    /// Construct an owned mutable reference from a static value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::Mut;
+    ///
+    /// let value: Mut<[u8]> = Mut::from_static(&mut [][..]);
+    /// assert_eq!(&value[..], b"");
+    /// ```
     pub fn from_static(value: &'static mut T) -> Mut<T> {
         let value = unsafe { NonNull::new_unchecked((value as *const T).cast_mut()) };
         let guard = RawAnyGuard::new(NonNull::dangling(), &RefVtable { drop: |_| {} });
@@ -229,7 +271,8 @@ impl<T: ?Sized> Mut<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Bytes, Mut};
+    /// use rune::Mut;
+    /// use rune::runtime::Bytes;
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;
@@ -260,7 +303,8 @@ impl<T: ?Sized> Mut<T> {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Bytes, Mut};
+    /// use rune::Mut;
+    /// use rune::runtime::Bytes;
     /// use rune::alloc::try_vec;
     ///
     /// let bytes = rune::to_value(Bytes::from_vec(try_vec![1, 2, 3, 4]))?;

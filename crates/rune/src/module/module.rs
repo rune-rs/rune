@@ -733,8 +733,7 @@ impl Module {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Module, ContextError};
-    /// use rune::runtime::Ref;
+    /// use rune::{ContextError, Module, Ref};
     ///
     /// /// This is a pretty neat function.
     /// #[rune::function]
@@ -759,8 +758,7 @@ impl Module {
     /// Registering instance functions:
     ///
     /// ```
-    /// use rune::{Any, Module};
-    /// use rune::runtime::Ref;
+    /// use rune::{Any, Module, Ref};
     ///
     /// #[derive(Any)]
     /// struct MyBytes {
@@ -1063,8 +1061,7 @@ impl Module {
     /// use std::sync::atomic::AtomicU32;
     /// use std::sync::Arc;
     ///
-    /// use rune::{Any, Module};
-    /// use rune::runtime::Ref;
+    /// use rune::{Any, Module, Ref};
     ///
     /// #[derive(Clone, Debug, Any)]
     /// struct Client {
