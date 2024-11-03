@@ -11,7 +11,9 @@ use crate::modules::capture_io::CaptureIo;
 use crate::modules::test::Bencher;
 use crate::runtime::{Function, Unit, Value};
 use crate::support::Result;
-use crate::{Context, Hash, Item, ItemBuf, Sources, Vm};
+use crate::{Context, Hash, ItemBuf, Sources, Vm};
+
+use super::{Color, Stream};
 
 mod cli {
     use std::path::PathBuf;
@@ -23,7 +25,7 @@ mod cli {
     #[command(rename_all = "kebab-case")]
     pub(crate) struct Flags {
         /// Rounds of warmup to perform
-        #[arg(long, default_value = "100")]
+        #[arg(long, default_value = "10")]
         pub(super) warmup: u32,
         /// Iterations to run of the benchmark
         #[arg(long, default_value = "100")]
@@ -74,7 +76,9 @@ pub(super) async fn run(
         return Ok(ExitCode::Success);
     }
 
-    writeln!(io.stdout, "Found {} benches...", fns.len())?;
+    io.section("Benching", Stream::Stdout, Color::Highlight)?
+        .append(format_args!(" Found {} benches", fns.len()))?
+        .close()?;
 
     let mut any_error = false;
 
@@ -100,7 +104,16 @@ pub(super) async fn run(
         let multiple = fns.len() > 1;
 
         for (i, f) in fns.iter().enumerate() {
-            if let Err(e) = bench_fn(io, i, item, args, f, multiple) {
+            let out;
+
+            let item: &dyn fmt::Display = if multiple {
+                out = DisplayHash(item, i);
+                &out
+            } else {
+                &item
+            };
+
+            if let Err(e) = bench_fn(io, item, args, f) {
                 writeln!(io.stdout, "{}: Error in bench iteration: {}", item, e)?;
 
                 if let Some(capture_io) = capture_io {
@@ -121,23 +134,51 @@ pub(super) async fn run(
     }
 }
 
-fn bench_fn(
-    io: &mut Io<'_>,
-    i: usize,
-    item: &Item,
-    args: &Flags,
-    f: &Function,
-    multiple: bool,
-) -> Result<()> {
-    for _ in 0..args.warmup {
+struct DisplayHash<A, B>(A, B);
+
+impl<A, B> fmt::Display for DisplayHash<A, B>
+where
+    A: fmt::Display,
+    B: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(a, b) = self;
+        write!(f, "{a}#{b}")
+    }
+}
+
+fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function) -> Result<()> {
+    let mut section = io.section("Warming up", Stream::Stdout, Color::Ignore)?;
+    section.append(format_args!(" {item} ({} iterations): ", args.warmup))?;
+
+    let step = (args.warmup / 10).max(1);
+
+    for n in 0..args.warmup {
+        if n % step == 0 {
+            section.append(".")?;
+            section.flush()?;
+        }
+
         let value = f.call::<Value>(()).into_result()?;
         drop(hint::black_box(value));
     }
 
+    section.close()?;
+
     let iterations = usize::try_from(args.iter).expect("iterations out of bounds");
     let mut collected = Vec::try_with_capacity(iterations)?;
 
-    for _ in 0..args.iter {
+    let step = (args.iter / 10).max(1);
+
+    let mut section = io.section("Running", Stream::Stdout, Color::Highlight)?;
+    section.append(format_args!(" {item} ({} iterations): ", args.iter))?;
+
+    for n in 0..args.iter {
+        if n % step == 0 {
+            section.append(".")?;
+            section.flush()?;
+        }
+
         let start = Instant::now();
         let value = f.call::<Value>(()).into_result()?;
         let duration = Instant::now().duration_since(start);
@@ -163,12 +204,7 @@ fn bench_fn(
         iterations,
     };
 
-    if multiple {
-        writeln!(io.stdout, "bench {}#{}: {}", item, i, format)?;
-    } else {
-        writeln!(io.stdout, "bench {}: {}", item, format)?;
-    }
-
+    section.passed(format_args!(" {format}"))?.close()?;
     Ok(())
 }
 
