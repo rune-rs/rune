@@ -91,9 +91,11 @@ pub(super) async fn run(
             any_error = true;
 
             if let Some(capture_io) = capture_io {
-                writeln!(io.stdout, "-- output --")?;
-                capture_io.drain_into(&mut *io.stdout)?;
-                writeln!(io.stdout, "-- end output --")?;
+                if !capture_io.is_empty() {
+                    writeln!(io.stdout, "-- output --")?;
+                    capture_io.drain_into(&mut *io.stdout)?;
+                    writeln!(io.stdout, "-- end output --")?;
+                }
             }
 
             continue;
@@ -117,9 +119,11 @@ pub(super) async fn run(
                 writeln!(io.stdout, "{}: Error in bench iteration: {}", item, e)?;
 
                 if let Some(capture_io) = capture_io {
-                    writeln!(io.stdout, "-- output --")?;
-                    capture_io.drain_into(&mut *io.stdout)?;
-                    writeln!(io.stdout, "-- end output --")?;
+                    if !capture_io.is_empty() {
+                        writeln!(io.stdout, "-- output --")?;
+                        capture_io.drain_into(&mut *io.stdout)?;
+                        writeln!(io.stdout, "-- end output --")?;
+                    }
                 }
 
                 any_error = true;
@@ -149,7 +153,7 @@ where
 
 fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function) -> Result<()> {
     let mut section = io.section("Warming up", Stream::Stdout, Color::Ignore)?;
-    section.append(format_args!(" {item} ({} iterations): ", args.warmup))?;
+    section.append(format_args!(" {item} ({} iters): ", args.warmup))?;
 
     let step = (args.warmup / 10).max(1);
 
@@ -171,7 +175,7 @@ fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function
     let step = (args.iter / 10).max(1);
 
     let mut section = io.section("Running", Stream::Stdout, Color::Highlight)?;
-    section.append(format_args!(" {item} ({} iterations): ", args.iter))?;
+    section.append(format_args!(" {item} ({} iters): ", args.iter))?;
 
     for n in 0..args.iter {
         if n % step == 0 {

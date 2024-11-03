@@ -1,0 +1,17 @@
+fn fib(n) {
+    if n <= 1 {
+        n
+    } else {
+        fib(n - 2) + fib(n - 1)
+    }
+}
+
+#[bench]
+pub fn fib15(b) {
+    b.iter(|| fib(15));
+}
+
+#[bench]
+pub fn fib20(b) {
+    b.iter(|| fib(20));
+}
