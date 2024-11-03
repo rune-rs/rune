@@ -13,7 +13,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::Any;
 
-use super::{IntoOutput, RawAnyGuard, Ref, UnsafeToRef, Value, VmResult};
+use super::{IntoOutput, RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value, VmResult};
 
 /// A vector of bytes.
 #[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -452,10 +452,8 @@ impl TryFrom<&[u8]> for Value {
 }
 
 impl IntoOutput for &[u8] {
-    type Output = Bytes;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(vm_try!(Bytes::try_from(self)))
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        Ok(Value::try_from(self)?)
     }
 }

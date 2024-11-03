@@ -68,11 +68,9 @@ macro_rules! any_from {
             }
 
             impl IntoOutput for $ty {
-                type Output = $ty;
-
                 #[inline]
-                fn into_output(self) -> VmResult<Self::Output> {
-                    VmResult::Ok(self)
+                fn into_output(self) -> Result<$crate::runtime::Value, $crate::runtime::RuntimeError> {
+                    Ok(Value::new(self)?)
                 }
             }
         )*
@@ -97,11 +95,9 @@ macro_rules! inline_from {
             }
 
             impl $crate::runtime::IntoOutput for $ty {
-                type Output = $ty;
-
                 #[inline]
-                fn into_output(self) -> $crate::runtime::VmResult<Self::Output> {
-                    $crate::runtime::VmResult::Ok(self)
+                fn into_output(self) -> Result<$crate::runtime::Value, $crate::runtime::RuntimeError> {
+                    Ok($crate::runtime::Value::from(self))
                 }
             }
 

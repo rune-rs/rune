@@ -593,6 +593,15 @@ impl From<AccessError> for RuntimeError {
     }
 }
 
+impl From<StackError> for RuntimeError {
+    #[inline]
+    fn from(error: StackError) -> Self {
+        Self {
+            error: VmErrorKind::from(error),
+        }
+    }
+}
+
 impl From<AccessErrorKind> for RuntimeError {
     #[inline]
     fn from(error: AccessErrorKind) -> Self {

@@ -1,6 +1,5 @@
 use core::cmp::Ordering;
 use core::fmt;
-use core::num::NonZeroUsize;
 
 use musli::{Decode, Encode};
 use rune_macros::InstDisplay;
@@ -8,8 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::runtime::{Call, FormatSpec, Memory, Type, Value, VmError, VmResult};
 use crate::Hash;
+
+use super::{Call, FormatSpec, Memory, RuntimeError, Type, Value};
 
 /// Pre-canned panic reasons.
 ///
@@ -1123,19 +1123,6 @@ impl Inst {
     }
 }
 
-/// The calling convention of a function.
-#[derive(
-    Debug, TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode,
-)]
-#[try_clone(copy)]
-#[non_exhaustive]
-enum OutputKind {
-    /// Push the produced value onto the stack.
-    Keep(NonZeroUsize),
-    /// Discard the produced value, leaving the stack unchanged.
-    Discard,
-}
-
 /// What to do with the output of an instruction.
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
 #[try_clone(copy)]
@@ -1143,36 +1130,30 @@ enum OutputKind {
 #[musli(transparent)]
 #[serde(transparent)]
 pub struct Output {
-    kind: OutputKind,
+    offset: usize,
 }
 
 impl Output {
     /// Construct a keep output kind.
     #[inline]
-    pub(crate) fn keep(index: usize) -> Self {
-        let Some(index) = NonZeroUsize::new(index ^ usize::MAX) else {
-            panic!("Index {index} is out of bounds")
-        };
-
-        Self {
-            kind: OutputKind::Keep(index),
-        }
+    pub(crate) fn keep(offset: usize) -> Self {
+        assert_ne!(offset, usize::MAX, "Address is invalid");
+        Self { offset }
     }
 
     /// Construct a discard output kind.
     #[inline]
     pub(crate) fn discard() -> Self {
-        Self {
-            kind: OutputKind::Discard,
-        }
+        Self { offset: usize::MAX }
     }
 
     /// Check if the output is a keep.
-    #[inline]
+    #[inline(always)]
     pub(crate) fn as_addr(&self) -> Option<InstAddress> {
-        match self.kind {
-            OutputKind::Keep(index) => Some(InstAddress::new(index.get() ^ usize::MAX)),
-            OutputKind::Discard => None,
+        if self.offset == usize::MAX {
+            None
+        } else {
+            Some(InstAddress::new(self.offset))
         }
     }
 
@@ -1200,25 +1181,26 @@ impl Output {
     ///     out.store(stack, number);
     ///     VmResult::Ok(())
     /// }
-    #[inline]
-    pub fn store<O>(self, stack: &mut dyn Memory, o: O) -> VmResult<()>
+    #[inline(always)]
+    pub fn store<M, O>(self, stack: &mut M, o: O) -> Result<(), RuntimeError>
     where
-        O: IntoOutput<Output: TryInto<Value, Error: Into<VmError>>>,
+        M: ?Sized + Memory,
+        O: IntoOutput,
     {
         if let Some(addr) = self.as_addr() {
-            let value = vm_try!(o.into_output());
-            *vm_try!(stack.at_mut(addr)) = vm_try!(value.try_into().map_err(Into::into));
+            *stack.at_mut(addr)? = o.into_output()?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 }
 
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.kind {
-            OutputKind::Keep(index) => write!(f, "keep({})", index.get() ^ usize::MAX),
-            OutputKind::Discard => write!(f, "discard"),
+        if self.offset == usize::MAX {
+            write!(f, "discard")
+        } else {
+            write!(f, "keep({})", self.offset)
         }
     }
 }
@@ -1232,11 +1214,8 @@ impl fmt::Debug for Output {
 
 /// Trait used to coerce values into outputs.
 pub trait IntoOutput {
-    #[doc(hidden)]
-    type Output;
-
     /// Coerce the current value into an output.
-    fn into_output(self) -> VmResult<Self::Output>;
+    fn into_output(self) -> Result<Value, RuntimeError>;
 }
 
 impl<F, O> IntoOutput for F
@@ -1244,41 +1223,27 @@ where
     F: FnOnce() -> O,
     O: IntoOutput,
 {
-    type Output = O::Output;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
+    fn into_output(self) -> Result<Value, RuntimeError> {
         self().into_output()
     }
 }
 
 impl<T, E> IntoOutput for Result<T, E>
 where
-    VmError: From<E>,
+    T: IntoOutput,
+    RuntimeError: From<E>,
 {
-    type Output = T;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(vm_try!(self))
-    }
-}
-
-impl<T> IntoOutput for VmResult<T> {
-    type Output = T;
-
-    #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        self
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        self?.into_output()
     }
 }
 
 impl IntoOutput for Value {
-    type Output = Value;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        Ok(self)
     }
 }
 
@@ -1840,10 +1805,8 @@ where
 }
 
 impl IntoOutput for &str {
-    type Output = String;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(vm_try!(String::try_from(self)))
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        Ok(Value::try_from(self)?)
     }
 }

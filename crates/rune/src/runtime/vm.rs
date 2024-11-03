@@ -2056,10 +2056,7 @@ impl Vm {
             .map(take)
             .try_collect::<alloc::Vec<Value>>());
 
-        vm_try!(out.store(&mut self.stack, || VmResult::Ok(vm_try!(
-            OwnedTuple::try_from(tuple)
-        ))));
-
+        vm_try!(out.store(&mut self.stack, || OwnedTuple::try_from(tuple)));
         VmResult::Ok(())
     }
 
@@ -2073,10 +2070,7 @@ impl Vm {
             vm_try!(tuple.try_push(value));
         }
 
-        vm_try!(out.store(&mut self.stack, || VmResult::Ok(vm_try!(
-            OwnedTuple::try_from(tuple)
-        ))));
-
+        vm_try!(out.store(&mut self.stack, || OwnedTuple::try_from(tuple)));
         VmResult::Ok(())
     }
 
@@ -2867,10 +2861,8 @@ impl Vm {
             .lookup_rtti(hash)
             .ok_or(VmErrorKind::MissingRtti { hash }));
 
-        vm_try!(out.store(&mut self.stack, || Dynamic::<_, Value>::new(
-            rtti.clone(),
-            []
-        )));
+        let value = vm_try!(Dynamic::<_, Value>::new(rtti.clone(), []));
+        vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
     }
 
