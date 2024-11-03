@@ -15,8 +15,8 @@ use crate::Any;
 use crate::Hash;
 
 use super::{
-    Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs, InstAddress,
-    Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, VariantRtti, Vm,
+    Args, Call, ConstValue, Dynamic, Formatter, FromValue, FunctionHandler, GuardedArgs,
+    InstAddress, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
     VmCall, VmErrorKind, VmHalt, VmResult,
 };
 
@@ -253,16 +253,6 @@ impl Function {
     /// Create a function pointer from an offset.
     pub(crate) fn from_tuple_struct(rtti: Arc<Rtti>, args: usize) -> Self {
         Self(FunctionImpl::from_tuple_struct(rtti, args))
-    }
-
-    /// Create a function pointer that constructs a empty variant.
-    pub(crate) fn from_unit_variant(rtti: Arc<VariantRtti>) -> Self {
-        Self(FunctionImpl::from_unit_variant(rtti))
-    }
-
-    /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
-        Self(FunctionImpl::from_tuple_variant(rtti, args))
     }
 
     /// Type [Hash][struct@Hash] of the underlying function.
@@ -581,16 +571,6 @@ where
                 let (args, _guard) = vm_try!(unsafe { args.guarded_into_vec() });
                 vm_try!(Value::tuple_struct(tuple.rtti.clone(), args))
             }
-            Inner::FnUnitVariant(unit) => {
-                vm_try!(check_args(args.count(), 0));
-                vm_try!(Value::unit_variant(unit.rtti.clone()))
-            }
-            Inner::FnTupleVariant(tuple) => {
-                vm_try!(check_args(args.count(), tuple.args));
-                // SAFETY: We don't let the guard outlive the value.
-                let (args, _guard) = vm_try!(unsafe { args.guarded_into_vec() });
-                vm_try!(Value::tuple_variant(tuple.rtti.clone(), args))
-            }
         };
 
         VmResult::Ok(vm_try!(T::from_value(value)))
@@ -667,30 +647,9 @@ where
                 vm_try!(check_args(args, tuple.args));
 
                 let seq = vm_try!(vm.stack().slice_at(addr, args));
-                let seq = vm_try!(seq.iter().cloned().try_collect());
-
-                vm_try!(out.store(vm.stack_mut(), || {
-                    Value::tuple_struct(tuple.rtti.clone(), seq)
-                }));
-
-                None
-            }
-            Inner::FnUnitVariant(tuple) => {
-                vm_try!(check_args(args, 0));
-                vm_try!(out.store(vm.stack_mut(), || Value::unit_variant(tuple.rtti.clone())));
-                None
-            }
-            Inner::FnTupleVariant(tuple) => {
-                vm_try!(check_args(args, tuple.args));
-
-                let seq = vm_try!(vm.stack().slice_at(addr, args));
-                let seq = vm_try!(seq.iter().cloned().try_collect());
-
-                vm_try!(out.store(vm.stack_mut(), || Value::tuple_variant(
-                    tuple.rtti.clone(),
-                    seq
-                )));
-
+                let data = seq.iter().cloned();
+                let value = vm_try!(Dynamic::new(tuple.rtti.clone(), data));
+                vm_try!(out.store(vm.stack_mut(), value));
                 None
             }
         };
@@ -765,20 +724,6 @@ where
         }
     }
 
-    /// Create a function pointer that constructs a empty variant.
-    pub(crate) fn from_unit_variant(rtti: Arc<VariantRtti>) -> Self {
-        Self {
-            inner: Inner::FnUnitVariant(FnUnitVariant { rtti }),
-        }
-    }
-
-    /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
-        Self {
-            inner: Inner::FnTupleVariant(FnTupleVariant { rtti, args }),
-        }
-    }
-
     #[inline]
     fn type_hash(&self) -> Hash {
         match &self.inner {
@@ -786,10 +731,8 @@ where
                 *hash
             }
             Inner::FnClosureOffset(fco) => fco.fn_offset.hash,
-            Inner::FnUnitStruct(func) => func.rtti.hash,
-            Inner::FnTupleStruct(func) => func.rtti.hash,
-            Inner::FnUnitVariant(func) => func.rtti.hash,
-            Inner::FnTupleVariant(func) => func.rtti.hash,
+            Inner::FnUnitStruct(func) => func.rtti.type_hash(),
+            Inner::FnTupleStruct(func) => func.rtti.type_hash(),
         }
     }
 }
@@ -814,8 +757,6 @@ impl FunctionImpl<Value> {
             Inner::FnOffset(inner) => Inner::FnOffset(inner),
             Inner::FnUnitStruct(inner) => Inner::FnUnitStruct(inner),
             Inner::FnTupleStruct(inner) => Inner::FnTupleStruct(inner),
-            Inner::FnUnitVariant(inner) => Inner::FnUnitVariant(inner),
-            Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner),
         };
 
         Ok(FunctionImpl { inner })
@@ -844,12 +785,6 @@ impl fmt::Debug for Function {
             Inner::FnTupleStruct(tuple) => {
                 write!(f, "tuple {}", tuple.rtti.item)?;
             }
-            Inner::FnUnitVariant(empty) => {
-                write!(f, "variant empty {}", empty.rtti.item)?;
-            }
-            Inner::FnTupleVariant(tuple) => {
-                write!(f, "variant tuple {}", tuple.rtti.item)?;
-            }
         }
 
         Ok(())
@@ -875,10 +810,6 @@ enum Inner<V> {
     FnUnitStruct(FnUnitStruct),
     /// Constructor for a tuple.
     FnTupleStruct(FnTupleStruct),
-    /// Constructor for an empty variant.
-    FnUnitVariant(FnUnitVariant),
-    /// Constructor for a tuple variant.
-    FnTupleVariant(FnTupleVariant),
 }
 
 impl<V> TryClone for Inner<V>
@@ -892,8 +823,6 @@ where
             Inner::FnClosureOffset(inner) => Inner::FnClosureOffset(inner.try_clone()?),
             Inner::FnUnitStruct(inner) => Inner::FnUnitStruct(inner.clone()),
             Inner::FnTupleStruct(inner) => Inner::FnTupleStruct(inner.clone()),
-            Inner::FnUnitVariant(inner) => Inner::FnUnitVariant(inner.clone()),
-            Inner::FnTupleVariant(inner) => Inner::FnTupleVariant(inner.clone()),
         })
     }
 }
@@ -1025,20 +954,6 @@ struct FnUnitStruct {
 struct FnTupleStruct {
     /// The type of the tuple.
     rtti: Arc<Rtti>,
-    /// The number of arguments the tuple takes.
-    args: usize,
-}
-
-#[derive(Debug, Clone, TryClone)]
-struct FnUnitVariant {
-    /// Runtime information fo variant.
-    rtti: Arc<VariantRtti>,
-}
-
-#[derive(Debug, Clone, TryClone)]
-struct FnTupleVariant {
-    /// Runtime information fo variant.
-    rtti: Arc<VariantRtti>,
     /// The number of arguments the tuple takes.
     args: usize,
 }

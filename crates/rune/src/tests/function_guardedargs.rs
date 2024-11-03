@@ -52,16 +52,13 @@ fn references_disallowed_for_tuple_variant() {
 
     let mut mine = MyAny;
 
-    let tuple = constructor.call::<Variant>((&mine,)).unwrap();
-    let tuple = tuple.as_tuple().unwrap();
+    let tuple = constructor.call::<DynamicTuple>((&mine,)).unwrap();
     assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let tuple = constructor.call::<Variant>((&mut mine,)).unwrap();
-    let tuple = tuple.as_tuple().unwrap();
+    let tuple = constructor.call::<DynamicTuple>((&mut mine,)).unwrap();
     assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let tuple = constructor.call::<Variant>((mine,)).unwrap();
-    let tuple = tuple.as_tuple().unwrap();
+    let tuple = constructor.call::<DynamicTuple>((mine,)).unwrap();
     assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_ok());
 }
 
@@ -75,12 +72,12 @@ fn references_disallowed_for_tuple_struct() {
 
     let mut mine = MyAny;
 
-    let st: TupleStruct = constructor.call::<TupleStruct>((&mine,)).unwrap();
-    assert!(st.data().first().unwrap().borrow_ref::<MyAny>().is_err());
+    let st = constructor.call::<DynamicTuple>((&mine,)).unwrap();
+    assert!(st.first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let st: TupleStruct = constructor.call::<TupleStruct>((&mut mine,)).unwrap();
-    assert!(st.data().first().unwrap().borrow_ref::<MyAny>().is_err());
+    let st = constructor.call::<DynamicTuple>((&mut mine,)).unwrap();
+    assert!(st.first().unwrap().borrow_ref::<MyAny>().is_err());
 
-    let st: TupleStruct = constructor.call::<TupleStruct>((mine,)).unwrap();
-    assert!(st.data().first().unwrap().borrow_ref::<MyAny>().is_ok());
+    let st = constructor.call::<DynamicTuple>((mine,)).unwrap();
+    assert!(st.first().unwrap().borrow_ref::<MyAny>().is_ok());
 }

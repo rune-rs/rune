@@ -9,6 +9,9 @@ mod macros;
 mod steps_between;
 use self::steps_between::StepsBetween;
 
+mod dynamic;
+pub use self::dynamic::{DynamicEmpty, DynamicStruct, DynamicTuple};
+
 mod access;
 pub use self::access::AccessError;
 pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard, Snapshot};
@@ -131,9 +134,6 @@ mod r#ref;
 use self::r#ref::RefVtable;
 pub use self::r#ref::{Mut, RawAnyGuard, Ref};
 
-mod shared;
-pub(crate) use self::shared::Shared;
-
 mod stack;
 pub(crate) use self::stack::Pair;
 pub use self::stack::{Memory, SliceError, Stack, StackError};
@@ -163,12 +163,9 @@ pub use self::unit::{Unit, UnitStorage};
 mod value;
 pub use self::value::{
     Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
-    ValueMutGuard, ValueRefGuard, VariantRtti,
+    ValueMutGuard, ValueRefGuard,
 };
-pub(crate) use self::value::{Mutable, ReprMut, ReprOwned, ReprRef};
-
-mod variant;
-pub use self::variant::{Variant, VariantData};
+pub(crate) use self::value::{Dynamic, DynamicTakeError, ReprMut, ReprOwned, ReprRef, RttiKind};
 
 pub mod slice;
 

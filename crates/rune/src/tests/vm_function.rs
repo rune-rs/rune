@@ -34,10 +34,7 @@ fn test_function() {
 
     assert!(function.call::<Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
-    assert!(matches!(
-        value.take_repr().unwrap(),
-        ReprOwned::Mutable(Mutable::Variant(..))
-    ));
+    assert!(rune::from_value::<DynamicTuple>(value).is_ok());
 
     // ptr to dynamic function.
     let function: Function = rune! {
@@ -47,10 +44,7 @@ fn test_function() {
 
     assert!(function.call::<Value>(()).into_result().is_err());
     let value: Value = function.call((1i64,)).unwrap();
-    assert!(matches!(
-        value.take_repr().unwrap(),
-        ReprOwned::Mutable(Mutable::TupleStruct(..))
-    ));
+    assert!(crate::from_value::<DynamicTuple>(value).is_ok());
 
     // non-capturing closure == free function
     let function: Function = rune! {

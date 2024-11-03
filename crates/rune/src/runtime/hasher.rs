@@ -28,16 +28,6 @@ impl Hasher {
         self.hasher.write(string.as_bytes());
     }
 
-    /// Hash an 64-bit float.
-    ///
-    /// You should ensure that the float is normal per the [`f64::is_normal`]
-    /// function before hashing it, since otherwise equality tests against the
-    /// float won't work as intended. Otherwise, know what you're doing.
-    pub(crate) fn write_f64(&mut self, value: f64) {
-        let bits = value.to_bits();
-        self.hasher.write_u64(bits);
-    }
-
     /// Construct a hash.
     pub fn finish(&self) -> u64 {
         self.hasher.finish()

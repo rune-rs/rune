@@ -1,17 +1,16 @@
 use core::any;
 use core::cmp::Ordering;
 use core::fmt;
+use core::hash::Hash as _;
 
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::hash::Hash;
 use crate::runtime::{
-    OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr, VmResult,
+    Hasher, OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr,
 };
 use crate::TypeHash;
-
-use super::err;
 
 /// An inline value.
 #[derive(Clone, Copy, Encode, Decode, Deserialize, Serialize)]
@@ -93,27 +92,30 @@ impl Inline {
     }
 
     /// Perform a total equality check over two inline values.
-    pub(crate) fn eq(&self, other: &Self) -> VmResult<bool> {
+    pub(crate) fn eq(&self, other: &Self) -> Result<bool, RuntimeError> {
         match (self, other) {
-            (Inline::Unit, Inline::Unit) => VmResult::Ok(true),
-            (Inline::Bool(a), Inline::Bool(b)) => VmResult::Ok(*a == *b),
-            (Inline::Char(a), Inline::Char(b)) => VmResult::Ok(*a == *b),
-            (Inline::Unsigned(a), Inline::Unsigned(b)) => VmResult::Ok(*a == *b),
-            (Inline::Signed(a), Inline::Signed(b)) => VmResult::Ok(*a == *b),
+            (Inline::Unit, Inline::Unit) => Ok(true),
+            (Inline::Bool(a), Inline::Bool(b)) => Ok(*a == *b),
+            (Inline::Char(a), Inline::Char(b)) => Ok(*a == *b),
+            (Inline::Unsigned(a), Inline::Unsigned(b)) => Ok(*a == *b),
+            (Inline::Signed(a), Inline::Signed(b)) => Ok(*a == *b),
             (Inline::Float(a), Inline::Float(b)) => {
                 let Some(ordering) = a.partial_cmp(b) else {
-                    return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+                    return Err(RuntimeError::new(VmErrorKind::IllegalFloatComparison {
+                        lhs: *a,
+                        rhs: *b,
+                    }));
                 };
 
-                VmResult::Ok(matches!(ordering, Ordering::Equal))
+                Ok(matches!(ordering, Ordering::Equal))
             }
-            (Inline::Type(a), Inline::Type(b)) => VmResult::Ok(*a == *b),
-            (Inline::Ordering(a), Inline::Ordering(b)) => VmResult::Ok(*a == *b),
-            (lhs, rhs) => err(VmErrorKind::UnsupportedBinaryOperation {
+            (Inline::Type(a), Inline::Type(b)) => Ok(*a == *b),
+            (Inline::Ordering(a), Inline::Ordering(b)) => Ok(*a == *b),
+            (lhs, rhs) => Err(RuntimeError::new(VmErrorKind::UnsupportedBinaryOperation {
                 op: Protocol::EQ.name,
                 lhs: lhs.type_info(),
                 rhs: rhs.type_info(),
-            }),
+            })),
         }
     }
 
@@ -147,28 +149,65 @@ impl Inline {
     }
 
     /// Total comparison implementation for inline.
-    pub(crate) fn cmp(&self, other: &Self) -> VmResult<Ordering> {
+    pub(crate) fn cmp(&self, other: &Self) -> Result<Ordering, RuntimeError> {
         match (self, other) {
-            (Inline::Unit, Inline::Unit) => VmResult::Ok(Ordering::Equal),
-            (Inline::Bool(a), Inline::Bool(b)) => VmResult::Ok(a.cmp(b)),
-            (Inline::Char(a), Inline::Char(b)) => VmResult::Ok(a.cmp(b)),
-            (Inline::Unsigned(a), Inline::Unsigned(b)) => VmResult::Ok(a.cmp(b)),
-            (Inline::Signed(a), Inline::Signed(b)) => VmResult::Ok(a.cmp(b)),
+            (Inline::Unit, Inline::Unit) => Ok(Ordering::Equal),
+            (Inline::Bool(a), Inline::Bool(b)) => Ok(a.cmp(b)),
+            (Inline::Char(a), Inline::Char(b)) => Ok(a.cmp(b)),
+            (Inline::Unsigned(a), Inline::Unsigned(b)) => Ok(a.cmp(b)),
+            (Inline::Signed(a), Inline::Signed(b)) => Ok(a.cmp(b)),
             (Inline::Float(a), Inline::Float(b)) => {
                 let Some(ordering) = a.partial_cmp(b) else {
-                    return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: *a, rhs: *b });
+                    return Err(RuntimeError::new(VmErrorKind::IllegalFloatComparison {
+                        lhs: *a,
+                        rhs: *b,
+                    }));
                 };
 
-                VmResult::Ok(ordering)
+                Ok(ordering)
             }
-            (Inline::Type(a), Inline::Type(b)) => VmResult::Ok(a.cmp(b)),
-            (Inline::Ordering(a), Inline::Ordering(b)) => VmResult::Ok(a.cmp(b)),
-            (lhs, rhs) => VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
+            (Inline::Type(a), Inline::Type(b)) => Ok(a.cmp(b)),
+            (Inline::Ordering(a), Inline::Ordering(b)) => Ok(a.cmp(b)),
+            (lhs, rhs) => Err(RuntimeError::new(VmErrorKind::UnsupportedBinaryOperation {
                 op: Protocol::CMP.name,
                 lhs: lhs.type_info(),
                 rhs: rhs.type_info(),
-            }),
+            })),
         }
+    }
+
+    /// Hash an inline value.
+    pub(crate) fn hash(&self, hasher: &mut Hasher) -> Result<(), RuntimeError> {
+        match self {
+            Inline::Unsigned(value) => {
+                value.hash(hasher);
+            }
+            Inline::Signed(value) => {
+                value.hash(hasher);
+            }
+            // Care must be taken whan hashing floats, to ensure that `hash(v1)
+            // === hash(v2)` if `eq(v1) === eq(v2)`. Hopefully we accomplish
+            // this by rejecting NaNs and rectifying subnormal values of zero.
+            Inline::Float(value) => {
+                if value.is_nan() {
+                    return Err(RuntimeError::new(VmErrorKind::IllegalFloatOperation {
+                        value: *value,
+                    }));
+                }
+
+                let zero = *value == 0.0;
+                let value = ((zero as u8 as f64) * 0.0 + (!zero as u8 as f64) * *value).to_bits();
+                value.hash(hasher);
+            }
+            operand => {
+                return Err(RuntimeError::new(VmErrorKind::UnsupportedUnaryOperation {
+                    op: Protocol::HASH.name,
+                    operand: operand.type_info(),
+                }));
+            }
+        }
+
+        Ok(())
     }
 }
 

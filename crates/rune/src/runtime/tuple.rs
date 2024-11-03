@@ -8,6 +8,7 @@ use crate::alloc::alloc::Global;
 use crate::alloc::borrow::TryToOwned;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
+use crate::alloc::iter::{IteratorExt, TryFromIteratorIn};
 use crate::alloc::{self, Box};
 use crate::Any;
 
@@ -341,6 +342,18 @@ impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
 
         Ok(Self {
             inner: out.try_into_boxed_slice()?,
+        })
+    }
+}
+
+impl TryFromIteratorIn<Value, Global> for OwnedTuple {
+    #[inline]
+    fn try_from_iter_in<T: IntoIterator<Item = Value>>(
+        iter: T,
+        alloc: Global,
+    ) -> alloc::Result<Self> {
+        Ok(Self {
+            inner: iter.into_iter().try_collect_in(alloc)?,
         })
     }
 }

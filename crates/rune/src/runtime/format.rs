@@ -228,7 +228,7 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
-                ReprRef::Mutable(..) => {
+                ReprRef::Dynamic(..) => {
                     break 'fallback;
                 }
                 ReprRef::Any(value) => match value.type_hash() {
@@ -272,7 +272,7 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
-                ReprRef::Mutable(..) => {
+                ReprRef::Dynamic(..) => {
                     break 'fallback;
                 }
                 ReprRef::Any(value) => match value.type_hash() {

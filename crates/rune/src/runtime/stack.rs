@@ -609,6 +609,7 @@ impl TryClone for Stack {
 }
 
 impl TryFromIteratorIn<Value, Global> for Stack {
+    #[inline]
     fn try_from_iter_in<T: IntoIterator<Item = Value>>(
         iter: T,
         alloc: Global,

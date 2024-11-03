@@ -78,7 +78,7 @@ impl Expander<'_> {
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #result<Self, #runtime_error> {
-                    match #value::into_type_value(value)? {
+                    match #value::as_type_value(&value)? {
                         #expanded
                         actual => {
                             #result::Err(#runtime_error::expected::<#expected>(#type_value::type_info(&actual)))
@@ -104,7 +104,6 @@ impl Expander<'_> {
         let Tokens {
             type_value,
             from_value,
-            variant_data,
             value,
             result,
             runtime_error,
@@ -145,27 +144,31 @@ impl Expander<'_> {
         };
 
         let variant = quote! {
-            #type_value::Variant(variant) => {
-                let mut it = variant.rtti().item.iter();
-
-                let Some(name) = it.next_back_str() else {
+            #type_value::EmptyStruct(data) => {
+                let Some(name) = data.rtti().item().base_name() else {
                     return #result::Err(#runtime_error::__rune_macros__missing_variant_name());
                 };
 
-                match variant.data() {
-                    #variant_data::Empty => match name {
-                        #(#unit_matches,)* #missing,
-                    },
-                    #variant_data::Tuple(tuple) => match name {
-                        #(#unnamed_matches,)* #missing,
-                    },
-                    #variant_data::Struct(data) => {
-                        let object = variant.accessor(data);
+                match name {
+                    #(#unit_matches,)* #missing,
+                }
+            }
+            #type_value::TupleStruct(tuple) => {
+                let Some(name) = tuple.rtti().item().base_name() else {
+                    return #result::Err(#runtime_error::__rune_macros__missing_variant_name());
+                };
 
-                        match name {
-                            #(#named_matches,)* #missing,
-                        }
-                    }
+                match name {
+                    #(#unnamed_matches,)* #missing,
+                }
+            }
+            #type_value::Struct(object) => {
+                let Some(name) = object.rtti().item().base_name() else {
+                    return #result::Err(#runtime_error::__rune_macros__missing_variant_name());
+                };
+
+                match name {
+                    #(#named_matches,)* #missing,
                 }
             }
         };
@@ -174,7 +177,7 @@ impl Expander<'_> {
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #result<Self, #runtime_error> {
-                    match #value::into_type_value(value)? {
+                    match #value::as_type_value(&value)? {
                         #variant,
                         actual => {
                             #result::Err(#runtime_error::__rune_macros__expected_variant(#type_value::type_info(&actual)))

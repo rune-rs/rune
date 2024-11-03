@@ -130,27 +130,41 @@ pub(super) struct Section<'a> {
 }
 
 impl Section<'_> {
-    pub(super) fn append(&mut self, text: impl fmt::Display) -> io::Result<()> {
-        write!(self.io, "{text}")
+    pub(super) fn append(&mut self, text: impl fmt::Display) -> io::Result<&mut Self> {
+        write!(self.io, "{text}")?;
+        Ok(self)
     }
 
-    pub(super) fn append_with(&mut self, text: impl fmt::Display, color: Color) -> io::Result<()> {
+    /// Flush the current section.
+    pub(super) fn flush(&mut self) -> io::Result<&mut Self> {
+        self.io.flush()?;
+        Ok(self)
+    }
+
+    pub(super) fn append_with(
+        &mut self,
+        text: impl fmt::Display,
+        color: Color,
+    ) -> io::Result<&mut Self> {
         self.io.set_color(color.find(self.colors))?;
         write!(self.io, "{text}")?;
         self.io.reset()?;
+        Ok(self)
+    }
+
+    pub(super) fn error(&mut self, text: impl fmt::Display) -> io::Result<&mut Self> {
+        self.append_with(text, Color::Error)?;
+        Ok(self)
+    }
+
+    pub(super) fn passed(&mut self, text: impl fmt::Display) -> io::Result<&mut Self> {
+        self.append_with(text, Color::Passed)?;
+        Ok(self)
+    }
+
+    pub(super) fn close(&mut self) -> io::Result<()> {
+        writeln!(self.io)?;
         Ok(())
-    }
-
-    pub(super) fn error(&mut self, text: impl fmt::Display) -> io::Result<()> {
-        self.append_with(text, Color::Error)
-    }
-
-    pub(super) fn passed(&mut self, text: impl fmt::Display) -> io::Result<()> {
-        self.append_with(text, Color::Passed)
-    }
-
-    pub(super) fn close(self) -> io::Result<()> {
-        writeln!(self.io)
     }
 }
 

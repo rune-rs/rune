@@ -480,10 +480,8 @@ pub fn module() -> Result<Module, ContextError> {
                                 ReprRef::Inline(value) => {
                                     return VmResult::expected::<String>(value.type_info());
                                 }
-                                ReprRef::Mutable(value) => {
-                                    return VmResult::expected::<String>(
-                                        vm_try!(value.borrow_ref()).type_info(),
-                                    );
+                                ReprRef::Dynamic(value) => {
+                                    return VmResult::expected::<String>(value.type_info());
                                 }
                                 ReprRef::Any(value) => match value.type_hash() {
                                     String::HASH => {

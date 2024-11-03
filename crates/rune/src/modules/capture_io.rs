@@ -77,6 +77,11 @@ impl CaptureIo {
         Self::default()
     }
 
+    /// Test if capture is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.lock().is_empty()
+    }
+
     /// Drain all captured I/O that has been written to output functions.
     pub fn drain(&self) -> Vec<u8> {
         let mut o = self.inner.lock();

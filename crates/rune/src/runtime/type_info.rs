@@ -9,16 +9,14 @@ use crate::{Any, TypeHash};
 
 use ::rust_alloc::sync::Arc;
 
-use super::{Rtti, VariantRtti};
+use super::Rtti;
 
 #[derive(Debug, TryClone, PartialEq, Eq)]
 enum TypeInfoKind {
     /// Reference to an external type.
     Any(AnyTypeInfo),
     /// A named type.
-    Typed(Arc<Rtti>),
-    /// A variant.
-    Variant(Arc<VariantRtti>),
+    Runtime(Arc<Rtti>),
 }
 
 /// Diagnostical type information for a given type.
@@ -66,21 +64,15 @@ impl TypeInfo {
     }
 
     #[inline]
-    pub(crate) const fn typed(rtti: Arc<Rtti>) -> Self {
-        Self::new(TypeInfoKind::Typed(rtti))
-    }
-
-    #[inline]
-    pub(crate) const fn variant(rtti: Arc<VariantRtti>) -> Self {
-        Self::new(TypeInfoKind::Variant(rtti))
+    pub(crate) const fn rtti(rtti: Arc<Rtti>) -> Self {
+        Self::new(TypeInfoKind::Runtime(rtti))
     }
 
     #[cfg(feature = "emit")]
     pub(crate) fn type_hash(&self) -> Hash {
         match &self.kind {
-            TypeInfoKind::Typed(ty) => ty.hash,
-            TypeInfoKind::Variant(ty) => ty.hash,
             TypeInfoKind::Any(ty) => ty.hash,
+            TypeInfoKind::Runtime(ty) => ty.type_hash(),
         }
     }
 }
@@ -95,10 +87,7 @@ impl fmt::Debug for TypeInfo {
 impl fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            TypeInfoKind::Typed(rtti) => {
-                write!(f, "{}", rtti.item)?;
-            }
-            TypeInfoKind::Variant(rtti) => {
+            TypeInfoKind::Runtime(rtti) => {
                 write!(f, "{}", rtti.item)?;
             }
             TypeInfoKind::Any(info) => {

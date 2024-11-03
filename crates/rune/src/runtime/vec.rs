@@ -574,6 +574,22 @@ impl UnsafeToRef for [Value] {
     }
 }
 
+impl<T, const N: usize> ToValue for [T; N]
+where
+    T: ToValue,
+{
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let mut inner = alloc::Vec::try_with_capacity(self.len())?;
+
+        for value in self {
+            let value = value.to_value()?;
+            inner.try_push(value)?;
+        }
+
+        Ok(Value::try_from(Vec { inner })?)
+    }
+}
+
 impl<T> ToValue for alloc::Vec<T>
 where
     T: ToValue,

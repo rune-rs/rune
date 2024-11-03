@@ -16,9 +16,9 @@ pub(crate) mod prelude {
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
-        self, Bytes, Formatter, Function, InstAddress, MaybeTypeOf, Mutable, Object, Output,
-        OwnedTuple, Protocol, RawAnyGuard, Ref, ReprOwned, Stack, Tuple, TupleStruct, TypeHash,
-        TypeInfo, TypeOf, UnsafeToRef, Variant, VecTuple, VmErrorKind, VmResult,
+        self, Bytes, DynamicTuple, Formatter, Function, InstAddress, MaybeTypeOf, Object, Output,
+        OwnedTuple, Protocol, RawAnyGuard, Ref, Stack, Tuple, TypeHash, TypeInfo, TypeOf,
+        UnsafeToRef, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
     pub(crate) use crate::tests::{eval, run};
@@ -505,8 +505,6 @@ mod type_name_native;
 mod unit_constants;
 #[cfg(not(miri))]
 mod unreachable;
-#[cfg(not(miri))]
-mod variants;
 #[cfg(not(miri))]
 mod vm_arithmetic;
 #[cfg(not(miri))]
