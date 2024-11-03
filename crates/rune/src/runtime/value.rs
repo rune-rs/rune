@@ -421,12 +421,13 @@ impl Value {
                     });
                 }
                 RefRepr::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
-                    Mutable::Option(value) => Mutable::Option(vm_try!(value.try_clone())),
-                    Mutable::Result(value) => Mutable::Result(vm_try!(value.try_clone())),
                     Mutable::EmptyStruct(value) => Mutable::EmptyStruct(vm_try!(value.try_clone())),
                     Mutable::TupleStruct(value) => Mutable::TupleStruct(vm_try!(value.try_clone())),
                     Mutable::Struct(value) => Mutable::Struct(vm_try!(value.try_clone())),
                     Mutable::Variant(value) => Mutable::Variant(vm_try!(value.try_clone())),
+                    _ => {
+                        break 'fallback;
+                    }
                 },
                 RefRepr::Any(..) => {
                     break 'fallback;
@@ -482,11 +483,11 @@ impl Value {
             };
 
             match &*vm_try!(value.borrow_ref()) {
-                Mutable::Option(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
+                Mutable::Result(..) => {
+                    break 'fallback;
                 }
-                Mutable::Result(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
+                Mutable::Option(..) => {
+                    break 'fallback;
                 }
                 Mutable::EmptyStruct(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
@@ -1160,16 +1161,6 @@ impl Value {
                             return Variant::partial_eq_with(a, b, caller);
                         }
                     }
-                    (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
-                        (Some(a), Some(b)) => return Value::partial_eq_with(a, b, caller),
-                        (None, None) => return VmResult::Ok(true),
-                        _ => return VmResult::Ok(false),
-                    },
-                    (Mutable::Result(a), Mutable::Result(b)) => match (a, b) {
-                        (Ok(a), Ok(b)) => return Value::partial_eq_with(a, b, caller),
-                        (Err(a), Err(b)) => return Value::partial_eq_with(a, b, caller),
-                        _ => return VmResult::Ok(false),
-                    },
                     _ => {}
                 }
             }
@@ -1331,16 +1322,6 @@ impl Value {
                         return Variant::eq_with(a, b, caller);
                     }
                 }
-                (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
-                    (Some(a), Some(b)) => return Value::eq_with(a, b, caller),
-                    (None, None) => return VmResult::Ok(true),
-                    _ => return VmResult::Ok(false),
-                },
-                (Mutable::Result(a), Mutable::Result(b)) => match (a, b) {
-                    (Ok(a), Ok(b)) => return Value::eq_with(a, b, caller),
-                    (Err(a), Err(b)) => return Value::eq_with(a, b, caller),
-                    _ => return VmResult::Ok(false),
-                },
                 _ => {}
             },
             _ => {}
@@ -1424,18 +1405,6 @@ impl Value {
                         return Variant::partial_cmp_with(a, b, caller);
                     }
                 }
-                (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
-                    (Some(a), Some(b)) => return Value::partial_cmp_with(a, b, caller),
-                    (None, None) => return VmResult::Ok(Some(Ordering::Equal)),
-                    (Some(..), None) => return VmResult::Ok(Some(Ordering::Greater)),
-                    (None, Some(..)) => return VmResult::Ok(Some(Ordering::Less)),
-                },
-                (Mutable::Result(a), Mutable::Result(b)) => match (a, b) {
-                    (Ok(a), Ok(b)) => return Value::partial_cmp_with(a, b, caller),
-                    (Err(a), Err(b)) => return Value::partial_cmp_with(a, b, caller),
-                    (Ok(..), Err(..)) => return VmResult::Ok(Some(Ordering::Greater)),
-                    (Err(..), Ok(..)) => return VmResult::Ok(Some(Ordering::Less)),
-                },
                 _ => {}
             },
             _ => {}
@@ -1510,18 +1479,6 @@ impl Value {
                         return Variant::cmp_with(a, b, caller);
                     }
                 }
-                (Mutable::Option(a), Mutable::Option(b)) => match (a, b) {
-                    (Some(a), Some(b)) => return Value::cmp_with(a, b, caller),
-                    (None, None) => return VmResult::Ok(Ordering::Equal),
-                    (Some(..), None) => return VmResult::Ok(Ordering::Greater),
-                    (None, Some(..)) => return VmResult::Ok(Ordering::Less),
-                },
-                (Mutable::Result(a), Mutable::Result(b)) => match (a, b) {
-                    (Ok(a), Ok(b)) => return Value::cmp_with(a, b, caller),
-                    (Err(a), Err(b)) => return Value::cmp_with(a, b, caller),
-                    (Ok(..), Err(..)) => return VmResult::Ok(Ordering::Greater),
-                    (Err(..), Ok(..)) => return VmResult::Ok(Ordering::Less),
-                },
                 _ => {}
             },
             (BorrowRefRepr::Inline(lhs), rhs) => {
