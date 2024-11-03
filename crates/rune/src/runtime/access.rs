@@ -92,6 +92,11 @@ impl Snapshot {
         self.0 & MASK == 0
     }
 
+    /// Test if the snapshot indicates that the value is writable.
+    pub(crate) fn is_writable(&self) -> bool {
+        self.0 & MASK == 0
+    }
+
     /// Test if access is exclusively held.
     pub(crate) fn is_exclusive(&self) -> bool {
         self.0 & MASK != 0

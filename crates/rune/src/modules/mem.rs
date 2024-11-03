@@ -17,6 +17,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(Snapshot::debug)?;
     m.function_meta(Snapshot::shared)?;
     m.function_meta(Snapshot::is_exclusive)?;
+    m.function_meta(Snapshot::is_readable)?;
+    m.function_meta(Snapshot::is_writable)?;
 
     Ok(m)
 }
@@ -67,6 +69,8 @@ impl Snapshot {
     /// let s = snapshot(v)?;
     /// assert_eq!(s.shared(), 0);
     /// assert!(!s.is_exclusive());
+    /// assert!(s.is_readable());
+    /// assert!(s.is_writable());
     ///
     /// // Assign to a separate variable since the compiler will notice that `v` is moved.
     /// let u = v;
@@ -78,10 +82,78 @@ impl Snapshot {
     ///
     /// let s = snapshot(u)?;
     /// assert!(s.is_exclusive());
+    /// assert!(!s.is_readable());
+    /// assert!(!s.is_writable());
     /// ```
     #[rune::function]
     fn is_exclusive(&self) -> bool {
         self.inner.is_exclusive()
+    }
+
+    /// Test if the snapshot indicates that the value is readable.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::mem::snapshot;
+    ///
+    /// let v = [1, 2, 3];
+    ///
+    /// let s = snapshot(v)?;
+    /// assert_eq!(s.shared(), 0);
+    /// assert!(!s.is_exclusive());
+    /// assert!(s.is_readable());
+    /// assert!(s.is_writable());
+    ///
+    /// // Assign to a separate variable since the compiler will notice that `v` is moved.
+    /// let u = v;
+    ///
+    /// // Move the value into a closure, causing the original reference to become exclusively held.
+    /// let closure = move || {
+    ///    v
+    /// };
+    ///
+    /// let s = snapshot(u)?;
+    /// assert!(s.is_exclusive());
+    /// assert!(!s.is_readable());
+    /// assert!(!s.is_writable());
+    /// ```
+    #[rune::function]
+    fn is_readable(&self) -> bool {
+        self.inner.is_readable()
+    }
+
+    /// Test if the snapshot indicates that the value is writable.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::mem::snapshot;
+    ///
+    /// let v = [1, 2, 3];
+    ///
+    /// let s = snapshot(v)?;
+    /// assert_eq!(s.shared(), 0);
+    /// assert!(!s.is_exclusive());
+    /// assert!(s.is_readable());
+    /// assert!(s.is_writable());
+    ///
+    /// // Assign to a separate variable since the compiler will notice that `v` is moved.
+    /// let u = v;
+    ///
+    /// // Move the value into a closure, causing the original reference to become exclusively held.
+    /// let closure = move || {
+    ///    v
+    /// };
+    ///
+    /// let s = snapshot(u)?;
+    /// assert!(s.is_exclusive());
+    /// assert!(!s.is_readable());
+    /// assert!(!s.is_writable());
+    /// ```
+    #[rune::function]
+    fn is_writable(&self) -> bool {
+        self.inner.is_writable()
     }
 
     #[rune::function(protocol = DISPLAY_FMT)]

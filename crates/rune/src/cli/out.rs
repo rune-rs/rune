@@ -27,6 +27,7 @@ pub(super) enum Color {
     Ignore,
     Highlight,
     Important,
+    Progress,
 }
 
 impl Color {
@@ -37,6 +38,7 @@ impl Color {
             Color::Ignore => &colors.ignored,
             Color::Highlight => &colors.highlight,
             Color::Important => &colors.important,
+            Color::Progress => &colors.progress,
         }
     }
 }
@@ -105,6 +107,7 @@ struct Colors {
     passed: ColorSpec,
     highlight: ColorSpec,
     important: ColorSpec,
+    progress: ColorSpec,
     ignored: ColorSpec,
 }
 
@@ -117,13 +120,14 @@ impl Colors {
         this.highlight.set_bold(true);
         this.important.set_fg(Some(termcolor::Color::White));
         this.important.set_bold(true);
+        this.progress.set_fg(Some(termcolor::Color::Cyan));
+        this.progress.set_bold(true);
         this.ignored.set_fg(Some(termcolor::Color::Yellow));
         this.ignored.set_bold(true);
         this
     }
 }
 
-#[must_use = "Section must be closed"]
 pub(super) struct Section<'a> {
     pub(super) io: &'a mut StandardStream,
     colors: &'a Colors,

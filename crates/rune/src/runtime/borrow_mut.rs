@@ -20,6 +20,7 @@ pub struct BorrowMut<'a, T: ?Sized> {
 
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// Construct a borrow mut from static data.
+    #[inline]
     pub(crate) fn from_static(data: &mut T) -> Self {
         Self {
             data: NonNull::from(data),
@@ -36,6 +37,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// ensure that access has been acquired correctly using e.g.
     /// [Access::exclusive]. Otherwise access can be release incorrectly once
     /// this guard is dropped.
+    #[inline]
     pub(crate) unsafe fn new(data: NonNull<T>, guard: RawAccessGuard) -> Self {
         Self {
             data,
@@ -60,6 +62,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// assert_eq!(&mut bytes[..], &mut [1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn map<U: ?Sized>(mut this: Self, m: impl FnOnce(&mut T) -> &mut U) -> BorrowMut<'a, U> {
         // SAFETY: This is safe per construction.
         unsafe {
@@ -89,6 +92,7 @@ impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// assert_eq!(&mut bytes[..], &mut [1u8, 2u8][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn try_map<U: ?Sized>(
         mut this: Self,
         m: impl FnOnce(&mut T) -> Option<&mut U>,

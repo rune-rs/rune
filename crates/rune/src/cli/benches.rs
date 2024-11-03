@@ -25,11 +25,11 @@ mod cli {
     #[command(rename_all = "kebab-case")]
     pub(crate) struct Flags {
         /// Rounds of warmup to perform
-        #[arg(long, default_value = "10")]
-        pub(super) warmup: u32,
+        #[arg(long, default_value = "5.0")]
+        pub(super) warmup: f32,
         /// Iterations to run of the benchmark
-        #[arg(long, default_value = "100")]
-        pub(super) iter: u32,
+        #[arg(long, default_value = "10.0")]
+        pub(super) iter: f32,
         /// Explicit paths to benchmark.
         pub(super) bench_path: Vec<PathBuf>,
     }
@@ -152,35 +152,46 @@ where
 }
 
 fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function) -> Result<()> {
-    let mut section = io.section("Warming up", Stream::Stdout, Color::Ignore)?;
-    section.append(format_args!(" {item} ({} iters): ", args.warmup))?;
+    let mut section = io.section("Warming up", Stream::Stdout, Color::Progress)?;
+    section.append(format_args!(" {item} for {:.2}s:", args.warmup))?;
+    section.flush()?;
 
-    let step = (args.warmup / 10).max(1);
+    let start = Instant::now();
+    let mut warmup = 0;
 
-    for n in 0..args.warmup {
-        if n % step == 0 {
-            section.append(".")?;
-            section.flush()?;
-        }
-
+    let elapsed = loop {
         let value = f.call::<Value>(()).into_result()?;
         drop(hint::black_box(value));
-    }
+        warmup += 1;
 
-    section.close()?;
+        let elapsed = start.elapsed().as_secs_f32();
 
-    let iterations = usize::try_from(args.iter).expect("iterations out of bounds");
+        if elapsed >= args.warmup {
+            break elapsed;
+        }
+    };
+
+    section
+        .append(format_args!(" {warmup} iters in {elapsed:.2}s"))?
+        .close()?;
+
+    let iterations = (((args.iter * warmup as f32) / args.warmup).round() as usize).max(1);
+    let step = (iterations / 10).max(1);
     let mut collected = Vec::try_with_capacity(iterations)?;
 
-    let step = (args.iter / 10).max(1);
+    let mut section = io.section("Running", Stream::Stdout, Color::Progress)?;
+    section.append(format_args!(
+        " {item} {} iterations for {:.2}s: ",
+        iterations, args.iter
+    ))?;
 
-    let mut section = io.section("Running", Stream::Stdout, Color::Highlight)?;
-    section.append(format_args!(" {item} ({} iters): ", args.iter))?;
+    let mut added = 0;
 
-    for n in 0..args.iter {
+    for n in 0..=iterations {
         if n % step == 0 {
             section.append(".")?;
             section.flush()?;
+            added += 1;
         }
 
         let start = Instant::now();
@@ -190,16 +201,25 @@ fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function
         drop(hint::black_box(value));
     }
 
+    for _ in added..10 {
+        section.append(".")?;
+        section.flush()?;
+    }
+
+    section.close()?;
+
     collected.sort_unstable();
 
     let len = collected.len() as f64;
     let average = collected.iter().copied().sum::<i128>() as f64 / len;
+
     let variance = collected
         .iter()
         .copied()
         .map(|n| (n as f64 - average).powf(2.0))
         .sum::<f64>()
         / len;
+
     let stddev = variance.sqrt();
 
     let format = Format {
@@ -208,7 +228,8 @@ fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function
         iterations,
     };
 
-    section.passed(format_args!(" {format}"))?.close()?;
+    let mut section = io.section("Result", Stream::Stdout, Color::Highlight)?;
+    section.append(format_args!(" {item}: {format}"))?.close()?;
     Ok(())
 }
 

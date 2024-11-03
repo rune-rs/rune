@@ -6,7 +6,7 @@ use crate as rune;
 use crate::alloc::borrow::Cow;
 use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, HashMap, Vec};
+use crate::alloc::{self, Box, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::attrs::Parser;
@@ -15,7 +15,7 @@ use crate::compile::meta;
 use crate::compile::{self, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::module::{DocFunction, ModuleItemCommon};
 use crate::parse::ResolveContext;
-use crate::runtime::{Call, Protocol};
+use crate::runtime::{Call, FieldMap, Protocol};
 use crate::{Hash, Item, ItemBuf};
 
 /// A meta reference to an item being compiled.
@@ -300,8 +300,8 @@ pub struct FieldsNamed {
 
 impl FieldsNamed {
     /// Coerce into a hashmap of fields.
-    pub(crate) fn to_fields(&self) -> alloc::Result<HashMap<Box<str>, usize>> {
-        let mut fields = HashMap::new();
+    pub(crate) fn to_fields(&self) -> alloc::Result<FieldMap<Box<str>, usize>> {
+        let mut fields = crate::runtime::new_field_hash_map_with_capacity(self.fields.len())?;
 
         for f in self.fields.iter() {
             fields.try_insert(f.name.try_clone()?, f.position)?;

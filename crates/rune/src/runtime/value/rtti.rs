@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::alloc::prelude::*;
 use crate::alloc::HashMap;
 use crate::item::Item;
-use crate::runtime::{TypeInfo, Value};
+use crate::runtime::{FieldMap, TypeInfo, Value};
 use crate::{Hash, ItemBuf};
 
 /// Field accessor for a variant struct.
@@ -56,7 +56,7 @@ pub struct Rtti {
     /// The item of the type.
     pub(crate) item: ItemBuf,
     /// Mapping from field names to their corresponding indexes.
-    pub(crate) fields: HashMap<Box<str>, usize>,
+    pub(crate) fields: FieldMap<Box<str>, usize>,
 }
 
 impl Rtti {

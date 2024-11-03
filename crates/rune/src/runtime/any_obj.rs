@@ -704,6 +704,7 @@ struct Shared<T = ()> {
 
 impl Shared {
     /// Increment the reference count of the inner value.
+    #[inline]
     unsafe fn inc(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();
@@ -726,6 +727,7 @@ impl Shared {
     /// # Safety
     ///
     /// ProtocolCaller needs to ensure that `this` is a valid pointer.
+    #[inline]
     unsafe fn dec(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();

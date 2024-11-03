@@ -5,12 +5,12 @@ use core::hash;
 use core::iter;
 
 use crate as rune;
+use crate::alloc::hash_map;
 use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::alloc::{hash_map, HashMap};
 use crate::runtime::{
-    FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError, VmResult,
+    FieldMap, FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError, VmResult,
 };
 use crate::Any;
 
@@ -82,7 +82,7 @@ pub type Values<'a> = hash_map::Values<'a, String, Value>;
 #[repr(transparent)]
 #[rune(item = ::std::object)]
 pub struct Object {
-    inner: HashMap<String, Value>,
+    inner: FieldMap<String, Value>,
 }
 
 impl Object {
@@ -98,7 +98,7 @@ impl Object {
     #[rune::function(keep, path = Self::new)]
     pub fn new() -> Self {
         Self {
-            inner: HashMap::new(),
+            inner: crate::runtime::new_field_map(),
         }
     }
 
@@ -121,7 +121,7 @@ impl Object {
         // BTreeMap doesn't support setting capacity on creation but we keep
         // this here in case we want to switch store later.
         Ok(Self {
-            inner: HashMap::try_with_capacity(capacity)?,
+            inner: crate::runtime::new_field_hash_map_with_capacity(capacity)?,
         })
     }
 
@@ -247,6 +247,7 @@ impl Object {
     /// Inserts a key-value pair into the map.
     ///
     /// If the map did not have this key present, `None` is returned.
+    #[inline]
     pub fn insert(&mut self, k: String, v: Value) -> alloc::Result<Option<Value>> {
         self.inner.try_insert(k, v)
     }
@@ -257,11 +258,6 @@ impl Object {
     #[rune::function(keep)]
     pub fn clear(&mut self) {
         self.inner.clear();
-    }
-
-    /// Convert into inner.
-    pub fn into_inner(self) -> HashMap<String, Value> {
-        self.inner
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.

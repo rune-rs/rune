@@ -317,7 +317,7 @@ impl UnitBuilder {
                     hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: HashMap::new(),
+                    fields: HashMap::default(),
                 });
 
                 self.constants
@@ -350,7 +350,7 @@ impl UnitBuilder {
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: HashMap::new(),
+                    fields: HashMap::default(),
                 });
 
                 if self
@@ -409,7 +409,7 @@ impl UnitBuilder {
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: HashMap::new(),
+                    fields: HashMap::default(),
                 });
 
                 if self
@@ -487,7 +487,7 @@ impl UnitBuilder {
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: HashMap::new(),
+                    fields: HashMap::default(),
                 });
 
                 if self
@@ -537,7 +537,7 @@ impl UnitBuilder {
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: HashMap::new(),
+                    fields: HashMap::default(),
                 });
 
                 if self
