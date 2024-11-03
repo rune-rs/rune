@@ -7,7 +7,7 @@ pub use self::inline::Inline;
 mod serde;
 
 mod rtti;
-pub use self::rtti::{Accessor, Rtti, VariantRtti};
+pub use self::rtti::{Accessor, Rtti};
 
 mod data;
 pub use self::data::{EmptyStruct, Struct, TupleStruct};
@@ -592,12 +592,12 @@ impl Value {
     }
 
     /// Construct an empty variant.
-    pub fn unit_variant(rtti: Arc<VariantRtti>) -> VmResult<Self> {
+    pub fn unit_variant(rtti: Arc<Rtti>) -> VmResult<Self> {
         VmResult::Ok(vm_try!(Value::try_from(Variant::unit(rtti))))
     }
 
     /// Construct a tuple variant.
-    pub fn tuple_variant(rtti: Arc<VariantRtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
+    pub fn tuple_variant(rtti: Arc<Rtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
         let data = vm_try!(OwnedTuple::try_from(vec));
 
         VmResult::Ok(vm_try!(Value::try_from(Variant::tuple(rtti, data))))
@@ -1206,7 +1206,7 @@ impl Value {
                         }
                     }
                     (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                        if a.rtti().hash == b.rtti().hash {
                             return Variant::partial_eq_with(a, b, caller);
                         }
                     }
@@ -1368,7 +1368,7 @@ impl Value {
                         }
                     }
                     (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                        if a.rtti().hash == b.rtti().hash {
                             return Variant::eq_with(a, b, caller);
                         }
                     }
@@ -1453,7 +1453,7 @@ impl Value {
                         }
                     }
                     (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                        if a.rtti().hash == b.rtti().hash {
                             return Variant::partial_cmp_with(a, b, caller);
                         }
                     }
@@ -1529,7 +1529,7 @@ impl Value {
                         }
                     }
                     (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                        if a.rtti().hash == b.rtti().hash {
                             return Variant::cmp_with(a, b, caller);
                         }
                     }
@@ -2032,7 +2032,7 @@ impl Mutable {
             Mutable::EmptyStruct(empty) => empty.rtti.hash,
             Mutable::TupleStruct(tuple) => tuple.rtti.hash,
             Mutable::Struct(object) => object.rtti.hash,
-            Mutable::Variant(variant) => variant.rtti().enum_hash,
+            Mutable::Variant(variant) => variant.rtti().hash,
         }
     }
 }

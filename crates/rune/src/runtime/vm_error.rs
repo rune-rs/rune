@@ -692,9 +692,6 @@ pub(crate) enum VmErrorKind {
     MissingStaticObjectKeys {
         slot: usize,
     },
-    MissingVariantRtti {
-        hash: Hash,
-    },
     MissingRtti {
         hash: Hash,
     },
@@ -911,10 +908,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingStaticObjectKeys { slot } => {
                 write!(f, "Static object keys slot `{slot}` does not exist")
             }
-            VmErrorKind::MissingVariantRtti { hash } => write!(
-                f,
-                "Missing runtime information for variant with hash `{hash}`",
-            ),
             VmErrorKind::MissingRtti { hash } => {
                 write!(f, "Missing runtime information for type with hash `{hash}`")
             }

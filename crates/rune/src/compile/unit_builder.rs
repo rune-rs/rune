@@ -18,8 +18,7 @@ use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit,
-    UnitFn, VariantRtti,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit, UnitFn,
 };
 use crate::{Context, Diagnostics, Hash, Item, SourceId};
 
@@ -74,8 +73,6 @@ pub(crate) struct UnitBuilder {
     static_object_keys_rev: HashMap<Hash, usize>,
     /// Runtime type information for types.
     rtti: hash::Map<Arc<Rtti>>,
-    /// Runtime type information for variants.
-    variant_rtti: hash::Map<Arc<VariantRtti>>,
     /// The current label count.
     label_count: usize,
     /// A collection of required function hashes.
@@ -153,7 +150,6 @@ impl UnitBuilder {
             self.static_bytes,
             self.static_object_keys,
             self.rtti,
-            self.variant_rtti,
             self.debug,
             self.constants,
         ))
@@ -317,6 +313,7 @@ impl UnitBuilder {
 
                 let rtti = Arc::new(Rtti {
                     hash,
+                    variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::new(),
                 });
@@ -348,6 +345,7 @@ impl UnitBuilder {
 
                 let rtti = Arc::new(Rtti {
                     hash: meta.hash,
+                    variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::new(),
                 });
@@ -405,6 +403,7 @@ impl UnitBuilder {
 
                 let rtti = Arc::new(Rtti {
                     hash: meta.hash,
+                    variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::new(),
                 });
@@ -454,6 +453,7 @@ impl UnitBuilder {
 
                 let rtti = Arc::new(Rtti {
                     hash,
+                    variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
                 });
@@ -477,22 +477,22 @@ impl UnitBuilder {
                 fields: meta::Fields::Empty,
                 ..
             } => {
-                let rtti = Arc::new(VariantRtti {
-                    enum_hash,
-                    hash: meta.hash,
+                let rtti = Arc::new(Rtti {
+                    hash: enum_hash,
+                    variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::new(),
                 });
 
                 if self
-                    .variant_rtti
+                    .rtti
                     .try_insert(meta.hash, rtti)
                     .with_span(span)?
                     .is_some()
                 {
                     return Err(compile::Error::new(
                         span,
-                        ErrorKind::VariantRttiConflict { hash: meta.hash },
+                        ErrorKind::RttiConflict { hash: meta.hash },
                     ));
                 }
 
@@ -526,22 +526,22 @@ impl UnitBuilder {
                 fields: meta::Fields::Unnamed(args),
                 ..
             } => {
-                let rtti = Arc::new(VariantRtti {
-                    enum_hash,
-                    hash: meta.hash,
+                let rtti = Arc::new(Rtti {
+                    hash: enum_hash,
+                    variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::new(),
                 });
 
                 if self
-                    .variant_rtti
+                    .rtti
                     .try_insert(meta.hash, rtti)
                     .with_span(span)?
                     .is_some()
                 {
                     return Err(compile::Error::new(
                         span,
-                        ErrorKind::VariantRttiConflict { hash: meta.hash },
+                        ErrorKind::RttiConflict { hash: meta.hash },
                     ));
                 }
 
@@ -580,23 +580,15 @@ impl UnitBuilder {
             } => {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
-                let rtti = Arc::new(VariantRtti {
-                    enum_hash,
-                    hash,
+                let rtti = Arc::new(Rtti {
+                    hash: enum_hash,
+                    variant_hash: hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
                 });
 
-                if self
-                    .variant_rtti
-                    .try_insert(hash, rtti)
-                    .with_span(span)?
-                    .is_some()
-                {
-                    return Err(compile::Error::new(
-                        span,
-                        ErrorKind::VariantRttiConflict { hash },
-                    ));
+                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
+                    return Err(compile::Error::new(span, ErrorKind::RttiConflict { hash }));
                 }
             }
             meta::Kind::Enum { .. } => {

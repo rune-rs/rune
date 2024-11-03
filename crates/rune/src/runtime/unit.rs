@@ -18,9 +18,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
-use crate::runtime::{
-    Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VariantRtti, VmError, VmErrorKind,
-};
+use crate::runtime::{Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VmError, VmErrorKind};
 use crate::Hash;
 
 pub use self::storage::{ArrayUnit, EncodeError, UnitEncoder, UnitStorage};
@@ -72,8 +70,6 @@ pub struct Logic<S = DefaultStorage> {
     static_object_keys: Vec<Box<[String]>>,
     /// Runtime information for types.
     rtti: hash::Map<Arc<Rtti>>,
-    /// Runtime information for variants.
-    variant_rtti: hash::Map<Arc<VariantRtti>>,
     /// Named constants
     constants: hash::Map<ConstValue>,
 }
@@ -96,7 +92,6 @@ impl<S> Unit<S> {
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
         rtti: hash::Map<Arc<Rtti>>,
-        variant_rtti: hash::Map<Arc<VariantRtti>>,
         debug: Option<Box<DebugInfo>>,
         constants: hash::Map<ConstValue>,
     ) -> Self {
@@ -108,7 +103,6 @@ impl<S> Unit<S> {
                 static_bytes,
                 static_object_keys,
                 rtti,
-                variant_rtti,
                 constants,
             },
             debug,
@@ -192,11 +186,6 @@ impl<S> Unit<S> {
     /// Lookup run-time information for the given type hash.
     pub(crate) fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
         self.logic.rtti.get(&hash)
-    }
-
-    /// Lookup variant run-time information for the given variant hash.
-    pub(crate) fn lookup_variant_rtti(&self, hash: Hash) -> Option<&Arc<VariantRtti>> {
-        self.logic.variant_rtti.get(&hash)
     }
 
     /// Lookup a function in the unit.

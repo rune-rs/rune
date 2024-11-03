@@ -545,7 +545,7 @@ pub(crate) enum ErrorKind {
         path: Vec<ImportStep>,
     },
     LastUseComponent,
-    VariantRttiConflict {
+    RttiConflict {
         hash: Hash,
     },
     TypeRttiConflict {
@@ -1113,7 +1113,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::LastUseComponent => {
                 write!(f, "Missing last use component")?;
             }
-            ErrorKind::VariantRttiConflict { hash } => {
+            ErrorKind::RttiConflict { hash } => {
                 write!(f,"Tried to insert variant runtime type information, but conflicted with hash `{hash}`")?;
             }
             ErrorKind::TypeRttiConflict { hash } => {

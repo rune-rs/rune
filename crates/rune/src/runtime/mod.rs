@@ -163,7 +163,7 @@ pub use self::unit::{Unit, UnitStorage};
 mod value;
 pub use self::value::{
     Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
-    ValueMutGuard, ValueRefGuard, VariantRtti,
+    ValueMutGuard, ValueRefGuard,
 };
 pub(crate) use self::value::{Mutable, ReprMut, ReprOwned, ReprRef};
 

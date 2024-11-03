@@ -16,8 +16,8 @@ use crate::Hash;
 
 use super::{
     Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs, InstAddress,
-    Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, VariantRtti, Vm,
-    VmCall, VmErrorKind, VmHalt, VmResult,
+    Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm, VmCall,
+    VmErrorKind, VmHalt, VmResult,
 };
 
 /// The type of a function in Rune.
@@ -256,12 +256,12 @@ impl Function {
     }
 
     /// Create a function pointer that constructs a empty variant.
-    pub(crate) fn from_unit_variant(rtti: Arc<VariantRtti>) -> Self {
+    pub(crate) fn from_unit_variant(rtti: Arc<Rtti>) -> Self {
         Self(FunctionImpl::from_unit_variant(rtti))
     }
 
     /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
+    pub(crate) fn from_tuple_variant(rtti: Arc<Rtti>, args: usize) -> Self {
         Self(FunctionImpl::from_tuple_variant(rtti, args))
     }
 
@@ -766,14 +766,14 @@ where
     }
 
     /// Create a function pointer that constructs a empty variant.
-    pub(crate) fn from_unit_variant(rtti: Arc<VariantRtti>) -> Self {
+    pub(crate) fn from_unit_variant(rtti: Arc<Rtti>) -> Self {
         Self {
             inner: Inner::FnUnitVariant(FnUnitVariant { rtti }),
         }
     }
 
     /// Create a function pointer that constructs a tuple variant.
-    pub(crate) fn from_tuple_variant(rtti: Arc<VariantRtti>, args: usize) -> Self {
+    pub(crate) fn from_tuple_variant(rtti: Arc<Rtti>, args: usize) -> Self {
         Self {
             inner: Inner::FnTupleVariant(FnTupleVariant { rtti, args }),
         }
@@ -1032,13 +1032,13 @@ struct FnTupleStruct {
 #[derive(Debug, Clone, TryClone)]
 struct FnUnitVariant {
     /// Runtime information fo variant.
-    rtti: Arc<VariantRtti>,
+    rtti: Arc<Rtti>,
 }
 
 #[derive(Debug, Clone, TryClone)]
 struct FnTupleVariant {
     /// Runtime information fo variant.
-    rtti: Arc<VariantRtti>,
+    rtti: Arc<Rtti>,
     /// The number of arguments the tuple takes.
     args: usize,
 }

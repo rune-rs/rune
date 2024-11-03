@@ -2717,16 +2717,16 @@ impl Vm {
                 UnitFn::UnitVariant { hash } => {
                     let rtti = self
                         .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
+                        .lookup_rtti(hash)
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
 
                     Function::from_unit_variant(rtti.clone())
                 }
                 UnitFn::TupleVariant { hash, args } => {
                     let rtti = self
                         .unit
-                        .lookup_variant_rtti(hash)
-                        .ok_or(VmErrorKind::MissingVariantRtti { hash })?;
+                        .lookup_rtti(hash)
+                        .ok_or(VmErrorKind::MissingRtti { hash })?;
 
                     Function::from_tuple_variant(rtti.clone(), args)
                 }
@@ -3058,8 +3058,8 @@ impl Vm {
     fn op_struct_variant(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
         let rtti = vm_try!(self
             .unit
-            .lookup_variant_rtti(hash)
-            .ok_or(VmErrorKind::MissingVariantRtti { hash }));
+            .lookup_rtti(hash)
+            .ok_or(VmErrorKind::MissingRtti { hash }));
 
         let mut data = vm_try!(alloc::Vec::try_with_capacity(rtti.fields.len()));
         let values = vm_try!(self.stack.slice_at_mut(addr, rtti.fields.len()));
@@ -3313,7 +3313,7 @@ impl Vm {
                 ReprRef::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
                     Mutable::Variant(variant) => {
                         let rtti = variant.rtti();
-                        break 'out rtti.enum_hash == enum_hash && rtti.hash == variant_hash;
+                        break 'out rtti.hash == enum_hash && rtti.hash == variant_hash;
                     }
                     _ => {
                         break 'out false;
@@ -3578,8 +3578,8 @@ impl Vm {
 
                 let rtti = vm_try!(self
                     .unit
-                    .lookup_variant_rtti(hash)
-                    .ok_or(VmErrorKind::MissingVariantRtti { hash }));
+                    .lookup_rtti(hash)
+                    .ok_or(VmErrorKind::MissingRtti { hash }));
 
                 let tuple = vm_try!(self.stack.slice_at_mut(addr, args));
                 let tuple = vm_try!(tuple.iter_mut().map(take).try_collect());
@@ -3594,8 +3594,8 @@ impl Vm {
 
                 let rtti = vm_try!(self
                     .unit
-                    .lookup_variant_rtti(hash)
-                    .ok_or(VmErrorKind::MissingVariantRtti { hash }));
+                    .lookup_rtti(hash)
+                    .ok_or(VmErrorKind::MissingRtti { hash }));
 
                 vm_try!(out.store(&mut self.stack, || Value::unit_variant(rtti.clone())));
             }

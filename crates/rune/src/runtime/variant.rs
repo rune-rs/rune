@@ -8,14 +8,14 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::Box;
 
 use super::{
-    Accessor, FromValue, Mutable, OwnedTuple, ProtocolCaller, ReprOwned, RuntimeError, Tuple,
-    TypeInfo, Value, VariantRtti, Vec, VmResult,
+    Accessor, FromValue, Mutable, OwnedTuple, ProtocolCaller, ReprOwned, Rtti, RuntimeError, Tuple,
+    TypeInfo, Value, Vec, VmResult,
 };
 
 /// The variant of a type.
 #[derive(TryClone)]
 pub struct Variant {
-    pub(crate) rtti: Arc<VariantRtti>,
+    pub(crate) rtti: Arc<Rtti>,
     pub(crate) data: VariantData,
 }
 
@@ -38,7 +38,7 @@ impl Variant {
     }
 
     /// Construct a unit variant.
-    pub(crate) fn unit(rtti: Arc<VariantRtti>) -> Self {
+    pub(crate) fn unit(rtti: Arc<Rtti>) -> Self {
         Self {
             rtti,
             data: VariantData::Empty,
@@ -46,7 +46,7 @@ impl Variant {
     }
 
     /// Construct a tuple variant.
-    pub(crate) fn tuple(rtti: Arc<VariantRtti>, tuple: OwnedTuple) -> Self {
+    pub(crate) fn tuple(rtti: Arc<Rtti>, tuple: OwnedTuple) -> Self {
         Self {
             rtti,
             data: VariantData::Tuple(tuple),
@@ -54,7 +54,7 @@ impl Variant {
     }
 
     /// Construct a struct variant.
-    pub(crate) fn struct_(rtti: Arc<VariantRtti>, data: Box<[Value]>) -> Self {
+    pub(crate) fn struct_(rtti: Arc<Rtti>, data: Box<[Value]>) -> Self {
         Self {
             rtti,
             data: VariantData::Struct(data),
@@ -62,7 +62,7 @@ impl Variant {
     }
 
     /// Access the rtti of the variant.
-    pub fn rtti(&self) -> &VariantRtti {
+    pub fn rtti(&self) -> &Rtti {
         &self.rtti
     }
 
@@ -78,7 +78,7 @@ impl Variant {
 
     /// Get type info for the variant.
     pub(crate) fn type_info(&self) -> TypeInfo {
-        TypeInfo::variant(self.rtti.clone())
+        TypeInfo::typed(self.rtti.clone())
     }
 
     pub(crate) fn partial_eq_with(
@@ -87,7 +87,7 @@ impl Variant {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         debug_assert_eq!(
-            a.rtti.enum_hash, b.rtti.enum_hash,
+            a.rtti.hash, b.rtti.hash,
             "comparison only makes sense if enum hashes match"
         );
 
@@ -109,7 +109,7 @@ impl Variant {
 
     pub(crate) fn eq_with(a: &Self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         debug_assert_eq!(
-            a.rtti.enum_hash, b.rtti.enum_hash,
+            a.rtti.hash, b.rtti.hash,
             "comparison only makes sense if enum hashes match"
         );
 
@@ -135,7 +135,7 @@ impl Variant {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         debug_assert_eq!(
-            a.rtti.enum_hash, b.rtti.enum_hash,
+            a.rtti.hash, b.rtti.hash,
             "comparison only makes sense if enum hashes match"
         );
 
@@ -158,7 +158,7 @@ impl Variant {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         debug_assert_eq!(
-            a.rtti.enum_hash, b.rtti.enum_hash,
+            a.rtti.hash, b.rtti.hash,
             "comparison only makes sense if enum hashes match"
         );
 

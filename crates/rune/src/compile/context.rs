@@ -21,7 +21,7 @@ use crate::module::{
 };
 use crate::runtime::{
     AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory,
-    Output, Protocol, RuntimeContext, TypeCheck, TypeInfo, VariantRtti, VmResult,
+    Output, Protocol, Rtti, RuntimeContext, TypeCheck, TypeInfo, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -771,9 +771,9 @@ impl Context {
                             item: item.try_clone()?,
                             hash,
                             type_check: None,
-                            type_info: TypeInfo::variant(Arc::new(VariantRtti {
-                                enum_hash: ty.hash,
-                                hash,
+                            type_info: TypeInfo::typed(Arc::new(Rtti {
+                                hash: ty.hash,
+                                variant_hash: hash,
                                 item: item.try_clone()?,
                                 fields: fields.to_fields()?,
                             })),
