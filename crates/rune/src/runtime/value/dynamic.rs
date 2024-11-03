@@ -12,7 +12,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::hash::Hash;
 use crate::runtime::{
     Access, AccessError, BorrowMut, BorrowRef, Formatter, IntoOutput, ProtocolCaller, Rtti,
-    RttiKind, Snapshot, TypeInfo, Value, VmResult,
+    RttiKind, RuntimeError, Snapshot, TypeInfo, Value, VmResult,
 };
 
 #[derive(Debug)]
@@ -471,10 +471,8 @@ fn debug_struct(
 }
 
 impl IntoOutput for Dynamic<Arc<Rtti>, Value> {
-    type Output = Dynamic<Arc<Rtti>, Value>;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        Ok(Value::from(self))
     }
 }

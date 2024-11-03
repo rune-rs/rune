@@ -1,4 +1,5 @@
 use core::array;
+use core::convert::Infallible;
 use core::fmt;
 use core::mem::replace;
 use core::slice;
@@ -14,6 +15,13 @@ use crate::runtime::{InstAddress, Output, Value, VmErrorKind};
 #[non_exhaustive]
 pub struct StackError {
     addr: InstAddress,
+}
+
+impl From<Infallible> for StackError {
+    #[inline]
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
 }
 
 impl fmt::Display for StackError {

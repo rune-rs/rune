@@ -561,16 +561,16 @@ impl Value {
     }
 
     /// Construct an empty.
-    pub fn empty_struct(rtti: Arc<Rtti>) -> VmResult<Self> {
-        VmResult::Ok(Value::from(vm_try!(Dynamic::new(rtti, []))))
+    pub fn empty_struct(rtti: Arc<Rtti>) -> alloc::Result<Self> {
+        Ok(Value::from(Dynamic::new(rtti, [])?))
     }
 
     /// Construct a typed tuple.
     pub fn tuple_struct(
         rtti: Arc<Rtti>,
         data: impl IntoIterator<IntoIter: ExactSizeIterator, Item = Value>,
-    ) -> VmResult<Self> {
-        VmResult::Ok(Value::from(vm_try!(Dynamic::new(rtti, data))))
+    ) -> alloc::Result<Self> {
+        Ok(Value::from(Dynamic::new(rtti, data)?))
     }
 
     /// Drop the interior value.
@@ -1559,11 +1559,9 @@ impl From<()> for Value {
 }
 
 impl IntoOutput for () {
-    type Output = ();
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(())
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        Ok(Value::from(()))
     }
 }
 
@@ -1586,11 +1584,9 @@ impl From<AnyObj> for Value {
 }
 
 impl IntoOutput for Inline {
-    type Output = Inline;
-
     #[inline]
-    fn into_output(self) -> VmResult<Self::Output> {
-        VmResult::Ok(self)
+    fn into_output(self) -> Result<Value, RuntimeError> {
+        Ok(Value::from(self))
     }
 }
 
