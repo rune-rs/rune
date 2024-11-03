@@ -1,9 +1,14 @@
 //! The [`Result`] type.
 
+use core::cmp::Ordering;
+use core::hash::Hasher as _;
+
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
-use crate::runtime::{ControlFlow, Formatter, Function, Panic, Protocol, Value, VmResult};
+use crate::runtime::{
+    ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, Value, VmResult,
+};
 use crate::{ContextError, Module};
 
 /// The [`Result`] type.
@@ -11,10 +16,10 @@ use crate::{ContextError, Module};
 /// This module deals with the fundamental [`Result`] type in Rune.
 #[rune::module(::std::result)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module_meta)?;
 
     // Sorted for ease of finding
-    let mut result = module
+    let mut result = m
         .ty::<Result<Value, Value>>()?
         .static_docs(&["Result is a type that represents either success (Ok) or failure (Err)."])?
         .make_enum(&["Ok", "Err"])?;
@@ -31,7 +36,7 @@ pub fn module() -> Result<Module, ContextError> {
         .constructor(Result::Err)?
         .static_docs(&["Contains the error value"])?;
 
-    module.associated_function(
+    m.associated_function(
         Protocol::IS_VARIANT,
         |this: &Result<Value, Value>, index: usize| match (this, index) {
             (Result::Ok(_), 0) => true,
@@ -40,28 +45,54 @@ pub fn module() -> Result<Module, ContextError> {
         },
     )?;
 
-    module.index_function(Protocol::GET, 0, |this: &Result<Value, Value>| match this {
+    m.index_function(Protocol::GET, 0, |this: &Result<Value, Value>| match this {
         Result::Ok(value) => VmResult::Ok(value.clone()),
         Result::Err(value) => VmResult::Ok(value.clone()),
     })?;
 
-    module.function_meta(ok)?;
-    module.function_meta(is_ok)?;
-    module.function_meta(is_err)?;
-    module.function_meta(unwrap)?;
-    module.function_meta(unwrap_or)?;
-    module.function_meta(unwrap_or_else)?;
-    module.function_meta(expect)?;
-    module.function_meta(and_then)?;
-    module.function_meta(map)?;
-    module.function_meta(result_try__meta)?;
-    Ok(module)
+    m.function_meta(ok)?;
+    m.function_meta(is_ok)?;
+    m.function_meta(is_err)?;
+    m.function_meta(unwrap)?;
+    m.function_meta(unwrap_or)?;
+    m.function_meta(unwrap_or_else)?;
+    m.function_meta(expect)?;
+    m.function_meta(and_then)?;
+    m.function_meta(map)?;
+
+    m.function_meta(clone__meta)?;
+    m.implement_trait::<Result<Value, Value>>(rune::item!(::std::clone::Clone))?;
+
+    m.function_meta(partial_eq__meta)?;
+    m.implement_trait::<Result<Value, Value>>(rune::item!(::std::cmp::PartialEq))?;
+
+    m.function_meta(eq__meta)?;
+    m.implement_trait::<Result<Value, Value>>(rune::item!(::std::cmp::Eq))?;
+
+    m.function_meta(partial_cmp__meta)?;
+    m.implement_trait::<Result<Value, Value>>(rune::item!(::std::cmp::PartialOrd))?;
+
+    m.function_meta(cmp__meta)?;
+    m.implement_trait::<Result<Value, Value>>(rune::item!(::std::cmp::Ord))?;
+
+    m.function_meta(hash__meta)?;
+    m.function_meta(debug_fmt__meta)?;
+
+    m.function_meta(result_try__meta)?;
+    Ok(m)
 }
 
-/// Converts from `Result<T, E>` to `Option<T>`.
+/// Converts from `Result` to `Option`.
 ///
-/// Converts self into an `Option<T>`, consuming `self`, and discarding the
-/// error, if any.
+/// # Examples
+///
+/// ```rune
+/// let a = Ok(2);
+/// let b = Err(3);
+///
+/// assert_eq!(a.ok(), Some(2));
+/// assert_eq!(b.ok(), None);
+/// ```
 #[rune::function(instance)]
 fn ok(result: &Result<Value, Value>) -> Option<Value> {
     result.as_ref().ok().cloned()
@@ -284,6 +315,189 @@ fn map(this: &Result<Value, Value>, then: Function) -> VmResult<Result<Value, Va
         Ok(v) => VmResult::Ok(Ok(vm_try!(then.call((v,))))),
         Err(e) => VmResult::Ok(Err(e.clone())),
     }
+}
+
+/// Clone the result.
+///
+/// # Examples
+///
+/// ```rune
+/// let a = Ok(b"hello world");
+/// let b = a.clone();
+///
+/// a?.extend(b"!");
+///
+/// assert_eq!(a, Ok(b"hello world!"));
+/// assert_eq!(b, Ok(b"hello world"));
+/// ```
+#[rune::function(keep, instance, protocol = CLONE)]
+fn clone(this: &Result<Value, Value>) -> VmResult<Result<Value, Value>> {
+    VmResult::Ok(match this {
+        Ok(ok) => Ok(vm_try!(ok.clone_with(&mut EnvProtocolCaller))),
+        Err(err) => Err(vm_try!(err.clone_with(&mut EnvProtocolCaller))),
+    })
+}
+
+/// Test two results for partial equality.
+///
+/// # Examples
+///
+/// ```rune
+/// assert_eq!(Ok(b"a") == Ok(b"a"), true);
+/// assert_eq!(Ok(b"a") == Ok(b"ab"), false);
+/// assert_eq!(Ok(b"ab") == Ok(b"a"), false);
+/// ```
+///
+/// Using explicit functions:
+///
+/// ```rune
+/// use std::ops::partial_eq;
+///
+/// assert_eq!(partial_eq(Ok(b"a"), Ok(b"a")), true);
+/// assert_eq!(partial_eq(Ok(b"a"), Ok(b"ab")), false);
+/// assert_eq!(partial_eq(Ok(b"ab"), Ok(b"a")), false);
+/// ```
+#[rune::function(keep, instance, protocol = PARTIAL_EQ)]
+#[inline]
+fn partial_eq(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResult<bool> {
+    match (this, rhs) {
+        (Ok(a), Ok(b)) => Value::partial_eq(a, b),
+        (Err(a), Err(b)) => Value::partial_eq(a, b),
+        _ => VmResult::Ok(false),
+    }
+}
+
+/// Test two results for total equality.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::eq;
+///
+/// assert_eq!(eq(Ok(b"a"), Ok(b"a")), true);
+/// assert_eq!(eq(Ok(b"a"), Ok(b"ab")), false);
+/// assert_eq!(eq(Ok(b"ab"), Ok(b"a")), false);
+/// ```
+#[rune::function(keep, instance, protocol = EQ)]
+#[inline]
+fn eq(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResult<bool> {
+    match (this, rhs) {
+        (Ok(a), Ok(b)) => Value::eq(a, b),
+        (Err(a), Err(b)) => Value::eq(a, b),
+        _ => VmResult::Ok(false),
+    }
+}
+
+/// Perform a partial ordered comparison between two results.
+///
+/// # Examples
+///
+/// ```rune
+/// assert!(Ok(b"a") < Ok(b"ab"));
+/// assert!(Ok(b"ab") > Ok(b"a"));
+/// assert!(Ok(b"a") == Ok(b"a"));
+/// ```
+///
+/// Using explicit functions:
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::partial_cmp;
+///
+/// assert_eq!(partial_cmp(Ok(b"a"), Ok(b"ab")), Some(Ordering::Less));
+/// assert_eq!(partial_cmp(Ok(b"ab"), Ok(b"a")), Some(Ordering::Greater));
+/// assert_eq!(partial_cmp(Ok(b"a"), Ok(b"a")), Some(Ordering::Equal));
+/// ```
+#[rune::function(keep, instance, protocol = PARTIAL_CMP)]
+#[inline]
+fn partial_cmp(
+    this: &Result<Value, Value>,
+    rhs: &Result<Value, Value>,
+) -> VmResult<Option<Ordering>> {
+    match (this, rhs) {
+        (Ok(a), Ok(b)) => Value::partial_cmp(a, b),
+        (Err(a), Err(b)) => Value::partial_cmp(a, b),
+        (Ok(..), Err(..)) => VmResult::Ok(Some(Ordering::Greater)),
+        (Err(..), Ok(..)) => VmResult::Ok(Some(Ordering::Less)),
+    }
+}
+
+/// Perform a totally ordered comparison between two results.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::cmp::Ordering;
+/// use std::ops::cmp;
+///
+/// assert_eq!(cmp(Ok(b"a"), Ok(b"ab")), Ordering::Less);
+/// assert_eq!(cmp(Ok(b"ab"), Ok(b"a")), Ordering::Greater);
+/// assert_eq!(cmp(Ok(b"a"), Ok(b"a")), Ordering::Equal);
+/// ```
+#[rune::function(keep, instance, protocol = CMP)]
+#[inline]
+fn cmp(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResult<Ordering> {
+    match (this, rhs) {
+        (Ok(a), Ok(b)) => Value::cmp(a, b),
+        (Err(a), Err(b)) => Value::cmp(a, b),
+        (Ok(..), Err(..)) => VmResult::Ok(Ordering::Greater),
+        (Err(..), Ok(..)) => VmResult::Ok(Ordering::Less),
+    }
+}
+
+/// Hash the result.
+///
+/// # Examples
+///
+/// ```rune
+/// use std::ops::hash;
+///
+/// let a = Ok("hello");
+/// let b = Ok("hello");
+///
+/// assert_eq!(hash(a), hash(b));
+/// ```
+#[rune::function(keep, instance, protocol = HASH)]
+fn hash(this: &Result<Value, Value>, hasher: &mut Hasher) -> VmResult<()> {
+    match this {
+        Ok(value) => {
+            hasher.write_u64(0);
+            vm_try!(value.hash(hasher));
+        }
+        Err(value) => {
+            hasher.write_u64(1);
+            vm_try!(value.hash(hasher));
+        }
+    }
+
+    VmResult::Ok(())
+}
+
+/// Write a debug representation of a result.
+///
+/// # Examples
+///
+/// ```rune
+/// println!("{:?}", Ok("Hello"));
+/// println!("{:?}", Err("Hello"));
+/// ```
+#[rune::function(keep, instance, protocol = DEBUG_FMT)]
+#[inline]
+fn debug_fmt(this: &Result<Value, Value>, f: &mut Formatter) -> VmResult<()> {
+    match this {
+        Ok(value) => {
+            vm_try!(f.try_write_str("Ok("));
+            vm_try!(value.debug_fmt(f));
+            vm_try!(f.try_write_str(")"));
+        }
+        Err(value) => {
+            vm_try!(f.try_write_str("Err("));
+            vm_try!(value.debug_fmt(f));
+            vm_try!(f.try_write_str(")"));
+        }
+    }
+
+    VmResult::Ok(())
 }
 
 /// Using [`Result`] with the try protocol.

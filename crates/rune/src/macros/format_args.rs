@@ -48,7 +48,7 @@ impl FormatArgs {
             }
         }
 
-        let format = format.into_any::<String>().with_span(&self.format)?;
+        let format = format.downcast::<String>().with_span(&self.format)?;
 
         let mut unused_pos = (0..pos.len()).try_collect::<BTreeSet<_>>()?;
         let mut unused_named = named

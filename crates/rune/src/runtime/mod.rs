@@ -165,7 +165,7 @@ pub use self::value::{
     Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
     ValueMutGuard, ValueRefGuard, VariantRtti,
 };
-pub(crate) use self::value::{BorrowRefRepr, MutRepr, Mutable, OwnedRepr, RefRepr};
+pub(crate) use self::value::{Mutable, ReprMut, ReprOwned, ReprRef};
 
 mod variant;
 pub use self::variant::{Variant, VariantData};

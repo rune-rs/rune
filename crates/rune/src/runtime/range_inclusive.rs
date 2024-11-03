@@ -5,7 +5,7 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, RefRepr, RuntimeError, ToValue, Value,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ReprRef, RuntimeError, ToValue, Value,
     VmErrorKind, VmResult,
 };
 use crate::Any;
@@ -95,19 +95,16 @@ impl RangeInclusive {
     /// ```
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
-        let value = match (
-            vm_try!(self.start.as_ref_repr()),
-            vm_try!(self.end.as_ref_repr()),
-        ) {
-            (RefRepr::Inline(Inline::Unsigned(start)), RefRepr::Inline(end)) => {
+        let value = match (vm_try!(self.start.as_ref()), vm_try!(self.end.as_ref())) {
+            (ReprRef::Inline(Inline::Unsigned(start)), ReprRef::Inline(end)) => {
                 let end = vm_try!(end.as_integer::<u64>());
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=end)))
             }
-            (RefRepr::Inline(Inline::Signed(start)), RefRepr::Inline(end)) => {
+            (ReprRef::Inline(Inline::Signed(start)), ReprRef::Inline(end)) => {
                 let end = vm_try!(end.as_integer::<i64>());
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=end)))
             }
-            (RefRepr::Inline(Inline::Char(start)), RefRepr::Inline(Inline::Char(end))) => {
+            (ReprRef::Inline(Inline::Char(start)), ReprRef::Inline(Inline::Char(end))) => {
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
             (start, end) => {
@@ -320,7 +317,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let range = value.into_any::<RangeInclusive>()?;
+        let range = value.downcast::<RangeInclusive>()?;
         let start = Idx::from_value(range.start)?;
         let end = Idx::from_value(range.end)?;
         Ok(start..=end)

@@ -65,12 +65,6 @@ pub enum TypeCheck {
     Object,
     /// Matches a vector.
     Vec,
-    /// An option type, and the specified variant index.
-    #[musli(packed)]
-    Option(usize),
-    /// A result type, and the specified variant index.
-    #[musli(packed)]
-    Result(usize),
 }
 
 impl fmt::Display for TypeCheck {
@@ -80,10 +74,6 @@ impl fmt::Display for TypeCheck {
             Self::Tuple => write!(fmt, "Tuple"),
             Self::Object => write!(fmt, "Object"),
             Self::Vec => write!(fmt, "Vec"),
-            Self::Option(0) => write!(fmt, "Option::Some"),
-            Self::Option(..) => write!(fmt, "Option::None"),
-            Self::Result(0) => write!(fmt, "Result::Ok"),
-            Self::Result(..) => write!(fmt, "Result::Err"),
         }
     }
 }

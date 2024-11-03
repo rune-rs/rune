@@ -247,7 +247,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_any()
+        value.downcast()
     }
 }
 
@@ -257,7 +257,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_any_mut()
+        value.into_mut()
     }
 }
 
@@ -267,7 +267,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_any_ref()
+        value.into_ref()
     }
 }
 
@@ -291,7 +291,7 @@ where
     T: FromValue,
 {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        Ok(match &*value.into_option_ref()? {
+        Ok(match value.downcast::<Option<Value>>()? {
             Some(some) => Some(T::from_value(some.clone())?),
             None => None,
         })
@@ -333,7 +333,7 @@ impl UnsafeToRef for str {
     type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let string = vm_try!(value.into_any_ref::<String>());
+        let string = vm_try!(value.into_ref::<String>());
         let (string, guard) = Ref::into_raw(string);
         VmResult::Ok((string.as_ref().as_str(), guard))
     }
@@ -343,7 +343,7 @@ impl UnsafeToMut for str {
     type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        let string = vm_try!(value.into_any_mut::<String>());
+        let string = vm_try!(value.into_mut::<String>());
         let (mut string, guard) = Mut::into_raw(string);
         VmResult::Ok((string.as_mut().as_mut_str(), guard))
     }
@@ -356,7 +356,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        Ok(match &*value.into_result_ref()? {
+        Ok(match value.downcast::<Result<Value, Value>>()? {
             Ok(ok) => Result::Ok(T::from_value(ok.clone())?),
             Err(err) => Result::Err(E::from_value(err.clone())?),
         })
@@ -435,7 +435,7 @@ cfg_std! {
                 T: FromValue,
             {
                 fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                    let object = value.into_any::<$crate::runtime::Object>()?;
+                    let object = value.downcast::<$crate::runtime::Object>()?;
 
                     let mut output = <$ty>::with_capacity(object.len());
 
@@ -462,7 +462,7 @@ macro_rules! impl_try_map {
             T: FromValue,
         {
             fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                let object = value.into_any::<$crate::runtime::Object>()?;
+                let object = value.downcast::<$crate::runtime::Object>()?;
 
                 let mut output = <$ty>::try_with_capacity(object.len())?;
 

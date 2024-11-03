@@ -192,7 +192,7 @@ impl UnsafeToRef for GuardCheck {
     type Guard = Guard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let (output, guard) = Ref::into_raw(vm_try!(value.into_any_ref::<GuardCheck>()));
+        let (output, guard) = Ref::into_raw(vm_try!(value.into_ref::<GuardCheck>()));
 
         let guard = Guard {
             guard,

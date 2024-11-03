@@ -1046,7 +1046,7 @@ struct FnTupleVariant {
 impl FromValue for SyncFunction {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_any::<Function>()?.into_sync()
+        value.downcast::<Function>()?.into_sync()
     }
 }
 

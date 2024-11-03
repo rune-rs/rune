@@ -44,8 +44,8 @@ fn test_clone_take() -> Result<()> {
     let v = Value::from(AnyObj::new(Thing(0))?);
     let v2 = v.clone();
     let v3 = v.clone();
-    assert_eq!(Thing(0), v2.into_any::<Thing>()?);
-    assert!(v3.into_any::<Thing>().is_err());
+    assert_eq!(Thing(0), v2.downcast::<Thing>()?);
+    assert!(v3.downcast::<Thing>().is_err());
     let any = v.into_any_obj()?;
     assert_eq!(any.type_hash(), Thing::HASH);
     Ok(())
@@ -549,7 +549,7 @@ fn test_clone_issue() {
     let shared = Value::try_from(Bytes::new()).unwrap();
 
     let _ = {
-        let shared = shared.into_any_ref::<Bytes>().unwrap();
+        let shared = shared.into_ref::<Bytes>().unwrap();
         let out = shared.try_clone().unwrap();
         out
     };

@@ -87,48 +87,6 @@ macro_rules! cfg_std {
     }
 }
 
-macro_rules! from_value_ref {
-    ($ty:ty, $into_ref:ident, $into_mut:ident) => {
-        impl $crate::runtime::UnsafeToRef for $ty {
-            type Guard = $crate::runtime::RawAnyGuard;
-
-            unsafe fn unsafe_to_ref<'a>(
-                value: $crate::runtime::Value,
-            ) -> $crate::runtime::VmResult<(&'a Self, Self::Guard)> {
-                let value = vm_try!(value.$into_ref());
-                let (value, guard) = $crate::runtime::Ref::into_raw(value);
-                $crate::runtime::VmResult::Ok((value.as_ref(), guard))
-            }
-        }
-
-        impl $crate::runtime::UnsafeToMut for $ty {
-            type Guard = $crate::runtime::RawAnyGuard;
-
-            unsafe fn unsafe_to_mut<'a>(
-                value: $crate::runtime::Value,
-            ) -> $crate::runtime::VmResult<(&'a mut Self, Self::Guard)> {
-                let value = vm_try!(value.$into_mut());
-                let (mut value, guard) = $crate::runtime::Mut::into_raw(value);
-                $crate::runtime::VmResult::Ok((value.as_mut(), guard))
-            }
-        }
-
-        impl $crate::runtime::FromValue for $crate::runtime::Ref<$ty> {
-            fn from_value(value: Value) -> Result<Self, $crate::runtime::RuntimeError> {
-                let value = value.$into_ref()?;
-                Ok(value)
-            }
-        }
-
-        impl $crate::runtime::FromValue for $crate::runtime::Mut<$ty> {
-            fn from_value(value: Value) -> Result<Self, $crate::runtime::RuntimeError> {
-                let value = value.$into_mut()?;
-                Ok(value)
-            }
-        }
-    };
-}
-
 macro_rules! impl_builtin_type_of {
     (
         $(

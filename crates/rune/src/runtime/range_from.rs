@@ -5,7 +5,7 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, RefRepr, RuntimeError, ToValue, Value,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ReprRef, RuntimeError, ToValue, Value,
     VmErrorKind, VmResult,
 };
 use crate::Any;
@@ -88,14 +88,14 @@ impl RangeFrom {
     /// ```
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
-        let value = match vm_try!(self.start.as_ref_repr()) {
-            RefRepr::Inline(Inline::Unsigned(start)) => {
+        let value = match vm_try!(self.start.as_ref()) {
+            ReprRef::Inline(Inline::Unsigned(start)) => {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
             }
-            RefRepr::Inline(Inline::Signed(start)) => {
+            ReprRef::Inline(Inline::Signed(start)) => {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
             }
-            RefRepr::Inline(Inline::Char(start)) => {
+            ReprRef::Inline(Inline::Char(start)) => {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
             }
             start => {
@@ -291,7 +291,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let range = value.into_any::<RangeFrom>()?;
+        let range = value.downcast::<RangeFrom>()?;
         let start = Idx::from_value(range.start)?;
         Ok(ops::RangeFrom { start })
     }

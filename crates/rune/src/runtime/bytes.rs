@@ -358,7 +358,7 @@ impl UnsafeToRef for [u8] {
     type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let (value, guard) = Ref::into_raw(vm_try!(value.into_any_ref::<Bytes>()));
+        let (value, guard) = Ref::into_raw(vm_try!(value.into_ref::<Bytes>()));
         VmResult::Ok((value.as_ref().as_slice(), guard))
     }
 }

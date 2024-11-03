@@ -415,7 +415,7 @@ fn cmp(this: &[u8], rhs: &[u8]) -> Ordering {
     this.cmp(rhs)
 }
 
-/// Hash the string.
+/// Hash the byte array.
 ///
 /// # Examples
 ///
