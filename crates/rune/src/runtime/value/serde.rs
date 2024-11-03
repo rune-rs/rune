@@ -38,7 +38,6 @@ impl ser::Serialize for Value {
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
             BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Option(option) => <Option<Value>>::serialize(option, serializer),
                 Mutable::EmptyStruct(..) => {
                     Err(ser::Error::custom("cannot serialize empty structs"))
                 }
@@ -47,9 +46,14 @@ impl ser::Serialize for Value {
                 }
                 Mutable::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
                 Mutable::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
-                Mutable::Result(..) => Err(ser::Error::custom("cannot serialize results")),
             },
             BorrowRefRepr::Any(value) => match value.type_hash() {
+                Option::<Value>::HASH => {
+                    let option = value
+                        .borrow_ref::<Option<Value>>()
+                        .map_err(S::Error::custom)?;
+                    <Option<Value>>::serialize(&option, serializer)
+                }
                 String::HASH => {
                     let string = value.borrow_ref::<String>().map_err(S::Error::custom)?;
                     serializer.serialize_str(string.as_str())

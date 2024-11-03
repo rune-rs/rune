@@ -291,7 +291,7 @@ where
     T: FromValue,
 {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        Ok(match &*value.into_option_ref()? {
+        Ok(match value.into_any::<Option<Value>>()? {
             Some(some) => Some(T::from_value(some.clone())?),
             None => None,
         })
@@ -356,7 +356,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        Ok(match &*value.into_result_ref()? {
+        Ok(match value.into_any::<Result<Value, Value>>()? {
             Ok(ok) => Result::Ok(T::from_value(ok.clone())?),
             Err(err) => Result::Err(E::from_value(err.clone())?),
         })

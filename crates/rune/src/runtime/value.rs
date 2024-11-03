@@ -425,9 +425,6 @@ impl Value {
                     Mutable::TupleStruct(value) => Mutable::TupleStruct(vm_try!(value.try_clone())),
                     Mutable::Struct(value) => Mutable::Struct(vm_try!(value.try_clone())),
                     Mutable::Variant(value) => Mutable::Variant(vm_try!(value.try_clone())),
-                    _ => {
-                        break 'fallback;
-                    }
                 },
                 RefRepr::Any(..) => {
                     break 'fallback;
@@ -483,12 +480,6 @@ impl Value {
             };
 
             match &*vm_try!(value.borrow_ref()) {
-                Mutable::Result(..) => {
-                    break 'fallback;
-                }
-                Mutable::Option(..) => {
-                    break 'fallback;
-                }
                 Mutable::EmptyStruct(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
@@ -701,7 +692,6 @@ impl Value {
                 Mutable::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
                 Mutable::Struct(object) => Ok(TypeValue::Struct(object)),
                 Mutable::Variant(object) => Ok(TypeValue::Variant(object)),
-                value => Ok(TypeValue::NotTypedMutable(NotTypedMutableValue(value))),
             },
             OwnedRepr::Any(value) => match value.type_hash() {
                 OwnedTuple::HASH => Ok(TypeValue::Tuple(value.downcast()?)),
@@ -767,26 +757,6 @@ impl Value {
         Type(Type),
         as_type,
         as_type_mut,
-    }
-
-    clone_into! {
-        /// Coerce into [`Option`].
-        Option(Option<Value>),
-        into_option_ref,
-        into_option_mut,
-        borrow_option_ref,
-        borrow_option_mut,
-        as_option,
-    }
-
-    clone_into! {
-        /// Coerce into [`Result`].
-        Result(Result<Value, Value>),
-        into_result_ref,
-        into_result_mut,
-        borrow_result_ref,
-        borrow_result_mut,
-        as_result,
     }
 
     into! {
@@ -1845,11 +1815,8 @@ any_from! {
     super::Function,
     super::Future,
     super::Object,
-}
-
-from_container! {
-    Option => Option<Value>,
-    Result => Result<Value, Value>,
+    Option<Value>,
+    Result<Value, Value>,
 }
 
 signed_value_from!(i8, i16, i32);
@@ -1911,10 +1878,6 @@ impl TryClone for Value {
 #[doc(hidden)]
 pub struct NotTypedInlineValue(Inline);
 
-/// Wrapper for a value kind.
-#[doc(hidden)]
-pub struct NotTypedMutableValue(Mutable);
-
 /// Wrapper for an any ref value kind.
 #[doc(hidden)]
 pub struct NotTypedAnyObj(AnyObj);
@@ -1942,9 +1905,6 @@ pub enum TypeValue {
     NotTypedInline(NotTypedInlineValue),
     /// Not a typed value.
     #[doc(hidden)]
-    NotTypedMutable(NotTypedMutableValue),
-    /// Not a typed value.
-    #[doc(hidden)]
     NotTypedAnyObj(NotTypedAnyObj),
 }
 
@@ -1961,17 +1921,12 @@ impl TypeValue {
             TypeValue::Struct(object) => object.type_info(),
             TypeValue::Variant(empty) => empty.type_info(),
             TypeValue::NotTypedInline(value) => value.0.type_info(),
-            TypeValue::NotTypedMutable(value) => value.0.type_info(),
             TypeValue::NotTypedAnyObj(value) => value.0.type_info(),
         }
     }
 }
 
 pub(crate) enum Mutable {
-    /// An empty value indicating nothing.
-    Option(Option<Value>),
-    /// A stored result in a slot.
-    Result(Result<Value, Value>),
     /// An struct with a well-defined type.
     EmptyStruct(EmptyStruct),
     /// A tuple with a well-defined type.
@@ -1985,8 +1940,6 @@ pub(crate) enum Mutable {
 impl Mutable {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            Mutable::Result(..) => TypeInfo::any::<Result<Value, Value>>(),
-            Mutable::Option(..) => TypeInfo::any::<Option<Value>>(),
             Mutable::EmptyStruct(empty) => empty.type_info(),
             Mutable::TupleStruct(tuple) => tuple.type_info(),
             Mutable::Struct(object) => object.type_info(),
@@ -2000,8 +1953,6 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::Result(..) => Result::<Value, Value>::HASH,
-            Mutable::Option(..) => Option::<Value>::HASH,
             Mutable::EmptyStruct(empty) => empty.rtti.hash,
             Mutable::TupleStruct(tuple) => tuple.rtti.hash,
             Mutable::Struct(object) => object.rtti.hash,

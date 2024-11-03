@@ -682,7 +682,6 @@ mod tests;
 rune_macros::binding! {
     #[generic]
     impl ::std::option::Option for Option<Value>;
-
     #[generic]
     impl ::std::result::Result for Result<Value, Value>;
 
@@ -763,6 +762,3 @@ impl_builtin_type_of! {
 
     impl ::std::any::Type, crate::runtime::Type;
 }
-
-from_value_ref!(Result<Value, Value>, into_result_ref, into_result_mut);
-from_value_ref!(Option<Value>, into_option_ref, into_option_mut);

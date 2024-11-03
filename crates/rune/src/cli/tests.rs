@@ -18,8 +18,8 @@ use crate::cli::{
 use crate::compile::FileSourceLoader;
 use crate::doc::{TestKind, TestParams};
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Mutable, OwnedRepr, Value, Vm, VmError, VmResult};
-use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, Unit};
+use crate::runtime::{RefRepr, Value, Vm, VmError, VmResult};
+use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, TypeHash, Unit};
 
 mod cli {
     use std::string::String;
@@ -534,14 +534,25 @@ impl TestCase {
         capture_io.drain_into(&mut self.output)?;
 
         self.outcome = match result {
-            VmResult::Ok(v) => match v.take_repr()? {
-                OwnedRepr::Mutable(Mutable::Result(result)) => match result {
-                    Ok(..) => Outcome::Ok,
-                    Err(error) => Outcome::Err(error),
-                },
-                OwnedRepr::Mutable(Mutable::Option(option)) => match option {
-                    Some(..) => Outcome::Ok,
-                    None => Outcome::None,
+            VmResult::Ok(v) => match v.as_ref_repr()? {
+                RefRepr::Any(value) => match value.type_hash() {
+                    Result::<Value, Value>::HASH => {
+                        let result = value.borrow_ref::<Result<Value, Value>>()?;
+
+                        match &*result {
+                            Ok(..) => Outcome::Ok,
+                            Err(error) => Outcome::Err(error.clone()),
+                        }
+                    }
+                    Option::<Value>::HASH => {
+                        let option = value.borrow_ref::<Option<Value>>()?;
+
+                        match &*option {
+                            Some(..) => Outcome::Ok,
+                            None => Outcome::None,
+                        }
+                    }
+                    _ => Outcome::Ok,
                 },
                 _ => Outcome::Ok,
             },

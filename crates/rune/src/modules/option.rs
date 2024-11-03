@@ -329,7 +329,7 @@ fn transpose(this: &Option<Value>) -> VmResult<Value> {
         }
     };
 
-    match &*vm_try!(value.borrow_result_ref()) {
+    match &*vm_try!(value.borrow_ref::<Result<Value, Value>>()) {
         Ok(ok) => {
             let some = vm_try!(Value::try_from(Some(ok.clone())));
             let result = vm_try!(Value::try_from(Ok(some)));

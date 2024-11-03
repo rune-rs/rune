@@ -16,8 +16,8 @@ use crate::runtime;
 use crate::{Hash, TypeHash};
 
 use super::{
-    BorrowRefRepr, Bytes, FromValue, Inline, Mutable, Object, OwnedTuple, ToValue, Tuple, Type,
-    TypeInfo, Value, VmErrorKind,
+    BorrowRefRepr, Bytes, FromValue, Inline, Object, OwnedTuple, ToValue, Tuple, Type, TypeInfo,
+    Value, VmErrorKind,
 };
 
 /// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
@@ -237,10 +237,6 @@ impl ConstValue {
         let inner = match value.borrow_ref_repr()? {
             BorrowRefRepr::Inline(value) => ConstValueKind::Inline(*value),
             BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Option(option) => ConstValueKind::Option(match option {
-                    Some(some) => Some(Box::try_new(Self::from_value_ref(some)?)?),
-                    None => None,
-                }),
                 value => {
                     return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
                         actual: value.type_info(),
@@ -248,6 +244,14 @@ impl ConstValue {
                 }
             },
             BorrowRefRepr::Any(value) => match value.type_hash() {
+                Option::<Value>::HASH => {
+                    let option = value.borrow_ref::<Option<Value>>()?;
+
+                    ConstValueKind::Option(match &*option {
+                        Some(some) => Some(Box::try_new(Self::from_value_ref(some)?)?),
+                        None => None,
+                    })
+                }
                 String::HASH => {
                     let s = value.borrow_ref::<String>()?;
                     ConstValueKind::String(s.try_to_owned()?)

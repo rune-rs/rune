@@ -219,47 +219,6 @@ macro_rules! inline_into {
     }
 }
 
-macro_rules! clone_into {
-    (
-        $(#[$($meta:meta)*])*
-        $kind:ident($ty:ty),
-        $into_ref:ident,
-        $into_mut:ident,
-        $borrow_ref:ident,
-        $borrow_mut:ident,
-        $as:ident,
-    ) => {
-        into_base! {
-            $(#[$($meta)*])*
-            $kind($ty),
-            $into_ref,
-            $into_mut,
-            $borrow_ref,
-            $borrow_mut,
-        }
-
-        $(#[$($meta)*])*
-        ///
-        /// This clones the underlying value.
-        #[inline]
-        pub fn $as(&self) -> Result<$ty, RuntimeError> {
-            let value = match self.borrow_ref_repr()? {
-                BorrowRefRepr::Mutable(value) => value,
-                value => {
-                    return Err(RuntimeError::expected::<$ty>(value.type_info()));
-                }
-            };
-
-            match &*value {
-                Mutable::$kind(value) => Ok(value.clone()),
-                value => {
-                    Err(RuntimeError::expected::<$ty>(value.type_info()))
-                }
-            }
-        }
-    }
-}
-
 macro_rules! from {
     ($($variant:ident => $ty:ty),* $(,)*) => {
         $(
@@ -352,30 +311,6 @@ macro_rules! inline_from {
                 #[inline]
                 fn to_const_value(self) -> Result<$crate::runtime::ConstValue, $crate::runtime::RuntimeError> {
                     Ok($crate::runtime::ConstValue::from(self))
-                }
-            }
-        )*
-    };
-}
-
-macro_rules! from_container {
-    ($($variant:ident => $ty:ty),* $(,)?) => {
-        $(
-            impl TryFrom<$ty> for Value {
-                type Error = alloc::Error;
-
-                #[inline]
-                fn try_from(value: $ty) -> Result<Self, alloc::Error> {
-                    Value::try_from(Mutable::$variant(value))
-                }
-            }
-
-            impl IntoOutput for $ty {
-                type Output = $ty;
-
-                #[inline]
-                fn into_output(self) -> VmResult<Self::Output> {
-                    VmResult::Ok(self)
                 }
             }
         )*

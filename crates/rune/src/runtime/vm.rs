@@ -3,7 +3,6 @@ use core::fmt;
 use core::mem::replace;
 use core::ops;
 use core::ptr::NonNull;
-use core::slice;
 
 use ::rust_alloc::sync::Arc;
 
@@ -873,15 +872,6 @@ impl Vm {
                 _ => return VmResult::Ok(None),
             },
             BorrowRefRepr::Mutable(target) => match &*target {
-                Mutable::Result(result) => match (index, result) {
-                    (0, Ok(value)) => Ok(value.clone()),
-                    (0, Err(value)) => Ok(value.clone()),
-                    _ => Err(target.type_info()),
-                },
-                Mutable::Option(option) => match (index, option) {
-                    (0, Some(value)) => Ok(value.clone()),
-                    _ => Err(target.type_info()),
-                },
                 Mutable::TupleStruct(tuple_struct) => match tuple_struct.data().get(index) {
                     Some(value) => Ok(value.clone()),
                     None => Err(target.type_info()),
@@ -896,6 +886,22 @@ impl Vm {
                 _ => return VmResult::Ok(None),
             },
             BorrowRefRepr::Any(target) => match target.type_hash() {
+                Result::<Value, Value>::HASH => {
+                    match (
+                        index,
+                        &*vm_try!(target.borrow_ref::<Result<Value, Value>>()),
+                    ) {
+                        (0, Ok(value)) => Ok(value.clone()),
+                        (0, Err(value)) => Ok(value.clone()),
+                        _ => Err(target.type_info()),
+                    }
+                }
+                Option::<Value>::HASH => {
+                    match (index, &*vm_try!(target.borrow_ref::<Option<Value>>())) {
+                        (0, Some(value)) => Ok(value.clone()),
+                        _ => Err(target.type_info()),
+                    }
+                }
                 GeneratorState::HASH => match (index, &*vm_try!(target.borrow_ref())) {
                     (0, GeneratorState::Yielded(value)) => Ok(value.clone()),
                     (0, GeneratorState::Complete(value)) => Ok(value.clone()),
@@ -943,15 +949,6 @@ impl Vm {
 
                 let result = BorrowMut::try_map(vm_try!(value.borrow_mut()), |kind| {
                     match kind {
-                        Mutable::Result(result) => match (index, result) {
-                            (0, Ok(value)) => return Some(value),
-                            (0, Err(value)) => return Some(value),
-                            _ => return None,
-                        },
-                        Mutable::Option(option) => match (index, option) {
-                            (0, Some(value)) => return Some(value),
-                            _ => return None,
-                        },
                         Mutable::TupleStruct(tuple_struct) => return tuple_struct.get_mut(index),
                         Mutable::Variant(Variant {
                             data: VariantData::Tuple(tuple),
@@ -979,6 +976,43 @@ impl Vm {
                 }
             }
             RefRepr::Any(value) => match value.type_hash() {
+                Result::<Value, Value>::HASH => {
+                    let result = BorrowMut::try_map(
+                        vm_try!(value.borrow_mut::<Result<Value, Value>>()),
+                        |value| match (index, value) {
+                            (0, Ok(value)) => Some(value),
+                            (0, Err(value)) => Some(value),
+                            _ => None,
+                        },
+                    );
+
+                    if let Ok(value) = result {
+                        return VmResult::Ok(Some(value));
+                    }
+
+                    err(VmErrorKind::MissingIndexInteger {
+                        target: TypeInfo::any::<Result<Value, Value>>(),
+                        index: VmIntegerRepr::from(index),
+                    })
+                }
+                Option::<Value>::HASH => {
+                    let result =
+                        BorrowMut::try_map(vm_try!(value.borrow_mut::<Option<Value>>()), |value| {
+                            match (index, value) {
+                                (0, Some(value)) => Some(value),
+                                _ => None,
+                            }
+                        });
+
+                    if let Ok(value) = result {
+                        return VmResult::Ok(Some(value));
+                    }
+
+                    err(VmErrorKind::MissingIndexInteger {
+                        target: TypeInfo::any::<Option<Value>>(),
+                        index: VmIntegerRepr::from(index),
+                    })
+                }
                 GeneratorState::HASH => {
                     let result = BorrowMut::try_map(
                         vm_try!(value.borrow_mut::<GeneratorState>()),
@@ -1102,25 +1136,6 @@ impl Vm {
                 _ => VmResult::Ok(false),
             },
             RefRepr::Mutable(target) => match &mut *vm_try!(target.borrow_mut()) {
-                Mutable::Result(result) => {
-                    let target = match result {
-                        Ok(ok) if index == 0 => ok,
-                        Err(err) if index == 1 => err,
-                        _ => return VmResult::Ok(false),
-                    };
-
-                    target.clone_from(from);
-                    VmResult::Ok(true)
-                }
-                Mutable::Option(option) => {
-                    let target = match option {
-                        Some(some) if index == 0 => some,
-                        _ => return VmResult::Ok(false),
-                    };
-
-                    target.clone_from(from);
-                    VmResult::Ok(true)
-                }
                 Mutable::TupleStruct(tuple_struct) => {
                     if let Some(target) = tuple_struct.get_mut(index) {
                         target.clone_from(from);
@@ -1142,6 +1157,29 @@ impl Vm {
                 _ => VmResult::Ok(false),
             },
             RefRepr::Any(value) => match value.type_hash() {
+                Result::<Value, Value>::HASH => {
+                    let mut result = vm_try!(value.borrow_mut::<Result<Value, Value>>());
+
+                    let target = match &mut *result {
+                        Ok(ok) if index == 0 => ok,
+                        Err(err) if index == 1 => err,
+                        _ => return VmResult::Ok(false),
+                    };
+
+                    target.clone_from(from);
+                    VmResult::Ok(true)
+                }
+                Option::<Value>::HASH => {
+                    let mut option = vm_try!(value.borrow_mut::<Option<Value>>());
+
+                    let target = match &mut *option {
+                        Some(some) if index == 0 => some,
+                        _ => return VmResult::Ok(false),
+                    };
+
+                    target.clone_from(from);
+                    VmResult::Ok(true)
+                }
                 runtime::Vec::HASH => {
                     let mut vec = vm_try!(value.borrow_mut::<runtime::Vec>());
 
@@ -1279,16 +1317,6 @@ impl Vm {
                 _ => None,
             },
             BorrowRefRepr::Mutable(value) => match (ty, &*value) {
-                (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
-                    (0, Ok(ok)) => Some(f(slice::from_ref(ok))),
-                    (1, Err(err)) => Some(f(slice::from_ref(err))),
-                    _ => None,
-                },
-                (TypeCheck::Option(v), Mutable::Option(option)) => match (v, option) {
-                    (0, Some(some)) => Some(f(slice::from_ref(some))),
-                    (1, None) => Some(f(&[])),
-                    _ => None,
-                },
                 _ => None,
             },
             BorrowRefRepr::Any(value) => match (ty, value.type_hash()) {
@@ -3110,10 +3138,16 @@ impl Vm {
             let value = {
                 let value = vm_try!(self.stack.at(addr));
 
-                if let BorrowRefRepr::Mutable(value) = vm_try!(value.borrow_ref_repr()) {
-                    match &*value {
-                        Mutable::Result(result) => break 'out vm_try!(result::result_try(result)),
-                        Mutable::Option(option) => break 'out vm_try!(option::option_try(option)),
+                if let RefRepr::Any(value) = vm_try!(value.as_ref_repr()) {
+                    match value.type_hash() {
+                        Result::<Value, Value>::HASH => {
+                            let result = vm_try!(value.borrow_ref::<Result<Value, Value>>());
+                            break 'out vm_try!(result::result_try(&result));
+                        }
+                        Option::<Value>::HASH => {
+                            let option = vm_try!(value.borrow_ref::<Option<Value>>());
+                            break 'out vm_try!(option::option_try(&option));
+                        }
                         _ => {}
                     }
                 }
@@ -3273,23 +3307,9 @@ impl Vm {
         let value = vm_try!(self.stack.at(addr));
 
         let is_match = 'out: {
-            match vm_try!(value.borrow_ref_repr()) {
-                BorrowRefRepr::Mutable(value) => match (enum_hash, &*value) {
-                    (hash!(::std::result::Result), Mutable::Result(result)) => {
-                        break 'out match (variant_hash, result) {
-                            (hash!(::std::result::Result::Ok), Ok(..)) => true,
-                            (hash!(::std::result::Result::Err), Err(..)) => true,
-                            _ => false,
-                        };
-                    }
-                    (hash!(::std::option::Option), Mutable::Option(option)) => {
-                        break 'out match (variant_hash, option) {
-                            (hash!(::std::option::Option::None), None) => true,
-                            (hash!(::std::option::Option::Some), Some(..)) => true,
-                            _ => false,
-                        };
-                    }
-                    (enum_hash, Mutable::Variant(variant)) => {
+            match vm_try!(value.as_ref_repr()) {
+                RefRepr::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
+                    Mutable::Variant(variant) => {
                         let rtti = variant.rtti();
                         break 'out rtti.enum_hash == enum_hash && rtti.hash == variant_hash;
                     }
@@ -3297,11 +3317,31 @@ impl Vm {
                         break 'out false;
                     }
                 },
-                BorrowRefRepr::Any(any) => {
-                    if any.type_hash() != enum_hash {
-                        break 'out false;
+                RefRepr::Any(any) => match enum_hash {
+                    Result::<Value, Value>::HASH => {
+                        let result = vm_try!(any.borrow_ref::<Result<Value, Value>>());
+
+                        break 'out match (variant_hash, &*result) {
+                            (hash!(::std::result::Result::Ok), Ok(..)) => true,
+                            (hash!(::std::result::Result::Err), Err(..)) => true,
+                            _ => false,
+                        };
                     }
-                }
+                    Option::<Value>::HASH => {
+                        let option = vm_try!(any.borrow_ref::<Option<Value>>());
+
+                        break 'out match (variant_hash, &*option) {
+                            (hash!(::std::option::Option::None), None) => true,
+                            (hash!(::std::option::Option::Some), Some(..)) => true,
+                            _ => false,
+                        };
+                    }
+                    _ => {
+                        if any.type_hash() != enum_hash {
+                            break 'out false;
+                        }
+                    }
+                },
                 _ => {
                     break 'out false;
                 }
@@ -3338,16 +3378,6 @@ impl Vm {
                 _ => false,
             },
             BorrowRefRepr::Mutable(value) => match (type_check, &*value) {
-                (TypeCheck::Result(v), Mutable::Result(result)) => match (v, result) {
-                    (0, Ok(..)) => true,
-                    (1, Err(..)) => true,
-                    _ => false,
-                },
-                (TypeCheck::Option(v), Mutable::Option(option)) => match (v, option) {
-                    (0, Some(..)) => true,
-                    (1, None) => true,
-                    _ => false,
-                },
                 _ => false,
             },
             BorrowRefRepr::Any(value) => match (type_check, value.type_hash()) {
@@ -3669,24 +3699,27 @@ impl Vm {
     fn op_iter_next(&mut self, addr: InstAddress, jump: usize, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
-        let some = match vm_try!(value.borrow_ref_repr()) {
-            BorrowRefRepr::Mutable(value) => match &*value {
-                Mutable::Option(option) => match option {
-                    Some(some) => some.clone(),
-                    None => {
+        let some = match vm_try!(value.as_ref_repr()) {
+            RefRepr::Any(value) => match value.type_hash() {
+                Option::<Value>::HASH => {
+                    let option = vm_try!(value.borrow_ref::<Option<Value>>());
+
+                    let Some(some) = &*option else {
                         self.ip = vm_try!(self.unit.translate(jump));
                         return VmResult::Ok(());
-                    }
-                },
-                actual => {
+                    };
+
+                    some.clone()
+                }
+                _ => {
                     return err(VmErrorKind::UnsupportedIterNextOperand {
-                        actual: actual.type_info(),
+                        actual: value.type_info(),
                     });
                 }
             },
             actual => {
                 return err(VmErrorKind::UnsupportedIterNextOperand {
-                    actual: actual.type_info(),
+                    actual: vm_try!(actual.type_info()),
                 });
             }
         };

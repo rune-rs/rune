@@ -669,32 +669,7 @@ where
         let type_parameters =
             quote!(#hash::parameters([#(<#generic_names as #type_hash_t>::HASH),*]));
 
-        let impl_type_of = is_generic.is_none().then(|| quote! {
-            #[automatically_derived]
-            #(#attrs)*
-            impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
-                const HASH: #hash = #make_hash;
-            }
-
-            #[automatically_derived]
-            #(#attrs)*
-            impl #impl_generics #type_of for #ident #type_generics #where_clause {
-                const PARAMETERS: #hash = #type_parameters;
-                const STATIC_TYPE_INFO: #any_type_info = <Self as #any_t>::ANY_TYPE_INFO;
-            }
-
-            #[automatically_derived]
-            #(#attrs)*
-            impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
-                #[inline]
-                fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
-                    #meta::DocType::with_generics(
-                        <Self as #type_hash_t>::HASH,
-                        [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
-                    )
-                }
-            }
-
+        let to_value_impl = quote! {
             #[automatically_derived]
             #(#attrs)*
             impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
@@ -738,6 +713,35 @@ where
                     #vm_result::Ok((shared, guard))
                 }
             }
+        };
+
+        let impl_type_of = is_generic.is_none().then(|| {
+            quote! {
+                #[automatically_derived]
+                #(#attrs)*
+                impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
+                    const HASH: #hash = #make_hash;
+                }
+
+                #[automatically_derived]
+                #(#attrs)*
+                impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                    const PARAMETERS: #hash = #type_parameters;
+                    const STATIC_TYPE_INFO: #any_type_info = <Self as #any_t>::ANY_TYPE_INFO;
+                }
+
+                #[automatically_derived]
+                #(#attrs)*
+                impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
+                    #[inline]
+                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                        #meta::DocType::with_generics(
+                            <Self as #type_hash_t>::HASH,
+                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
+                        )
+                    }
+                }
+            }
         });
 
         let impl_any = quote! {
@@ -759,6 +763,7 @@ where
         quote! {
             #install_with
             #impl_named
+            #to_value_impl
             #impl_type_of
             #impl_any
             #impl_non_generic
