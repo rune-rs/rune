@@ -896,8 +896,8 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
             VmErrorKind::expected::<String>(value.type_info()),
             VmErrorKind::bad_argument(0),
         ]),
-        ReprRef::Mutable(value) => VmResult::err([
-            VmErrorKind::expected::<String>(vm_try!(value.borrow_ref()).type_info()),
+        ReprRef::Dynamic(value) => VmResult::err([
+            VmErrorKind::expected::<String>(value.type_info()),
             VmErrorKind::bad_argument(0),
         ]),
         ReprRef::Any(value) => match value.type_hash() {
@@ -945,9 +945,9 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
                 VmErrorKind::bad_argument(0),
             ]);
         }
-        ReprRef::Mutable(value) => {
+        ReprRef::Dynamic(value) => {
             return VmResult::err([
-                VmErrorKind::expected::<String>(vm_try!(value.borrow_ref()).type_info()),
+                VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
             ]);
         }

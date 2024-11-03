@@ -1,28 +1,24 @@
 use core::borrow::Borrow;
 use core::fmt;
 use core::hash;
-use core::mem::take;
 
 use rust_alloc::sync::Arc;
 
-use crate as rune;
 use crate::alloc::prelude::*;
-use crate::runtime::{OwnedTuple, TypeInfo};
+use crate::runtime::{BorrowRef, TypeInfo};
 
-use super::{FromValue, Mutable, ReprOwned, Rtti, RuntimeError, Value};
+use super::{Rtti, Value};
 
 /// A empty with a well-defined type.
-#[derive(TryClone)]
-#[try_clone(crate)]
-pub struct EmptyStruct {
+pub struct EmptyStruct<'a> {
     /// The type hash of the empty.
-    pub(crate) rtti: Arc<Rtti>,
+    pub(crate) rtti: &'a Arc<Rtti>,
 }
 
-impl EmptyStruct {
+impl<'a> EmptyStruct<'a> {
     /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<Rtti> {
-        &self.rtti
+    pub fn rtti(&self) -> &'a Arc<Rtti> {
+        self.rtti
     }
 
     /// Get type info for the typed tuple.
@@ -31,51 +27,30 @@ impl EmptyStruct {
     }
 }
 
-impl FromValue for EmptyStruct {
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            ReprOwned::Inline(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
-            ReprOwned::Mutable(Mutable::EmptyStruct(value)) => Ok(value),
-            ReprOwned::Mutable(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
-            ReprOwned::Any(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
-        }
-    }
-}
-
-impl fmt::Debug for EmptyStruct {
+impl fmt::Debug for EmptyStruct<'_> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.rtti.item)
     }
 }
 
 /// A tuple with a well-defined type.
-#[derive(TryClone)]
-pub struct TupleStruct {
+pub struct TupleStruct<'a> {
     /// The type hash of the tuple.
-    pub(crate) rtti: Arc<Rtti>,
+    pub(crate) rtti: &'a Arc<Rtti>,
     /// Content of the tuple.
-    pub(crate) data: OwnedTuple,
+    pub(crate) data: BorrowRef<'a, [Value]>,
 }
 
-impl TupleStruct {
+impl<'a> TupleStruct<'a> {
     /// Access runtime type information.
-    pub fn rtti(&self) -> &Arc<Rtti> {
-        &self.rtti
+    pub fn rtti(&self) -> &'a Rtti {
+        self.rtti
     }
 
     /// Access underlying data.
-    pub fn data(&self) -> &OwnedTuple {
+    pub fn data(&self) -> &[Value] {
         &self.data
-    }
-
-    /// Access underlying data mutably.
-    pub fn data_mut(&mut self) -> &mut OwnedTuple {
-        &mut self.data
-    }
-
-    /// Get type info for the typed tuple.
-    pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::rtti(self.rtti.clone())
     }
 
     /// Get the value at the given index in the tuple.
@@ -83,54 +58,36 @@ impl TupleStruct {
         self.data.get(index)
     }
 
-    /// Get the mutable value at the given index in the tuple.
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut Value> {
-        self.data.get_mut(index)
+    /// Get type info for the typed tuple.
+    pub fn type_info(&self) -> TypeInfo {
+        TypeInfo::rtti(self.rtti.clone())
     }
 }
 
-impl FromValue for TupleStruct {
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            ReprOwned::Inline(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
-            ReprOwned::Mutable(Mutable::TupleStruct(value)) => Ok(value),
-            ReprOwned::Mutable(value) => {
-                Err(RuntimeError::expected_tuple_struct(value.type_info()))
-            }
-            ReprOwned::Any(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
-        }
-    }
-}
-
-impl fmt::Debug for TupleStruct {
+impl fmt::Debug for TupleStruct<'_> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{:?}", self.rtti.item, self.data)
+        write!(f, "{}", self.rtti.item)
     }
 }
 
 /// An object with a well-defined type.
-#[derive(TryClone)]
-pub struct Struct {
+pub struct Struct<'a> {
     /// The type hash of the object.
-    pub(crate) rtti: Arc<Rtti>,
+    pub(crate) rtti: &'a Arc<Rtti>,
     /// Contents of the object.
-    pub(crate) data: Box<[Value]>,
+    pub(crate) data: BorrowRef<'a, [Value]>,
 }
 
-impl Struct {
+impl<'a> Struct<'a> {
     /// Access struct rtti.
-    pub fn rtti(&self) -> &Arc<Rtti> {
-        &self.rtti
+    pub fn rtti(&self) -> &'a Arc<Rtti> {
+        self.rtti
     }
 
     /// Access truct data.
     pub fn data(&self) -> &[Value] {
         &self.data
-    }
-
-    /// Access struct data mutably.
-    pub fn data_mut(&mut self) -> &mut [Value] {
-        &mut self.data
     }
 
     /// Get a field through the accessor.
@@ -142,51 +99,14 @@ impl Struct {
         self.data.get(*self.rtti.fields.get(key)?)
     }
 
-    /// Get a field through the accessor.
-    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut Value>
-    where
-        Box<str>: Borrow<Q>,
-        Q: hash::Hash + Eq + ?Sized,
-    {
-        self.data.get_mut(*self.rtti.fields.get(key)?)
-    }
-
     /// Get type info for the typed object.
     pub(crate) fn type_info(&self) -> TypeInfo {
         TypeInfo::rtti(self.rtti.clone())
     }
 }
 
-impl FromValue for Struct {
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            ReprOwned::Inline(value) => Err(RuntimeError::expected_struct(value.type_info())),
-            ReprOwned::Mutable(Mutable::Struct(value)) => Ok(value),
-            ReprOwned::Mutable(value) => Err(RuntimeError::expected_struct(value.type_info())),
-            ReprOwned::Any(value) => Err(RuntimeError::expected_struct(value.type_info())),
-        }
-    }
-}
-
-impl fmt::Debug for Struct {
+impl fmt::Debug for Struct<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {{", self.rtti.item)?;
-
-        let mut first = true;
-
-        for (index, field) in self.data.iter().enumerate() {
-            let Some((name, _)) = self.rtti.fields.iter().find(|t| *t.1 == index) else {
-                continue;
-            };
-
-            if !take(&mut first) {
-                write!(f, ", ")?;
-            }
-
-            write!(f, "{name}: {field:?}")?;
-        }
-
-        write!(f, "}}")?;
-        Ok(())
+        write!(f, "{}", self.rtti.item)
     }
 }

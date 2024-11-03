@@ -100,7 +100,7 @@ impl RangeFrom {
             }
             start => {
                 return VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
-                    start: vm_try!(start.type_info()),
+                    start: start.type_info(),
                 })
             }
         };

@@ -78,7 +78,7 @@ impl Expander<'_> {
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #result<Self, #runtime_error> {
-                    match #value::into_type_value(value)? {
+                    match #value::as_type_value(&value)? {
                         #expanded
                         actual => {
                             #result::Err(#runtime_error::expected::<#expected>(#type_value::type_info(&actual)))
@@ -177,7 +177,7 @@ impl Expander<'_> {
             #[automatically_derived]
             impl #from_value for #ident {
                 fn from_value(value: #value) -> #result<Self, #runtime_error> {
-                    match #value::into_type_value(value)? {
+                    match #value::as_type_value(&value)? {
                         #variant,
                         actual => {
                             #result::Err(#runtime_error::__rune_macros__expected_variant(#type_value::type_info(&actual)))

@@ -31,10 +31,24 @@ impl<'a> Accessor<'a> {
     }
 }
 
+/// The kind of value stored.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum RttiKind {
+    /// The value stored is empty.
+    Empty,
+    /// The value stored is a tuple.
+    Tuple,
+    /// The value stored is a strict.
+    Struct,
+}
+
 /// Runtime information on variant.
 #[derive(Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Rtti {
+    /// The kind of value.
+    pub(crate) kind: RttiKind,
     /// The type hash of the type.
     pub(crate) hash: Hash,
     /// If this type is a variant, designates the hash of the variant.

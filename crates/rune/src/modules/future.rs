@@ -32,9 +32,9 @@ where
                     VmErrorKind::bad_argument(index),
                 ]);
             }
-            ReprRef::Mutable(value) => {
+            ReprRef::Dynamic(value) => {
                 return VmResult::err([
-                    VmErrorKind::expected::<Future>(vm_try!(value.borrow_ref()).type_info()),
+                    VmErrorKind::expected::<Future>(value.type_info()),
                     VmErrorKind::bad_argument(index),
                 ]);
             }
@@ -106,9 +106,9 @@ async fn join(value: Value) -> VmResult<Value> {
                 VmErrorKind::expected::<runtime::Vec>(value.type_info()),
             ]),
         },
-        ReprRef::Mutable(value) => VmResult::err([
+        ReprRef::Dynamic(value) => VmResult::err([
             VmErrorKind::bad_argument(0),
-            VmErrorKind::expected::<runtime::Vec>(vm_try!(value.borrow_ref()).type_info()),
+            VmErrorKind::expected::<runtime::Vec>(value.type_info()),
         ]),
         ReprRef::Any(value) => match value.type_hash() {
             runtime::Vec::HASH => {

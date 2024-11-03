@@ -748,7 +748,6 @@ impl_builtin_type_of! {
 
     impl ::std::tuple::Tuple, crate::runtime::Tuple;
 
-    impl ::std::object::Object, crate::runtime::Struct;
     impl<T> ::std::object::Object, crate::alloc::HashMap<::rust_alloc::string::String, T>;
     impl<T> ::std::object::Object, crate::alloc::HashMap<alloc::String, T>;
 

@@ -209,10 +209,10 @@ impl ir::Scopes {
                             value.type_info(),
                         ));
                     }
-                    ReprRef::Mutable(value) => {
+                    ReprRef::Dynamic(value) => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
-                            value.borrow_ref().with_span(ir_target)?.type_info(),
+                            value.type_info(),
                         ));
                     }
                     ReprRef::Any(value) => match value.type_hash() {
@@ -277,12 +277,10 @@ impl ir::Scopes {
                             value.type_info(),
                         ));
                     }
-                    ReprRef::Mutable(current) => {
-                        let mutable = current.borrow_mut().with_span(ir_target)?;
-
+                    ReprRef::Dynamic(value) => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
-                            mutable.type_info(),
+                            value.type_info(),
                         ));
                     }
                     ReprRef::Any(any) => match any.type_hash() {
@@ -348,14 +346,10 @@ impl ir::Scopes {
                 let current = self.get_target(target)?;
 
                 match current.as_ref().with_span(ir_target)? {
-                    ReprRef::Mutable(value) => {
-                        let value = value.borrow_ref().with_span(ir_target)?;
-
-                        Err(compile::Error::expected_type::<OwnedTuple>(
-                            ir_target,
-                            value.type_info(),
-                        ))
-                    }
+                    ReprRef::Dynamic(value) => Err(compile::Error::expected_type::<OwnedTuple>(
+                        ir_target,
+                        value.type_info(),
+                    )),
                     ReprRef::Any(value) => match value.type_hash() {
                         runtime::Vec::HASH => {
                             let mut vec =
@@ -391,7 +385,7 @@ impl ir::Scopes {
                     },
                     actual => Err(compile::Error::expected_type::<OwnedTuple>(
                         ir_target,
-                        actual.type_info().with_span(ir_target)?,
+                        actual.type_info(),
                     )),
                 }
             }

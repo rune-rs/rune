@@ -18,7 +18,8 @@ use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, StaticString, Unit, UnitFn,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, RttiKind, StaticString,
+    Unit, UnitFn,
 };
 use crate::{Context, Diagnostics, Hash, Item, SourceId};
 
@@ -312,6 +313,7 @@ impl UnitBuilder {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Empty,
                     hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
@@ -344,6 +346,7 @@ impl UnitBuilder {
                 );
 
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Empty,
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
@@ -402,6 +405,7 @@ impl UnitBuilder {
                 );
 
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Tuple,
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
@@ -452,6 +456,7 @@ impl UnitBuilder {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Struct,
                     hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
@@ -478,6 +483,7 @@ impl UnitBuilder {
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Empty,
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
@@ -527,6 +533,7 @@ impl UnitBuilder {
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Tuple,
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
@@ -581,6 +588,7 @@ impl UnitBuilder {
                 let hash = pool.item_type_hash(meta.item_meta.item);
 
                 let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Struct,
                     hash: enum_hash,
                     variant_hash: hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,

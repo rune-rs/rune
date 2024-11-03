@@ -380,7 +380,7 @@ fn eval_ir_template(
                             return Err(EvalOutcome::not_const(ir));
                         }
                     },
-                    ReprRef::Mutable(..) => {
+                    ReprRef::Dynamic(..) => {
                         return Err(EvalOutcome::not_const(ir));
                     }
                 }

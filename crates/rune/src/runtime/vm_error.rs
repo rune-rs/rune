@@ -11,8 +11,8 @@ use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::runtime::{
     AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnyTypeInfo, BoxedPanic, CallFrame,
-    DynArgsUsed, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError, StackError, TypeInfo,
-    TypeOf, Unit, Vm, VmHaltInfo,
+    DynArgsUsed, DynamicTakeError, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
+    StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 use crate::{Any, Hash, ItemBuf};
 
@@ -441,21 +441,6 @@ impl RuntimeError {
         })
     }
 
-    /// Construct an expected expecting a unit struct.
-    pub(crate) fn expected_unit_struct(actual: TypeInfo) -> Self {
-        Self::new(VmErrorKind::ExpectedUnitStruct { actual })
-    }
-
-    /// Construct an expected expecting a tuple struct.
-    pub(crate) fn expected_tuple_struct(actual: TypeInfo) -> Self {
-        Self::new(VmErrorKind::ExpectedTupleStruct { actual })
-    }
-
-    /// Construct an expected expecting a struct.
-    pub(crate) fn expected_struct(actual: TypeInfo) -> Self {
-        Self::new(VmErrorKind::ExpectedStruct { actual })
-    }
-
     /// Construct an expected error from any.
     pub(crate) fn expected_any<T>(actual: TypeInfo) -> Self
     where
@@ -475,6 +460,18 @@ impl RuntimeError {
     /// Indicate that a constant constructor is missing.
     pub(crate) fn missing_constant_constructor(hash: Hash) -> Self {
         Self::new(VmErrorKind::MissingConstantConstructor { hash })
+    }
+
+    pub(crate) fn expected_empty(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedEmpty { actual })
+    }
+
+    pub(crate) fn expected_tuple(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedTuple { actual })
+    }
+
+    pub(crate) fn expected_struct(actual: TypeInfo) -> Self {
+        Self::new(VmErrorKind::ExpectedStruct { actual })
     }
 }
 
@@ -541,6 +538,16 @@ impl From<Infallible> for RuntimeError {
     #[inline]
     fn from(error: Infallible) -> Self {
         match error {}
+    }
+}
+
+impl From<DynamicTakeError> for RuntimeError {
+    #[inline]
+    fn from(value: DynamicTakeError) -> Self {
+        match value {
+            DynamicTakeError::Access(error) => Self::from(error),
+            DynamicTakeError::Alloc(error) => Self::from(error),
+        }
     }
 }
 
@@ -779,6 +786,15 @@ pub(crate) enum VmErrorKind {
     ExpectedNumber {
         actual: TypeInfo,
     },
+    ExpectedEmpty {
+        actual: TypeInfo,
+    },
+    ExpectedTuple {
+        actual: TypeInfo,
+    },
+    ExpectedStruct {
+        actual: TypeInfo,
+    },
     MissingConstantConstructor {
         hash: Hash,
     },
@@ -824,15 +840,6 @@ pub(crate) enum VmErrorKind {
         index: usize,
     },
     ExpectedVariant {
-        actual: TypeInfo,
-    },
-    ExpectedUnitStruct {
-        actual: TypeInfo,
-    },
-    ExpectedTupleStruct {
-        actual: TypeInfo,
-    },
-    ExpectedStruct {
         actual: TypeInfo,
     },
     UnsupportedObjectFieldGet {
@@ -991,6 +998,15 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ExpectedNumber { actual } => {
                 write!(f, "Expected number type, but found `{actual}`")
             }
+            VmErrorKind::ExpectedEmpty { actual } => {
+                write!(f, "Expected empty, but found `{actual}`")
+            }
+            VmErrorKind::ExpectedTuple { actual } => {
+                write!(f, "Expected tuple, but found `{actual}`")
+            }
+            VmErrorKind::ExpectedStruct { actual } => {
+                write!(f, "Expected struct, but found `{actual}`")
+            }
             VmErrorKind::MissingConstantConstructor { hash } => {
                 write!(f, "Missing constant constructor for type with hash {hash}")
             }
@@ -1038,15 +1054,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ExpectedVariant { actual } => {
                 write!(f, "Expected an enum variant, but got `{actual}`")
             }
-            VmErrorKind::ExpectedUnitStruct { actual } => {
-                write!(f, "Expected a unit struct, but got `{actual}`")
-            }
-            VmErrorKind::ExpectedTupleStruct { actual } => {
-                write!(f, "Expected a tuple struct, but got `{actual}`")
-            }
-            VmErrorKind::ExpectedStruct { actual } => {
-                write!(f, "Expected a struct, but got `{actual}`")
-            }
             VmErrorKind::UnsupportedObjectFieldGet { target } => write!(
                 f,
                 "The object field get operation is not supported on `{target}`",
@@ -1075,6 +1082,16 @@ impl From<RuntimeError> for VmErrorKind {
     #[inline]
     fn from(value: RuntimeError) -> Self {
         value.into_vm_error_kind()
+    }
+}
+
+impl From<DynamicTakeError> for VmErrorKind {
+    #[inline]
+    fn from(value: DynamicTakeError) -> Self {
+        match value {
+            DynamicTakeError::Access(error) => Self::from(error),
+            DynamicTakeError::Alloc(error) => Self::from(error),
+        }
     }
 }
 

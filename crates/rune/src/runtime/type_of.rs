@@ -2,7 +2,7 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::Hash;
 
-use super::{AnyTypeInfo, Mut, Ref, Shared, TypeInfo};
+use super::{AnyTypeInfo, Mut, Ref, TypeInfo};
 
 /// Static type hash for a given type.
 ///
@@ -134,16 +134,6 @@ where
     }
 }
 
-impl<T> MaybeTypeOf for Shared<T>
-where
-    T: ?Sized + MaybeTypeOf,
-{
-    #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
-        T::maybe_type_of()
-    }
-}
-
 /// Blanket implementation for references.
 impl<T> TypeOf for &T
 where
@@ -189,23 +179,6 @@ where
 
 /// Blanket implementation for owned mutable references.
 impl<T> TypeOf for Mut<T>
-where
-    T: ?Sized + TypeOf,
-{
-    const PARAMETERS: Hash = T::PARAMETERS;
-    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
-}
-
-/// Blanket implementation for owned shared values.
-impl<T> TypeHash for Shared<T>
-where
-    T: ?Sized + TypeHash,
-{
-    const HASH: Hash = T::HASH;
-}
-
-/// Blanket implementation for owned shared values.
-impl<T> TypeOf for Shared<T>
 where
     T: ?Sized + TypeOf,
 {

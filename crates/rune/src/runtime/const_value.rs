@@ -236,9 +236,9 @@ impl ConstValue {
     pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
         let inner = match value.as_ref()? {
             ReprRef::Inline(value) => ConstValueKind::Inline(*value),
-            ReprRef::Mutable(value) => {
+            ReprRef::Dynamic(value) => {
                 return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
-                    actual: value.borrow_ref()?.type_info(),
+                    actual: value.type_info(),
                 }));
             }
             ReprRef::Any(value) => match value.type_hash() {

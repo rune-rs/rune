@@ -21,7 +21,7 @@ use crate::module::{
 };
 use crate::runtime::{
     AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory,
-    Output, Protocol, Rtti, RuntimeContext, TypeCheck, TypeInfo, VmResult,
+    Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeCheck, TypeInfo, VmResult,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -764,6 +764,12 @@ impl Context {
                             continue;
                         };
 
+                        let kind = match fields {
+                            Fields::Empty => RttiKind::Empty,
+                            Fields::Unnamed(..) => RttiKind::Tuple,
+                            Fields::Named(..) => RttiKind::Struct,
+                        };
+
                         let item = ty.item.extended(variant.name)?;
                         let hash = Hash::type_hash(&item);
 
@@ -772,6 +778,7 @@ impl Context {
                             hash,
                             type_check: None,
                             type_info: TypeInfo::rtti(Arc::new(Rtti {
+                                kind,
                                 hash: ty.hash,
                                 variant_hash: hash,
                                 item: item.try_clone()?,

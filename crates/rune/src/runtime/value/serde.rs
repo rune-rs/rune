@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{self, Bytes, Inline, Mutable, Object, OwnedTuple, ReprRef, Vec};
+use crate::runtime::{self, Bytes, Inline, Object, OwnedTuple, ReprRef, RttiKind, Vec};
 use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
@@ -37,14 +37,19 @@ impl ser::Serialize for Value {
                 Inline::Type(..) => Err(ser::Error::custom("cannot serialize types")),
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
-            ReprRef::Mutable(value) => match &*value.borrow_ref().map_err(S::Error::custom)? {
-                Mutable::EmptyStruct(..) => {
-                    Err(ser::Error::custom("cannot serialize empty structs"))
-                }
-                Mutable::TupleStruct(..) => {
-                    Err(ser::Error::custom("cannot serialize tuple structs"))
-                }
-                Mutable::Struct(..) => Err(ser::Error::custom("cannot serialize structs")),
+            ReprRef::Dynamic(value) => match value.rtti().kind {
+                RttiKind::Empty => Err(ser::Error::custom(format!(
+                    "cannot serialize empty struct {}",
+                    value.rtti().item
+                ))),
+                RttiKind::Tuple => Err(ser::Error::custom(format!(
+                    "cannot serialize tuple struct {}",
+                    value.rtti().item
+                ))),
+                RttiKind::Struct => Err(ser::Error::custom(format!(
+                    "cannot serialize struct {}",
+                    value.rtti().item
+                ))),
             },
             ReprRef::Any(value) => match value.type_hash() {
                 Option::<Value>::HASH => {

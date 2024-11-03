@@ -108,8 +108,8 @@ impl Range {
             }
             (start, end) => {
                 return VmResult::err(VmErrorKind::UnsupportedIterRange {
-                    start: vm_try!(start.type_info()),
-                    end: vm_try!(end.type_info()),
+                    start: start.type_info(),
+                    end: end.type_info(),
                 })
             }
         };

@@ -15,8 +15,8 @@ use crate::Any;
 use crate::Hash;
 
 use super::{
-    Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs, InstAddress,
-    Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, TupleStruct, Unit, Value, Vm,
+    Args, Call, ConstValue, Dynamic, Formatter, FromValue, FunctionHandler, GuardedArgs,
+    InstAddress, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
     VmCall, VmErrorKind, VmHalt, VmResult,
 };
 
@@ -647,13 +647,9 @@ where
                 vm_try!(check_args(args, tuple.args));
 
                 let seq = vm_try!(vm.stack().slice_at(addr, args));
-                let data = vm_try!(seq.iter().cloned().try_collect());
-
-                vm_try!(out.store(vm.stack_mut(), || TupleStruct {
-                    rtti: tuple.rtti.clone(),
-                    data
-                }));
-
+                let data = seq.iter().cloned();
+                let value = vm_try!(Dynamic::new(tuple.rtti.clone(), data));
+                vm_try!(out.store(vm.stack_mut(), value));
                 None
             }
         };
