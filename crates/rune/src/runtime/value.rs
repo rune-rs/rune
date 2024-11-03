@@ -1,6 +1,9 @@
 #[macro_use]
 mod macros;
 
+#[cfg(test)]
+mod tests;
+
 mod inline;
 pub use self::inline::Inline;
 
@@ -11,6 +14,9 @@ pub use self::rtti::{Accessor, Rtti};
 
 mod data;
 pub use self::data::{EmptyStruct, Struct, TupleStruct};
+
+mod dynamic;
+pub use self::dynamic::Dynamic;
 
 use core::any;
 use core::cmp::Ordering;

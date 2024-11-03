@@ -1,5 +1,6 @@
 //! Error types used by rune alloc.
 
+use core::alloc::LayoutError;
 use core::convert::Infallible;
 use core::fmt;
 
@@ -62,6 +63,13 @@ impl From<Infallible> for Error {
     #[inline(always)]
     fn from(value: Infallible) -> Self {
         match value {}
+    }
+}
+
+impl From<LayoutError> for Error {
+    #[inline]
+    fn from(_: LayoutError) -> Self {
+        Error::LayoutError
     }
 }
 
