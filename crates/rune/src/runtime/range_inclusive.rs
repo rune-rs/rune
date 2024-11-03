@@ -317,7 +317,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let range = value.into_any::<RangeInclusive>()?;
+        let range = value.downcast::<RangeInclusive>()?;
         let start = Idx::from_value(range.start)?;
         let end = Idx::from_value(range.end)?;
         Ok(start..=end)

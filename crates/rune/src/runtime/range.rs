@@ -316,7 +316,7 @@ where
 {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let range = value.into_any::<Range>()?;
+        let range = value.downcast::<Range>()?;
         let start = Idx::from_value(range.start)?;
         let end = Idx::from_value(range.end)?;
         Ok(ops::Range { start, end })

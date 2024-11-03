@@ -899,22 +899,6 @@ impl Value {
     }
 
     /// Try to coerce value into a typed reference.
-    #[inline]
-    pub fn into_any_ref<T>(self) -> Result<Ref<T>, RuntimeError>
-    where
-        T: Any,
-    {
-        match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
-            Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
-            Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
-                value.borrow_ref()?.type_info(),
-            )),
-            Repr::Any(value) => Ok(value.into_ref()?),
-        }
-    }
-
-    /// Try to coerce value into a typed reference.
     ///
     /// # Safety
     ///
@@ -940,28 +924,13 @@ impl Value {
     }
 
     /// Try to coerce value into a typed mutable reference.
-    #[inline]
-    pub fn into_any_mut<T>(self) -> Result<Mut<T>, RuntimeError>
-    where
-        T: Any,
-    {
-        match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
-            Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
-            Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
-                value.borrow_ref()?.type_info(),
-            )),
-            Repr::Any(value) => Ok(value.into_mut()?),
-        }
-    }
-
-    /// Try to coerce value into a typed mutable reference.
     ///
     /// # Safety
     ///
     /// The returned pointer is only valid to dereference as long as the
     /// returned guard is live.
     #[inline]
+    #[doc(hidden)]
     pub fn into_any_mut_ptr<T>(self) -> Result<(NonNull<T>, RawValueGuard), RuntimeError>
     where
         T: Any,
@@ -980,7 +949,71 @@ impl Value {
         }
     }
 
-    /// Borrow the value as a typed reference.
+    /// Downcast the value into a stored value that implements `Any`.
+    ///
+    /// This takes the interior value, making it inaccessible to other owned
+    /// references.
+    ///
+    /// You should usually prefer to use [`rune::from_value`] instead of this
+    /// directly.
+    ///
+    /// [`rune::from_value`]: crate::from_value
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::Value;
+    /// use rune::alloc::String;
+    ///
+    /// let a = Value::try_from("Hello World")?;
+    /// let b = a.clone();
+    ///
+    /// assert!(b.borrow_ref::<String>().is_ok());
+    ///
+    /// // NB: The interior representation of the stored string is from rune-alloc.
+    /// let a = a.downcast::<String>()?;
+    ///
+    /// assert!(b.borrow_ref::<String>().is_err());
+    ///
+    /// assert_eq!(a, "Hello World");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    #[inline]
+    pub fn downcast<T>(self) -> Result<T, RuntimeError>
+    where
+        T: Any,
+    {
+        match self.repr {
+            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
+            Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
+            Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
+                value.borrow_ref()?.type_info(),
+            )),
+            Repr::Any(value) => Ok(value.downcast::<T>()?),
+        }
+    }
+
+    /// Borrow the value as a typed reference of type `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::Value;
+    /// use rune::alloc::String;
+    ///
+    /// let a = Value::try_from("Hello World")?;
+    /// let b = a.clone();
+    ///
+    /// assert!(b.borrow_ref::<String>().is_ok());
+    ///
+    /// // NB: The interior representation of the stored string is from rune-alloc.
+    /// let a = a.downcast::<String>()?;
+    ///
+    /// assert!(b.borrow_ref::<String>().is_err());
+    ///
+    /// assert_eq!(a, "Hello World");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     #[inline]
     pub fn borrow_ref<T>(&self) -> Result<BorrowRef<'_, T>, RuntimeError>
     where
@@ -996,7 +1029,42 @@ impl Value {
         }
     }
 
-    /// Borrow the value as a mutable typed reference.
+    /// Try to coerce value into a typed reference of type `T`.
+    ///
+    /// You should usually prefer to use [`rune::from_value`] instead of this
+    /// directly.
+    ///
+    /// [`rune::from_value`]: crate::from_value
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::Value;
+    /// use rune::alloc::String;
+    ///
+    /// let mut a = Value::try_from("Hello World")?;
+    /// let b = a.clone();
+    ///
+    /// assert_eq!(a.into_ref::<String>()?.as_str(), "Hello World");
+    /// assert_eq!(b.into_ref::<String>()?.as_str(), "Hello World");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    #[inline]
+    pub fn into_ref<T>(self) -> Result<Ref<T>, RuntimeError>
+    where
+        T: Any,
+    {
+        match self.repr {
+            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
+            Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
+            Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
+                value.borrow_ref()?.type_info(),
+            )),
+            Repr::Any(value) => Ok(value.into_ref()?),
+        }
+    }
+
+    /// Try to borrow value into a typed mutable reference of type `T`.
     #[inline]
     pub fn borrow_mut<T>(&self) -> Result<BorrowMut<'_, T>, RuntimeError>
     where
@@ -1012,9 +1080,32 @@ impl Value {
         }
     }
 
-    /// Try to coerce value into a typed value.
+    /// Try to coerce value into a typed mutable reference of type `T`.
+    ///
+    /// You should usually prefer to use [`rune::from_value`] instead of this
+    /// directly.
+    ///
+    /// [`rune::from_value`]: crate::from_value
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use rune::Value;
+    /// use rune::alloc::String;
+    ///
+    /// let mut a = Value::try_from("Hello World")?;
+    /// let b = a.clone();
+    ///
+    /// let s = a.into_mut::<String>()?;
+    /// assert_eq!(s.as_str(), "Hello World");
+    /// s.make_ascii_lowercase();
+    /// assert_eq!(s.as_str(), "hello world");
+    ///
+    /// assert_eq!(b.borrow_mut::<String>()?.as_str(), "hello world");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     #[inline]
-    pub fn into_any<T>(self) -> Result<T, RuntimeError>
+    pub fn into_mut<T>(self) -> Result<Mut<T>, RuntimeError>
     where
         T: Any,
     {
@@ -1024,7 +1115,7 @@ impl Value {
             Repr::Mutable(value) => Err(RuntimeError::expected_any::<T>(
                 value.borrow_ref()?.type_info(),
             )),
-            Repr::Any(value) => Ok(value.downcast::<T>()?),
+            Repr::Any(value) => Ok(value.into_mut()?),
         }
     }
 

@@ -535,7 +535,7 @@ where
     T: FromValue,
 {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let vec = value.into_any::<Vec>()?;
+        let vec = value.downcast::<Vec>()?;
 
         let mut output = ::rust_alloc::vec::Vec::with_capacity(vec.len());
 
@@ -552,7 +552,7 @@ where
     T: FromValue,
 {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let vec = value.into_any::<Vec>()?;
+        let vec = value.downcast::<Vec>()?;
 
         let mut output = alloc::Vec::try_with_capacity(vec.len())?;
 
@@ -568,7 +568,7 @@ impl UnsafeToRef for [Value] {
     type Guard = RawAnyGuard;
 
     unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let vec = vm_try!(value.into_any_ref::<Vec>());
+        let vec = vm_try!(value.into_ref::<Vec>());
         let (vec, guard) = Ref::into_raw(vec);
         VmResult::Ok((vec.as_ref().as_slice(), guard))
     }

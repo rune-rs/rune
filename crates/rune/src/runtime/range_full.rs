@@ -135,7 +135,7 @@ impl ToValue for ops::RangeFull {
 impl FromValue for ops::RangeFull {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        let RangeFull = value.into_any::<RangeFull>()?;
+        let RangeFull = value.downcast::<RangeFull>()?;
         Ok(ops::RangeFull)
     }
 }
