@@ -15,8 +15,6 @@ pub use self::data::{EmptyStruct, Struct, TupleStruct};
 use core::any;
 use core::cmp::Ordering;
 use core::fmt;
-#[cfg(feature = "alloc")]
-use core::hash::Hasher as _;
 use core::mem::replace;
 use core::ptr::NonNull;
 
@@ -26,7 +24,6 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
-use crate::runtime;
 use crate::{Any, Hash, TypeHash};
 
 use super::{
@@ -1151,64 +1148,120 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
-        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
-                return VmResult::Ok(vm_try!(lhs.partial_eq(rhs)));
-            }
-            (ReprRef::Inline(lhs), rhs) => {
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::PARTIAL_EQ.name,
-                    lhs: lhs.type_info(),
-                    rhs: vm_try!(rhs.type_info()),
-                });
-            }
-            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
-                let lhs = vm_try!(lhs.borrow_ref());
-                let rhs = vm_try!(rhs.borrow_ref());
-
-                let (lhs_rtti, lhs) = lhs.as_parts();
-                let (rhs_rtti, rhs) = rhs.as_parts();
-
-                if lhs_rtti.hash == rhs_rtti.hash {
-                    if lhs_rtti.variant_hash != rhs_rtti.variant_hash {
-                        return VmResult::Ok(false);
-                    }
-
-                    return Vec::eq_with(lhs, rhs, Value::partial_eq_with, caller);
-                }
-
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::PARTIAL_EQ.name,
-                    lhs: lhs_rtti.clone().type_info(),
-                    rhs: rhs_rtti.clone().type_info(),
-                });
-            }
-            (ReprRef::Any(value), _) => match value.type_hash() {
-                runtime::Vec::HASH => {
-                    let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
-                    return Vec::partial_eq_with(&vec, b.clone(), caller);
-                }
-                runtime::OwnedTuple::HASH => {
-                    let tuple = vm_try!(value.borrow_ref::<runtime::OwnedTuple>());
-                    return Vec::partial_eq_with(&tuple, b.clone(), caller);
-                }
-                _ => {}
-            },
-            _ => {}
-        }
-
-        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
+        self.bin_op_with(
+            b,
+            caller,
             Protocol::PARTIAL_EQ,
-            self.clone(),
-            &mut Some((b.clone(),))
-        )) {
-            return VmResult::Ok(vm_try!(<_>::from_value(value)));
-        }
+            Inline::partial_eq,
+            |lhs, rhs, caller| {
+                if lhs.0.variant_hash != rhs.0.variant_hash {
+                    return VmResult::Ok(false);
+                }
 
-        err(VmErrorKind::UnsupportedBinaryOperation {
-            op: Protocol::PARTIAL_EQ.name,
-            lhs: vm_try!(self.type_info()),
-            rhs: vm_try!(b.type_info()),
+                Vec::eq_with(lhs.1, rhs.1, Value::partial_eq_with, caller)
+            },
+        )
+    }
+
+    /// Perform a total equality test between two values.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    ///
+    /// External types will use the [`Protocol::EQ`] protocol when invoked
+    /// through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn eq(&self, b: &Value) -> VmResult<bool> {
+        self.eq_with(b, &mut EnvProtocolCaller)
+    }
+
+    /// Perform a total equality test between two values.
+    ///
+    /// This is the basis for the eq operation (`==`).
+    #[cfg_attr(feature = "bench", inline(never))]
+    pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
+        self.bin_op_with(b, caller, Protocol::EQ, Inline::eq, |lhs, rhs, caller| {
+            if lhs.0.variant_hash != rhs.0.variant_hash {
+                return VmResult::Ok(false);
+            }
+
+            Vec::eq_with(lhs.1, rhs.1, Value::eq_with, caller)
+        })
+    }
+
+    /// Perform a partial ordering comparison between two values.
+    ///
+    /// This is the basis for the comparison operation.
+    ///
+    /// External types will use the [`Protocol::PARTIAL_CMP`] protocol when
+    /// invoked through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn partial_cmp(a: &Value, b: &Value) -> VmResult<Option<Ordering>> {
+        Value::partial_cmp_with(a, b, &mut EnvProtocolCaller)
+    }
+
+    /// Perform a partial ordering comparison between two values.
+    ///
+    /// This is the basis for the comparison operation.
+    #[cfg_attr(feature = "bench", inline(never))]
+    pub(crate) fn partial_cmp_with(
+        &self,
+        b: &Value,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<Option<Ordering>> {
+        self.bin_op_with(
+            b,
+            caller,
+            Protocol::PARTIAL_CMP,
+            Inline::partial_cmp,
+            |lhs, rhs, caller| {
+                let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
+
+                if ord != Ordering::Equal {
+                    return VmResult::Ok(Some(ord));
+                }
+
+                Vec::partial_cmp_with(lhs.1, rhs.1, caller)
+            },
+        )
+    }
+
+    /// Perform a total ordering comparison between two values.
+    ///
+    /// This is the basis for the comparison operation (`cmp`).
+    ///
+    /// External types will use the [`Protocol::CMP`] protocol when invoked
+    /// through this function.
+    ///
+    /// # Errors
+    ///
+    /// This function will error if called outside of a virtual machine context.
+    pub fn cmp(a: &Value, b: &Value) -> VmResult<Ordering> {
+        Value::cmp_with(a, b, &mut EnvProtocolCaller)
+    }
+
+    /// Perform a total ordering comparison between two values.
+    ///
+    /// This is the basis for the comparison operation (`cmp`).
+    #[cfg_attr(feature = "bench", inline(never))]
+    pub(crate) fn cmp_with(
+        &self,
+        b: &Value,
+        caller: &mut dyn ProtocolCaller,
+    ) -> VmResult<Ordering> {
+        self.bin_op_with(b, caller, Protocol::CMP, Inline::cmp, |lhs, rhs, caller| {
+            let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
+
+            if ord != Ordering::Equal {
+                return VmResult::Ok(ord);
+            }
+
+            Vec::cmp_with(lhs.1, rhs.1, caller)
         })
     }
 
@@ -1226,34 +1279,7 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match vm_try!(self.as_ref()) {
-            ReprRef::Inline(value) => match value {
-                Inline::Unsigned(value) => {
-                    hasher.write_u64(*value);
-                    return VmResult::Ok(());
-                }
-                Inline::Signed(value) => {
-                    hasher.write_i64(*value);
-                    return VmResult::Ok(());
-                }
-                // Care must be taken whan hashing floats, to ensure that `hash(v1)
-                // === hash(v2)` if `eq(v1) === eq(v2)`. Hopefully we accomplish
-                // this by rejecting NaNs and rectifying subnormal values of zero.
-                Inline::Float(value) => {
-                    if value.is_nan() {
-                        return VmResult::err(VmErrorKind::IllegalFloatOperation { value: *value });
-                    }
-
-                    let zero = *value == 0.0;
-                    hasher.write_f64((zero as u8 as f64) * 0.0 + (!zero as u8 as f64) * *value);
-                    return VmResult::Ok(());
-                }
-                operand => {
-                    return err(VmErrorKind::UnsupportedUnaryOperation {
-                        op: Protocol::HASH.name,
-                        operand: operand.type_info(),
-                    });
-                }
-            },
+            ReprRef::Inline(value) => return VmResult::Ok(vm_try!(value.hash(hasher))),
             ReprRef::Any(value) => match value.type_hash() {
                 Vec::HASH => {
                     let vec = vm_try!(value.borrow_ref::<Vec>());
@@ -1282,178 +1308,28 @@ impl Value {
         })
     }
 
-    /// Perform a total equality test between two values.
-    ///
-    /// This is the basis for the eq operation (`==`).
-    ///
-    /// External types will use the [`Protocol::EQ`] protocol when invoked
-    /// through this function.
-    ///
-    /// # Errors
-    ///
-    /// This function will error if called outside of a virtual machine context.
-    pub fn eq(&self, b: &Value) -> VmResult<bool> {
-        self.eq_with(b, &mut EnvProtocolCaller)
-    }
-
-    /// Perform a total equality test between two values.
-    ///
-    /// This is the basis for the eq operation (`==`).
-    #[cfg_attr(feature = "bench", inline(never))]
-    pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
-        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
-                return lhs.eq(rhs);
-            }
-            (ReprRef::Inline(lhs), rhs) => {
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::EQ.name,
-                    lhs: lhs.type_info(),
-                    rhs: vm_try!(rhs.type_info()),
-                });
-            }
-            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
-                let lhs = vm_try!(lhs.borrow_ref());
-                let rhs = vm_try!(rhs.borrow_ref());
-
-                let (lhs_rtti, lhs) = lhs.as_parts();
-                let (rhs_rtti, rhs) = rhs.as_parts();
-
-                if lhs_rtti.hash == rhs_rtti.hash {
-                    if lhs_rtti.variant_hash != rhs_rtti.variant_hash {
-                        return VmResult::Ok(false);
-                    }
-
-                    return Vec::eq_with(lhs, rhs, Value::eq_with, caller);
-                }
-
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::EQ.name,
-                    lhs: lhs_rtti.clone().type_info(),
-                    rhs: rhs_rtti.clone().type_info(),
-                });
-            }
-            _ => {}
-        }
-
-        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
-            Protocol::EQ,
-            self.clone(),
-            &mut Some((b.clone(),))
-        )) {
-            return VmResult::Ok(vm_try!(<_>::from_value(value)));
-        }
-
-        err(VmErrorKind::UnsupportedBinaryOperation {
-            op: Protocol::EQ.name,
-            lhs: vm_try!(self.type_info()),
-            rhs: vm_try!(b.type_info()),
-        })
-    }
-
-    /// Perform a partial ordering comparison between two values.
-    ///
-    /// This is the basis for the comparison operation.
-    ///
-    /// External types will use the [`Protocol::PARTIAL_CMP`] protocol when
-    /// invoked through this function.
-    ///
-    /// # Errors
-    ///
-    /// This function will error if called outside of a virtual machine context.
-    pub fn partial_cmp(a: &Value, b: &Value) -> VmResult<Option<Ordering>> {
-        Value::partial_cmp_with(a, b, &mut EnvProtocolCaller)
-    }
-
-    /// Perform a partial ordering comparison between two values.
-    ///
-    /// This is the basis for the comparison operation.
-    #[cfg_attr(feature = "bench", inline(never))]
-    pub(crate) fn partial_cmp_with(
+    fn bin_op_with<T>(
         &self,
         b: &Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
+        protocol: Protocol,
+        inline: fn(&Inline, &Inline) -> Result<T, RuntimeError>,
+        dynamic: fn(
+            (&Arc<Rtti>, &[Value]),
+            (&Arc<Rtti>, &[Value]),
+            &mut dyn ProtocolCaller,
+        ) -> VmResult<T>,
+    ) -> VmResult<T>
+    where
+        T: FromValue,
+    {
         match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
             (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
-                return VmResult::Ok(vm_try!(lhs.partial_cmp(rhs)))
+                return VmResult::Ok(vm_try!(inline(lhs, rhs)))
             }
-            (ReprRef::Inline(lhs), rhs) => {
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::PARTIAL_CMP.name,
-                    lhs: lhs.type_info(),
-                    rhs: vm_try!(rhs.type_info()),
-                })
-            }
-            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
-                let lhs = vm_try!(lhs.borrow_ref());
-                let rhs = vm_try!(rhs.borrow_ref());
-
-                let (lhs_rtti, lhs) = lhs.as_parts();
-                let (rhs_rtti, rhs) = rhs.as_parts();
-
-                if lhs_rtti.hash == rhs_rtti.hash {
-                    let ord = lhs_rtti.variant_hash.cmp(&rhs_rtti.variant_hash);
-
-                    if ord != Ordering::Equal {
-                        return VmResult::Ok(Some(ord));
-                    }
-
-                    return Vec::partial_cmp_with(lhs, rhs, caller);
-                }
-
-                return err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::PARTIAL_CMP.name,
-                    lhs: lhs_rtti.clone().type_info(),
-                    rhs: rhs_rtti.clone().type_info(),
-                });
-            }
-            _ => {}
-        }
-
-        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
-            Protocol::PARTIAL_CMP,
-            self.clone(),
-            &mut Some((b.clone(),))
-        )) {
-            return VmResult::Ok(vm_try!(<_>::from_value(value)));
-        }
-
-        err(VmErrorKind::UnsupportedBinaryOperation {
-            op: Protocol::PARTIAL_CMP.name,
-            lhs: vm_try!(self.type_info()),
-            rhs: vm_try!(b.type_info()),
-        })
-    }
-
-    /// Perform a total ordering comparison between two values.
-    ///
-    /// This is the basis for the comparison operation (`cmp`).
-    ///
-    /// External types will use the [`Protocol::CMP`] protocol when invoked
-    /// through this function.
-    ///
-    /// # Errors
-    ///
-    /// This function will error if called outside of a virtual machine context.
-    pub fn cmp(a: &Value, b: &Value) -> VmResult<Ordering> {
-        Value::cmp_with(a, b, &mut EnvProtocolCaller)
-    }
-
-    /// Perform a total ordering comparison between two values.
-    ///
-    /// This is the basis for the comparison operation (`cmp`).
-    #[cfg_attr(feature = "bench", inline(never))]
-    pub(crate) fn cmp_with(
-        &self,
-        b: &Value,
-        caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Ordering> {
-        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => return lhs.cmp(rhs),
             (ReprRef::Inline(lhs), rhs) => {
                 return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::CMP.name,
+                    op: protocol.name,
                     lhs: lhs.type_info(),
                     rhs: vm_try!(rhs.type_info()),
                 });
@@ -1466,17 +1342,11 @@ impl Value {
                 let (rhs_rtti, rhs) = rhs.as_parts();
 
                 if lhs_rtti.hash == rhs_rtti.hash {
-                    let ord = lhs_rtti.variant_hash.cmp(&rhs_rtti.variant_hash);
-
-                    if ord != Ordering::Equal {
-                        return VmResult::Ok(ord);
-                    }
-
-                    return Vec::cmp_with(lhs, rhs, caller);
+                    return dynamic((lhs_rtti, lhs), (rhs_rtti, rhs), caller);
                 }
 
                 return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
-                    op: Protocol::CMP.name,
+                    op: protocol.name,
                     lhs: lhs_rtti.clone().type_info(),
                     rhs: rhs_rtti.clone().type_info(),
                 });
@@ -1484,16 +1354,14 @@ impl Value {
             _ => {}
         }
 
-        if let CallResultOnly::Ok(value) = vm_try!(caller.try_call_protocol_fn(
-            Protocol::CMP,
-            self.clone(),
-            &mut Some((b.clone(),))
-        )) {
-            return VmResult::Ok(vm_try!(<_>::from_value(value)));
+        if let CallResultOnly::Ok(value) =
+            vm_try!(caller.try_call_protocol_fn(protocol, self.clone(), &mut Some((b.clone(),))))
+        {
+            return VmResult::Ok(vm_try!(T::from_value(value)));
         }
 
         err(VmErrorKind::UnsupportedBinaryOperation {
-            op: Protocol::CMP.name,
+            op: protocol.name,
             lhs: vm_try!(self.type_info()),
             rhs: vm_try!(b.type_info()),
         })
