@@ -22,9 +22,7 @@ pub enum ComponentRef<'a> {
 }
 
 impl<'a> ComponentRef<'a> {
-    /// Get the component as a string.
-    #[cfg(feature = "doc")]
-    #[doc(hidden)]
+    /// Get the component as a `&str` reference.
     pub fn as_str(&self) -> Option<&'a str> {
         match self {
             ComponentRef::Str(string) => Some(string),

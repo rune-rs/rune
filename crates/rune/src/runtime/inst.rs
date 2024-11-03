@@ -664,27 +664,6 @@ pub enum Inst {
         /// Where to write the constructed struct.
         out: Output,
     },
-    /// Construct a push an object variant of the given type onto the stack. The
-    /// number of elements in the object are determined the slot of the object
-    /// keys `slot` and are popped from the stack.
-    ///
-    /// For each element, a value is popped corresponding to the object key.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => <object>
-    /// ```
-    #[musli(packed)]
-    StructVariant {
-        /// The address to load fields from.
-        addr: InstAddress,
-        /// The type hash of the object variant to construct.
-        hash: Hash,
-        /// Where to write the constructed variant.
-        out: Output,
-    },
     /// Load a literal string from a static string slot.
     ///
     /// # Operation

@@ -2527,19 +2527,9 @@ fn expr_object<'a, 'hir>(
                     span,
                 )?;
             }
-            hir::ExprObjectKind::Struct { hash } => {
+            hir::ExprObjectKind::Struct { hash } | hir::ExprObjectKind::StructVariant { hash } => {
                 cx.asm.push(
                     Inst::Struct {
-                        addr: linear.addr(),
-                        hash,
-                        out: needs.alloc_output()?,
-                    },
-                    span,
-                )?;
-            }
-            hir::ExprObjectKind::StructVariant { hash } => {
-                cx.asm.push(
-                    Inst::StructVariant {
                         addr: linear.addr(),
                         hash,
                         out: needs.alloc_output()?,

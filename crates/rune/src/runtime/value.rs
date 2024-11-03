@@ -33,8 +33,7 @@ use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, IntoOutput,
     Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref,
-    RuntimeError, Shared, Snapshot, Type, TypeInfo, Variant, Vec, VmErrorKind, VmIntegerRepr,
-    VmResult,
+    RuntimeError, Shared, Snapshot, Type, TypeInfo, Vec, VmErrorKind, VmIntegerRepr, VmResult,
 };
 #[cfg(feature = "alloc")]
 use super::{Hasher, Tuple};
@@ -407,7 +406,6 @@ impl Value {
                     Mutable::EmptyStruct(value) => Mutable::EmptyStruct(vm_try!(value.try_clone())),
                     Mutable::TupleStruct(value) => Mutable::TupleStruct(vm_try!(value.try_clone())),
                     Mutable::Struct(value) => Mutable::Struct(vm_try!(value.try_clone())),
-                    Mutable::Variant(value) => Mutable::Variant(vm_try!(value.try_clone())),
                 },
                 ReprRef::Any(..) => {
                     break 'fallback;
@@ -470,9 +468,6 @@ impl Value {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
                 Mutable::Struct(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Mutable::Variant(value) => {
                     vm_try!(vm_write!(f, "{value:?}"));
                 }
             };
@@ -591,18 +586,6 @@ impl Value {
         VmResult::Ok(vm_try!(Value::try_from(TupleStruct { rtti, data })))
     }
 
-    /// Construct an empty variant.
-    pub fn unit_variant(rtti: Arc<Rtti>) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(Value::try_from(Variant::unit(rtti))))
-    }
-
-    /// Construct a tuple variant.
-    pub fn tuple_variant(rtti: Arc<Rtti>, vec: alloc::Vec<Value>) -> VmResult<Self> {
-        let data = vm_try!(OwnedTuple::try_from(vec));
-
-        VmResult::Ok(vm_try!(Value::try_from(Variant::tuple(rtti, data))))
-    }
-
     /// Drop the interior value.
     pub(crate) fn drop(self) -> VmResult<()> {
         match self.repr {
@@ -674,7 +657,6 @@ impl Value {
                 Mutable::EmptyStruct(empty) => Ok(TypeValue::EmptyStruct(empty)),
                 Mutable::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
                 Mutable::Struct(object) => Ok(TypeValue::Struct(object)),
-                Mutable::Variant(object) => Ok(TypeValue::Variant(object)),
             },
             ReprOwned::Any(value) => match value.type_hash() {
                 OwnedTuple::HASH => Ok(TypeValue::Tuple(value.downcast()?)),
@@ -1170,48 +1152,36 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
         match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(a), ReprRef::Inline(b)) => {
-                return VmResult::Ok(vm_try!(a.partial_eq(b)));
+            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
+                return VmResult::Ok(vm_try!(lhs.partial_eq(rhs)));
             }
-            (ReprRef::Inline(a), b) => {
+            (ReprRef::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_EQ.name,
-                    lhs: a.type_info(),
-                    rhs: vm_try!(b.type_info()),
+                    lhs: lhs.type_info(),
+                    rhs: vm_try!(rhs.type_info()),
                 });
             }
-            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
+            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
+                let lhs = vm_try!(lhs.borrow_ref());
+                let rhs = vm_try!(rhs.borrow_ref());
 
-                match (&*a, &*b) {
-                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            // NB: don't get any future ideas, this must fall through to
-                            // the VmError below since it's otherwise a comparison
-                            // between two incompatible types.
-                            //
-                            // Other than that, all units are equal.
-                            return VmResult::Ok(true);
-                        }
+                let (lhs_rtti, lhs) = lhs.as_parts();
+                let (rhs_rtti, rhs) = rhs.as_parts();
+
+                if lhs_rtti.hash == rhs_rtti.hash {
+                    if lhs_rtti.variant_hash != rhs_rtti.variant_hash {
+                        return VmResult::Ok(false);
                     }
-                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
-                        }
-                    }
-                    (Mutable::Struct(a), Mutable::Struct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::eq_with(&a.data, &b.data, Value::partial_eq_with, caller);
-                        }
-                    }
-                    (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().hash == b.rtti().hash {
-                            return Variant::partial_eq_with(a, b, caller);
-                        }
-                    }
-                    _ => {}
+
+                    return Vec::eq_with(lhs, rhs, Value::partial_eq_with, caller);
                 }
+
+                return err(VmErrorKind::UnsupportedBinaryOperation {
+                    op: Protocol::PARTIAL_EQ.name,
+                    lhs: lhs_rtti.clone().type_info(),
+                    rhs: rhs_rtti.clone().type_info(),
+                });
             }
             (ReprRef::Any(value), _) => match value.type_hash() {
                 runtime::Vec::HASH => {
@@ -1332,8 +1302,8 @@ impl Value {
     #[cfg_attr(feature = "bench", inline(never))]
     pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
         match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(a), ReprRef::Inline(b)) => {
-                return a.eq(b);
+            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
+                return lhs.eq(rhs);
             }
             (ReprRef::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1342,38 +1312,26 @@ impl Value {
                     rhs: vm_try!(rhs.type_info()),
                 });
             }
-            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
+            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
+                let lhs = vm_try!(lhs.borrow_ref());
+                let rhs = vm_try!(rhs.borrow_ref());
 
-                match (&*a, &*b) {
-                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            // NB: don't get any future ideas, this must fall through to
-                            // the VmError below since it's otherwise a comparison
-                            // between two incompatible types.
-                            //
-                            // Other than that, all units are equal.
-                            return VmResult::Ok(true);
-                        }
+                let (lhs_rtti, lhs) = lhs.as_parts();
+                let (rhs_rtti, rhs) = rhs.as_parts();
+
+                if lhs_rtti.hash == rhs_rtti.hash {
+                    if lhs_rtti.variant_hash != rhs_rtti.variant_hash {
+                        return VmResult::Ok(false);
                     }
-                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
-                        }
-                    }
-                    (Mutable::Struct(a), Mutable::Struct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
-                        }
-                    }
-                    (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().hash == b.rtti().hash {
-                            return Variant::eq_with(a, b, caller);
-                        }
-                    }
-                    _ => {}
+
+                    return Vec::eq_with(lhs, rhs, Value::eq_with, caller);
                 }
+
+                return err(VmErrorKind::UnsupportedBinaryOperation {
+                    op: Protocol::EQ.name,
+                    lhs: lhs_rtti.clone().type_info(),
+                    rhs: rhs_rtti.clone().type_info(),
+                });
             }
             _ => {}
         }
@@ -1417,8 +1375,8 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
         match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(a), ReprRef::Inline(b)) => {
-                return VmResult::Ok(vm_try!(a.partial_cmp(b)))
+            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
+                return VmResult::Ok(vm_try!(lhs.partial_cmp(rhs)))
             }
             (ReprRef::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1427,38 +1385,28 @@ impl Value {
                     rhs: vm_try!(rhs.type_info()),
                 })
             }
-            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
+            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
+                let lhs = vm_try!(lhs.borrow_ref());
+                let rhs = vm_try!(rhs.borrow_ref());
 
-                match (&*a, &*b) {
-                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            // NB: don't get any future ideas, this must fall through to
-                            // the VmError below since it's otherwise a comparison
-                            // between two incompatible types.
-                            //
-                            // Other than that, all units are equal.
-                            return VmResult::Ok(Some(Ordering::Equal));
-                        }
+                let (lhs_rtti, lhs) = lhs.as_parts();
+                let (rhs_rtti, rhs) = rhs.as_parts();
+
+                if lhs_rtti.hash == rhs_rtti.hash {
+                    let ord = lhs_rtti.variant_hash.cmp(&rhs_rtti.variant_hash);
+
+                    if ord != Ordering::Equal {
+                        return VmResult::Ok(Some(ord));
                     }
-                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::partial_cmp_with(&a.data, &b.data, caller);
-                        }
-                    }
-                    (Mutable::Struct(a), Mutable::Struct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::partial_cmp_with(&a.data, &b.data, caller);
-                        }
-                    }
-                    (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().hash == b.rtti().hash {
-                            return Variant::partial_cmp_with(a, b, caller);
-                        }
-                    }
-                    _ => {}
+
+                    return Vec::partial_cmp_with(lhs, rhs, caller);
                 }
+
+                return err(VmErrorKind::UnsupportedBinaryOperation {
+                    op: Protocol::PARTIAL_CMP.name,
+                    lhs: lhs_rtti.clone().type_info(),
+                    rhs: rhs_rtti.clone().type_info(),
+                });
             }
             _ => {}
         }
@@ -1502,45 +1450,35 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
         match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(a), ReprRef::Inline(b)) => return a.cmp(b),
-            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
-                let a = vm_try!(a.borrow_ref());
-                let b = vm_try!(b.borrow_ref());
-
-                match (&*a, &*b) {
-                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            // NB: don't get any future ideas, this must fall through to
-                            // the VmError below since it's otherwise a comparison
-                            // between two incompatible types.
-                            //
-                            // Other than that, all units are equal.
-                            return VmResult::Ok(Ordering::Equal);
-                        }
-                    }
-                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::cmp_with(&a.data, &b.data, caller);
-                        }
-                    }
-                    (Mutable::Struct(a), Mutable::Struct(b)) => {
-                        if a.rtti.hash == b.rtti.hash {
-                            return Vec::cmp_with(&a.data, &b.data, caller);
-                        }
-                    }
-                    (Mutable::Variant(a), Mutable::Variant(b)) => {
-                        if a.rtti().hash == b.rtti().hash {
-                            return Variant::cmp_with(a, b, caller);
-                        }
-                    }
-                    _ => {}
-                }
-            }
+            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => return lhs.cmp(rhs),
             (ReprRef::Inline(lhs), rhs) => {
                 return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::CMP.name,
                     lhs: lhs.type_info(),
                     rhs: vm_try!(rhs.type_info()),
+                });
+            }
+            (ReprRef::Mutable(lhs), ReprRef::Mutable(rhs)) => {
+                let lhs = vm_try!(lhs.borrow_ref());
+                let rhs = vm_try!(rhs.borrow_ref());
+
+                let (lhs_rtti, lhs) = lhs.as_parts();
+                let (rhs_rtti, rhs) = rhs.as_parts();
+
+                if lhs_rtti.hash == rhs_rtti.hash {
+                    let ord = lhs_rtti.variant_hash.cmp(&rhs_rtti.variant_hash);
+
+                    if ord != Ordering::Equal {
+                        return VmResult::Ok(ord);
+                    }
+
+                    return Vec::cmp_with(lhs, rhs, caller);
+                }
+
+                return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
+                    op: Protocol::CMP.name,
+                    lhs: lhs_rtti.clone().type_info(),
+                    rhs: rhs_rtti.clone().type_info(),
                 });
             }
             _ => {}
@@ -1875,7 +1813,6 @@ from! {
     EmptyStruct => EmptyStruct,
     TupleStruct => TupleStruct,
     Struct => Struct,
-    Variant => Variant,
 }
 
 any_from! {
@@ -1974,8 +1911,6 @@ pub enum TypeValue {
     TupleStruct(TupleStruct),
     /// An struct with a well-defined type.
     Struct(Struct),
-    /// The variant of an enum.
-    Variant(Variant),
     /// Not a typed immutable value.
     #[doc(hidden)]
     NotTypedInline(NotTypedInlineValue),
@@ -1995,7 +1930,6 @@ impl TypeValue {
             TypeValue::EmptyStruct(empty) => empty.type_info(),
             TypeValue::TupleStruct(tuple) => tuple.type_info(),
             TypeValue::Struct(object) => object.type_info(),
-            TypeValue::Variant(empty) => empty.type_info(),
             TypeValue::NotTypedInline(value) => value.0.type_info(),
             TypeValue::NotTypedAnyObj(value) => value.0.type_info(),
         }
@@ -2009,17 +1943,24 @@ pub(crate) enum Mutable {
     TupleStruct(TupleStruct),
     /// An struct with a well-defined type.
     Struct(Struct),
-    /// The variant of an enum.
-    Variant(Variant),
 }
 
 impl Mutable {
+    /// Decouple a mutable enum into its parts.
+    #[inline]
+    pub(crate) fn as_parts(&self) -> (&Arc<Rtti>, &[Value]) {
+        match self {
+            Mutable::EmptyStruct(empty) => (&empty.rtti, &[]),
+            Mutable::TupleStruct(tuple) => (&tuple.rtti, &tuple.data),
+            Mutable::Struct(object) => (&object.rtti, &object.data),
+        }
+    }
+
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
             Mutable::EmptyStruct(empty) => empty.type_info(),
             Mutable::TupleStruct(tuple) => tuple.type_info(),
             Mutable::Struct(object) => object.type_info(),
-            Mutable::Variant(empty) => empty.type_info(),
         }
     }
 
@@ -2029,10 +1970,9 @@ impl Mutable {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
-            Mutable::EmptyStruct(empty) => empty.rtti.hash,
-            Mutable::TupleStruct(tuple) => tuple.rtti.hash,
-            Mutable::Struct(object) => object.rtti.hash,
-            Mutable::Variant(variant) => variant.rtti().hash,
+            Mutable::EmptyStruct(empty) => empty.rtti.type_hash(),
+            Mutable::TupleStruct(tuple) => tuple.rtti.type_hash(),
+            Mutable::Struct(object) => object.rtti.type_hash(),
         }
     }
 }

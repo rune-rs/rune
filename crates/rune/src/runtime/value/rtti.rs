@@ -2,11 +2,14 @@ use core::borrow::Borrow;
 use core::cmp::Ordering;
 use core::hash;
 
+use rust_alloc::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
 use crate::alloc::prelude::*;
 use crate::alloc::HashMap;
-use crate::runtime::Value;
+use crate::item::Item;
+use crate::runtime::{TypeInfo, Value};
 use crate::{Hash, ItemBuf};
 
 /// Field accessor for a variant struct.
@@ -33,32 +36,38 @@ impl<'a> Accessor<'a> {
 #[non_exhaustive]
 pub struct Rtti {
     /// The type hash of the type.
-    pub hash: Hash,
+    pub(crate) hash: Hash,
     /// If this type is a variant, designates the hash of the variant.
-    pub variant_hash: Hash,
+    pub(crate) variant_hash: Hash,
     /// The item of the type.
-    pub item: ItemBuf,
+    pub(crate) item: ItemBuf,
     /// Mapping from field names to their corresponding indexes.
-    pub fields: HashMap<Box<str>, usize>,
+    pub(crate) fields: HashMap<Box<str>, usize>,
 }
 
 impl Rtti {
-    /// Access a named field mutably from the given data.
-    pub fn get_field<'a, Q>(&self, data: &'a [Value], key: &Q) -> Option<&'a Value>
-    where
-        Box<str>: Borrow<Q>,
-        Q: hash::Hash + Eq + ?Sized,
-    {
-        data.get(*self.fields.get(key)?)
+    /// Test if this RTTI matches the given raw hashes.
+    #[inline]
+    pub(crate) fn is(&self, hash: Hash, variant_hash: Hash) -> bool {
+        self.hash == hash && self.variant_hash == variant_hash
     }
 
-    /// Access a named field immutably from the given data.
-    pub fn get_field_mut<'a, Q>(&self, data: &'a mut [Value], key: &Q) -> Option<&'a mut Value>
-    where
-        Box<str>: Borrow<Q>,
-        Q: hash::Hash + Eq + ?Sized,
-    {
-        data.get_mut(*self.fields.get(key)?)
+    /// Access the item of the RTTI.
+    #[inline]
+    pub fn item(&self) -> &Item {
+        &self.item
+    }
+
+    /// Access the type hash of the RTTI.
+    #[inline]
+    pub fn type_hash(&self) -> Hash {
+        self.hash
+    }
+
+    /// Access the type information for the RTTI.
+    #[inline]
+    pub fn type_info(self: Arc<Self>) -> TypeInfo {
+        TypeInfo::rtti(self)
     }
 }
 

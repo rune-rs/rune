@@ -441,11 +441,6 @@ impl RuntimeError {
         })
     }
 
-    /// Construct an expected error for a variant.
-    pub(crate) fn expected_variant(actual: TypeInfo) -> Self {
-        Self::new(VmErrorKind::ExpectedVariant { actual })
-    }
-
     /// Construct an expected expecting a unit struct.
     pub(crate) fn expected_unit_struct(actual: TypeInfo) -> Self {
         Self::new(VmErrorKind::ExpectedUnitStruct { actual })

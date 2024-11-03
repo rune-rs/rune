@@ -52,17 +52,14 @@ fn references_disallowed_for_tuple_variant() {
 
     let mut mine = MyAny;
 
-    let tuple = constructor.call::<Variant>((&mine,)).unwrap();
-    let tuple = tuple.as_tuple().unwrap();
-    assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_err());
+    let tuple = constructor.call::<TupleStruct>((&mine,)).unwrap();
+    assert!(tuple.get(0).unwrap().borrow_ref::<MyAny>().is_err());
 
-    let tuple = constructor.call::<Variant>((&mut mine,)).unwrap();
-    let tuple = tuple.as_tuple().unwrap();
-    assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_err());
+    let tuple = constructor.call::<TupleStruct>((&mut mine,)).unwrap();
+    assert!(tuple.get(0).unwrap().borrow_ref::<MyAny>().is_err());
 
-    let tuple = constructor.call::<Variant>((mine,)).unwrap();
-    let tuple = tuple.as_tuple().unwrap();
-    assert!(tuple.first().unwrap().borrow_ref::<MyAny>().is_ok());
+    let tuple = constructor.call::<TupleStruct>((mine,)).unwrap();
+    assert!(tuple.get(0).unwrap().borrow_ref::<MyAny>().is_ok());
 }
 
 #[test]

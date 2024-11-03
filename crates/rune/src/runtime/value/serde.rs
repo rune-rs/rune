@@ -44,8 +44,7 @@ impl ser::Serialize for Value {
                 Mutable::TupleStruct(..) => {
                     Err(ser::Error::custom("cannot serialize tuple structs"))
                 }
-                Mutable::Struct(..) => Err(ser::Error::custom("cannot serialize objects structs")),
-                Mutable::Variant(..) => Err(ser::Error::custom("cannot serialize variants")),
+                Mutable::Struct(..) => Err(ser::Error::custom("cannot serialize structs")),
             },
             ReprRef::Any(value) => match value.type_hash() {
                 Option::<Value>::HASH => {

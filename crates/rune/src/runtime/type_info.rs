@@ -64,7 +64,7 @@ impl TypeInfo {
     }
 
     #[inline]
-    pub(crate) const fn typed(rtti: Arc<Rtti>) -> Self {
+    pub(crate) const fn rtti(rtti: Arc<Rtti>) -> Self {
         Self::new(TypeInfoKind::Runtime(rtti))
     }
 
@@ -72,7 +72,7 @@ impl TypeInfo {
     pub(crate) fn type_hash(&self) -> Hash {
         match &self.kind {
             TypeInfoKind::Any(ty) => ty.hash,
-            TypeInfoKind::Runtime(ty) => ty.hash,
+            TypeInfoKind::Runtime(ty) => ty.type_hash(),
         }
     }
 }

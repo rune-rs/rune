@@ -76,6 +76,7 @@ pub struct Logic<S = DefaultStorage> {
 
 impl<S> Unit<S> {
     /// Constructs a new unit from a pair of data and debug info.
+    #[inline]
     pub fn from_parts(data: Logic<S>, debug: Option<DebugInfo>) -> alloc::Result<Self> {
         Ok(Self {
             logic: data,
@@ -85,6 +86,7 @@ impl<S> Unit<S> {
 
     /// Construct a new unit with the given content.
     #[allow(clippy::too_many_arguments)]
+    #[inline]
     pub(crate) fn new(
         storage: S,
         functions: hash::Map<UnitFn>,
@@ -110,35 +112,40 @@ impl<S> Unit<S> {
     }
 
     /// Access unit data.
+    #[inline]
     pub fn logic(&self) -> &Logic<S> {
         &self.logic
     }
 
     /// Access debug information for the given location if it is available.
+    #[inline]
     pub fn debug_info(&self) -> Option<&DebugInfo> {
-        let debug = self.debug.as_ref()?;
-        Some(&**debug)
+        Some(&**self.debug.as_ref()?)
     }
 
     /// Get raw underlying instructions storage.
+    #[inline]
     pub(crate) fn instructions(&self) -> &S {
         &self.logic.storage
     }
 
     /// Iterate over all static strings in the unit.
     #[cfg(feature = "cli")]
+    #[inline]
     pub(crate) fn iter_static_strings(&self) -> impl Iterator<Item = &Arc<StaticString>> + '_ {
         self.logic.static_strings.iter()
     }
 
     /// Iterate over all constants in the unit.
     #[cfg(feature = "cli")]
+    #[inline]
     pub(crate) fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
         self.logic.constants.iter()
     }
 
     /// Iterate over all static object keys in the unit.
     #[cfg(feature = "cli")]
+    #[inline]
     pub(crate) fn iter_static_object_keys(&self) -> impl Iterator<Item = (usize, &[String])> + '_ {
         use core::iter;
 
@@ -152,11 +159,13 @@ impl<S> Unit<S> {
 
     /// Iterate over dynamic functions.
     #[cfg(feature = "cli")]
+    #[inline]
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (Hash, &UnitFn)> + '_ {
         self.logic.functions.iter().map(|(h, f)| (*h, f))
     }
 
     /// Lookup the static string by slot, if it exists.
+    #[inline]
     pub(crate) fn lookup_string(&self, slot: usize) -> Result<&Arc<StaticString>, VmError> {
         Ok(self
             .logic
@@ -166,6 +175,7 @@ impl<S> Unit<S> {
     }
 
     /// Lookup the static byte string by slot, if it exists.
+    #[inline]
     pub(crate) fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
         Ok(self
             .logic
@@ -176,6 +186,7 @@ impl<S> Unit<S> {
     }
 
     /// Lookup the static object keys by slot, if it exists.
+    #[inline]
     pub(crate) fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
         self.logic
             .static_object_keys
@@ -184,16 +195,19 @@ impl<S> Unit<S> {
     }
 
     /// Lookup run-time information for the given type hash.
+    #[inline]
     pub(crate) fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
         self.logic.rtti.get(&hash)
     }
 
     /// Lookup a function in the unit.
+    #[inline]
     pub(crate) fn function(&self, hash: Hash) -> Option<UnitFn> {
         self.logic.functions.get(&hash).copied()
     }
 
     /// Lookup a constant from the unit.
+    #[inline]
     pub(crate) fn constant(&self, hash: Hash) -> Option<&ConstValue> {
         self.logic.constants.get(&hash)
     }
@@ -209,6 +223,7 @@ where
     }
 
     /// Get the instruction at the given instruction pointer.
+    #[inline]
     pub(crate) fn instruction_at(
         &self,
         ip: usize,
@@ -218,6 +233,7 @@ where
 
     /// Iterate over all instructions in order.
     #[cfg(feature = "emit")]
+    #[inline]
     pub(crate) fn iter_instructions(&self) -> impl Iterator<Item = (usize, Inst)> + '_ {
         self.logic.storage.iter()
     }
@@ -251,18 +267,6 @@ pub(crate) enum UnitFn {
         /// The number of arguments the tuple takes.
         args: usize,
     },
-    /// A unit variant of the type identified by the given hash.
-    UnitVariant {
-        /// The type hash of the empty variant.
-        hash: Hash,
-    },
-    /// A tuple variant of the type identified by the given hash.
-    TupleVariant {
-        /// The type hash of the variant.
-        hash: Hash,
-        /// The number of arguments the tuple takes.
-        args: usize,
-    },
 }
 
 impl TryClone for UnitFn {
@@ -291,12 +295,6 @@ impl fmt::Display for UnitFn {
             }
             Self::TupleStruct { hash, args } => {
                 write!(f, "tuple hash={hash}, args={args}")?;
-            }
-            Self::UnitVariant { hash } => {
-                write!(f, "empty-variant hash={hash}")?;
-            }
-            Self::TupleVariant { hash, args } => {
-                write!(f, "tuple-variant hash={hash}, args={args}")?;
             }
         }
 

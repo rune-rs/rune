@@ -165,10 +165,7 @@ pub use self::value::{
     Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
     ValueMutGuard, ValueRefGuard,
 };
-pub(crate) use self::value::{Mutable, ReprMut, ReprOwned, ReprRef};
-
-mod variant;
-pub use self::variant::{Variant, VariantData};
+pub(crate) use self::value::{Mutable, ReprMut, ReprRef};
 
 pub mod slice;
 

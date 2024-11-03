@@ -771,7 +771,7 @@ impl Context {
                             item: item.try_clone()?,
                             hash,
                             type_check: None,
-                            type_info: TypeInfo::typed(Arc::new(Rtti {
+                            type_info: TypeInfo::rtti(Arc::new(Rtti {
                                 hash: ty.hash,
                                 variant_hash: hash,
                                 item: item.try_clone()?,

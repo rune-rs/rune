@@ -211,6 +211,14 @@ impl Item {
         self.iter().next_back()
     }
 
+    /// Access the base name of the item if available.
+    ///
+    /// The base name is the last string component of the item.
+    #[inline]
+    pub fn base_name(&self) -> Option<&str> {
+        self.iter().next_back()?.as_str()
+    }
+
     /// An iterator over the [Component]s that constitute this item.
     ///
     /// # Examples

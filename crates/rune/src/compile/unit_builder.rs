@@ -496,7 +496,7 @@ impl UnitBuilder {
                     ));
                 }
 
-                let info = UnitFn::UnitVariant { hash: meta.hash };
+                let info = UnitFn::EmptyStruct { hash: meta.hash };
 
                 let signature = DebugSignature::new(
                     pool.item(meta.item_meta.item).try_to_owned()?,
@@ -545,7 +545,7 @@ impl UnitBuilder {
                     ));
                 }
 
-                let info = UnitFn::TupleVariant {
+                let info = UnitFn::TupleStruct {
                     hash: meta.hash,
                     args,
                 };
