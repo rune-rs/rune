@@ -80,11 +80,11 @@ macro_rules! into_base {
         /// and does not consume it.
         #[inline]
         pub fn $borrow_ref(&self) -> Result<BorrowRef<'_, $ty>, RuntimeError> {
-            match self.as_ref_repr()? {
-                RefRepr::Inline(value) => {
+            match self.as_ref()? {
+                ReprRef::Inline(value) => {
                     Err(RuntimeError::expected::<$ty>(value.type_info()))
                 },
-                RefRepr::Mutable(value) => {
+                ReprRef::Mutable(value) => {
                     let result = BorrowRef::try_map(value.borrow_ref()?, |kind| match kind {
                         Mutable::$kind(value) => Some(value),
                         _ => None,
@@ -95,7 +95,7 @@ macro_rules! into_base {
                         Err(value) => Err(RuntimeError::expected::<$ty>(value.type_info())),
                     }
                 },
-                RefRepr::Any(value) => {
+                ReprRef::Any(value) => {
                     Err(RuntimeError::expected::<$ty>(value.type_info()))
                 },
             }
@@ -107,11 +107,11 @@ macro_rules! into_base {
         /// and does not consume it.
         #[inline]
         pub fn $borrow_mut(&self) -> Result<BorrowMut<'_, $ty>, RuntimeError> {
-            match self.as_ref_repr()? {
-                RefRepr::Inline(value) => {
+            match self.as_ref()? {
+                ReprRef::Inline(value) => {
                     Err(RuntimeError::expected::<$ty>(value.type_info()))
                 }
-                RefRepr::Mutable(value) => {
+                ReprRef::Mutable(value) => {
                     let result = BorrowMut::try_map(value.borrow_mut()?, |kind| match kind {
                         Mutable::$kind(value) => Some(value),
                         _ => None,
@@ -122,7 +122,7 @@ macro_rules! into_base {
                         Err(value) => Err(RuntimeError::expected::<$ty>(value.type_info())),
                     }
                 },
-                RefRepr::Any(value) => {
+                ReprRef::Any(value) => {
                     Err(RuntimeError::expected::<$ty>(value.type_info()))
                 }
             }
@@ -155,7 +155,7 @@ macro_rules! into {
         #[inline]
         pub fn $into(self) -> Result<$ty, RuntimeError> {
             match self.take_repr()? {
-                OwnedRepr::Mutable(Mutable::$kind(value)) => Ok(value),
+                ReprOwned::Mutable(Mutable::$kind(value)) => Ok(value),
                 value => Err(RuntimeError::expected::<$ty>(value.type_info())),
             }
         }

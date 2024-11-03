@@ -9,7 +9,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::runtime::{OwnedTuple, TypeInfo};
 
-use super::{FromValue, Mutable, OwnedRepr, Rtti, RuntimeError, Value};
+use super::{FromValue, Mutable, ReprOwned, Rtti, RuntimeError, Value};
 
 /// A empty with a well-defined type.
 #[derive(TryClone)]
@@ -34,10 +34,10 @@ impl EmptyStruct {
 impl FromValue for EmptyStruct {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         match value.take_repr()? {
-            OwnedRepr::Inline(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
-            OwnedRepr::Mutable(Mutable::EmptyStruct(value)) => Ok(value),
-            OwnedRepr::Mutable(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
-            OwnedRepr::Any(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
+            ReprOwned::Inline(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
+            ReprOwned::Mutable(Mutable::EmptyStruct(value)) => Ok(value),
+            ReprOwned::Mutable(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
+            ReprOwned::Any(value) => Err(RuntimeError::expected_unit_struct(value.type_info())),
         }
     }
 }
@@ -92,12 +92,12 @@ impl TupleStruct {
 impl FromValue for TupleStruct {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         match value.take_repr()? {
-            OwnedRepr::Inline(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
-            OwnedRepr::Mutable(Mutable::TupleStruct(value)) => Ok(value),
-            OwnedRepr::Mutable(value) => {
+            ReprOwned::Inline(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
+            ReprOwned::Mutable(Mutable::TupleStruct(value)) => Ok(value),
+            ReprOwned::Mutable(value) => {
                 Err(RuntimeError::expected_tuple_struct(value.type_info()))
             }
-            OwnedRepr::Any(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
+            ReprOwned::Any(value) => Err(RuntimeError::expected_tuple_struct(value.type_info())),
         }
     }
 }
@@ -160,10 +160,10 @@ impl Struct {
 impl FromValue for Struct {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         match value.take_repr()? {
-            OwnedRepr::Inline(value) => Err(RuntimeError::expected_struct(value.type_info())),
-            OwnedRepr::Mutable(Mutable::Struct(value)) => Ok(value),
-            OwnedRepr::Mutable(value) => Err(RuntimeError::expected_struct(value.type_info())),
-            OwnedRepr::Any(value) => Err(RuntimeError::expected_struct(value.type_info())),
+            ReprOwned::Inline(value) => Err(RuntimeError::expected_struct(value.type_info())),
+            ReprOwned::Mutable(Mutable::Struct(value)) => Ok(value),
+            ReprOwned::Mutable(value) => Err(RuntimeError::expected_struct(value.type_info())),
+            ReprOwned::Any(value) => Err(RuntimeError::expected_struct(value.type_info())),
         }
     }
 }

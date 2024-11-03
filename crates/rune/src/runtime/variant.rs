@@ -8,7 +8,7 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::Box;
 
 use super::{
-    Accessor, FromValue, Mutable, OwnedRepr, OwnedTuple, ProtocolCaller, RuntimeError, Tuple,
+    Accessor, FromValue, Mutable, OwnedTuple, ProtocolCaller, ReprOwned, RuntimeError, Tuple,
     TypeInfo, Value, VariantRtti, Vec, VmResult,
 };
 
@@ -179,10 +179,10 @@ impl Variant {
 impl FromValue for Variant {
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         match value.take_repr()? {
-            OwnedRepr::Inline(value) => Err(RuntimeError::expected_variant(value.type_info())),
-            OwnedRepr::Mutable(Mutable::Variant(value)) => Ok(value),
-            OwnedRepr::Mutable(value) => Err(RuntimeError::expected_variant(value.type_info())),
-            OwnedRepr::Any(value) => Err(RuntimeError::expected_variant(value.type_info())),
+            ReprOwned::Inline(value) => Err(RuntimeError::expected_variant(value.type_info())),
+            ReprOwned::Mutable(Mutable::Variant(value)) => Ok(value),
+            ReprOwned::Mutable(value) => Err(RuntimeError::expected_variant(value.type_info())),
+            ReprOwned::Any(value) => Err(RuntimeError::expected_variant(value.type_info())),
         }
     }
 }

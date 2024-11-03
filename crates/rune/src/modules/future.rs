@@ -2,7 +2,7 @@
 
 use crate as rune;
 use crate::alloc::Vec;
-use crate::runtime::{self, Future, Inline, RefRepr, SelectFuture, Value, VmErrorKind, VmResult};
+use crate::runtime::{self, Future, Inline, ReprRef, SelectFuture, Value, VmErrorKind, VmResult};
 use crate::{ContextError, Module, TypeHash};
 
 /// Asynchronous computations.
@@ -25,20 +25,20 @@ where
     let mut results = vm_try!(Vec::try_with_capacity(len));
 
     for (index, value) in values.into_iter().enumerate() {
-        match vm_try!(value.as_ref_repr()) {
-            RefRepr::Inline(value) => {
+        match vm_try!(value.as_ref()) {
+            ReprRef::Inline(value) => {
                 return VmResult::err([
                     VmErrorKind::expected::<Future>(value.type_info()),
                     VmErrorKind::bad_argument(index),
                 ]);
             }
-            RefRepr::Mutable(value) => {
+            ReprRef::Mutable(value) => {
                 return VmResult::err([
                     VmErrorKind::expected::<Future>(vm_try!(value.borrow_ref()).type_info()),
                     VmErrorKind::bad_argument(index),
                 ]);
             }
-            RefRepr::Any(value) => match value.type_hash() {
+            ReprRef::Any(value) => match value.type_hash() {
                 Future::HASH => {
                     let future = vm_try!(Value::from(value.clone()).into_future());
                     futures.push(SelectFuture::new(index, future));
@@ -98,19 +98,19 @@ where
 /// ```
 #[rune::function(keep)]
 async fn join(value: Value) -> VmResult<Value> {
-    match vm_try!(value.as_ref_repr()) {
-        RefRepr::Inline(value) => match value {
+    match vm_try!(value.as_ref()) {
+        ReprRef::Inline(value) => match value {
             Inline::Unit => VmResult::Ok(Value::unit()),
             value => VmResult::err([
                 VmErrorKind::bad_argument(0),
                 VmErrorKind::expected::<runtime::Vec>(value.type_info()),
             ]),
         },
-        RefRepr::Mutable(value) => VmResult::err([
+        ReprRef::Mutable(value) => VmResult::err([
             VmErrorKind::bad_argument(0),
             VmErrorKind::expected::<runtime::Vec>(vm_try!(value.borrow_ref()).type_info()),
         ]),
-        RefRepr::Any(value) => match value.type_hash() {
+        ReprRef::Any(value) => match value.type_hash() {
             runtime::Vec::HASH => {
                 let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
                 let result = try_join_impl(vec.iter(), vec.len(), |vec| {

@@ -77,62 +77,45 @@ enum Repr {
     Any(AnyObj),
 }
 
-pub(crate) enum OwnedRepr {
+pub(crate) enum ReprOwned {
     Inline(Inline),
     Mutable(Mutable),
     Any(AnyObj),
 }
 
-impl OwnedRepr {
+impl ReprOwned {
     #[inline]
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            OwnedRepr::Inline(value) => value.type_info(),
-            OwnedRepr::Mutable(value) => value.type_info(),
-            OwnedRepr::Any(value) => value.type_info(),
+            ReprOwned::Inline(value) => value.type_info(),
+            ReprOwned::Mutable(value) => value.type_info(),
+            ReprOwned::Any(value) => value.type_info(),
         }
     }
 }
 
-pub(crate) enum RefRepr<'a> {
+pub(crate) enum ReprRef<'a> {
     Inline(&'a Inline),
     Mutable(&'a Shared<Mutable>),
     Any(&'a AnyObj),
 }
 
-impl RefRepr<'_> {
+impl ReprRef<'_> {
     #[inline]
     pub(crate) fn type_info(&self) -> Result<TypeInfo, AccessError> {
         match self {
-            RefRepr::Inline(value) => Ok(value.type_info()),
-            RefRepr::Mutable(value) => Ok(value.borrow_ref()?.type_info()),
-            RefRepr::Any(value) => Ok(value.type_info()),
+            ReprRef::Inline(value) => Ok(value.type_info()),
+            ReprRef::Mutable(value) => Ok(value.borrow_ref()?.type_info()),
+            ReprRef::Any(value) => Ok(value.type_info()),
         }
     }
 }
 
 /// Access the internals of a value mutably.
-pub(crate) enum MutRepr<'a> {
+pub(crate) enum ReprMut<'a> {
     Inline(&'a mut Inline),
     Mutable(#[allow(unused)] &'a mut Shared<Mutable>),
     Any(#[allow(unused)] &'a mut AnyObj),
-}
-
-pub(crate) enum BorrowRefRepr<'a> {
-    Inline(&'a Inline),
-    Mutable(BorrowRef<'a, Mutable>),
-    Any(&'a AnyObj),
-}
-
-impl<'a> BorrowRefRepr<'a> {
-    #[inline]
-    pub(crate) fn type_info(&self) -> TypeInfo {
-        match self {
-            BorrowRefRepr::Inline(value) => value.type_info(),
-            BorrowRefRepr::Mutable(value) => value.type_info(),
-            BorrowRefRepr::Any(value) => value.type_info(),
-        }
-    }
 }
 
 /// An entry on the stack.
@@ -354,8 +337,8 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         'fallback: {
-            match vm_try!(self.borrow_ref_repr()) {
-                BorrowRefRepr::Inline(value) => match value {
+            match vm_try!(self.as_ref()) {
+                ReprRef::Inline(value) => match value {
                     Inline::Char(c) => {
                         vm_try!(f.try_write_char(*c));
                     }
@@ -414,19 +397,19 @@ impl Value {
 
     pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<Value> {
         'fallback: {
-            let value = match vm_try!(self.as_ref_repr()) {
-                RefRepr::Inline(value) => {
+            let value = match vm_try!(self.as_ref()) {
+                ReprRef::Inline(value) => {
                     return VmResult::Ok(Self {
                         repr: Repr::Inline(*value),
                     });
                 }
-                RefRepr::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
+                ReprRef::Mutable(value) => match &*vm_try!(value.borrow_ref()) {
                     Mutable::EmptyStruct(value) => Mutable::EmptyStruct(vm_try!(value.try_clone())),
                     Mutable::TupleStruct(value) => Mutable::TupleStruct(vm_try!(value.try_clone())),
                     Mutable::Struct(value) => Mutable::Struct(vm_try!(value.try_clone())),
                     Mutable::Variant(value) => Mutable::Variant(vm_try!(value.try_clone())),
                 },
-                RefRepr::Any(..) => {
+                ReprRef::Any(..) => {
                     break 'fallback;
                 }
             };
@@ -673,7 +656,7 @@ impl Value {
     #[inline]
     pub fn into_string(self) -> Result<String, RuntimeError> {
         match self.take_repr()? {
-            OwnedRepr::Any(value) => Ok(value.downcast()?),
+            ReprOwned::Any(value) => Ok(value.downcast()?),
             actual => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
@@ -683,17 +666,17 @@ impl Value {
     #[inline]
     pub fn into_type_value(self) -> Result<TypeValue, RuntimeError> {
         match self.take_repr()? {
-            OwnedRepr::Inline(value) => match value {
+            ReprOwned::Inline(value) => match value {
                 Inline::Unit => Ok(TypeValue::Unit),
                 value => Ok(TypeValue::NotTypedInline(NotTypedInlineValue(value))),
             },
-            OwnedRepr::Mutable(value) => match value {
+            ReprOwned::Mutable(value) => match value {
                 Mutable::EmptyStruct(empty) => Ok(TypeValue::EmptyStruct(empty)),
                 Mutable::TupleStruct(tuple) => Ok(TypeValue::TupleStruct(tuple)),
                 Mutable::Struct(object) => Ok(TypeValue::Struct(object)),
                 Mutable::Variant(object) => Ok(TypeValue::Variant(object)),
             },
-            OwnedRepr::Any(value) => match value.type_hash() {
+            ReprOwned::Any(value) => match value.type_hash() {
                 OwnedTuple::HASH => Ok(TypeValue::Tuple(value.downcast()?)),
                 Object::HASH => Ok(TypeValue::Object(value.downcast()?)),
                 _ => Ok(TypeValue::NotTypedAnyObj(NotTypedAnyObj(value))),
@@ -704,9 +687,9 @@ impl Value {
     /// Coerce into a unit.
     #[inline]
     pub fn into_unit(&self) -> Result<(), RuntimeError> {
-        match self.borrow_ref_repr()? {
-            BorrowRefRepr::Inline(Inline::Unit) => Ok(()),
-            value => Err(RuntimeError::expected::<()>(value.type_info())),
+        match self.as_ref()? {
+            ReprRef::Inline(Inline::Unit) => Ok(()),
+            value => Err(RuntimeError::expected::<()>(value.type_info()?)),
         }
     }
 
@@ -775,13 +758,13 @@ impl Value {
     /// and does not consume it.
     #[inline]
     pub fn borrow_tuple_ref(&self) -> Result<BorrowRef<'_, Tuple>, RuntimeError> {
-        match self.as_ref_repr()? {
-            RefRepr::Inline(Inline::Unit) => Ok(BorrowRef::from_static(Tuple::new(&[]))),
-            RefRepr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            RefRepr::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
+        match self.as_ref()? {
+            ReprRef::Inline(Inline::Unit) => Ok(BorrowRef::from_static(Tuple::new(&[]))),
+            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            ReprRef::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
                 value.borrow_ref()?.type_info(),
             )),
-            RefRepr::Any(value) => {
+            ReprRef::Any(value) => {
                 let value = value.borrow_ref::<OwnedTuple>()?;
                 let value = BorrowRef::map(value, OwnedTuple::as_ref);
                 Ok(value)
@@ -795,13 +778,13 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn borrow_tuple_mut(&self) -> Result<BorrowMut<'_, Tuple>, RuntimeError> {
-        match self.as_ref_repr()? {
-            RefRepr::Inline(Inline::Unit) => Ok(BorrowMut::from_static(Tuple::new_mut(&mut []))),
-            RefRepr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            RefRepr::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
+        match self.as_ref()? {
+            ReprRef::Inline(Inline::Unit) => Ok(BorrowMut::from_static(Tuple::new_mut(&mut []))),
+            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            ReprRef::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
                 value.borrow_ref()?.type_info(),
             )),
-            RefRepr::Any(value) => {
+            ReprRef::Any(value) => {
                 let value = value.borrow_mut::<OwnedTuple>()?;
                 let value = BorrowMut::map(value, OwnedTuple::as_mut);
                 Ok(value)
@@ -815,13 +798,13 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn into_tuple(&self) -> Result<Box<Tuple>, RuntimeError> {
-        match self.as_ref_repr()? {
-            RefRepr::Inline(Inline::Unit) => Ok(Tuple::from_boxed(Box::default())),
-            RefRepr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            RefRepr::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
+        match self.as_ref()? {
+            ReprRef::Inline(Inline::Unit) => Ok(Tuple::from_boxed(Box::default())),
+            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            ReprRef::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
                 value.borrow_ref()?.type_info(),
             )),
-            RefRepr::Any(value) => Ok(value.clone().downcast::<OwnedTuple>()?.into_boxed_tuple()),
+            ReprRef::Any(value) => Ok(value.clone().downcast::<OwnedTuple>()?.into_boxed_tuple()),
         }
     }
 
@@ -831,13 +814,13 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn into_tuple_ref(&self) -> Result<Ref<Tuple>, RuntimeError> {
-        match self.as_ref_repr()? {
-            RefRepr::Inline(Inline::Unit) => Ok(Ref::from_static(Tuple::new(&[]))),
-            RefRepr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            RefRepr::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
+        match self.as_ref()? {
+            ReprRef::Inline(Inline::Unit) => Ok(Ref::from_static(Tuple::new(&[]))),
+            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            ReprRef::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
                 value.borrow_ref()?.type_info(),
             )),
-            RefRepr::Any(value) => {
+            ReprRef::Any(value) => {
                 let value = value.clone().into_ref::<OwnedTuple>()?;
                 let value = Ref::map(value, OwnedTuple::as_ref);
                 Ok(value)
@@ -851,13 +834,13 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn into_tuple_mut(&self) -> Result<Mut<Tuple>, RuntimeError> {
-        match self.as_ref_repr()? {
-            RefRepr::Inline(Inline::Unit) => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
-            RefRepr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            RefRepr::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
+        match self.as_ref()? {
+            ReprRef::Inline(Inline::Unit) => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
+            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            ReprRef::Mutable(value) => Err(RuntimeError::expected::<Tuple>(
                 value.borrow_ref()?.type_info(),
             )),
-            RefRepr::Any(value) => {
+            ReprRef::Any(value) => {
                 let value = value.clone().into_mut::<OwnedTuple>()?;
                 let value = Mut::map(value, OwnedTuple::as_mut);
                 Ok(value)
@@ -1091,19 +1074,20 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<bool> {
-        match (vm_try!(self.as_ref_repr()), vm_try!(b.borrow_ref_repr())) {
-            (RefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
+        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
+            (ReprRef::Inline(a), ReprRef::Inline(b)) => {
                 return VmResult::Ok(vm_try!(a.partial_eq(b)));
             }
-            (RefRepr::Inline(a), b) => {
+            (ReprRef::Inline(a), b) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_EQ.name,
                     lhs: a.type_info(),
-                    rhs: b.type_info(),
+                    rhs: vm_try!(b.type_info()),
                 });
             }
-            (RefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => {
+            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
                 let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
 
                 match (&*a, &*b) {
                     (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
@@ -1134,7 +1118,7 @@ impl Value {
                     _ => {}
                 }
             }
-            (RefRepr::Any(value), _) => match value.type_hash() {
+            (ReprRef::Any(value), _) => match value.type_hash() {
                 runtime::Vec::HASH => {
                     let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
                     return Vec::partial_eq_with(&vec, b.clone(), caller);
@@ -1176,8 +1160,8 @@ impl Value {
         hasher: &mut Hasher,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
-        match vm_try!(self.as_ref_repr()) {
-            RefRepr::Inline(value) => match value {
+        match vm_try!(self.as_ref()) {
+            ReprRef::Inline(value) => match value {
                 Inline::Unsigned(value) => {
                     hasher.write_u64(*value);
                     return VmResult::Ok(());
@@ -1205,7 +1189,7 @@ impl Value {
                     });
                 }
             },
-            RefRepr::Any(value) => match value.type_hash() {
+            ReprRef::Any(value) => match value.type_hash() {
                 Vec::HASH => {
                     let vec = vm_try!(value.borrow_ref::<Vec>());
                     return Vec::hash_with(&vec, hasher, caller);
@@ -1252,48 +1236,50 @@ impl Value {
     /// This is the basis for the eq operation (`==`).
     #[cfg_attr(feature = "bench", inline(never))]
     pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
-        match (
-            vm_try!(self.borrow_ref_repr()),
-            vm_try!(b.borrow_ref_repr()),
-        ) {
-            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
+        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
+            (ReprRef::Inline(a), ReprRef::Inline(b)) => {
                 return a.eq(b);
             }
-            (BorrowRefRepr::Inline(lhs), rhs) => {
+            (ReprRef::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::EQ.name,
                     lhs: lhs.type_info(),
-                    rhs: rhs.type_info(),
+                    rhs: vm_try!(rhs.type_info()),
                 });
             }
-            (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        // NB: don't get any future ideas, this must fall through to
-                        // the VmError below since it's otherwise a comparison
-                        // between two incompatible types.
-                        //
-                        // Other than that, all units are equal.
-                        return VmResult::Ok(true);
+            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                match (&*a, &*b) {
+                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            // NB: don't get any future ideas, this must fall through to
+                            // the VmError below since it's otherwise a comparison
+                            // between two incompatible types.
+                            //
+                            // Other than that, all units are equal.
+                            return VmResult::Ok(true);
+                        }
                     }
-                }
-                (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
+                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
+                        }
                     }
-                }
-                (Mutable::Struct(a), Mutable::Struct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
+                    (Mutable::Struct(a), Mutable::Struct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            return Vec::eq_with(&a.data, &b.data, Value::eq_with, caller);
+                        }
                     }
-                }
-                (Mutable::Variant(a), Mutable::Variant(b)) => {
-                    if a.rtti().enum_hash == b.rtti().enum_hash {
-                        return Variant::eq_with(a, b, caller);
+                    (Mutable::Variant(a), Mutable::Variant(b)) => {
+                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                            return Variant::eq_with(a, b, caller);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
             _ => {}
         }
 
@@ -1335,48 +1321,50 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Option<Ordering>> {
-        match (
-            vm_try!(self.borrow_ref_repr()),
-            vm_try!(b.borrow_ref_repr()),
-        ) {
-            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => {
+        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
+            (ReprRef::Inline(a), ReprRef::Inline(b)) => {
                 return VmResult::Ok(vm_try!(a.partial_cmp(b)))
             }
-            (BorrowRefRepr::Inline(lhs), rhs) => {
+            (ReprRef::Inline(lhs), rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_CMP.name,
                     lhs: lhs.type_info(),
-                    rhs: rhs.type_info(),
+                    rhs: vm_try!(rhs.type_info()),
                 })
             }
-            (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        // NB: don't get any future ideas, this must fall through to
-                        // the VmError below since it's otherwise a comparison
-                        // between two incompatible types.
-                        //
-                        // Other than that, all units are equal.
-                        return VmResult::Ok(Some(Ordering::Equal));
+            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                match (&*a, &*b) {
+                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            // NB: don't get any future ideas, this must fall through to
+                            // the VmError below since it's otherwise a comparison
+                            // between two incompatible types.
+                            //
+                            // Other than that, all units are equal.
+                            return VmResult::Ok(Some(Ordering::Equal));
+                        }
                     }
-                }
-                (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        return Vec::partial_cmp_with(&a.data, &b.data, caller);
+                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            return Vec::partial_cmp_with(&a.data, &b.data, caller);
+                        }
                     }
-                }
-                (Mutable::Struct(a), Mutable::Struct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        return Vec::partial_cmp_with(&a.data, &b.data, caller);
+                    (Mutable::Struct(a), Mutable::Struct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            return Vec::partial_cmp_with(&a.data, &b.data, caller);
+                        }
                     }
-                }
-                (Mutable::Variant(a), Mutable::Variant(b)) => {
-                    if a.rtti().enum_hash == b.rtti().enum_hash {
-                        return Variant::partial_cmp_with(a, b, caller);
+                    (Mutable::Variant(a), Mutable::Variant(b)) => {
+                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                            return Variant::partial_cmp_with(a, b, caller);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            },
+            }
             _ => {}
         }
 
@@ -1418,44 +1406,46 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
-        match (
-            vm_try!(self.borrow_ref_repr()),
-            vm_try!(b.borrow_ref_repr()),
-        ) {
-            (BorrowRefRepr::Inline(a), BorrowRefRepr::Inline(b)) => return a.cmp(b),
-            (BorrowRefRepr::Mutable(a), BorrowRefRepr::Mutable(b)) => match (&*a, &*b) {
-                (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        // NB: don't get any future ideas, this must fall through to
-                        // the VmError below since it's otherwise a comparison
-                        // between two incompatible types.
-                        //
-                        // Other than that, all units are equal.
-                        return VmResult::Ok(Ordering::Equal);
+        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
+            (ReprRef::Inline(a), ReprRef::Inline(b)) => return a.cmp(b),
+            (ReprRef::Mutable(a), ReprRef::Mutable(b)) => {
+                let a = vm_try!(a.borrow_ref());
+                let b = vm_try!(b.borrow_ref());
+
+                match (&*a, &*b) {
+                    (Mutable::EmptyStruct(a), Mutable::EmptyStruct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            // NB: don't get any future ideas, this must fall through to
+                            // the VmError below since it's otherwise a comparison
+                            // between two incompatible types.
+                            //
+                            // Other than that, all units are equal.
+                            return VmResult::Ok(Ordering::Equal);
+                        }
                     }
-                }
-                (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        return Vec::cmp_with(&a.data, &b.data, caller);
+                    (Mutable::TupleStruct(a), Mutable::TupleStruct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            return Vec::cmp_with(&a.data, &b.data, caller);
+                        }
                     }
-                }
-                (Mutable::Struct(a), Mutable::Struct(b)) => {
-                    if a.rtti.hash == b.rtti.hash {
-                        return Vec::cmp_with(&a.data, &b.data, caller);
+                    (Mutable::Struct(a), Mutable::Struct(b)) => {
+                        if a.rtti.hash == b.rtti.hash {
+                            return Vec::cmp_with(&a.data, &b.data, caller);
+                        }
                     }
-                }
-                (Mutable::Variant(a), Mutable::Variant(b)) => {
-                    if a.rtti().enum_hash == b.rtti().enum_hash {
-                        return Variant::cmp_with(a, b, caller);
+                    (Mutable::Variant(a), Mutable::Variant(b)) => {
+                        if a.rtti().enum_hash == b.rtti().enum_hash {
+                            return Variant::cmp_with(a, b, caller);
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
-            },
-            (BorrowRefRepr::Inline(lhs), rhs) => {
+            }
+            (ReprRef::Inline(lhs), rhs) => {
                 return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::CMP.name,
                     lhs: lhs.type_info(),
-                    rhs: rhs.type_info(),
+                    rhs: vm_try!(rhs.type_info()),
                 });
             }
             _ => {}
@@ -1549,39 +1539,30 @@ impl Value {
         }
     }
 
-    pub(crate) fn take_repr(self) -> Result<OwnedRepr, AccessError> {
+    pub(crate) fn take_repr(self) -> Result<ReprOwned, AccessError> {
         match self.repr {
             Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(OwnedRepr::Inline(value)),
-            Repr::Mutable(value) => Ok(OwnedRepr::Mutable(value.take()?)),
-            Repr::Any(value) => Ok(OwnedRepr::Any(value)),
+            Repr::Inline(value) => Ok(ReprOwned::Inline(value)),
+            Repr::Mutable(value) => Ok(ReprOwned::Mutable(value.take()?)),
+            Repr::Any(value) => Ok(ReprOwned::Any(value)),
         }
     }
 
-    pub(crate) fn borrow_ref_repr(&self) -> Result<BorrowRefRepr<'_>, AccessError> {
+    pub(crate) fn as_ref(&self) -> Result<ReprRef<'_>, AccessError> {
         match &self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(BorrowRefRepr::Inline(value)),
-            Repr::Mutable(value) => Ok(BorrowRefRepr::Mutable(value.borrow_ref()?)),
-            Repr::Any(value) => Ok(BorrowRefRepr::Any(value)),
-        }
-    }
-
-    pub(crate) fn as_ref_repr(&self) -> Result<RefRepr<'_>, AccessError> {
-        match &self.repr {
-            Repr::Inline(value) => Ok(RefRepr::Inline(value)),
-            Repr::Mutable(value) => Ok(RefRepr::Mutable(value)),
-            Repr::Any(value) => Ok(RefRepr::Any(value)),
+            Repr::Inline(value) => Ok(ReprRef::Inline(value)),
+            Repr::Mutable(value) => Ok(ReprRef::Mutable(value)),
+            Repr::Any(value) => Ok(ReprRef::Any(value)),
             Repr::Empty => Err(AccessError::empty()),
         }
     }
 
-    pub(crate) fn as_mut_repr(&mut self) -> Result<MutRepr<'_>, AccessError> {
+    pub(crate) fn as_mut(&mut self) -> Result<ReprMut<'_>, AccessError> {
         match &mut self.repr {
             Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(MutRepr::Inline(value)),
-            Repr::Mutable(value) => Ok(MutRepr::Mutable(value)),
-            Repr::Any(value) => Ok(MutRepr::Any(value)),
+            Repr::Inline(value) => Ok(ReprMut::Inline(value)),
+            Repr::Mutable(value) => Ok(ReprMut::Mutable(value)),
+            Repr::Any(value) => Ok(ReprMut::Any(value)),
         }
     }
 

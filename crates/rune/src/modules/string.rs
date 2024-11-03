@@ -12,7 +12,7 @@ use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
     Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Panic, Range, RangeFrom,
-    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, RefRepr, ToValue, TypeOf, Value,
+    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, ReprRef, ToValue, TypeOf, Value,
     VmErrorKind, VmResult,
 };
 use crate::{Any, ContextError, Module, TypeHash};
@@ -888,19 +888,19 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 /// [`split_whitespace`]: str::split_whitespace
 #[rune::function(instance, deprecated = "Use String::split instead")]
 fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
-    match vm_try!(value.as_ref_repr()) {
-        RefRepr::Inline(Inline::Char(c)) => {
+    match vm_try!(value.as_ref()) {
+        ReprRef::Inline(Inline::Char(c)) => {
             VmResult::Ok(vm_try!(rune::to_value(Split::new(this, *c))))
         }
-        RefRepr::Inline(value) => VmResult::err([
+        ReprRef::Inline(value) => VmResult::err([
             VmErrorKind::expected::<String>(value.type_info()),
             VmErrorKind::bad_argument(0),
         ]),
-        RefRepr::Mutable(value) => VmResult::err([
+        ReprRef::Mutable(value) => VmResult::err([
             VmErrorKind::expected::<String>(vm_try!(value.borrow_ref()).type_info()),
             VmErrorKind::bad_argument(0),
         ]),
-        RefRepr::Any(value) => match value.type_hash() {
+        ReprRef::Any(value) => match value.type_hash() {
             String::HASH => {
                 let s = vm_try!(value.borrow_ref::<String>());
 
@@ -937,21 +937,21 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
 /// ```
 #[rune::function(instance)]
 fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
-    let outcome = match vm_try!(value.as_ref_repr()) {
-        RefRepr::Inline(Inline::Char(pat)) => this.split_once(*pat),
-        RefRepr::Inline(value) => {
+    let outcome = match vm_try!(value.as_ref()) {
+        ReprRef::Inline(Inline::Char(pat)) => this.split_once(*pat),
+        ReprRef::Inline(value) => {
             return VmResult::err([
                 VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
             ]);
         }
-        RefRepr::Mutable(value) => {
+        ReprRef::Mutable(value) => {
             return VmResult::err([
                 VmErrorKind::expected::<String>(vm_try!(value.borrow_ref()).type_info()),
                 VmErrorKind::bad_argument(0),
             ]);
         }
-        RefRepr::Any(value) => match value.type_hash() {
+        ReprRef::Any(value) => match value.type_hash() {
             String::HASH => {
                 let s = vm_try!(value.borrow_ref::<String>());
                 this.split_once(s.as_str())

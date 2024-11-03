@@ -7,7 +7,7 @@ use crate::compile::meta;
 use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
 use crate::hir;
 use crate::query::{Query, Used};
-use crate::runtime::{self, ConstValue, Object, OwnedTuple, RefRepr, Value};
+use crate::runtime::{self, ConstValue, Object, OwnedTuple, ReprRef, Value};
 use crate::TypeHash;
 
 /// The interpreter that executed [Ir][crate::ir::Ir].
@@ -200,22 +200,22 @@ impl ir::Scopes {
             }
             ir::IrTargetKind::Index(target, index) => {
                 let value = self.get_target(target)?;
-                let target = value.as_ref_repr().with_span(ir_target)?;
+                let target = value.as_ref().with_span(ir_target)?;
 
                 match target {
-                    RefRepr::Inline(value) => {
+                    ReprRef::Inline(value) => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
                             value.type_info(),
                         ));
                     }
-                    RefRepr::Mutable(value) => {
+                    ReprRef::Mutable(value) => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
                             value.borrow_ref().with_span(ir_target)?.type_info(),
                         ));
                     }
-                    RefRepr::Any(value) => match value.type_hash() {
+                    ReprRef::Any(value) => match value.type_hash() {
                         runtime::Vec::HASH => {
                             let vec = value.borrow_ref::<runtime::Vec>().with_span(ir_target)?;
 
@@ -270,14 +270,14 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let target = self.get_target(target)?;
 
-                match target.as_ref_repr().with_span(ir_target)? {
-                    RefRepr::Inline(value) => {
+                match target.as_ref().with_span(ir_target)? {
+                    ReprRef::Inline(value) => {
                         return Err(compile::Error::expected_type::<OwnedTuple>(
                             ir_target,
                             value.type_info(),
                         ));
                     }
-                    RefRepr::Mutable(current) => {
+                    ReprRef::Mutable(current) => {
                         let mutable = current.borrow_mut().with_span(ir_target)?;
 
                         return Err(compile::Error::expected_type::<OwnedTuple>(
@@ -285,7 +285,7 @@ impl ir::Scopes {
                             mutable.type_info(),
                         ));
                     }
-                    RefRepr::Any(any) => match any.type_hash() {
+                    ReprRef::Any(any) => match any.type_hash() {
                         runtime::Vec::HASH => {
                             let mut vec = any.borrow_mut::<runtime::Vec>().with_span(ir_target)?;
 
@@ -347,8 +347,8 @@ impl ir::Scopes {
             ir::IrTargetKind::Index(target, index) => {
                 let current = self.get_target(target)?;
 
-                match current.as_ref_repr().with_span(ir_target)? {
-                    RefRepr::Mutable(value) => {
+                match current.as_ref().with_span(ir_target)? {
+                    ReprRef::Mutable(value) => {
                         let value = value.borrow_ref().with_span(ir_target)?;
 
                         Err(compile::Error::expected_type::<OwnedTuple>(
@@ -356,7 +356,7 @@ impl ir::Scopes {
                             value.type_info(),
                         ))
                     }
-                    RefRepr::Any(value) => match value.type_hash() {
+                    ReprRef::Any(value) => match value.type_hash() {
                         runtime::Vec::HASH => {
                             let mut vec =
                                 value.borrow_mut::<runtime::Vec>().with_span(ir_target)?;

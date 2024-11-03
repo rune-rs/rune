@@ -36,7 +36,7 @@ fn test_function() {
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(
         value.take_repr().unwrap(),
-        OwnedRepr::Mutable(Mutable::Variant(..))
+        ReprOwned::Mutable(Mutable::Variant(..))
     ));
 
     // ptr to dynamic function.
@@ -49,7 +49,7 @@ fn test_function() {
     let value: Value = function.call((1i64,)).unwrap();
     assert!(matches!(
         value.take_repr().unwrap(),
-        OwnedRepr::Mutable(Mutable::TupleStruct(..))
+        ReprOwned::Mutable(Mutable::TupleStruct(..))
     ));
 
     // non-capturing closure == free function

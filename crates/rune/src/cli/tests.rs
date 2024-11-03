@@ -18,7 +18,7 @@ use crate::cli::{
 use crate::compile::FileSourceLoader;
 use crate::doc::{TestKind, TestParams};
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{RefRepr, Value, Vm, VmError, VmResult};
+use crate::runtime::{ReprRef, Value, Vm, VmError, VmResult};
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, TypeHash, Unit};
 
 mod cli {
@@ -534,8 +534,8 @@ impl TestCase {
         capture_io.drain_into(&mut self.output)?;
 
         self.outcome = match result {
-            VmResult::Ok(v) => match v.as_ref_repr()? {
-                RefRepr::Any(value) => match value.type_hash() {
+            VmResult::Ok(v) => match v.as_ref()? {
+                ReprRef::Any(value) => match value.type_hash() {
                     Result::<Value, Value>::HASH => {
                         let result = value.borrow_ref::<Result<Value, Value>>()?;
 

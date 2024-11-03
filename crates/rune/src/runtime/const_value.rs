@@ -16,8 +16,8 @@ use crate::runtime;
 use crate::{Hash, TypeHash};
 
 use super::{
-    BorrowRefRepr, Bytes, FromValue, Inline, Object, OwnedTuple, ToValue, Tuple, Type, TypeInfo,
-    Value, VmErrorKind,
+    Bytes, FromValue, Inline, Object, OwnedTuple, ReprRef, ToValue, Tuple, Type, TypeInfo, Value,
+    VmErrorKind,
 };
 
 /// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
@@ -234,16 +234,14 @@ impl ConstValue {
 
     /// Construct a constant value from a reference to a value..
     pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
-        let inner = match value.borrow_ref_repr()? {
-            BorrowRefRepr::Inline(value) => ConstValueKind::Inline(*value),
-            BorrowRefRepr::Mutable(value) => match &*value {
-                value => {
-                    return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
-                        actual: value.type_info(),
-                    }))
-                }
-            },
-            BorrowRefRepr::Any(value) => match value.type_hash() {
+        let inner = match value.as_ref()? {
+            ReprRef::Inline(value) => ConstValueKind::Inline(*value),
+            ReprRef::Mutable(value) => {
+                return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
+                    actual: value.borrow_ref()?.type_info(),
+                }));
+            }
+            ReprRef::Any(value) => match value.type_hash() {
                 Option::<Value>::HASH => {
                     let option = value.borrow_ref::<Option<Value>>()?;
 
