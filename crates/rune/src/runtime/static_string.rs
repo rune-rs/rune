@@ -17,6 +17,7 @@ pub struct StaticString {
 }
 
 impl cmp::PartialEq for StaticString {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash && self.inner == other.inner
     }
@@ -25,18 +26,21 @@ impl cmp::PartialEq for StaticString {
 impl cmp::Eq for StaticString {}
 
 impl cmp::PartialOrd for StaticString {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl cmp::Ord for StaticString {
+    #[inline]
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.inner.cmp(&other.inner)
     }
 }
 
 impl hash::Hash for StaticString {
+    #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
         self.hash.hash(state)
     }
@@ -44,6 +48,7 @@ impl hash::Hash for StaticString {
 
 impl StaticString {
     /// Construct a new static string.
+    #[inline]
     pub fn new<S>(s: S) -> alloc::Result<Self>
     where
         S: AsRef<str>,
@@ -68,21 +73,23 @@ impl AsRef<String> for StaticString {
 }
 
 impl fmt::Debug for StaticString {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", &self.inner)?;
-        Ok(())
+        write!(f, "{:?}", &self.inner)
     }
 }
 
 impl ops::Deref for StaticString {
     type Target = String;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
 impl From<String> for StaticString {
+    #[inline]
     fn from(inner: String) -> Self {
         let hash = inner.as_str().into_hash();
         Self { inner, hash }

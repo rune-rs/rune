@@ -447,42 +447,43 @@ impl Value {
         match &self.repr {
             Repr::Empty => {
                 vm_try!(vm_write!(f, "<empty>"));
-                return VmResult::Ok(());
             }
             Repr::Inline(value) => {
                 vm_try!(vm_write!(f, "{value:?}"));
-                return VmResult::Ok(());
             }
             Repr::Dynamic(ref value) => {
                 vm_try!(value.debug_fmt_with(f, caller));
-                return VmResult::Ok(());
             }
-            Repr::Any(..) => {}
-        }
+            Repr::Any(..) => {
+                // reborrow f to avoid moving it
+                let mut args = DynGuardedArgs::new((&mut *f,));
 
-        // reborrow f to avoid moving it
-        let mut args = DynGuardedArgs::new((&mut *f,));
-
-        match vm_try!(caller.try_call_protocol_fn(Protocol::DEBUG_FMT, self.clone(), &mut args)) {
-            CallResultOnly::Ok(value) => {
-                vm_try!(<()>::from_value(value));
+                match vm_try!(caller.try_call_protocol_fn(
+                    Protocol::DEBUG_FMT,
+                    self.clone(),
+                    &mut args
+                )) {
+                    CallResultOnly::Ok(value) => {
+                        vm_try!(<()>::from_value(value));
+                    }
+                    CallResultOnly::Unsupported(value) => match &value.repr {
+                        Repr::Empty => {
+                            vm_try!(vm_write!(f, "<empty>"));
+                        }
+                        Repr::Inline(value) => {
+                            vm_try!(vm_write!(f, "{value:?}"));
+                        }
+                        Repr::Dynamic(value) => {
+                            let ty = value.type_info();
+                            vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
+                        }
+                        Repr::Any(value) => {
+                            let ty = value.type_info();
+                            vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
+                        }
+                    },
+                }
             }
-            CallResultOnly::Unsupported(value) => match &value.repr {
-                Repr::Empty => {
-                    vm_try!(vm_write!(f, "<empty>"));
-                }
-                Repr::Inline(value) => {
-                    vm_try!(vm_write!(f, "{value:?}"));
-                }
-                Repr::Dynamic(value) => {
-                    let ty = value.type_info();
-                    vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
-                }
-                Repr::Any(value) => {
-                    let ty = value.type_info();
-                    vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
-                }
-            },
         }
 
         VmResult::Ok(())
@@ -1369,6 +1370,7 @@ impl Value {
     /// Coerce into a checked [`Inline`] object.
     ///
     /// Any empty value will cause an access error.
+    #[inline]
     pub(crate) fn as_inline(&self) -> Result<Option<&Inline>, AccessError> {
         match &self.repr {
             Repr::Empty => Err(AccessError::empty()),
@@ -1378,6 +1380,7 @@ impl Value {
         }
     }
 
+    #[inline]
     pub(crate) fn as_inline_mut(&mut self) -> Result<Option<&mut Inline>, AccessError> {
         match &mut self.repr {
             Repr::Empty => Err(AccessError::empty()),
@@ -1390,6 +1393,7 @@ impl Value {
     /// Coerce into a checked [`AnyObj`] object.
     ///
     /// Any empty value will cause an access error.
+    #[inline]
     pub(crate) fn as_any(&self) -> Result<Option<&AnyObj>, AccessError> {
         match &self.repr {
             Repr::Empty => Err(AccessError::empty()),
@@ -1399,6 +1403,7 @@ impl Value {
         }
     }
 
+    #[inline]
     pub(crate) fn take_repr(self) -> Result<ReprOwned, AccessError> {
         match self.repr {
             Repr::Empty => Err(AccessError::empty()),
@@ -1408,15 +1413,17 @@ impl Value {
         }
     }
 
+    #[inline]
     pub(crate) fn as_ref(&self) -> Result<ReprRef<'_>, AccessError> {
         match &self.repr {
+            Repr::Empty => Err(AccessError::empty()),
             Repr::Inline(value) => Ok(ReprRef::Inline(value)),
             Repr::Dynamic(value) => Ok(ReprRef::Dynamic(value)),
             Repr::Any(value) => Ok(ReprRef::Any(value)),
-            Repr::Empty => Err(AccessError::empty()),
         }
     }
 
+    #[inline]
     pub(crate) fn as_mut(&mut self) -> Result<ReprMut<'_>, AccessError> {
         match &mut self.repr {
             Repr::Empty => Err(AccessError::empty()),
@@ -1426,27 +1433,29 @@ impl Value {
         }
     }
 
+    #[inline]
     pub(crate) fn try_borrow_ref<T>(&self) -> Result<Option<BorrowRef<'_, T>>, AccessError>
     where
         T: Any,
     {
         match &self.repr {
+            Repr::Empty => Err(AccessError::empty()),
             Repr::Inline(..) => Ok(None),
             Repr::Dynamic(..) => Ok(None),
             Repr::Any(value) => value.try_borrow_ref(),
-            Repr::Empty => Err(AccessError::empty()),
         }
     }
 
+    #[inline]
     pub(crate) fn try_borrow_mut<T>(&self) -> Result<Option<BorrowMut<'_, T>>, AccessError>
     where
         T: Any,
     {
         match &self.repr {
+            Repr::Empty => Err(AccessError::empty()),
             Repr::Inline(..) => Ok(None),
             Repr::Dynamic(..) => Ok(None),
             Repr::Any(value) => value.try_borrow_mut(),
-            Repr::Empty => Err(AccessError::empty()),
         }
     }
 
@@ -1495,49 +1504,42 @@ impl Value {
 
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let snapshot = match &self.repr {
+        match &self.repr {
             Repr::Empty => {
                 write!(f, "<empty>")?;
-                return Ok(());
             }
             Repr::Inline(value) => {
                 write!(f, "{value:?}")?;
-                return Ok(());
             }
-            Repr::Dynamic(value) => value.snapshot(),
-            Repr::Any(value) => value.snapshot(),
-        };
+            _ => {
+                let mut s = String::new();
+                let result = Formatter::format_with(&mut s, |f| self.debug_fmt(f));
 
-        if !snapshot.is_readable() {
-            write!(f, "<{snapshot}>")?;
-            return Ok(());
+                if let Err(e) = result.into_result() {
+                    match &self.repr {
+                        Repr::Empty => {
+                            write!(f, "<empty: {e}>")?;
+                        }
+                        Repr::Inline(value) => {
+                            write!(f, "<{value:?}: {e}>")?;
+                        }
+                        Repr::Dynamic(value) => {
+                            let ty = value.type_info();
+                            write!(f, "<{ty} object at {value:p}: {e}>")?;
+                        }
+                        Repr::Any(value) => {
+                            let ty = value.type_info();
+                            write!(f, "<{ty} object at {value:p}: {e}>")?;
+                        }
+                    }
+
+                    return Ok(());
+                }
+
+                f.write_str(s.as_str())?;
+            }
         }
 
-        let mut s = String::new();
-        let result = Formatter::format_with(&mut s, |f| self.debug_fmt(f));
-
-        if let Err(e) = result.into_result() {
-            match &self.repr {
-                Repr::Empty => {
-                    write!(f, "<empty: {e}>")?;
-                }
-                Repr::Inline(value) => {
-                    write!(f, "<{value:?}: {e}>")?;
-                }
-                Repr::Dynamic(value) => {
-                    let ty = value.type_info();
-                    write!(f, "<{ty} object at {value:p}: {e}>")?;
-                }
-                Repr::Any(value) => {
-                    let ty = value.type_info();
-                    write!(f, "<{ty} object at {value:p}: {e}>")?;
-                }
-            }
-
-            return Ok(());
-        }
-
-        f.write_str(s.as_str())?;
         Ok(())
     }
 }

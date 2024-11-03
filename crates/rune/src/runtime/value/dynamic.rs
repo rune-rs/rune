@@ -97,6 +97,7 @@ impl<H, T> Dynamic<H, T> {
     }
 
     /// Test if the value is sharable.
+    #[inline]
     pub(crate) fn is_readable(&self) -> bool {
         // Safety: Since we have a reference to this shared, we know that the
         // inner is available.
@@ -104,29 +105,34 @@ impl<H, T> Dynamic<H, T> {
     }
 
     /// Test if the value is exclusively accessible.
+    #[inline]
     pub(crate) fn is_writable(&self) -> bool {
         unsafe { self.shared.as_ref().access.is_exclusive() }
     }
 
     /// Get access snapshot of shared value.
+    #[inline]
     pub(crate) fn snapshot(&self) -> Snapshot {
         // SAFETY: We know that the shared pointer is valid.
         unsafe { self.shared.as_ref().access.snapshot() }
     }
 
     /// Get the size of the dynamic collection of values.
+    #[inline]
     pub(crate) fn len(&self) -> usize {
         // SAFETY: We know that the shared pointer is valid.
         unsafe { self.shared.as_ref().len }
     }
 
     /// Get runtime type information of the dynamic value.
+    #[inline]
     pub(crate) fn rtti(&self) -> &H {
         // SAFETY: We know that the shared pointer is valid.
         unsafe { &self.shared.as_ref().rtti }
     }
 
     /// Borrow the interior data array by reference.
+    #[inline]
     pub(crate) fn borrow_ref(&self) -> Result<BorrowRef<[T]>, AccessError> {
         // SAFETY: We know the layout is valid since it is reference counted.
         unsafe {
@@ -138,6 +144,7 @@ impl<H, T> Dynamic<H, T> {
     }
 
     /// Borrow the interior data array by mutable reference.
+    #[inline]
     pub(crate) fn borrow_mut(&self) -> Result<BorrowMut<[T]>, AccessError> {
         // SAFETY: We know the layout is valid since it is reference counted.
         unsafe {
@@ -149,6 +156,7 @@ impl<H, T> Dynamic<H, T> {
     }
 
     /// Take the interior value and drop it if necessary.
+    #[inline]
     pub(crate) fn drop(self) -> Result<(), AccessError> {
         // SAFETY: We've checked for the appropriate type just above.
         unsafe {
@@ -218,6 +226,7 @@ impl<H, T> Clone for Dynamic<H, T> {
     }
 }
 
+#[repr(C)]
 struct Shared<H, T> {
     /// Run time type information of the shared value.
     rtti: H,
@@ -232,6 +241,7 @@ struct Shared<H, T> {
 }
 
 impl<H, T> Shared<H, T> {
+    #[inline]
     fn layout(len: usize) -> Result<Layout, LayoutError> {
         let array = Layout::array::<T>(len)?;
         Layout::from_size_align(
@@ -241,16 +251,19 @@ impl<H, T> Shared<H, T> {
     }
 
     /// Get the rtti pointer in the shared container.
+    #[inline]
     unsafe fn as_rtti_ptr(this: NonNull<Self>) -> NonNull<H> {
         NonNull::new_unchecked(addr_of_mut!((*this.as_ptr()).rtti))
     }
 
     /// Get the data pointer in the shared container.
+    #[inline]
     unsafe fn as_data_ptr(this: NonNull<Self>) -> NonNull<T> {
         NonNull::new_unchecked(addr_of_mut!((*this.as_ptr()).data)).cast::<T>()
     }
 
     /// Increment the reference count of the inner value.
+    #[inline]
     unsafe fn inc(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();
@@ -273,6 +286,7 @@ impl<H, T> Shared<H, T> {
     /// # Safety
     ///
     /// ProtocolCaller needs to ensure that `this` is a valid pointer.
+    #[inline]
     unsafe fn dec(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
         let access = &*addr_of!((*this.as_ptr()).access);
@@ -307,6 +321,7 @@ impl<H, T> Shared<H, T> {
         Global.deallocate(this.cast(), layout);
     }
 
+    #[inline]
     unsafe fn drop_values(this: NonNull<Self>, len: usize) {
         if needs_drop::<T>() {
             let data = Self::as_data_ptr(this);
@@ -335,11 +350,7 @@ impl<T> Dynamic<Arc<Rtti>, T> {
             return Ok(None);
         };
 
-        let values = self.borrow_ref()?;
-
-        let index = *index;
-        let value = BorrowRef::try_map(values, |value| value.get(index));
-        Ok(value.ok())
+        self.get_ref(*index)
     }
 
     /// Access a field mutably by name.
@@ -349,27 +360,41 @@ impl<T> Dynamic<Arc<Rtti>, T> {
             return Ok(None);
         };
 
-        let values = self.borrow_mut()?;
-
-        let index = *index;
-        let value = BorrowMut::try_map(values, |value| value.get_mut(index));
-        Ok(value.ok())
+        self.get_mut(*index)
     }
 
     /// Access a field by index.
     #[inline]
     pub(crate) fn get_ref(&self, index: usize) -> Result<Option<BorrowRef<'_, T>>, AccessError> {
-        let values = self.borrow_ref()?;
-        let value = BorrowRef::try_map(values, |value| value.get(index));
-        Ok(value.ok())
+        // SAFETY: We know the layout is valid since it is reference counted.
+        unsafe {
+            let shared = self.shared.as_ref();
+
+            if index >= shared.len {
+                return Ok(None);
+            }
+
+            let guard = shared.access.shared()?;
+            let data = Shared::as_data_ptr(self.shared).add(index);
+            Ok(Some(BorrowRef::new(data, guard.into_raw())))
+        }
     }
 
     /// Access a field mutably by index.
     #[inline]
     pub(crate) fn get_mut(&self, index: usize) -> Result<Option<BorrowMut<'_, T>>, AccessError> {
-        let values = self.borrow_mut()?;
-        let value = BorrowMut::try_map(values, |value| value.get_mut(index));
-        Ok(value.ok())
+        // SAFETY: We know the layout is valid since it is reference counted.
+        unsafe {
+            let shared = self.shared.as_ref();
+
+            if index >= shared.len {
+                return Ok(None);
+            }
+
+            let guard = shared.access.exclusive()?;
+            let data = Shared::as_data_ptr(self.shared).add(index);
+            Ok(Some(BorrowMut::new(data, guard.into_raw())))
+        }
     }
 }
 

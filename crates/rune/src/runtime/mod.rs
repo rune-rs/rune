@@ -208,3 +208,17 @@ pub use self::control_flow::ControlFlow;
 mod hasher;
 #[cfg(feature = "alloc")]
 pub use self::hasher::Hasher;
+
+pub(crate) type FieldMap<K, V> = crate::alloc::HashMap<K, V>;
+
+#[inline(always)]
+pub(crate) fn new_field_map<K, V>() -> FieldMap<K, V> {
+    FieldMap::new()
+}
+
+#[inline(always)]
+pub(crate) fn new_field_hash_map_with_capacity<K, V>(
+    cap: usize,
+) -> crate::alloc::Result<FieldMap<K, V>> {
+    FieldMap::try_with_capacity(cap)
+}

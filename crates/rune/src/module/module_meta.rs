@@ -5,11 +5,10 @@ use ::rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::alloc::HashMap;
 use crate::compile::context::{AttributeMacroHandler, MacroHandler, TraitHandler};
 use crate::compile::{meta, Docs};
 use crate::function_meta::AssociatedName;
-use crate::runtime::{ConstValue, FunctionHandler, TypeInfo};
+use crate::runtime::{ConstValue, FieldMap, FunctionHandler, TypeInfo};
 use crate::{Hash, ItemBuf};
 
 #[doc(hidden)]
@@ -89,9 +88,19 @@ pub(crate) enum Fields {
 }
 
 impl Fields {
+    /// Get the number of named fields.
+    #[inline]
+    fn size(&self) -> usize {
+        match self {
+            Fields::Named(fields) => fields.len(),
+            _ => 0,
+        }
+    }
+
     /// Coerce into fields hash map.
-    pub(crate) fn to_fields(&self) -> alloc::Result<HashMap<Box<str>, usize>> {
-        let mut fields = HashMap::new();
+    #[inline]
+    pub(crate) fn to_fields(&self) -> alloc::Result<FieldMap<Box<str>, usize>> {
+        let mut fields = crate::runtime::new_field_hash_map_with_capacity(self.size())?;
 
         if let Fields::Named(names) = self {
             for (index, name) in names.iter().copied().enumerate() {

@@ -1128,72 +1128,41 @@ impl Vm {
         }
     }
 
-    /// Implementation of getting a string index on an object-like type.
-    fn try_object_slot_index_get(
-        &mut self,
-        target: Value,
-        slot: usize,
-        out: Output,
-    ) -> VmResult<CallResult<()>> {
-        let index = vm_try!(self.unit.lookup_string(slot));
-
-        'fallback: {
-            match vm_try!(target.as_ref()) {
-                ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
-                    if let Some(value) = vm_try!(data.get_field_ref(index.as_str())) {
-                        vm_try!(out.store(&mut self.stack, || value.clone()));
-                        return VmResult::Ok(CallResult::Ok(()));
-                    }
-                }
-                ReprRef::Any(value) => match value.type_hash() {
-                    Object::HASH => {
-                        let object = vm_try!(value.borrow_ref::<Object>());
-
-                        if let Some(value) = object.get(index.as_str()) {
-                            vm_try!(out.store(&mut self.stack, || value.clone()));
-                            return VmResult::Ok(CallResult::Ok(()));
-                        }
-                    }
-                    _ => break 'fallback,
-                },
-                _ => {
-                    return VmResult::Ok(CallResult::Unsupported(target.clone()));
-                }
-            }
-
-            return err(VmErrorKind::ObjectIndexMissing { slot });
-        };
-
-        let hash = index.hash();
-        let result = vm_try!(self.call_field_fn(Protocol::GET, target, hash, &mut (), out));
-        VmResult::Ok(result)
-    }
-
-    fn try_object_slot_index_set(target: &Value, field: &str, value: &Value) -> VmResult<bool> {
-        match vm_try!(target.as_ref()) {
+    fn try_object_slot_index_set(
+        target: &Value,
+        field: &str,
+        value: &Value,
+    ) -> Result<bool, VmErrorKind> {
+        match target.as_ref()? {
             ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
-                if let Some(mut v) = vm_try!(data.get_field_mut(field)) {
+                if let Some(mut v) = data.get_field_mut(field)? {
                     v.clone_from(value);
-                    return VmResult::Ok(true);
+                    return Ok(true);
                 }
 
-                err(VmErrorKind::MissingField {
+                Err(VmErrorKind::MissingField {
                     target: data.type_info(),
-                    field: vm_try!(field.try_to_owned()),
+                    field: field.try_to_owned()?,
                 })
             }
             ReprRef::Any(target) => match target.type_hash() {
                 Object::HASH => {
-                    let key = vm_try!(field.try_to_owned());
-                    let mut object = vm_try!(target.borrow_mut::<Object>());
-                    vm_try!(object.insert(key, value.clone()));
-                    VmResult::Ok(true)
+                    let mut target = target.borrow_mut::<Object>()?;
+
+                    if let Some(target) = target.get_mut(field) {
+                        target.clone_from(value);
+                    } else {
+                        let key = field.try_to_owned()?;
+                        target.insert(key, value.clone())?;
+                    }
+
+                    Ok(true)
                 }
-                _ => VmResult::Ok(false),
+                _ => Ok(false),
             },
-            target => err(VmErrorKind::MissingField {
+            target => Err(VmErrorKind::MissingField {
                 target: target.type_info(),
-                field: vm_try!(field.try_to_owned()),
+                field: field.try_to_owned()?,
             }),
         }
     }
@@ -2522,15 +2491,11 @@ impl Vm {
         let index = vm_try!(self.stack.at(index));
         let value = vm_try!(self.stack.at(value));
 
-        'fallback: {
-            let Some(field) = vm_try!(index.try_borrow_ref::<String>()) else {
-                break 'fallback;
-            };
-
+        if let Some(field) = vm_try!(index.try_borrow_ref::<String>()) {
             if vm_try!(Self::try_object_slot_index_set(target, &field, value)) {
                 return VmResult::Ok(());
             }
-        };
+        }
 
         let target = target.clone();
         let index = index.clone();
@@ -2794,10 +2759,42 @@ impl Vm {
         slot: usize,
         out: Output,
     ) -> VmResult<()> {
-        let target = vm_try!(self.stack.at(addr)).clone();
+        let target = vm_try!(self.stack.at(addr));
+        let index = vm_try!(self.unit.lookup_string(slot));
+
+        match vm_try!(target.as_ref()) {
+            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
+                let Some(value) = vm_try!(data.get_field_ref(index.as_str())) else {
+                    return err(VmErrorKind::ObjectIndexMissing { slot });
+                };
+
+                let value = value.clone();
+                vm_try!(out.store(&mut self.stack, value));
+                return VmResult::Ok(());
+            }
+            ReprRef::Any(value) if value.type_hash() == Object::HASH => {
+                let object = vm_try!(value.borrow_ref::<Object>());
+
+                let Some(value) = object.get(index.as_str()) else {
+                    return err(VmErrorKind::ObjectIndexMissing { slot });
+                };
+
+                let value = value.clone();
+                vm_try!(out.store(&mut self.stack, value));
+                return VmResult::Ok(());
+            }
+            ReprRef::Any(..) => {}
+            target => {
+                return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
+                    target: target.type_info(),
+                });
+            }
+        }
+
+        let target = target.clone();
 
         if let CallResult::Unsupported(target) =
-            vm_try!(self.try_object_slot_index_get(target, slot, out))
+            vm_try!(self.call_field_fn(Protocol::GET, target, index.hash(), &mut (), out))
         {
             return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                 target: vm_try!(target.type_info()),
