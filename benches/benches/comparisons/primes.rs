@@ -8,29 +8,31 @@ fn entry(b: &mut Criterion) {
 
     group.bench_function("rhai", |b| {
         let ast = rhai_ast! {
-            const MAX_NUMBER_TO_CHECK = 10_000;
+            Full {
+                const MAX_NUMBER_TO_CHECK = 10_000;
 
-            let prime_mask = [];
-            prime_mask.pad(MAX_NUMBER_TO_CHECK, true);
+                let prime_mask = [];
+                prime_mask.pad(MAX_NUMBER_TO_CHECK, true);
 
-            prime_mask[0] = false;
-            prime_mask[1] = false;
+                prime_mask[0] = false;
+                prime_mask[1] = false;
 
-            let total_primes_found = 0;
+                let total_primes_found = 0;
 
-            for p in 2..MAX_NUMBER_TO_CHECK {
-                if prime_mask[p] {
-                    total_primes_found += 1;
-                    let i = 2 * p;
+                for p in 2..MAX_NUMBER_TO_CHECK {
+                    if prime_mask[p] {
+                        total_primes_found += 1;
+                        let i = 2 * p;
 
-                    while i < MAX_NUMBER_TO_CHECK {
-                        prime_mask[i] = false;
-                        i += p;
+                        while i < MAX_NUMBER_TO_CHECK {
+                            prime_mask[i] = false;
+                            i += p;
+                        }
                     }
                 }
-            }
 
-            total_primes_found
+                total_primes_found
+            }
         };
 
         b.iter(|| {

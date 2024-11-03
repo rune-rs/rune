@@ -43,9 +43,9 @@ macro_rules! rune_vm {
 }
 
 macro_rules! rhai_ast {
-    ($($tt:tt)*) => {{
+    ($level:ident { $($tt:tt)* }) => {{
         let mut engine = $crate::rhai::Engine::new();
-        engine.set_optimization_level($crate::rhai::OptimizationLevel::Full);
+        engine.set_optimization_level($crate::rhai::OptimizationLevel::$level);
         let ast = engine.compile(stringify!($($tt)*)).unwrap();
         $crate::RhaiRunner { engine, ast }
     }};
@@ -67,9 +67,11 @@ pub(crate) mod rhai {
 }
 
 mod comparisons {
+    pub mod eval;
     pub mod primes;
 }
 
 criterion::criterion_main! {
     comparisons::primes::benches,
+    comparisons::eval::benches,
 }
