@@ -567,10 +567,11 @@ where
 impl UnsafeToRef for [Value] {
     type Guard = RawAnyGuard;
 
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let vec = vm_try!(value.into_ref::<Vec>());
+    #[inline]
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError> {
+        let vec = value.into_ref::<Vec>()?;
         let (vec, guard) = Ref::into_raw(vec);
-        VmResult::Ok((vec.as_ref().as_slice(), guard))
+        Ok((vec.as_ref().as_slice(), guard))
     }
 }
 

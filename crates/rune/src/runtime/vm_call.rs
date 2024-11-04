@@ -83,7 +83,7 @@ impl VmCall {
 
         let new_stack = vm_try!(vm.stack_mut().drain().try_collect::<Stack>());
 
-        let Some(ip) = vm_try!(vm.pop_call_frame_from_call()) else {
+        let Some(ip) = vm.pop_call_frame_from_call() else {
             return VmResult::err(VmErrorKind::MissingCallFrame);
         };
 

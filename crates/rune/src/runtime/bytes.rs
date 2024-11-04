@@ -13,7 +13,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::Any;
 
-use super::{IntoOutput, RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value, VmResult};
+use super::{IntoOutput, RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value};
 
 /// A vector of bytes.
 #[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -357,9 +357,10 @@ impl AsRef<[u8]> for Bytes {
 impl UnsafeToRef for [u8] {
     type Guard = RawAnyGuard;
 
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let (value, guard) = Ref::into_raw(vm_try!(value.into_ref::<Bytes>()));
-        VmResult::Ok((value.as_ref().as_slice(), guard))
+    #[inline]
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError> {
+        let (value, guard) = Ref::into_raw(value.into_ref::<Bytes>()?);
+        Ok((value.as_ref().as_slice(), guard))
     }
 }
 

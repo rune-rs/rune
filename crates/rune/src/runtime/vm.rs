@@ -792,32 +792,28 @@ impl Vm {
     /// pointer to be returned and does not check for context isolation through
     /// [`CallFrame::isolated`].
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
-    pub(crate) fn pop_call_frame_from_call(&mut self) -> Result<Option<usize>, VmErrorKind> {
+    pub(crate) fn pop_call_frame_from_call(&mut self) -> Option<usize> {
         tracing::trace!("popping call frame from call");
-
-        let Some(frame) = self.call_frames.pop() else {
-            return Ok(None);
-        };
-
+        let frame = self.call_frames.pop()?;
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.top)?;
-        Ok(Some(replace(&mut self.ip, frame.ip)))
+        self.stack.pop_stack_top(frame.top);
+        Some(replace(&mut self.ip, frame.ip))
     }
 
     /// Pop a call frame and return it.
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
-    pub(crate) fn pop_call_frame(&mut self) -> Result<(Isolated, Option<Output>), VmErrorKind> {
+    pub(crate) fn pop_call_frame(&mut self) -> (Isolated, Option<Output>) {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
-            self.stack.pop_stack_top(0)?;
-            return Ok((Isolated::Isolated, None));
+            self.stack.pop_stack_top(0);
+            return (Isolated::Isolated, None);
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.top)?;
+        self.stack.pop_stack_top(frame.top);
         self.ip = frame.ip;
-        Ok((frame.isolated, Some(frame.out)))
+        (frame.isolated, Some(frame.out))
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -2517,7 +2513,7 @@ impl Vm {
     #[inline]
     #[tracing::instrument(skip(self, return_value))]
     fn op_return_internal(&mut self, return_value: Value) -> VmResult<Option<Output>> {
-        let (exit, out) = vm_try!(self.pop_call_frame());
+        let (exit, out) = self.pop_call_frame();
 
         let out = if let Some(out) = out {
             vm_try!(out.store(&mut self.stack, return_value));
@@ -2581,7 +2577,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     #[tracing::instrument(skip(self))]
     fn op_return_unit(&mut self) -> VmResult<Option<Output>> {
-        let (exit, out) = vm_try!(self.pop_call_frame());
+        let (exit, out) = self.pop_call_frame();
 
         let out = if let Some(out) = out {
             vm_try!(out.store(&mut self.stack, ()));

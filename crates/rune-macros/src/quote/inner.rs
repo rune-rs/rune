@@ -1,10 +1,10 @@
 use proc_macro2 as p;
 
 pub(crate) const S: Punct = Punct::new("::");
-pub(crate) const RUNE: &str = "rune";
 pub(crate) const MACROS: RuneModule = RuneModule("macros");
 pub(crate) const AST: RuneModule = RuneModule("ast");
 
+use crate::RUNE;
 pub(crate) trait ToTokens {
     fn to_tokens(self, stream: &mut p::TokenStream, span: p::Span);
 }

@@ -24,11 +24,6 @@
 
 #![allow(clippy::manual_map)]
 
-use ::quote::format_ident;
-use syn::{Generics, Path};
-
-extern crate proc_macro;
-
 mod any;
 mod const_value;
 mod context;
@@ -36,7 +31,6 @@ mod from_value;
 mod function;
 mod hash;
 mod inst_display;
-mod internals;
 mod item;
 mod macro_;
 mod module;
@@ -49,7 +43,12 @@ mod to_tokens;
 mod to_value;
 
 use self::context::{Context, Tokens};
+
+use ::quote::format_ident;
 use proc_macro2::TokenStream;
+use syn::{Generics, Path};
+
+const RUNE: &str = "rune";
 
 #[proc_macro]
 pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

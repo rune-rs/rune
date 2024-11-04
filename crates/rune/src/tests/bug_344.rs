@@ -12,8 +12,8 @@ prelude!();
 use std::cell::Cell;
 use std::rc::Rc;
 
-use rune::compile::meta;
-use runtime::AnyTypeInfo;
+use crate::compile::meta;
+use crate::runtime::{AnyTypeInfo, RuntimeError};
 
 #[test]
 fn bug_344_function() -> Result<()> {
@@ -191,8 +191,9 @@ impl InstallWith for GuardCheck {}
 impl UnsafeToRef for GuardCheck {
     type Guard = Guard;
 
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let (output, guard) = Ref::into_raw(vm_try!(value.into_ref::<GuardCheck>()));
+    #[inline]
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError> {
+        let (output, guard) = Ref::into_raw(value.into_ref::<GuardCheck>()?);
 
         let guard = Guard {
             guard,
@@ -202,6 +203,6 @@ impl UnsafeToRef for GuardCheck {
             dropped: output.as_ref().dropped.clone(),
         };
 
-        VmResult::Ok((output.as_ref(), guard))
+        Ok((output.as_ref(), guard))
     }
 }
