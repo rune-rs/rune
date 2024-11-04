@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use crate::internals::*;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
@@ -9,6 +8,10 @@ use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
 use syn::Token;
+
+use rune_core::protocol::Protocol;
+
+use super::RUNE;
 
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
@@ -231,7 +234,7 @@ impl Context {
         let mut attr = ConstValueFieldAttrs::default();
 
         for a in input {
-            if a.path() != CONST_VALUE {
+            if !a.path().is_ident("const_value") {
                 continue;
             }
 
@@ -269,7 +272,7 @@ impl Context {
                         ..
                     } = g;
 
-                    let protocol_field = g.tokens.protocol($proto);
+                    let protocol_field = g.tokens.protocol(Protocol::$proto);
 
                     match target {
                         GenerateTarget::Named { field_ident, field_name } => {
@@ -306,34 +309,47 @@ impl Context {
         let mut attr = FieldAttrs::default();
 
         for a in input {
-            if a.path() != RUNE {
+            if !a.path().is_ident(RUNE) {
                 continue;
             }
 
             let result = a.parse_nested_meta(|meta| {
-                if meta.path == ID {
-                    // Parse `#[rune(id)]`
+                if meta.path.is_ident("id") {
                     attr.id = Some(meta.path.span());
-                } else if meta.path == ITER {
-                    // `#[rune(iter)]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("iter") {
                     attr.iter = Some(meta.path.span());
-                } else if meta.path == SKIP {
-                    // `#[rune(skip)]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("skip") {
                     attr.skip = Some(meta.path.span());
-                } else if meta.path == OPTION {
-                    // `#[rune(option)]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("option") {
                     attr.option = Some(meta.path.span());
-                } else if meta.path == META {
-                    // `#[rune(meta)]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("meta") {
                     attr.meta = Some(meta.path.span());
-                } else if meta.path == SPAN {
-                    // `#[rune(span)]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("span") {
                     attr.span = Some(meta.path.span());
-                } else if meta.path == COPY {
-                    // `#[rune(copy)]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("copy") {
                     attr.copy = true;
-                } else if meta.path == PARSE_WITH {
-                    // Parse `#[rune(parse_with = "..")]`.
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("parse_with") {
                     if let Some(old) = &attr.parse_with {
                         let mut error = syn::Error::new_spanned(
                             &meta.path,
@@ -347,7 +363,10 @@ impl Context {
                     meta.input.parse::<Token![=]>()?;
                     let s = meta.input.parse::<syn::LitStr>()?;
                     attr.parse_with = Some(syn::Ident::new(&s.value(), s.span()));
-                } else if meta.path == GET {
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("get") {
                     attr.field = true;
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
@@ -372,7 +391,7 @@ impl Context {
                                         quote!(#vm_try!(#try_clone::try_clone(&s.#field_ident)))
                                     };
 
-                                    let protocol = g.tokens.protocol(PROTOCOL_GET);
+                                    let protocol = g.tokens.protocol(Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
                                         module.field_function(#protocol, #field_name, |s: &Self| #vm_result::Ok(#access))?;
@@ -385,7 +404,7 @@ impl Context {
                                         quote!(#vm_try!(#try_clone::try_clone(&s.#field_index)))
                                     };
 
-                                    let protocol = g.tokens.protocol(PROTOCOL_GET);
+                                    let protocol = g.tokens.protocol(Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
                                         module.index_function(#protocol, #field_index, |s: &Self| #vm_result::Ok(#access))?;
@@ -394,7 +413,11 @@ impl Context {
                             }
                         },
                     });
-                } else if meta.path == SET {
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("set") {
                     attr.protocols.push(FieldProtocol {
                         custom: self.parse_field_custom(meta.input)?,
                         generate: |g| {
@@ -404,7 +427,7 @@ impl Context {
                                 ..
                             } = g;
 
-                            let protocol = g.tokens.protocol(PROTOCOL_SET);
+                            let protocol = g.tokens.protocol(Protocol::SET);
 
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
@@ -424,61 +447,101 @@ impl Context {
                             }
                         },
                     });
-                } else if meta.path == ADD_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_ADD_ASSIGN, +=),
-                    });
-                } else if meta.path == SUB_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_SUB_ASSIGN, -=),
-                    });
-                } else if meta.path == DIV_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_DIV_ASSIGN, /=),
-                    });
-                } else if meta.path == MUL_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_MUL_ASSIGN, *=),
-                    });
-                } else if meta.path == BIT_AND_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_BIT_AND_ASSIGN, &=),
-                    });
-                } else if meta.path == BIT_OR_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_BIT_OR_ASSIGN, |=),
-                    });
-                } else if meta.path == BIT_XOR_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_BIT_XOR_ASSIGN, ^=),
-                    });
-                } else if meta.path == SHL_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_SHL_ASSIGN, <<=),
-                    });
-                } else if meta.path == SHR_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_SHR_ASSIGN, >>=),
-                    });
-                } else if meta.path == REM_ASSIGN {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(PROTOCOL_REM_ASSIGN, %=),
-                    });
-                } else {
-                    return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
+
+                    return Ok(());
                 }
 
-                Ok(())
+                if meta.path.is_ident("add_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(ADD_ASSIGN, +=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("sub_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(SUB_ASSIGN, -=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("div_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(DIV_ASSIGN, /=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("mul_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(MUL_ASSIGN, *=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("bit_and_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(BIT_AND_ASSIGN, &=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("bit_or_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(BIT_OR_ASSIGN, |=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("bit_xor_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(BIT_XOR_ASSIGN, ^=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("shl_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(SHL_ASSIGN, <<=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("shr_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(SHR_ASSIGN, >>=),
+                    });
+
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("rem_assign") {
+                    attr.protocols.push(FieldProtocol {
+                        custom: self.parse_field_custom(meta.input)?,
+                        generate: generate_assign!(REM_ASSIGN, %=),
+                    });
+
+                    return Ok(());
+                }
+
+                Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"))
             });
 
             if let Err(e) = result {
@@ -493,13 +556,12 @@ impl Context {
         let mut attr = ConstValueTypeAttr::default();
 
         for a in input {
-            if a.path() != CONST_VALUE {
+            if !a.path().is_ident("const_value") {
                 continue;
             }
 
             let result = a.parse_nested_meta(|meta| {
                 if meta.path.is_ident("module") || meta.path.is_ident("crate") {
-                    // Parse `#[rune(crate [= <path>])]`
                     if meta.input.parse::<Option<Token![=]>>()?.is_some() {
                         attr.module = Some(parse_path_compat(meta.input)?);
                     } else {
@@ -536,13 +598,12 @@ impl Context {
                 continue;
             }
 
-            if a.path() != RUNE {
+            if !a.path().is_ident(RUNE) {
                 continue;
             }
 
             let result = a.parse_nested_meta(|meta| {
                 if meta.path.is_ident("parse") {
-                    // Parse `#[rune(parse = "..")]`
                     meta.input.parse::<Token![=]>()?;
                     let s: syn::LitStr = meta.input.parse()?;
 
@@ -562,21 +623,18 @@ impl Context {
                 }
 
                 if meta.path.is_ident("item") {
-                    // Parse `#[rune(item = "..")]`
                     meta.input.parse::<Token![=]>()?;
                     attr.item = Some(meta.input.parse()?);
                     return Ok(());
                 }
 
                 if meta.path.is_ident("name") {
-                    // Parse `#[rune(name = "..")]`
                     meta.input.parse::<Token![=]>()?;
                     attr.name = Some(meta.input.parse()?);
                     return Ok(());
                 }
 
                 if meta.path.is_ident("module") || meta.path.is_ident("crate") {
-                    // Parse `#[rune(crate [= <path>])]`
                     if meta.input.parse::<Option<Token![=]>>()?.is_some() {
                         attr.module = Some(parse_path_compat(meta.input)?);
                     } else {
@@ -587,7 +645,6 @@ impl Context {
                 }
 
                 if meta.path.is_ident("install_with") {
-                    // Parse `#[rune(install_with = <path>)]`
                     meta.input.parse::<Token![=]>()?;
                     attr.install_with = Some(parse_path_compat(meta.input)?);
                     return Ok(());
@@ -641,27 +698,29 @@ impl Context {
                 continue;
             }
 
-            if a.path() == RUNE {
-                let result = a.parse_nested_meta(|meta| {
-                    if meta.path == CONSTRUCTOR {
-                        if attr.constructor.is_some() {
-                            return Err(syn::Error::new(
-                                meta.path.span(),
-                                "#[rune(constructor)] must only be used once",
-                            ));
-                        }
+            if !a.path().is_ident(RUNE) {
+                continue;
+            }
 
-                        attr.constructor = Some(meta.path.span());
-                    } else {
-                        return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
+            let result = a.parse_nested_meta(|meta| {
+                if meta.path.is_ident("constructor") {
+                    if attr.constructor.is_some() {
+                        return Err(syn::Error::new(
+                            meta.path.span(),
+                            "#[rune(constructor)] must only be used once",
+                        ));
                     }
 
-                    Ok(())
-                });
+                    attr.constructor = Some(meta.path.span());
+                } else {
+                    return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
+                }
 
-                if let Err(e) = result {
-                    self.error(e);
-                };
+                Ok(())
+            });
+
+            if let Err(e) = result {
+                self.error(e);
             }
         }
 
@@ -710,7 +769,10 @@ impl Context {
                     };
                     default_module
                         .segments
-                        .push(syn::PathSegment::from(RUNE.to_ident(Span::call_site())));
+                        .push(syn::PathSegment::from(syn::Ident::new(
+                            RUNE,
+                            Span::call_site(),
+                        )));
                     &default_module
                 }
             },
@@ -877,8 +939,11 @@ pub(crate) struct Tokens {
 
 impl Tokens {
     /// Define a tokenstream for the specified protocol
-    pub(crate) fn protocol(&self, sym: Symbol) -> TokenStream {
-        let protocol = &self.protocol;
-        quote!(#protocol::#sym)
+    pub(crate) fn protocol(&self, sym: Protocol) -> TokenStream {
+        let mut stream = TokenStream::default();
+        self.protocol.to_tokens(&mut stream);
+        <Token![::]>::default().to_tokens(&mut stream);
+        syn::Ident::new(sym.name, Span::call_site()).to_tokens(&mut stream);
+        stream
     }
 }

@@ -128,11 +128,8 @@ impl Expander<'_> {
             if i - skipped != meta_fields.len() {
                 self.cx.error(syn::Error::new_spanned(
                     field,
-                    format!(
-                        "The first sequence of fields may have `#[rune({})]`, \
+                    "The first sequence of fields may have `#[rune(meta)]`, \
                         but field is outside of that sequence.",
-                        crate::internals::META,
-                    ),
                 ));
                 return Err(());
             }

@@ -794,11 +794,7 @@ impl Vm {
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
     pub(crate) fn pop_call_frame_from_call(&mut self) -> Option<usize> {
         tracing::trace!("popping call frame from call");
-
-        let Some(frame) = self.call_frames.pop() else {
-            return None;
-        };
-
+        let frame = self.call_frames.pop()?;
         tracing::trace!(?frame);
         self.stack.pop_stack_top(frame.top);
         Some(replace(&mut self.ip, frame.ip))

@@ -8,40 +8,6 @@ macro_rules! resolve_context {
     };
 }
 
-macro_rules! impl_one_builtin_type_of {
-    (impl $(<$($p:ident),*>)? $path:path, $ty:ty) => {
-        impl $(<$($p,)*>)* $crate::TypeHash for $ty {
-            const HASH: $crate::Hash = ::rune_macros::hash_in!(crate, $path);
-        }
-
-        impl $(<$($p,)*>)* $crate::runtime::TypeOf for $ty
-        where
-            $($($p: $crate::runtime::MaybeTypeOf,)*)*
-        {
-            const STATIC_TYPE_INFO: $crate::runtime::AnyTypeInfo = $crate::runtime::AnyTypeInfo::new(
-                {
-                    fn full_name(f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                        write!(f, "{}", ::rune_macros::item_in!(crate, $path))
-                    }
-
-                    full_name
-                },
-                <Self as $crate::TypeHash>::HASH,
-            );
-        }
-
-        impl $(<$($p,)*>)* $crate::runtime::MaybeTypeOf for $ty
-        where
-            $($($p: $crate::runtime::MaybeTypeOf,)*)*
-        {
-            #[inline]
-            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
-                Ok($crate::compile::meta::DocType::new(<$ty as $crate::TypeHash>::HASH))
-            }
-        }
-    }
-}
-
 /// Call the given macro with repeated type arguments and counts.
 macro_rules! repeat_macro {
     ($macro:ident) => {
@@ -83,20 +49,6 @@ macro_rules! cfg_std {
             #[cfg(feature = "std")]
             #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
             $item
-        )*
-    }
-}
-
-macro_rules! impl_builtin_type_of {
-    (
-        $(
-            $(#[$($impl_meta:meta)*])*
-            impl $(<$($p:ident),*>)? $path:path, $ty:ty;
-        )*
-    ) => {
-        $(
-            $(#[$($impl_meta)*])*
-            impl_one_builtin_type_of!(impl $(<$($p),*>)* $path, $ty);
         )*
     }
 }
