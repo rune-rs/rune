@@ -487,15 +487,11 @@ impl Stack {
     }
 
     /// Pop the current stack top and modify it to a different one.
-    ///
-    /// This asserts that the size of the current stack frame is exactly zero
-    /// before restoring it.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn pop_stack_top(&mut self, top: usize) -> alloc::Result<()> {
+    pub(crate) fn pop_stack_top(&mut self, top: usize) {
         tracing::trace!(stack = self.stack.len(), self.top);
         self.stack.truncate(self.top);
         self.top = top;
-        Ok(())
     }
 
     /// Copy the value at the given address to the output.
