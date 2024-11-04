@@ -6,6 +6,7 @@ use core::hash::Hash as _;
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+use crate as rune;
 use crate::hash::Hash;
 use crate::runtime::{
     Hasher, OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr,
@@ -15,6 +16,14 @@ use crate::TypeHash;
 /// An inline value.
 #[derive(Clone, Copy, Encode, Decode, Deserialize, Serialize)]
 pub enum Inline {
+    /// An empty value.
+    ///
+    /// Note that this value *can not* be instantiated. Internally any
+    /// operations over it will result in a type error, even when operating with
+    /// itself.
+    ///
+    /// Some operations will return a "falsy" value, like type checks.
+    Empty,
     /// The unit value.
     Unit,
     /// A boolean.
@@ -214,6 +223,7 @@ impl Inline {
 impl fmt::Debug for Inline {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
+            Inline::Empty => write!(f, "<empty>"),
             Inline::Unit => write!(f, "()"),
             Inline::Bool(value) => value.fmt(f),
             Inline::Char(value) => value.fmt(f),
@@ -229,6 +239,7 @@ impl fmt::Debug for Inline {
 impl Inline {
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
+            Inline::Empty => TypeInfo::empty(),
             Inline::Unit => TypeInfo::any::<OwnedTuple>(),
             Inline::Bool(..) => TypeInfo::named::<bool>(),
             Inline::Char(..) => TypeInfo::named::<char>(),
@@ -246,6 +257,7 @@ impl Inline {
     /// *enum*, and not the type hash of the variant itself.
     pub(crate) fn type_hash(&self) -> Hash {
         match self {
+            Inline::Empty => crate::hash!(::std::empty::Empty),
             Inline::Unit => OwnedTuple::HASH,
             Inline::Bool(..) => bool::HASH,
             Inline::Char(..) => char::HASH,

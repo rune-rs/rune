@@ -1101,6 +1101,12 @@ fn const_<'a, 'hir>(
 
     match *value.as_kind() {
         ConstValueKind::Inline(value) => match value {
+            Inline::Empty => {
+                return Err(compile::Error::msg(
+                    span,
+                    "Empty inline constant value is not supported",
+                ));
+            }
             Inline::Unit => {
                 cx.asm.push(Inst::unit(out), span)?;
             }

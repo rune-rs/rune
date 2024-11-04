@@ -13,7 +13,7 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
-use crate::runtime::{Formatter, Inline, ProtocolCaller, ReprRef, Value, VmErrorKind, VmResult};
+use crate::runtime::{Formatter, Inline, ProtocolCaller, Repr, Value, VmErrorKind, VmResult};
 use crate::{Any, TypeHash};
 
 /// Error raised when trying to parse a type string and it fails.
@@ -208,8 +208,8 @@ impl FormatSpec {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         'fallback: {
-            match vm_try!(value.as_ref()) {
-                ReprRef::Inline(value) => match value {
+            match value.as_ref() {
+                Repr::Inline(value) => match value {
                     Inline::Char(c) => {
                         vm_try!(f.buf_mut().try_push(*c));
                         vm_try!(self.format_fill(f, self.align, self.fill, None));
@@ -228,10 +228,10 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
-                ReprRef::Dynamic(..) => {
+                Repr::Dynamic(..) => {
                     break 'fallback;
                 }
-                ReprRef::Any(value) => match value.type_hash() {
+                Repr::Any(value) => match value.type_hash() {
                     String::HASH => {
                         let s = vm_try!(value.borrow_ref::<String>());
                         vm_try!(f.buf_mut().try_push_str(&s));
@@ -256,8 +256,8 @@ impl FormatSpec {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         'fallback: {
-            match vm_try!(value.as_ref()) {
-                ReprRef::Inline(value) => match value {
+            match value.as_ref() {
+                Repr::Inline(value) => match value {
                     Inline::Signed(n) => {
                         let (n, align, fill, sign) = self.int_traits(*n);
                         vm_try!(self.format_number(f.buf_mut(), n));
@@ -272,10 +272,10 @@ impl FormatSpec {
                         break 'fallback;
                     }
                 },
-                ReprRef::Dynamic(..) => {
+                Repr::Dynamic(..) => {
                     break 'fallback;
                 }
-                ReprRef::Any(value) => match value.type_hash() {
+                Repr::Any(value) => match value.type_hash() {
                     String::HASH => {
                         let s = vm_try!(value.borrow_ref::<String>());
                         vm_try!(vm_write!(f, "{s:?}"));
@@ -293,7 +293,7 @@ impl FormatSpec {
     }
 
     fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match vm_try!(value.as_inline()) {
+        match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:X}", n));
@@ -308,7 +308,7 @@ impl FormatSpec {
     }
 
     fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match vm_try!(value.as_inline()) {
+        match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:x}", n));
@@ -323,7 +323,7 @@ impl FormatSpec {
     }
 
     fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match vm_try!(value.as_inline()) {
+        match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:b}", n));
@@ -338,7 +338,7 @@ impl FormatSpec {
     }
 
     fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
-        match vm_try!(value.as_inline()) {
+        match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
                 vm_try!(vm_write!(f.buf_mut(), "{:p}", n as *const ()));

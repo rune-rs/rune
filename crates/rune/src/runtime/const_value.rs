@@ -16,7 +16,7 @@ use crate::runtime;
 use crate::{Hash, TypeHash};
 
 use super::{
-    Bytes, FromValue, Inline, Object, OwnedTuple, ReprRef, ToValue, Tuple, Type, TypeInfo, Value,
+    Bytes, FromValue, Inline, Object, OwnedTuple, Repr, ToValue, Tuple, Type, TypeInfo, Value,
     VmErrorKind,
 };
 
@@ -234,14 +234,14 @@ impl ConstValue {
 
     /// Construct a constant value from a reference to a value..
     pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
-        let inner = match value.as_ref()? {
-            ReprRef::Inline(value) => ConstValueKind::Inline(*value),
-            ReprRef::Dynamic(value) => {
+        let inner = match value.as_ref() {
+            Repr::Inline(value) => ConstValueKind::Inline(*value),
+            Repr::Dynamic(value) => {
                 return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
                     actual: value.type_info(),
                 }));
             }
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Any(value) => match value.type_hash() {
                 Option::<Value>::HASH => {
                     let option = value.borrow_ref::<Option<Value>>()?;
 

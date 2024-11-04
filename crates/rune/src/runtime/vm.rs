@@ -19,7 +19,7 @@ use super::{
     Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GeneratorState,
     GuardedArgs, Inline, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue,
     InstVariant, Object, Output, OwnedTuple, Pair, Panic, Protocol, ProtocolCaller, Range,
-    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, ReprMut, ReprRef, RttiKind,
+    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Repr, RttiKind,
     RuntimeContext, Select, SelectFuture, Stack, Stream, Type, TypeCheck, TypeHash, TypeInfo,
     TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError,
     VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
@@ -636,7 +636,7 @@ impl Vm {
         out: Output,
     ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
-        let type_hash = vm_try!(target.type_hash());
+        let type_hash = target.type_hash();
         let hash = Hash::associated_function(type_hash, hash.to_type_hash());
         self.call_hash_with(isolated, hash, target, args, count, out)
     }
@@ -652,7 +652,7 @@ impl Vm {
         out: Output,
     ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
-        let hash = Hash::field_function(protocol, vm_try!(target.type_hash()), name);
+        let hash = Hash::field_function(protocol, target.type_hash(), name);
         self.call_hash_with(Isolated::None, hash, target, args, count, out)
     }
 
@@ -667,7 +667,7 @@ impl Vm {
         out: Output,
     ) -> VmResult<CallResult<()>> {
         let count = args.count().wrapping_add(1);
-        let hash = Hash::index_function(protocol, vm_try!(target.type_hash()), Hash::index(index));
+        let hash = Hash::index_function(protocol, target.type_hash(), Hash::index(index));
         self.call_hash_with(Isolated::None, hash, target, args, count, out)
     }
 
@@ -818,8 +818,8 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_object_like_index_get(target: &Value, field: &str) -> VmResult<Option<Value>> {
-        match vm_try!(target.as_ref()) {
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
+        match target.as_ref() {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
                 let Some(value) = vm_try!(data.get_field_ref(field)) else {
                     return err(VmErrorKind::MissingField {
                         target: data.type_info(),
@@ -829,7 +829,7 @@ impl Vm {
 
                 VmResult::Ok(Some(value.clone()))
             }
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Any(value) => match value.type_hash() {
                 Object::HASH => {
                     let target = vm_try!(value.borrow_ref::<Object>());
 
@@ -850,19 +850,19 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_tuple_like_index_get(target: &Value, index: usize) -> VmResult<Option<Value>> {
-        let result = match vm_try!(target.as_ref()) {
-            ReprRef::Inline(target) => match target {
+        let result = match target.as_ref() {
+            Repr::Inline(target) => match target {
                 Inline::Unit => Err(target.type_info()),
                 _ => return VmResult::Ok(None),
             },
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
                 match vm_try!(data.get_ref(index)) {
                     Some(value) => Ok(value.clone()),
                     None => Err(data.type_info()),
                 }
             }
-            ReprRef::Dynamic(data) => Err(data.type_info()),
-            ReprRef::Any(target) => match target.type_hash() {
+            Repr::Dynamic(data) => Err(data.type_info()),
+            Repr::Any(target) => match target.type_hash() {
                 Result::<Value, Value>::HASH => {
                     match (
                         index,
@@ -920,8 +920,8 @@ impl Vm {
         target: &Value,
         index: usize,
     ) -> VmResult<Option<BorrowMut<'_, Value>>> {
-        match vm_try!(target.as_ref()) {
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
+        match target.as_ref() {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
                 let Some(value) = vm_try!(data.get_mut(index)) else {
                     return err(VmErrorKind::MissingIndexInteger {
                         target: data.type_info(),
@@ -931,11 +931,11 @@ impl Vm {
 
                 VmResult::Ok(Some(value))
             }
-            ReprRef::Dynamic(data) => err(VmErrorKind::MissingIndexInteger {
+            Repr::Dynamic(data) => err(VmErrorKind::MissingIndexInteger {
                 target: data.type_info(),
                 index: VmIntegerRepr::from(index),
             }),
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Any(value) => match value.type_hash() {
                 Result::<Value, Value>::HASH => {
                     let result = BorrowMut::try_map(
                         vm_try!(value.borrow_mut::<Result<Value, Value>>()),
@@ -1029,19 +1029,19 @@ impl Vm {
         target: &'a Value,
         field: &str,
     ) -> VmResult<Option<BorrowMut<'a, Value>>> {
-        match vm_try!(target.as_ref()) {
-            ReprRef::Inline(value) => err(VmErrorKind::MissingField {
+        match target.as_ref() {
+            Repr::Inline(value) => err(VmErrorKind::MissingField {
                 target: value.type_info(),
                 field: vm_try!(field.try_to_owned()),
             }),
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
                 VmResult::Ok(vm_try!(data.get_field_mut(field)))
             }
-            ReprRef::Dynamic(data) => err(VmErrorKind::MissingField {
+            Repr::Dynamic(data) => err(VmErrorKind::MissingField {
                 target: data.type_info(),
                 field: vm_try!(field.try_to_owned()),
             }),
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Any(value) => match value.type_hash() {
                 Object::HASH => {
                     let object = vm_try!(value.borrow_mut::<Object>());
 
@@ -1061,12 +1061,12 @@ impl Vm {
 
     /// Implementation of getting a string index on an object-like type.
     fn try_tuple_like_index_set(target: &Value, index: usize, from: &Value) -> VmResult<bool> {
-        match vm_try!(target.as_ref()) {
-            ReprRef::Inline(target) => match target {
+        match target.as_ref() {
+            Repr::Inline(target) => match target {
                 Inline::Unit => VmResult::Ok(false),
                 _ => VmResult::Ok(false),
             },
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
                 if let Some(target) = vm_try!(data.borrow_mut()).get_mut(index) {
                     target.clone_from(from);
                     return VmResult::Ok(true);
@@ -1074,8 +1074,8 @@ impl Vm {
 
                 VmResult::Ok(false)
             }
-            ReprRef::Dynamic(..) => VmResult::Ok(false),
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Dynamic(..) => VmResult::Ok(false),
+            Repr::Any(value) => match value.type_hash() {
                 Result::<Value, Value>::HASH => {
                     let mut result = vm_try!(value.borrow_mut::<Result<Value, Value>>());
 
@@ -1129,8 +1129,8 @@ impl Vm {
         field: &str,
         value: &Value,
     ) -> Result<bool, VmErrorKind> {
-        match target.as_ref()? {
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
+        match target.as_ref() {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
                 if let Some(mut v) = data.get_field_mut(field)? {
                     v.clone_from(value);
                     return Ok(true);
@@ -1141,7 +1141,7 @@ impl Vm {
                     field: field.try_to_owned()?,
                 })
             }
-            ReprRef::Any(target) => match target.type_hash() {
+            Repr::Any(target) => match target.type_hash() {
                 Object::HASH => {
                     let mut target = target.borrow_mut::<Object>()?;
 
@@ -1167,12 +1167,12 @@ impl Vm {
     where
         F: FnOnce(&[Value]) -> O,
     {
-        let value = match vm_try!(value.as_ref()) {
-            ReprRef::Inline(value) => match (ty, value) {
+        let value = match value.as_ref() {
+            Repr::Inline(value) => match (ty, value) {
                 (TypeCheck::Unit, Inline::Unit) => Some(f(&[])),
                 _ => None,
             },
-            ReprRef::Any(value) => match (ty, value.type_hash()) {
+            Repr::Any(value) => match (ty, value.type_hash()) {
                 (TypeCheck::Vec, runtime::Vec::HASH) => {
                     let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
                     Some(f(&vec))
@@ -1194,10 +1194,10 @@ impl Vm {
         let b = vm_try!(self.stack.at(rhs));
         let a = vm_try!(self.stack.at(lhs));
 
-        let ReprRef::Inline(Inline::Type(ty)) = vm_try!(b.as_ref()) else {
+        let Repr::Inline(Inline::Type(ty)) = b.as_ref() else {
             return err(VmErrorKind::UnsupportedIs {
-                value: vm_try!(a.type_info()),
-                test_type: vm_try!(b.type_info()),
+                value: a.type_info(),
+                test_type: b.type_info(),
             });
         };
 
@@ -1217,10 +1217,10 @@ impl Vm {
             };
         }
 
-        let value = match vm_try!(a.as_ref()) {
-            ReprRef::Inline(Inline::Unsigned(a)) => convert!(u64, *a),
-            ReprRef::Inline(Inline::Signed(a)) => convert!(i64, *a),
-            ReprRef::Inline(Inline::Float(a)) => convert!(f64, *a),
+        let value = match a.as_ref() {
+            Repr::Inline(Inline::Unsigned(a)) => convert!(u64, *a),
+            Repr::Inline(Inline::Signed(a)) => convert!(i64, *a),
+            Repr::Inline(Inline::Float(a)) => convert!(f64, *a),
             value => {
                 return err(VmErrorKind::UnsupportedAs {
                     value: value.type_info(),
@@ -1237,14 +1237,14 @@ impl Vm {
         let b = vm_try!(self.stack.at(rhs));
         let a = vm_try!(self.stack.at(lhs));
 
-        let Some(Inline::Type(ty)) = vm_try!(b.as_inline()) else {
+        let Some(Inline::Type(ty)) = b.as_inline() else {
             return err(VmErrorKind::UnsupportedIs {
-                value: vm_try!(a.type_info()),
-                test_type: vm_try!(b.type_info()),
+                value: a.type_info(),
+                test_type: b.type_info(),
             });
         };
 
-        VmResult::Ok(vm_try!(a.type_hash()) == ty.into_hash())
+        VmResult::Ok(a.type_hash() == ty.into_hash())
     }
 
     fn internal_bool(
@@ -1258,17 +1258,10 @@ impl Vm {
         let rhs = vm_try!(self.stack.at(rhs));
         let lhs = vm_try!(self.stack.at(lhs));
 
-        let inline = match (vm_try!(lhs.as_ref()), vm_try!(rhs.as_ref())) {
-            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
-                (Inline::Bool(lhs), Inline::Bool(rhs)) => Inline::Bool(bool_op(*lhs, *rhs)),
-                (lhs, rhs) => {
-                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                        op,
-                        lhs: lhs.type_info(),
-                        rhs: rhs.type_info(),
-                    });
-                }
-            },
+        let inline = match (lhs.as_ref(), rhs.as_ref()) {
+            (Repr::Inline(Inline::Bool(lhs)), Repr::Inline(Inline::Bool(rhs))) => {
+                Inline::Bool(bool_op(*lhs, *rhs))
+            }
             (lhs, rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
                     op,
@@ -1399,23 +1392,23 @@ impl Vm {
 
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
             TargetValue::Same(value) => {
-                match vm_try!(value.as_mut()) {
-                    ReprMut::Inline(Inline::Signed(value)) => {
+                match value.as_mut() {
+                    Repr::Inline(Inline::Signed(value)) => {
                         let out = vm_try!(signed_op(*value, *value).ok_or_else(error));
                         *value = out;
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(Inline::Unsigned(value)) => {
+                    Repr::Inline(Inline::Unsigned(value)) => {
                         let out = vm_try!(unsigned_op(*value, *value).ok_or_else(error));
                         *value = out;
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(Inline::Float(value)) => {
+                    Repr::Inline(Inline::Float(value)) => {
                         let out = float_op(*value, *value);
                         *value = out;
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(value) => {
+                    Repr::Inline(value) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: value.type_info(),
@@ -1428,8 +1421,8 @@ impl Vm {
                 TargetFallback::Value(value.clone(), value.clone())
             }
             TargetValue::Pair(lhs, rhs) => {
-                match (vm_try!(lhs.as_mut()), vm_try!(rhs.as_ref())) {
-                    (ReprMut::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
+                match (lhs.as_mut(), rhs.as_ref()) {
+                    (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Signed(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
                             let out = vm_try!(signed_op(*lhs, rhs).ok_or_else(error));
@@ -1455,7 +1448,7 @@ impl Vm {
                             });
                         }
                     },
-                    (ReprMut::Inline(lhs), rhs) => {
+                    (Repr::Inline(lhs), rhs) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: lhs.type_info(),
@@ -1493,8 +1486,8 @@ impl Vm {
                 )) {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
                         op: protocol.name,
-                        lhs: vm_try!(lhs.type_info()),
-                        rhs: vm_try!(rhs.type_info()),
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
                     });
                 };
 
@@ -1511,7 +1504,7 @@ impl Vm {
                     Output::discard()
                 )) {
                     return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
-                        target: vm_try!(lhs.type_info()),
+                        target: lhs.type_info(),
                     });
                 }
 
@@ -1528,7 +1521,7 @@ impl Vm {
                     Output::discard()
                 )) {
                     return err(VmErrorKind::UnsupportedTupleIndexGet {
-                        target: vm_try!(lhs.type_info()),
+                        target: lhs.type_info(),
                         index,
                     });
                 }
@@ -1555,8 +1548,8 @@ impl Vm {
         let lhs = vm_try!(self.stack.at(lhs));
 
         'fallback: {
-            let inline = match (vm_try!(lhs.as_ref()), vm_try!(rhs.as_ref())) {
-                (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
+            let inline = match (lhs.as_ref(), rhs.as_ref()) {
+                (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                     (Inline::Unsigned(lhs), rhs) => {
                         let rhs = vm_try!(rhs.as_integer());
                         Inline::Unsigned(vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error)))
@@ -1574,7 +1567,7 @@ impl Vm {
                         });
                     }
                 },
-                (ReprRef::Inline(lhs), rhs) => {
+                (Repr::Inline(lhs), rhs) => {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
                         op: protocol.name,
                         lhs: lhs.type_info(),
@@ -1600,8 +1593,8 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
-                lhs: vm_try!(lhs.type_info()),
-                rhs: vm_try!(rhs.type_info()),
+                lhs: lhs.type_info(),
+                rhs: rhs.type_info(),
             });
         }
 
@@ -1624,8 +1617,8 @@ impl Vm {
         let rhs = vm_try!(self.stack.at(rhs));
 
         'fallback: {
-            let inline = match (vm_try!(lhs.as_ref()), vm_try!(rhs.as_ref())) {
-                (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
+            let inline = match (lhs.as_ref(), rhs.as_ref()) {
+                (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                     (Inline::Unsigned(lhs), rhs) => {
                         let rhs = vm_try!(rhs.as_integer());
                         Inline::Unsigned(unsigned_op(*lhs, rhs))
@@ -1643,7 +1636,7 @@ impl Vm {
                         });
                     }
                 },
-                (ReprRef::Inline(lhs), rhs) => {
+                (Repr::Inline(lhs), rhs) => {
                     return err(VmErrorKind::UnsupportedBinaryOperation {
                         op: protocol.name,
                         lhs: lhs.type_info(),
@@ -1669,8 +1662,8 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
-                lhs: vm_try!(lhs.type_info()),
-                rhs: vm_try!(rhs.type_info()),
+                lhs: lhs.type_info(),
+                rhs: rhs.type_info(),
             });
         }
 
@@ -1691,23 +1684,23 @@ impl Vm {
 
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
             TargetValue::Same(value) => {
-                match vm_try!(value.as_mut()) {
-                    ReprMut::Inline(Inline::Unsigned(value)) => {
+                match value.as_mut() {
+                    Repr::Inline(Inline::Unsigned(value)) => {
                         let rhs = *value;
                         unsigned_op(value, rhs);
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(Inline::Signed(value)) => {
+                    Repr::Inline(Inline::Signed(value)) => {
                         let rhs = *value;
                         signed_op(value, rhs);
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(Inline::Bool(value)) => {
+                    Repr::Inline(Inline::Bool(value)) => {
                         let rhs = *value;
                         bool_op(value, rhs);
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(value) => {
+                    Repr::Inline(value) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: value.type_info(),
@@ -1720,8 +1713,8 @@ impl Vm {
                 TargetFallback::Value(value.clone(), value.clone())
             }
             TargetValue::Pair(lhs, rhs) => {
-                match (vm_try!(lhs.as_mut()), vm_try!(rhs.as_ref())) {
-                    (ReprMut::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
+                match (lhs.as_mut(), rhs.as_ref()) {
+                    (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Unsigned(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
                             unsigned_op(lhs, rhs);
@@ -1744,7 +1737,7 @@ impl Vm {
                             });
                         }
                     },
-                    (ReprMut::Inline(lhs), rhs) => {
+                    (Repr::Inline(lhs), rhs) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: lhs.type_info(),
@@ -1776,7 +1769,7 @@ impl Vm {
             let inline = 'inline: {
                 match vm_try!(self.stack.pair(lhs, rhs)) {
                     Pair::Same(value) => {
-                        if let ReprMut::Inline(lhs) = vm_try!(value.as_mut()) {
+                        if let Repr::Inline(lhs) = value.as_mut() {
                             match lhs {
                                 Inline::Unsigned(value) => {
                                     let shift =
@@ -1804,8 +1797,8 @@ impl Vm {
                         break 'fallback (value.clone(), value.clone());
                     }
                     Pair::Pair(lhs, rhs) => {
-                        match (vm_try!(lhs.as_mut()), vm_try!(rhs.as_ref())) {
-                            (ReprMut::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
+                        match (lhs.as_mut(), rhs.as_ref()) {
+                            (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                                 (Inline::Unsigned(lhs), rhs) => {
                                     let rhs = vm_try!(rhs.as_integer());
                                     let value = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
@@ -1824,7 +1817,7 @@ impl Vm {
                                     });
                                 }
                             },
-                            (ReprMut::Inline(lhs), rhs) => {
+                            (Repr::Inline(lhs), rhs) => {
                                 return err(VmErrorKind::UnsupportedBinaryOperation {
                                     op: protocol.name,
                                     lhs: lhs.type_info(),
@@ -1850,8 +1843,8 @@ impl Vm {
         {
             return err(VmErrorKind::UnsupportedBinaryOperation {
                 op: protocol.name,
-                lhs: vm_try!(lhs.type_info()),
-                rhs: vm_try!(rhs.type_info()),
+                lhs: lhs.type_info(),
+                rhs: rhs.type_info(),
             });
         }
 
@@ -1872,20 +1865,20 @@ impl Vm {
 
         let fallback = match target_value!(self, target, guard, lhs, rhs) {
             TargetValue::Same(value) => {
-                match vm_try!(value.as_mut()) {
-                    ReprMut::Inline(Inline::Unsigned(value)) => {
+                match value.as_mut() {
+                    Repr::Inline(Inline::Unsigned(value)) => {
                         let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(error));
                         let out = vm_try!(unsigned_op(*value, shift).ok_or_else(error));
                         *value = out;
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(Inline::Signed(value)) => {
+                    Repr::Inline(Inline::Signed(value)) => {
                         let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(error));
                         let out = vm_try!(signed_op(*value, shift).ok_or_else(error));
                         *value = out;
                         return VmResult::Ok(());
                     }
-                    ReprMut::Inline(value) => {
+                    Repr::Inline(value) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: value.type_info(),
@@ -1898,8 +1891,8 @@ impl Vm {
                 TargetFallback::Value(value.clone(), value.clone())
             }
             TargetValue::Pair(lhs, rhs) => {
-                match (vm_try!(lhs.as_mut()), vm_try!(rhs.as_ref())) {
-                    (ReprMut::Inline(lhs), ReprRef::Inline(rhs)) => match (lhs, rhs) {
+                match (lhs.as_mut(), rhs.as_ref()) {
+                    (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Unsigned(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
                             let out = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
@@ -1920,7 +1913,7 @@ impl Vm {
                             });
                         }
                     },
-                    (ReprMut::Inline(lhs), rhs) => {
+                    (Repr::Inline(lhs), rhs) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
                             op: protocol.name,
                             lhs: lhs.type_info(),
@@ -2104,8 +2097,8 @@ impl Vm {
     fn op_not(&mut self, operand: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(operand));
 
-        let value = match vm_try!(value.as_ref()) {
-            ReprRef::Inline(value) => match value {
+        let value = match value.as_ref() {
+            Repr::Inline(value) => match value {
                 Inline::Bool(value) => Value::from(!value),
                 Inline::Unsigned(value) => Value::from(!value),
                 Inline::Signed(value) => Value::from(!value),
@@ -2128,8 +2121,8 @@ impl Vm {
     fn op_neg(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
-        let value = match vm_try!(value.as_ref()) {
-            ReprRef::Inline(value) => match value {
+        let value = match value.as_ref() {
+            Repr::Inline(value) => match value {
                 Inline::Float(value) => Value::from(-value),
                 Inline::Signed(value) => Value::from(-value),
                 actual => {
@@ -2300,9 +2293,7 @@ impl Vm {
                 let rhs = vm_try!(self.stack.at(rhs));
                 let lhs = vm_try!(self.stack.at(lhs));
 
-                let test = if let (Some(lhs), Some(rhs)) =
-                    (vm_try!(lhs.as_inline()), vm_try!(rhs.as_inline()))
-                {
+                let test = if let (Some(lhs), Some(rhs)) = (lhs.as_inline(), rhs.as_inline()) {
                     vm_try!(lhs.partial_eq(rhs))
                 } else {
                     let lhs = lhs.clone();
@@ -2316,9 +2307,7 @@ impl Vm {
                 let rhs = vm_try!(self.stack.at(rhs));
                 let lhs = vm_try!(self.stack.at(lhs));
 
-                let test = if let (Some(lhs), Some(rhs)) =
-                    (vm_try!(lhs.as_inline()), vm_try!(rhs.as_inline()))
-                {
+                let test = if let (Some(lhs), Some(rhs)) = (lhs.as_inline(), rhs.as_inline()) {
                     vm_try!(lhs.partial_eq(rhs))
                 } else {
                     let lhs = lhs.clone();
@@ -2501,9 +2490,9 @@ impl Vm {
             Output::discard()
         )) {
             return err(VmErrorKind::UnsupportedIndexSet {
-                target: vm_try!(target.type_info()),
-                index: vm_try!(index.type_info()),
-                value: vm_try!(value.type_info()),
+                target: target.type_info(),
+                index: index.type_info(),
+                value: value.type_info(),
             });
         }
 
@@ -2594,7 +2583,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_instance_fn(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
         let instance = vm_try!(self.stack.at(addr));
-        let ty = vm_try!(instance.type_hash());
+        let ty = instance.type_hash();
         let hash = Hash::associated_function(ty, hash);
         vm_try!(out.store(&mut self.stack, || Type::new(hash)));
         VmResult::Ok(())
@@ -2612,15 +2601,15 @@ impl Vm {
             let index = vm_try!(self.stack.at(index));
             let target = vm_try!(self.stack.at(target));
 
-            match vm_try!(index.as_ref()) {
-                ReprRef::Inline(inline) => {
+            match index.as_ref() {
+                Repr::Inline(inline) => {
                     let index = vm_try!(inline.as_integer::<usize>());
 
                     if let Some(value) = vm_try!(Self::try_tuple_like_index_get(target, index)) {
                         break 'store value;
                     }
                 }
-                ReprRef::Any(value) => {
+                Repr::Any(value) => {
                     if let Some(index) = vm_try!(value.try_borrow_ref::<String>()) {
                         if let Some(value) =
                             vm_try!(Self::try_object_like_index_get(target, index.as_str()))
@@ -2645,8 +2634,8 @@ impl Vm {
                 out
             )) {
                 return err(VmErrorKind::UnsupportedIndexGet {
-                    target: vm_try!(target.type_info()),
-                    index: vm_try!(index.type_info()),
+                    target: target.type_info(),
+                    index: index.type_info(),
                 });
             }
 
@@ -2673,7 +2662,7 @@ impl Vm {
         }
 
         err(VmErrorKind::UnsupportedTupleIndexSet {
-            target: vm_try!(target.type_info()),
+            target: target.type_info(),
         })
     }
 
@@ -2698,7 +2687,7 @@ impl Vm {
             vm_try!(self.call_index_fn(Protocol::GET, value, index, &mut (), out))
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
-                target: vm_try!(value.type_info()),
+                target: value.type_info(),
                 index,
             });
         }
@@ -2734,7 +2723,7 @@ impl Vm {
 
         if let CallResult::Unsupported(target) = result {
             return err(VmErrorKind::UnsupportedObjectSlotIndexSet {
-                target: vm_try!(target.type_info()),
+                target: target.type_info(),
             });
         };
 
@@ -2752,8 +2741,8 @@ impl Vm {
         let target = vm_try!(self.stack.at(addr));
         let index = vm_try!(self.unit.lookup_string(slot));
 
-        match vm_try!(target.as_ref()) {
-            ReprRef::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
+        match target.as_ref() {
+            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
                 let Some(value) = vm_try!(data.get_field_ref(index.as_str())) else {
                     return err(VmErrorKind::ObjectIndexMissing { slot });
                 };
@@ -2762,7 +2751,7 @@ impl Vm {
                 vm_try!(out.store(&mut self.stack, value));
                 return VmResult::Ok(());
             }
-            ReprRef::Any(value) if value.type_hash() == Object::HASH => {
+            Repr::Any(value) if value.type_hash() == Object::HASH => {
                 let object = vm_try!(value.borrow_ref::<Object>());
 
                 let Some(value) = object.get(index.as_str()) else {
@@ -2773,7 +2762,7 @@ impl Vm {
                 vm_try!(out.store(&mut self.stack, value));
                 return VmResult::Ok(());
             }
-            ReprRef::Any(..) => {}
+            Repr::Any(..) => {}
             target => {
                 return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                     target: target.type_info(),
@@ -2787,7 +2776,7 @@ impl Vm {
             vm_try!(self.call_field_fn(Protocol::GET, target, index.hash(), &mut (), out))
         {
             return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
-                target: vm_try!(target.type_info()),
+                target: target.type_info(),
             });
         }
 
@@ -2948,7 +2937,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
-        let is_unit = matches!(vm_try!(value.as_inline()), Some(Inline::Unit));
+        let is_unit = matches!(value.as_inline(), Some(Inline::Unit));
         vm_try!(out.store(&mut self.stack, is_unit));
         VmResult::Ok(())
     }
@@ -2960,7 +2949,7 @@ impl Vm {
             let value = {
                 let value = vm_try!(self.stack.at(addr));
 
-                if let ReprRef::Any(value) = vm_try!(value.as_ref()) {
+                if let Repr::Any(value) = value.as_ref() {
                     match value.type_hash() {
                         Result::<Value, Value>::HASH => {
                             let result = vm_try!(value.borrow_ref::<Result<Value, Value>>());
@@ -2981,7 +2970,7 @@ impl Vm {
                 CallResultOnly::Ok(value) => vm_try!(ControlFlow::from_value(value)),
                 CallResultOnly::Unsupported(target) => {
                     return err(VmErrorKind::UnsupportedTryOperand {
-                        actual: vm_try!(target.type_info()),
+                        actual: target.type_info(),
                     })
                 }
             }
@@ -3000,7 +2989,7 @@ impl Vm {
     fn op_eq_character(&mut self, addr: InstAddress, value: char, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match vm_try!(v.as_inline()) {
+        let is_match = match v.as_inline() {
             Some(Inline::Char(actual)) => *actual == value,
             _ => false,
         };
@@ -3013,7 +3002,7 @@ impl Vm {
     fn op_eq_unsigned(&mut self, addr: InstAddress, value: u64, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match vm_try!(v.as_inline()) {
+        let is_match = match v.as_inline() {
             Some(Inline::Unsigned(actual)) => *actual == value,
             _ => false,
         };
@@ -3026,7 +3015,7 @@ impl Vm {
     fn op_eq_signed(&mut self, addr: InstAddress, value: i64, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match vm_try!(v.as_inline()) {
+        let is_match = match v.as_inline() {
             Some(Inline::Signed(actual)) => *actual == value,
             _ => false,
         };
@@ -3039,7 +3028,7 @@ impl Vm {
     fn op_eq_bool(&mut self, addr: InstAddress, value: bool, out: Output) -> VmResult<()> {
         let v = vm_try!(self.stack.at(addr));
 
-        let is_match = match vm_try!(v.as_inline()) {
+        let is_match = match v.as_inline() {
             Some(Inline::Bool(actual)) => *actual == value,
             _ => false,
         };
@@ -3112,7 +3101,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_type(&mut self, hash: Hash, addr: InstAddress, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
-        let is_match = vm_try!(value.type_hash()) == hash;
+        let is_match = value.type_hash() == hash;
         vm_try!(out.store(&mut self.stack, is_match));
         VmResult::Ok(())
     }
@@ -3129,11 +3118,11 @@ impl Vm {
         let value = vm_try!(self.stack.at(addr));
 
         let is_match = 'out: {
-            match vm_try!(value.as_ref()) {
-                ReprRef::Dynamic(value) => {
+            match value.as_ref() {
+                Repr::Dynamic(value) => {
                     break 'out value.rtti().is(enum_hash, variant_hash);
                 }
-                ReprRef::Any(any) => match enum_hash {
+                Repr::Any(any) => match enum_hash {
                     Result::<Value, Value>::HASH => {
                         let result = vm_try!(any.borrow_ref::<Result<Value, Value>>());
 
@@ -3188,13 +3177,13 @@ impl Vm {
     ) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
-        let is_match = match vm_try!(value.as_ref()) {
-            ReprRef::Inline(value) => match (type_check, value) {
+        let is_match = match value.as_ref() {
+            Repr::Inline(value) => match (type_check, value) {
                 (TypeCheck::Unit, Inline::Unit) => true,
                 _ => false,
             },
-            ReprRef::Dynamic(..) => false,
-            ReprRef::Any(value) => match (type_check, value.type_hash()) {
+            Repr::Dynamic(..) => false,
+            Repr::Any(value) => match (type_check, value.type_hash()) {
                 (TypeCheck::Vec, runtime::Vec::HASH) => true,
                 (TypeCheck::Tuple, runtime::OwnedTuple::HASH) => true,
                 _ => false,
@@ -3410,7 +3399,7 @@ impl Vm {
         out: Output,
     ) -> VmResult<()> {
         let instance = vm_try!(self.stack.at(addr));
-        let type_hash = vm_try!(instance.type_hash());
+        let type_hash = instance.type_hash();
         let hash = Hash::associated_function(type_hash, hash);
 
         if let Some(handler) = self.context.function(hash) {
@@ -3433,7 +3422,7 @@ impl Vm {
         }
 
         err(VmErrorKind::MissingInstanceFunction {
-            instance: vm_try!(instance.type_info()),
+            instance: instance.type_info(),
             hash,
         })
     }
@@ -3449,32 +3438,19 @@ impl Vm {
     ) -> VmResult<Option<VmHalt>> {
         let function = vm_try!(self.stack.at(function));
 
-        if let Some(value) = vm_try!(function.as_inline()) {
-            let ty = match value {
-                Inline::Type(ty) => *ty,
-                actual => {
-                    return err(VmErrorKind::UnsupportedCallFn {
-                        actual: actual.type_info(),
-                    });
-                }
-            };
-
-            vm_try!(self.op_call(ty.into_hash(), addr, args, out));
-            return VmResult::Ok(None);
-        }
-
-        match vm_try!(function.as_ref()) {
-            ReprRef::Inline(value) => err(VmErrorKind::UnsupportedCallFn {
-                actual: value.type_info(),
-            }),
-            ReprRef::Dynamic(value) => err(VmErrorKind::UnsupportedCallFn {
-                actual: value.type_info(),
-            }),
-            ReprRef::Any(value) => {
+        match function.as_ref() {
+            Repr::Inline(Inline::Type(ty)) => {
+                vm_try!(self.op_call(ty.into_hash(), addr, args, out));
+                VmResult::Ok(None)
+            }
+            Repr::Any(value) if value.type_hash() == Function::HASH => {
                 let value = value.clone();
                 let f = vm_try!(value.borrow_ref::<Function>());
                 f.call_with_vm(self, addr, args, out)
             }
+            value => err(VmErrorKind::UnsupportedCallFn {
+                actual: value.type_info(),
+            }),
         }
     }
 
@@ -3482,8 +3458,8 @@ impl Vm {
     fn op_iter_next(&mut self, addr: InstAddress, jump: usize, out: Output) -> VmResult<()> {
         let value = vm_try!(self.stack.at(addr));
 
-        let some = match vm_try!(value.as_ref()) {
-            ReprRef::Any(value) => match value.type_hash() {
+        let some = match value.as_ref() {
+            Repr::Any(value) => match value.type_hash() {
                 Option::<Value>::HASH => {
                     let option = vm_try!(value.borrow_ref::<Option<Value>>());
 

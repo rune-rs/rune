@@ -4,7 +4,7 @@ use core::ops::Deref;
 
 use crate::alloc::{Box, Vec};
 
-use super::{FromValue, ReprOwned, Rtti, RttiKind, RuntimeError, Tuple, TypeInfo, Value};
+use super::{FromValue, Repr, Rtti, RttiKind, RuntimeError, Tuple, TypeInfo, Value};
 
 use rust_alloc::sync::Arc;
 
@@ -16,8 +16,8 @@ pub struct DynamicEmpty {
 impl FromValue for DynamicEmpty {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            ReprOwned::Dynamic(value) if matches!(value.rtti().kind, RttiKind::Empty) => Ok(Self {
+        match value.take_repr() {
+            Repr::Dynamic(value) if matches!(value.rtti().kind, RttiKind::Empty) => Ok(Self {
                 rtti: value.rtti().clone(),
             }),
             value => Err(RuntimeError::expected_empty(value.type_info())),
@@ -44,8 +44,8 @@ pub struct DynamicTuple {
 impl FromValue for DynamicTuple {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            ReprOwned::Dynamic(value) if matches!(value.rtti().kind, RttiKind::Tuple) => {
+        match value.take_repr() {
+            Repr::Dynamic(value) if matches!(value.rtti().kind, RttiKind::Tuple) => {
                 let mut values = Vec::try_with_capacity(value.len())?;
 
                 for value in value.borrow_ref()?.iter() {
@@ -87,8 +87,8 @@ pub struct DynamicStruct {
 impl FromValue for DynamicStruct {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        match value.take_repr()? {
-            ReprOwned::Dynamic(value) if matches!(value.rtti().kind, RttiKind::Struct) => {
+        match value.take_repr() {
+            Repr::Dynamic(value) if matches!(value.rtti().kind, RttiKind::Struct) => {
                 let mut values = Vec::try_with_capacity(value.len())?;
 
                 for value in value.borrow_ref()?.iter() {

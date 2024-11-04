@@ -74,52 +74,21 @@ where
 }
 
 #[derive(Clone)]
-enum Repr {
-    Empty,
+pub(crate) enum Repr {
     Inline(Inline),
     Dynamic(Dynamic<Arc<Rtti>, Value>),
     Any(AnyObj),
 }
 
-pub(crate) enum ReprOwned {
-    Inline(Inline),
-    Dynamic(Dynamic<Arc<Rtti>, Value>),
-    Any(AnyObj),
-}
-
-impl ReprOwned {
+impl Repr {
     #[inline]
     pub(crate) fn type_info(&self) -> TypeInfo {
         match self {
-            ReprOwned::Inline(value) => value.type_info(),
-            ReprOwned::Dynamic(value) => value.type_info(),
-            ReprOwned::Any(value) => value.type_info(),
+            Repr::Inline(value) => value.type_info(),
+            Repr::Dynamic(value) => value.type_info(),
+            Repr::Any(value) => value.type_info(),
         }
     }
-}
-
-pub(crate) enum ReprRef<'a> {
-    Inline(&'a Inline),
-    Dynamic(&'a Dynamic<Arc<Rtti>, Value>),
-    Any(&'a AnyObj),
-}
-
-impl ReprRef<'_> {
-    #[inline]
-    pub(crate) fn type_info(&self) -> TypeInfo {
-        match self {
-            ReprRef::Inline(value) => value.type_info(),
-            ReprRef::Dynamic(value) => value.type_info(),
-            ReprRef::Any(value) => value.type_info(),
-        }
-    }
-}
-
-/// Access the internals of a value mutably.
-pub(crate) enum ReprMut<'a> {
-    Inline(&'a mut Inline),
-    Dynamic(#[allow(unused)] &'a Dynamic<Arc<Rtti>, Value>),
-    Any(#[allow(unused)] &'a AnyObj),
 }
 
 /// An entry on the stack.
@@ -286,7 +255,7 @@ impl Value {
     /// Test if the value is writable.
     pub fn is_writable(&self) -> bool {
         match self.repr {
-            Repr::Empty => false,
+            Repr::Inline(Inline::Empty) => false,
             Repr::Inline(..) => true,
             Repr::Dynamic(ref value) => value.is_writable(),
             Repr::Any(ref any) => any.is_writable(),
@@ -296,7 +265,7 @@ impl Value {
     /// Test if the value is readable.
     pub fn is_readable(&self) -> bool {
         match &self.repr {
-            Repr::Empty => false,
+            Repr::Inline(Inline::Empty) => false,
             Repr::Inline(..) => true,
             Repr::Dynamic(ref value) => value.is_readable(),
             Repr::Any(ref any) => any.is_readable(),
@@ -312,7 +281,9 @@ impl Value {
 
     /// Construct an empty value.
     pub const fn empty() -> Self {
-        Self { repr: Repr::Empty }
+        Self {
+            repr: Repr::Inline(Inline::Empty),
+        }
     }
 
     /// Format the value using the [Protocol::DISPLAY_FMT] protocol.
@@ -341,8 +312,8 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         'fallback: {
-            match vm_try!(self.as_ref()) {
-                ReprRef::Inline(value) => match value {
+            match self.as_ref() {
+                Repr::Inline(value) => match value {
                     Inline::Char(c) => {
                         vm_try!(f.try_write_char(*c));
                     }
@@ -400,19 +371,19 @@ impl Value {
     }
 
     pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<Value> {
-        match vm_try!(self.as_ref()) {
-            ReprRef::Inline(value) => {
+        match self.as_ref() {
+            Repr::Inline(value) => {
                 return VmResult::Ok(Self {
                     repr: Repr::Inline(*value),
                 });
             }
-            ReprRef::Dynamic(value) => {
+            Repr::Dynamic(value) => {
                 // TODO: This type of cloning should be deep, not shallow.
                 return VmResult::Ok(Self {
                     repr: Repr::Dynamic(value.clone()),
                 });
             }
-            ReprRef::Any(..) => {}
+            Repr::Any(..) => {}
         }
 
         VmResult::Ok(vm_try!(caller.call_protocol_fn(
@@ -445,9 +416,6 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match &self.repr {
-            Repr::Empty => {
-                vm_try!(vm_write!(f, "<empty>"));
-            }
             Repr::Inline(value) => {
                 vm_try!(vm_write!(f, "{value:?}"));
             }
@@ -467,9 +435,6 @@ impl Value {
                         vm_try!(<()>::from_value(value));
                     }
                     CallResultOnly::Unsupported(value) => match &value.repr {
-                        Repr::Empty => {
-                            vm_try!(vm_write!(f, "<empty>"));
-                        }
                         Repr::Inline(value) => {
                             vm_try!(vm_write!(f, "{value:?}"));
                         }
@@ -524,7 +489,7 @@ impl Value {
     ///
     /// [`Vm`]: crate::Vm
     pub fn into_type_name(self) -> VmResult<String> {
-        let hash = Hash::associated_function(vm_try!(self.type_hash()), Protocol::INTO_TYPE_NAME);
+        let hash = Hash::associated_function(self.type_hash(), Protocol::INTO_TYPE_NAME);
 
         crate::runtime::env::shared(|context, unit| {
             if let Some(name) = context.constant(hash) {
@@ -545,7 +510,7 @@ impl Value {
                 }
             }
 
-            VmResult::Ok(vm_try!(vm_try!(self.type_info()).try_to_string()))
+            VmResult::Ok(vm_try!(self.type_info().try_to_string()))
         })
     }
 
@@ -625,8 +590,8 @@ impl Value {
     /// Take the current value as a string.
     #[inline]
     pub fn into_string(self) -> Result<String, RuntimeError> {
-        match self.take_repr()? {
-            ReprOwned::Any(value) => Ok(value.downcast()?),
+        match self.take_repr() {
+            Repr::Any(value) => Ok(value.downcast()?),
             actual => Err(RuntimeError::expected::<String>(actual.type_info())),
         }
     }
@@ -635,12 +600,12 @@ impl Value {
     #[doc(hidden)]
     #[inline]
     pub fn as_type_value(&self) -> Result<TypeValue<'_>, RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(value) => match value {
+        match self.as_ref() {
+            Repr::Inline(value) => match value {
                 Inline::Unit => Ok(TypeValue::Unit),
                 value => Ok(TypeValue::NotTypedInline(NotTypedInline(*value))),
             },
-            ReprRef::Dynamic(value) => match value.rtti().kind {
+            Repr::Dynamic(value) => match value.rtti().kind {
                 RttiKind::Empty => Ok(TypeValue::EmptyStruct(EmptyStruct { rtti: value.rtti() })),
                 RttiKind::Tuple => Ok(TypeValue::TupleStruct(TupleStruct {
                     rtti: value.rtti(),
@@ -651,7 +616,7 @@ impl Value {
                     data: value.borrow_ref()?,
                 })),
             },
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Any(value) => match value.type_hash() {
                 OwnedTuple::HASH => Ok(TypeValue::Tuple(value.borrow_ref()?)),
                 Object::HASH => Ok(TypeValue::Object(value.borrow_ref()?)),
                 _ => Ok(TypeValue::NotTypedAnyObj(NotTypedAnyObj(value))),
@@ -662,8 +627,8 @@ impl Value {
     /// Coerce into a unit.
     #[inline]
     pub fn into_unit(&self) -> Result<(), RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(Inline::Unit) => Ok(()),
+        match self.as_ref() {
+            Repr::Inline(Inline::Unit) => Ok(()),
             value => Err(RuntimeError::expected::<()>(value.type_info())),
         }
     }
@@ -723,11 +688,11 @@ impl Value {
     /// and does not consume it.
     #[inline]
     pub fn borrow_tuple_ref(&self) -> Result<BorrowRef<'_, Tuple>, RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(Inline::Unit) => Ok(BorrowRef::from_static(Tuple::new(&[]))),
-            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Any(value) => {
+        match self.as_ref() {
+            Repr::Inline(Inline::Unit) => Ok(BorrowRef::from_static(Tuple::new(&[]))),
+            Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Any(value) => {
                 let value = value.borrow_ref::<OwnedTuple>()?;
                 let value = BorrowRef::map(value, OwnedTuple::as_ref);
                 Ok(value)
@@ -741,11 +706,11 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn borrow_tuple_mut(&self) -> Result<BorrowMut<'_, Tuple>, RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(Inline::Unit) => Ok(BorrowMut::from_static(Tuple::new_mut(&mut []))),
-            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Any(value) => {
+        match self.as_ref() {
+            Repr::Inline(Inline::Unit) => Ok(BorrowMut::from_static(Tuple::new_mut(&mut []))),
+            Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Any(value) => {
                 let value = value.borrow_mut::<OwnedTuple>()?;
                 let value = BorrowMut::map(value, OwnedTuple::as_mut);
                 Ok(value)
@@ -759,11 +724,11 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn into_tuple(&self) -> Result<Box<Tuple>, RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(Inline::Unit) => Ok(Tuple::from_boxed(Box::default())),
-            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Any(value) => Ok(value.clone().downcast::<OwnedTuple>()?.into_boxed_tuple()),
+        match self.as_ref() {
+            Repr::Inline(Inline::Unit) => Ok(Tuple::from_boxed(Box::default())),
+            Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Any(value) => Ok(value.clone().downcast::<OwnedTuple>()?.into_boxed_tuple()),
         }
     }
 
@@ -773,11 +738,11 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn into_tuple_ref(&self) -> Result<Ref<Tuple>, RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(Inline::Unit) => Ok(Ref::from_static(Tuple::new(&[]))),
-            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Any(value) => {
+        match self.as_ref() {
+            Repr::Inline(Inline::Unit) => Ok(Ref::from_static(Tuple::new(&[]))),
+            Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Any(value) => {
                 let value = value.clone().into_ref::<OwnedTuple>()?;
                 let value = Ref::map(value, OwnedTuple::as_ref);
                 Ok(value)
@@ -791,11 +756,11 @@ impl Value {
     /// does not consume it.
     #[inline]
     pub fn into_tuple_mut(&self) -> Result<Mut<Tuple>, RuntimeError> {
-        match self.as_ref()? {
-            ReprRef::Inline(Inline::Unit) => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
-            ReprRef::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
-            ReprRef::Any(value) => {
+        match self.as_ref() {
+            Repr::Inline(Inline::Unit) => Ok(Mut::from_static(Tuple::new_mut(&mut []))),
+            Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
+            Repr::Any(value) => {
                 let value = value.clone().into_mut::<OwnedTuple>()?;
                 let value = Mut::map(value, OwnedTuple::as_mut);
                 Ok(value)
@@ -809,7 +774,6 @@ impl Value {
     #[inline]
     pub fn into_any_obj(self) -> Result<AnyObj, RuntimeError> {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Any(value) => Ok(value),
@@ -834,7 +798,6 @@ impl Value {
     #[inline]
     pub fn into_future(self) -> Result<Future, RuntimeError> {
         let target = match self.repr {
-            Repr::Empty => return Err(RuntimeError::from(AccessError::empty())),
             Repr::Any(value) => match value.type_hash() {
                 Future::HASH => {
                     return Ok(value.downcast::<Future>()?);
@@ -863,7 +826,6 @@ impl Value {
         T: Any,
     {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => {
@@ -887,7 +849,6 @@ impl Value {
         T: Any,
     {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => {
@@ -933,7 +894,6 @@ impl Value {
         T: Any,
     {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.downcast::<T>()?),
@@ -967,7 +927,6 @@ impl Value {
         T: Any,
     {
         match &self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.borrow_ref()?),
@@ -1000,7 +959,6 @@ impl Value {
         T: Any,
     {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.into_ref()?),
@@ -1014,7 +972,6 @@ impl Value {
         T: Any,
     {
         match &self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.borrow_mut()?),
@@ -1055,7 +1012,6 @@ impl Value {
         T: Any,
     {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.into_mut()?),
@@ -1066,22 +1022,22 @@ impl Value {
     ///
     /// One notable feature is that the type of a variant is its container
     /// *enum*, and not the type hash of the variant itself.
-    pub fn type_hash(&self) -> Result<Hash, RuntimeError> {
+    #[inline(always)]
+    pub fn type_hash(&self) -> Hash {
         match &self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
-            Repr::Inline(value) => Ok(value.type_hash()),
-            Repr::Dynamic(value) => Ok(value.type_hash()),
-            Repr::Any(value) => Ok(value.type_hash()),
+            Repr::Inline(value) => value.type_hash(),
+            Repr::Dynamic(value) => value.type_hash(),
+            Repr::Any(value) => value.type_hash(),
         }
     }
 
     /// Get the type information for the current value.
-    pub fn type_info(&self) -> Result<TypeInfo, RuntimeError> {
+    #[inline(always)]
+    pub fn type_info(&self) -> TypeInfo {
         match &self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
-            Repr::Inline(value) => Ok(value.type_info()),
-            Repr::Dynamic(value) => Ok(value.type_info()),
-            Repr::Any(value) => Ok(value.type_info()),
+            Repr::Inline(value) => value.type_info(),
+            Repr::Dynamic(value) => value.type_info(),
+            Repr::Any(value) => value.type_info(),
         }
     }
 
@@ -1238,9 +1194,9 @@ impl Value {
         hasher: &mut Hasher,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
-        match vm_try!(self.as_ref()) {
-            ReprRef::Inline(value) => return VmResult::Ok(vm_try!(value.hash(hasher))),
-            ReprRef::Any(value) => match value.type_hash() {
+        match self.as_ref() {
+            Repr::Inline(value) => return VmResult::Ok(vm_try!(value.hash(hasher))),
+            Repr::Any(value) => match value.type_hash() {
                 Vec::HASH => {
                     let vec = vm_try!(value.borrow_ref::<Vec>());
                     return Vec::hash_with(&vec, hasher, caller);
@@ -1264,7 +1220,7 @@ impl Value {
 
         err(VmErrorKind::UnsupportedUnaryOperation {
             op: Protocol::HASH.name,
-            operand: vm_try!(self.type_info()),
+            operand: self.type_info(),
         })
     }
 
@@ -1283,18 +1239,18 @@ impl Value {
     where
         T: FromValue,
     {
-        match (vm_try!(self.as_ref()), vm_try!(b.as_ref())) {
-            (ReprRef::Inline(lhs), ReprRef::Inline(rhs)) => {
+        match (self.as_ref(), b.as_ref()) {
+            (Repr::Inline(lhs), Repr::Inline(rhs)) => {
                 return VmResult::Ok(vm_try!(inline(lhs, rhs)))
             }
-            (ReprRef::Inline(lhs), rhs) => {
+            (Repr::Inline(lhs), rhs) => {
                 return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
                     op: protocol.name,
                     lhs: lhs.type_info(),
                     rhs: rhs.type_info(),
                 });
             }
-            (ReprRef::Dynamic(lhs), ReprRef::Dynamic(rhs)) => {
+            (Repr::Dynamic(lhs), Repr::Dynamic(rhs)) => {
                 let lhs_rtti = lhs.rtti();
                 let rhs_rtti = rhs.rtti();
 
@@ -1322,8 +1278,8 @@ impl Value {
 
         err(VmErrorKind::UnsupportedBinaryOperation {
             op: protocol.name,
-            lhs: vm_try!(self.type_info()),
-            rhs: vm_try!(b.type_info()),
+            lhs: self.type_info(),
+            rhs: b.type_info(),
         })
     }
 
@@ -1344,7 +1300,6 @@ impl Value {
         T: TryFrom<u64> + TryFrom<i64>,
     {
         match self.repr {
-            Repr::Empty => Err(RuntimeError::from(AccessError::empty())),
             Repr::Inline(value) => value.as_integer(),
             Repr::Dynamic(ref value) => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
                 actual: value.type_info(),
@@ -1371,22 +1326,20 @@ impl Value {
     ///
     /// Any empty value will cause an access error.
     #[inline]
-    pub(crate) fn as_inline(&self) -> Result<Option<&Inline>, AccessError> {
+    pub(crate) fn as_inline(&self) -> Option<&Inline> {
         match &self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(Some(value)),
-            Repr::Dynamic(..) => Ok(None),
-            Repr::Any(..) => Ok(None),
+            Repr::Inline(value) => Some(value),
+            Repr::Dynamic(..) => None,
+            Repr::Any(..) => None,
         }
     }
 
     #[inline]
-    pub(crate) fn as_inline_mut(&mut self) -> Result<Option<&mut Inline>, AccessError> {
+    pub(crate) fn as_inline_mut(&mut self) -> Option<&mut Inline> {
         match &mut self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(Some(value)),
-            Repr::Dynamic(..) => Ok(None),
-            Repr::Any(..) => Ok(None),
+            Repr::Inline(value) => Some(value),
+            Repr::Dynamic(..) => None,
+            Repr::Any(..) => None,
         }
     }
 
@@ -1394,43 +1347,27 @@ impl Value {
     ///
     /// Any empty value will cause an access error.
     #[inline]
-    pub(crate) fn as_any(&self) -> Result<Option<&AnyObj>, AccessError> {
+    pub(crate) fn as_any(&self) -> Option<&AnyObj> {
         match &self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(..) => Ok(None),
-            Repr::Dynamic(..) => Ok(None),
-            Repr::Any(value) => Ok(Some(value)),
+            Repr::Inline(..) => None,
+            Repr::Dynamic(..) => None,
+            Repr::Any(value) => Some(value),
         }
     }
 
-    #[inline]
-    pub(crate) fn take_repr(self) -> Result<ReprOwned, AccessError> {
-        match self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(ReprOwned::Inline(value)),
-            Repr::Dynamic(value) => Ok(ReprOwned::Dynamic(value)),
-            Repr::Any(value) => Ok(ReprOwned::Any(value)),
-        }
+    #[inline(always)]
+    pub(crate) fn take_repr(self) -> Repr {
+        self.repr
     }
 
-    #[inline]
-    pub(crate) fn as_ref(&self) -> Result<ReprRef<'_>, AccessError> {
-        match &self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(ReprRef::Inline(value)),
-            Repr::Dynamic(value) => Ok(ReprRef::Dynamic(value)),
-            Repr::Any(value) => Ok(ReprRef::Any(value)),
-        }
+    #[inline(always)]
+    pub(crate) fn as_ref(&self) -> &Repr {
+        &self.repr
     }
 
-    #[inline]
-    pub(crate) fn as_mut(&mut self) -> Result<ReprMut<'_>, AccessError> {
-        match &mut self.repr {
-            Repr::Empty => Err(AccessError::empty()),
-            Repr::Inline(value) => Ok(ReprMut::Inline(value)),
-            Repr::Dynamic(value) => Ok(ReprMut::Dynamic(value)),
-            Repr::Any(value) => Ok(ReprMut::Any(value)),
-        }
+    #[inline(always)]
+    pub(crate) fn as_mut(&mut self) -> &mut Repr {
+        &mut self.repr
     }
 
     #[inline]
@@ -1439,7 +1376,6 @@ impl Value {
         T: Any,
     {
         match &self.repr {
-            Repr::Empty => Err(AccessError::empty()),
             Repr::Inline(..) => Ok(None),
             Repr::Dynamic(..) => Ok(None),
             Repr::Any(value) => value.try_borrow_ref(),
@@ -1452,7 +1388,6 @@ impl Value {
         T: Any,
     {
         match &self.repr {
-            Repr::Empty => Err(AccessError::empty()),
             Repr::Inline(..) => Ok(None),
             Repr::Dynamic(..) => Ok(None),
             Repr::Any(value) => value.try_borrow_mut(),
@@ -1505,9 +1440,6 @@ impl Value {
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.repr {
-            Repr::Empty => {
-                write!(f, "<empty>")?;
-            }
             Repr::Inline(value) => {
                 write!(f, "{value:?}")?;
             }
@@ -1517,9 +1449,6 @@ impl fmt::Debug for Value {
 
                 if let Err(e) = result.into_result() {
                     match &self.repr {
-                        Repr::Empty => {
-                            write!(f, "<empty: {e}>")?;
-                        }
                         Repr::Inline(value) => {
                             write!(f, "<{value:?}: {e}>")?;
                         }
@@ -1654,7 +1583,6 @@ impl Clone for Value {
     #[inline]
     fn clone(&self) -> Self {
         let repr = match &self.repr {
-            Repr::Empty => Repr::Empty,
             Repr::Inline(inline) => Repr::Inline(*inline),
             Repr::Dynamic(mutable) => Repr::Dynamic(mutable.clone()),
             Repr::Any(any) => Repr::Any(any.clone()),
@@ -1666,7 +1594,6 @@ impl Clone for Value {
     #[inline]
     fn clone_from(&mut self, source: &Self) {
         match (&mut self.repr, &source.repr) {
-            (Repr::Empty, Repr::Empty) => {}
             (Repr::Inline(lhs), Repr::Inline(rhs)) => {
                 *lhs = *rhs;
             }

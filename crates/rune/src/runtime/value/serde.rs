@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{self, Bytes, Inline, Object, OwnedTuple, ReprRef, RttiKind, Vec};
+use crate::runtime::{self, Bytes, Inline, Object, OwnedTuple, Repr, RttiKind, Vec};
 use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
@@ -26,8 +26,9 @@ impl ser::Serialize for Value {
     where
         S: ser::Serializer,
     {
-        match self.as_ref().map_err(S::Error::custom)? {
-            ReprRef::Inline(value) => match *value {
+        match self.as_ref() {
+            Repr::Inline(value) => match *value {
+                Inline::Empty => Err(ser::Error::custom("cannot serialize empty values")),
                 Inline::Unit => serializer.serialize_unit(),
                 Inline::Bool(value) => serializer.serialize_bool(value),
                 Inline::Char(value) => serializer.serialize_char(value),
@@ -37,7 +38,7 @@ impl ser::Serialize for Value {
                 Inline::Type(..) => Err(ser::Error::custom("cannot serialize types")),
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
             },
-            ReprRef::Dynamic(value) => match value.rtti().kind {
+            Repr::Dynamic(value) => match value.rtti().kind {
                 RttiKind::Empty => Err(ser::Error::custom(format!(
                     "cannot serialize empty struct {}",
                     value.rtti().item
@@ -51,7 +52,7 @@ impl ser::Serialize for Value {
                     value.rtti().item
                 ))),
             },
-            ReprRef::Any(value) => match value.type_hash() {
+            Repr::Any(value) => match value.type_hash() {
                 Option::<Value>::HASH => {
                     let option = value
                         .borrow_ref::<Option<Value>>()

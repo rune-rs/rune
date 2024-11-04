@@ -18,7 +18,7 @@ pub(crate) trait ProtocolCaller: 'static {
             CallResultOnly::Unsupported(value) => {
                 VmResult::err(VmErrorKind::MissingProtocolFunction {
                     protocol,
-                    instance: vm_try!(value.type_info()),
+                    instance: value.type_info(),
                 })
             }
         }
@@ -59,7 +59,7 @@ impl ProtocolCaller for EnvProtocolCaller {
 
         crate::runtime::env::shared(|context, unit| {
             let count = args.count() + 1;
-            let hash = Hash::associated_function(vm_try!(target.type_hash()), protocol.hash);
+            let hash = Hash::associated_function(target.type_hash(), protocol.hash);
 
             if let Some(UnitFn::Offset {
                 offset,
