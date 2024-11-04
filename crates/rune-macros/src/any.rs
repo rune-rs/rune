@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
 use rune_core::hash::Hash;
 use syn::punctuated::Punctuated;
@@ -96,9 +96,13 @@ impl InternalCall {
                 type_item,
                 installers: Vec::new(),
                 tokens,
-                is_generic,
                 generics: syn::Generics::default(),
                 attrs,
+                kind: if is_generic.is_some() {
+                    TypeKind::Generic
+                } else {
+                    TypeKind::Derive
+                },
             });
         }
 
@@ -165,9 +169,9 @@ impl Derive {
             type_item,
             installers,
             tokens,
-            is_generic: None,
             generics: self.input.generics,
             attrs: Vec::new(),
+            kind: TypeKind::Derive,
         })
     }
 }
@@ -528,6 +532,11 @@ fn expand_enum_install_with(
     Ok(())
 }
 
+enum TypeKind {
+    Derive,
+    Generic,
+}
+
 pub struct TypeBuilder<'a, T> {
     attr: &'a TypeAttr,
     ident: T,
@@ -537,9 +546,9 @@ pub struct TypeBuilder<'a, T> {
     type_item: syn::ExprArray,
     installers: Vec<TokenStream>,
     tokens: &'a Tokens,
-    is_generic: Option<Span>,
     generics: syn::Generics,
     attrs: Vec<syn::Attribute>,
+    kind: TypeKind,
 }
 
 impl<T> TypeBuilder<'_, T>
@@ -548,6 +557,154 @@ where
 {
     /// Expand the necessary implementation details for `Any`.
     pub(super) fn expand(self) -> TokenStream {
+        match self.kind {
+            TypeKind::Derive => self.expand_any(),
+            TypeKind::Generic => self.expand_generic(),
+        }
+    }
+
+    pub(super) fn expand_generic(self) -> TokenStream {
+        let TypeBuilder {
+            ident,
+            type_item,
+            installers,
+            tokens,
+            generics,
+            attrs,
+            ..
+        } = self;
+
+        let Tokens {
+            any_t,
+            context_error,
+            fmt,
+            install_with,
+            item,
+            module,
+            named,
+            non_null,
+            raw_value_guard,
+            result,
+            unsafe_to_mut,
+            unsafe_to_ref,
+            unsafe_to_value,
+            value_mut_guard,
+            value_ref_guard,
+            value,
+            write,
+            runtime_error,
+            ..
+        } = tokens;
+
+        let generic_names = generics.type_params().map(|v| &v.ident).collect::<Vec<_>>();
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+
+        let named_rest = if let [first_name, remainder @ ..] = &generic_names[..] {
+            Some(quote! {
+                #write!(f, "<")?;
+                #first_name::full_name(f)?;
+                #(
+                    #write!(f, ", ")?;
+                    #remainder::full_name(f)?;
+                )*
+                #write!(f, ">")?;
+            })
+        } else {
+            None
+        };
+
+        let impl_named = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #named for #ident #type_generics #where_clause {
+                const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
+
+                #[inline]
+                fn full_name(f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
+                    #fmt::Display::fmt(Self::ITEM, f)?;
+                    #named_rest
+                    #result::Ok(())
+                }
+            }
+        };
+
+        let install_with = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #install_with for #ident #type_generics #where_clause {
+                fn install_with(#[allow(unused)] module: &mut #module) -> core::result::Result<(), #context_error> {
+                    #(#installers)*
+                    Ok(())
+                }
+            }
+        };
+
+        let to_value_impl = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
+                type Guard = #raw_value_guard;
+
+                #[inline]
+                unsafe fn unsafe_to_ref<'a>(value: #value) -> #result<(&'a Self, Self::Guard), #runtime_error> {
+                    let (value, guard) = #value::into_any_ref_ptr(value)?;
+                    #result::Ok((#non_null::as_ref(&value), guard))
+                }
+            }
+
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
+                type Guard = #raw_value_guard;
+
+                #[inline]
+                unsafe fn unsafe_to_mut<'a>(value: #value) -> #result<(&'a mut Self, Self::Guard), #runtime_error> {
+                    let (mut value, guard) = #value::into_any_mut_ptr(value)?;
+                    #result::Ok((#non_null::as_mut(&mut value), guard))
+                }
+            }
+
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
+                type Guard = #value_ref_guard;
+
+                #[inline]
+                unsafe fn unsafe_to_value(self) -> #result<(#value, Self::Guard), #runtime_error> {
+                    let (shared, guard) = #value::from_ref(self)?;
+                    #result::Ok((shared, guard))
+                }
+            }
+
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
+                type Guard = #value_mut_guard;
+
+                #[inline]
+                unsafe fn unsafe_to_value(self) -> #result<(#value, Self::Guard), #runtime_error> {
+                    let (shared, guard) = #value::from_mut(self)?;
+                    #result::Ok((shared, guard))
+                }
+            }
+        };
+
+        let impl_any = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #any_t for #ident #type_generics #where_clause {
+            }
+        };
+
+        quote! {
+            #install_with
+            #impl_named
+            #to_value_impl
+            #impl_any
+        }
+    }
+
+    pub(super) fn expand_any(self) -> TokenStream {
         let TypeBuilder {
             attr,
             ident,
@@ -555,9 +712,9 @@ where
             type_item,
             installers,
             tokens,
-            is_generic,
             generics,
             attrs,
+            ..
         } = self;
 
         let Tokens {
@@ -615,33 +772,30 @@ where
             }
         };
 
-        let impl_named = if let [first_name, remainder @ ..] = &generic_names[..] {
-            quote! {
-                #[automatically_derived]
-                #(#attrs)*
-                impl #impl_generics #named for #ident #type_generics #where_clause {
-                    const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
-
-                    fn full_name(f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
-                        #fmt::Display::fmt(Self::ITEM, f)?;
-
-                        #write!(f, "<")?;
-                        #first_name::full_name(f)?;
-                        #(
-                            #write!(f, ", ")?;
-                            #remainder::full_name(f)?;
-                        )*
-                        #write!(f, ">")?;
-                        #result::Ok(())
-                    }
-                }
-            }
+        let named_rest = if let [first_name, remainder @ ..] = &generic_names[..] {
+            Some(quote! {
+                #write!(f, "<")?;
+                #first_name::full_name(f)?;
+                #(
+                    #write!(f, ", ")?;
+                    #remainder::full_name(f)?;
+                )*
+                #write!(f, ">")?;
+            })
         } else {
-            quote! {
-                #[automatically_derived]
-                #(#attrs)*
-                impl #impl_generics #named for #ident #type_generics #where_clause {
-                    const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
+            None
+        };
+
+        let impl_named = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #named for #ident #type_generics #where_clause {
+                const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
+
+                fn full_name(f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
+                    #fmt::Display::fmt(Self::ITEM, f)?;
+                    #named_rest
+                    #result::Ok(())
                 }
             }
         };
@@ -718,34 +872,32 @@ where
             }
         };
 
-        let impl_type_of = is_generic.is_none().then(|| {
-            quote! {
-                #[automatically_derived]
-                #(#attrs)*
-                impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
-                    const HASH: #hash = #make_hash;
-                }
+        let impl_type_of = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #type_hash_t for #ident #type_generics #where_clause {
+                const HASH: #hash = #make_hash;
+            }
 
-                #[automatically_derived]
-                #(#attrs)*
-                impl #impl_generics #type_of for #ident #type_generics #where_clause {
-                    const PARAMETERS: #hash = #type_parameters;
-                    const STATIC_TYPE_INFO: #any_type_info = <Self as #any_t>::ANY_TYPE_INFO;
-                }
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #type_of for #ident #type_generics #where_clause {
+                const PARAMETERS: #hash = #type_parameters;
+                const STATIC_TYPE_INFO: #any_type_info = <Self as #any_t>::ANY_TYPE_INFO;
+            }
 
-                #[automatically_derived]
-                #(#attrs)*
-                impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
-                    #[inline]
-                    fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
-                        #meta::DocType::with_generics(
-                            <Self as #type_hash_t>::HASH,
-                            [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
-                        )
-                    }
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
+                #[inline]
+                fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
+                    #meta::DocType::with_generics(
+                        <Self as #type_hash_t>::HASH,
+                        [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
+                    )
                 }
             }
-        });
+        };
 
         let impl_any = quote! {
             #[automatically_derived]
@@ -754,14 +906,12 @@ where
             }
         };
 
-        let impl_non_generic = is_generic.is_none().then(|| {
-            quote! {
-                #[automatically_derived]
-                #(#attrs)*
-                impl #impl_generics #any_marker_t for #ident #type_generics #where_clause {
-                }
+        let impl_non_generic = quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #any_marker_t for #ident #type_generics #where_clause {
             }
-        });
+        };
 
         quote! {
             #install_with
