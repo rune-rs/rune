@@ -476,18 +476,22 @@ impl FromValue for Mut<Tuple> {
 impl UnsafeToRef for Tuple {
     type Guard = RawAnyGuard;
 
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let (value, guard) = Ref::into_raw(vm_try!(Ref::from_value(value)));
-        VmResult::Ok((value.as_ref(), guard))
+    #[inline]
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError> {
+        let value = Ref::from_value(value)?;
+        let (value, guard) = Ref::into_raw(value);
+        Ok((value.as_ref(), guard))
     }
 }
 
 impl UnsafeToMut for Tuple {
     type Guard = RawAnyGuard;
 
-    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        let (mut value, guard) = Mut::into_raw(vm_try!(Mut::from_value(value)));
-        VmResult::Ok((value.as_mut(), guard))
+    #[inline]
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> Result<(&'a mut Self, Self::Guard), RuntimeError> {
+        let value = Mut::from_value(value)?;
+        let (mut value, guard) = Mut::into_raw(value);
+        Ok((value.as_mut(), guard))
     }
 }
 

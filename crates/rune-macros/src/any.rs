@@ -585,9 +585,8 @@ where
             value_mut_guard,
             value_ref_guard,
             value,
-            vm_result,
-            vm_try,
             write,
+            runtime_error,
             ..
         } = tokens;
 
@@ -675,9 +674,10 @@ where
             impl #impl_generics #unsafe_to_ref for #ident #type_generics #where_clause {
                 type Guard = #raw_value_guard;
 
-                unsafe fn unsafe_to_ref<'a>(value: #value) -> #vm_result<(&'a Self, Self::Guard)> {
-                    let (value, guard) = #vm_try!(#value::into_any_ref_ptr(value));
-                    #vm_result::Ok((#non_null::as_ref(&value), guard))
+                #[inline]
+                unsafe fn unsafe_to_ref<'a>(value: #value) -> #result<(&'a Self, Self::Guard), #runtime_error> {
+                    let (value, guard) = #value::into_any_ref_ptr(value)?;
+                    #result::Ok((#non_null::as_ref(&value), guard))
                 }
             }
 
@@ -686,9 +686,10 @@ where
             impl #impl_generics #unsafe_to_mut for #ident #type_generics #where_clause {
                 type Guard = #raw_value_guard;
 
-                unsafe fn unsafe_to_mut<'a>(value: #value) -> #vm_result<(&'a mut Self, Self::Guard)> {
-                    let (mut value, guard) = #vm_try!(#value::into_any_mut_ptr(value));
-                    #vm_result::Ok((#non_null::as_mut(&mut value), guard))
+                #[inline]
+                unsafe fn unsafe_to_mut<'a>(value: #value) -> #result<(&'a mut Self, Self::Guard), #runtime_error> {
+                    let (mut value, guard) = #value::into_any_mut_ptr(value)?;
+                    #result::Ok((#non_null::as_mut(&mut value), guard))
                 }
             }
 
@@ -697,9 +698,10 @@ where
             impl #impl_generics #unsafe_to_value for &#ident #type_generics #where_clause {
                 type Guard = #value_ref_guard;
 
-                unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                    let (shared, guard) = #vm_try!(#value::from_ref(self));
-                    #vm_result::Ok((shared, guard))
+                #[inline]
+                unsafe fn unsafe_to_value(self) -> #result<(#value, Self::Guard), #runtime_error> {
+                    let (shared, guard) = #value::from_ref(self)?;
+                    #result::Ok((shared, guard))
                 }
             }
 
@@ -708,9 +710,10 @@ where
             impl #impl_generics #unsafe_to_value for &mut #ident #type_generics #where_clause {
                 type Guard = #value_mut_guard;
 
-                unsafe fn unsafe_to_value(self) -> #vm_result<(#value, Self::Guard)> {
-                    let (shared, guard) = #vm_try!(#value::from_mut(self));
-                    #vm_result::Ok((shared, guard))
+                #[inline]
+                unsafe fn unsafe_to_value(self) -> #result<(#value, Self::Guard), #runtime_error> {
+                    let (shared, guard) = #value::from_mut(self)?;
+                    #result::Ok((shared, guard))
                 }
             }
         };

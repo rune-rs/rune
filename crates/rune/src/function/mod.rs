@@ -8,8 +8,8 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, AnyTypeInfo, FromValue, InstAddress, MaybeTypeOf, Memory, Output, ToReturn, TypeHash,
-    TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    self, AnyTypeInfo, FromValue, InstAddress, MaybeTypeOf, Memory, Output, RuntimeError, ToReturn,
+    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
@@ -29,9 +29,14 @@ macro_rules! access_memory {
         $(let $var = replace($var, Value::empty());)*
 
         $(
-            let $var = vm_try!($from_fn($var).with_error(|| VmErrorKind::BadArgument {
-                arg: $num,
-            }));
+            let $var = match $from_fn($var) {
+                Ok($var) => $var,
+                Err(error) => {
+                    return VmResult::err(error).with_error(|| VmErrorKind::BadArgument {
+                        arg: $num,
+                    });
+                }
+            };
         )*
     };
 }
@@ -195,14 +200,16 @@ where
 // Fake guard for owned values.
 struct Guard;
 
-fn from_value<T>(value: Value) -> VmResult<(T, Guard)>
+#[inline(always)]
+fn from_value<T>(value: Value) -> Result<(T, Guard), RuntimeError>
 where
     T: FromValue,
 {
-    VmResult::Ok((vm_try!(T::from_value(value)), Guard))
+    Ok((T::from_value(value)?, Guard))
 }
 
-fn unsafe_to_ref<'a, T>(value: Value) -> VmResult<(&'a T, T::Guard)>
+#[inline(always)]
+fn unsafe_to_ref<'a, T>(value: Value) -> Result<(&'a T, T::Guard), RuntimeError>
 where
     T: ?Sized + UnsafeToRef,
 {
@@ -211,7 +218,8 @@ where
     unsafe { T::unsafe_to_ref(value) }
 }
 
-fn unsafe_to_mut<'a, T>(value: Value) -> VmResult<(&'a mut T, T::Guard)>
+#[inline(always)]
+fn unsafe_to_mut<'a, T>(value: Value) -> Result<(&'a mut T, T::Guard), RuntimeError>
 where
     T: ?Sized + UnsafeToMut,
 {

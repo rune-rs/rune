@@ -183,7 +183,7 @@ pub trait UnsafeToMut {
     ///
     /// Caller must ensure that the returned reference does not outlive the
     /// guard.
-    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)>;
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> Result<(&'a mut Self, Self::Guard), RuntimeError>;
 }
 
 /// Unsafe to ref coercion.
@@ -198,7 +198,7 @@ pub trait UnsafeToRef {
     ///
     /// Caller must ensure that the returned reference does not outlive the
     /// guard.
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)>;
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError>;
 }
 
 /// A potentially unsafe conversion for value conversion.
@@ -272,6 +272,7 @@ where
 }
 
 impl FromValue for AnyObj {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         value.into_any_obj()
     }
@@ -290,6 +291,7 @@ impl<T> FromValue for Option<T>
 where
     T: FromValue,
 {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         Ok(match value.downcast::<Option<Value>>()? {
             Some(some) => Some(T::from_value(some.clone())?),
@@ -299,6 +301,7 @@ where
 }
 
 impl FromValue for ::rust_alloc::string::String {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let string = String::from_value(value)?;
         let string = ::rust_alloc::string::String::from(string);
@@ -307,6 +310,7 @@ impl FromValue for ::rust_alloc::string::String {
 }
 
 impl FromValue for alloc::Box<str> {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let string = value.borrow_string_ref()?;
         let string = alloc::Box::try_from(string.as_ref())?;
@@ -316,6 +320,7 @@ impl FromValue for alloc::Box<str> {
 
 #[cfg(feature = "alloc")]
 impl FromValue for ::rust_alloc::boxed::Box<str> {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let string = value.borrow_string_ref()?;
         let string = ::rust_alloc::boxed::Box::<str>::from(string.as_ref());
@@ -324,6 +329,7 @@ impl FromValue for ::rust_alloc::boxed::Box<str> {
 }
 
 impl FromValue for Ref<str> {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         Ok(Ref::map(Ref::<String>::from_value(value)?, String::as_str))
     }
@@ -332,20 +338,22 @@ impl FromValue for Ref<str> {
 impl UnsafeToRef for str {
     type Guard = RawAnyGuard;
 
-    unsafe fn unsafe_to_ref<'a>(value: Value) -> VmResult<(&'a Self, Self::Guard)> {
-        let string = vm_try!(value.into_ref::<String>());
+    #[inline]
+    unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError> {
+        let string = value.into_ref::<String>()?;
         let (string, guard) = Ref::into_raw(string);
-        VmResult::Ok((string.as_ref().as_str(), guard))
+        Ok((string.as_ref().as_str(), guard))
     }
 }
 
 impl UnsafeToMut for str {
     type Guard = RawAnyGuard;
 
-    unsafe fn unsafe_to_mut<'a>(value: Value) -> VmResult<(&'a mut Self, Self::Guard)> {
-        let string = vm_try!(value.into_mut::<String>());
+    #[inline]
+    unsafe fn unsafe_to_mut<'a>(value: Value) -> Result<(&'a mut Self, Self::Guard), RuntimeError> {
+        let string = value.into_mut::<String>()?;
         let (mut string, guard) = Mut::into_raw(string);
-        VmResult::Ok((string.as_mut().as_mut_str(), guard))
+        Ok((string.as_mut().as_mut_str(), guard))
     }
 }
 
