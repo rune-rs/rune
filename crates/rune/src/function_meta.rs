@@ -22,7 +22,7 @@ mod sealed {
     pub trait Sealed {}
 
     impl Sealed for &str {}
-    impl Sealed for Protocol {}
+    impl Sealed for &Protocol {}
     impl<T, const N: usize> Sealed for Params<T, N> {}
 }
 
@@ -170,7 +170,7 @@ pub struct AssociatedName {
 }
 
 impl AssociatedName {
-    pub(crate) fn index(protocol: Protocol, index: usize) -> Self {
+    pub(crate) fn index(protocol: &'static Protocol, index: usize) -> Self {
         Self {
             kind: meta::AssociatedKind::IndexFn(protocol, index),
             function_parameters: Hash::EMPTY,
@@ -190,7 +190,7 @@ pub trait ToInstance: self::sealed::Sealed {
 /// Trait used to determine what can be used as an instance function name.
 pub trait ToFieldFunction: self::sealed::Sealed {
     #[doc(hidden)]
-    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedName>;
+    fn to_field_function(self, protocol: &'static Protocol) -> alloc::Result<AssociatedName>;
 }
 
 impl ToInstance for &'static str {
@@ -207,7 +207,7 @@ impl ToInstance for &'static str {
 
 impl ToFieldFunction for &'static str {
     #[inline]
-    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedName> {
+    fn to_field_function(self, protocol: &'static Protocol) -> alloc::Result<AssociatedName> {
         Ok(AssociatedName {
             kind: meta::AssociatedKind::FieldFn(protocol, Cow::Borrowed(self)),
             function_parameters: Hash::EMPTY,

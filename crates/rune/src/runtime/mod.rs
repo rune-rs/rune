@@ -79,8 +79,8 @@ pub use self::guarded_args::GuardedArgs;
 
 mod inst;
 pub use self::inst::{
-    Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue, InstVariant,
-    IntoOutput, Output, PanicReason, TypeCheck,
+    Inst, InstAddress, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget,
+    InstValue, InstVariant, IntoOutput, Output, PanicReason, TypeCheck,
 };
 
 mod iterator;

@@ -68,7 +68,10 @@ impl TraitContext<'_> {
     /// Find the given protocol function for the current type.
     ///
     /// This requires that the function is defined.
-    pub fn find(&mut self, protocol: Protocol) -> Result<Arc<FunctionHandler>, ContextError> {
+    pub fn find(
+        &mut self,
+        protocol: &'static Protocol,
+    ) -> Result<Arc<FunctionHandler>, ContextError> {
         let name = protocol.to_instance()?;
 
         let hash = name
@@ -115,7 +118,7 @@ impl TraitContext<'_> {
     /// Find or define a protocol function.
     pub fn find_or_define<A, F>(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         function: F,
     ) -> Result<Arc<FunctionHandler>, ContextError>
     where
@@ -1004,7 +1007,7 @@ impl Context {
         }
 
         self.constants.try_insert(
-            Hash::associated_function(ty.hash, Protocol::INTO_TYPE_NAME),
+            Hash::associated_function(ty.hash, &Protocol::INTO_TYPE_NAME),
             ConstValue::from(ty.item.try_to_string()?),
         )?;
 
@@ -1030,7 +1033,7 @@ impl Context {
             }
             rune::module::ModuleItemKind::Function(f) => {
                 self.constants.try_insert(
-                    Hash::associated_function(m.hash, Protocol::INTO_TYPE_NAME),
+                    Hash::associated_function(m.hash, &Protocol::INTO_TYPE_NAME),
                     ConstValue::from(m.item.try_to_string()?),
                 )?;
 
@@ -1120,7 +1123,7 @@ impl Context {
 
                 if let Some((hash, item)) = &item {
                     self.constants.try_insert(
-                        Hash::associated_function(*hash, Protocol::INTO_TYPE_NAME),
+                        Hash::associated_function(*hash, &Protocol::INTO_TYPE_NAME),
                         ConstValue::from(item.try_to_string()?),
                     )?;
 

@@ -57,14 +57,15 @@ pub fn module() -> Result<Module, ContextError> {
                 /// "An ordering where a compared value is greater than another.
             })?;
 
-        m.associated_function(Protocol::IS_VARIANT, |this: Ordering, index: usize| match (
-            this, index,
-        ) {
-            (Ordering::Less, 0) => true,
-            (Ordering::Equal, 1) => true,
-            (Ordering::Greater, 2) => true,
-            _ => false,
-        })?;
+        m.associated_function(
+            &Protocol::IS_VARIANT,
+            |this: Ordering, index: usize| match (this, index) {
+                (Ordering::Less, 0) => true,
+                (Ordering::Equal, 1) => true,
+                (Ordering::Greater, 2) => true,
+                _ => false,
+            },
+        )?;
     }
 
     m.function_meta(ordering_partial_eq__meta)?;
@@ -178,7 +179,7 @@ pub fn module() -> Result<Module, ContextError> {
     })?;
 
     t.handler(|cx| {
-        let partial_eq = cx.find(Protocol::PARTIAL_EQ)?;
+        let partial_eq = cx.find(&Protocol::PARTIAL_EQ)?;
         let partial_eq = Caller::<(Value, Value), 2, bool>::new(partial_eq);
 
         cx.function("ne", move |a: Value, b: Value| {
@@ -250,7 +251,7 @@ pub fn module() -> Result<Module, ContextError> {
     })?;
 
     t.handler(|cx| {
-        _ = cx.find(Protocol::EQ)?;
+        _ = cx.find(&Protocol::EQ)?;
         Ok(())
     })?;
 
@@ -399,10 +400,10 @@ pub fn module() -> Result<Module, ContextError> {
     })?;
 
     t.handler(|cx| {
-        let partial_cmp = cx.find(Protocol::PARTIAL_CMP)?;
+        let partial_cmp = cx.find(&Protocol::PARTIAL_CMP)?;
         let partial_cmp = Caller::<(Value, Value), 2, Option<Ordering>>::new(partial_cmp);
 
-        cx.find_or_define(Protocol::LT, {
+        cx.find_or_define(&Protocol::LT, {
             let partial_cmp = partial_cmp.clone();
 
             move |a: Value, b: Value| {
@@ -414,7 +415,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         })?;
 
-        cx.find_or_define(Protocol::LE, {
+        cx.find_or_define(&Protocol::LE, {
             let partial_cmp = partial_cmp.clone();
 
             move |a: Value, b: Value| {
@@ -426,7 +427,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         })?;
 
-        cx.find_or_define(Protocol::GT, {
+        cx.find_or_define(&Protocol::GT, {
             let partial_cmp = partial_cmp.clone();
 
             move |a: Value, b: Value| {
@@ -438,7 +439,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         })?;
 
-        cx.find_or_define(Protocol::GE, {
+        cx.find_or_define(&Protocol::GE, {
             let partial_cmp = partial_cmp.clone();
 
             move |a: Value, b: Value| {
@@ -601,10 +602,10 @@ pub fn module() -> Result<Module, ContextError> {
     })?;
 
     t.handler(|cx| {
-        let cmp = cx.find(Protocol::CMP)?;
+        let cmp = cx.find(&Protocol::CMP)?;
         let cmp = Caller::<(Value, Value), 2, Ordering>::new(cmp);
 
-        cx.find_or_define(Protocol::MIN, {
+        cx.find_or_define(&Protocol::MIN, {
             let cmp = cmp.clone();
 
             move |a: Value, b: Value| match vm_try!(cmp.call((a.clone(), b.clone()))) {
@@ -613,7 +614,7 @@ pub fn module() -> Result<Module, ContextError> {
             }
         })?;
 
-        cx.find_or_define(Protocol::MAX, {
+        cx.find_or_define(&Protocol::MAX, {
             let cmp = cmp.clone();
 
             move |a: Value, b: Value| match vm_try!(cmp.call((a.clone(), b.clone()))) {

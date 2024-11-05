@@ -241,11 +241,7 @@ impl Function {
                     attrs: Vec::new(),
                     lit: syn::Lit::Str(match &attrs.path {
                         Path::Protocol(protocol) => {
-                            break 'out syn::Expr::Path(syn::ExprPath {
-                                attrs: Vec::new(),
-                                qself: None,
-                                path: protocol.clone(),
-                            })
+                            break 'out syn::parse_quote!(&#protocol);
                         }
                         Path::None => name_string.clone(),
                         Path::Rename(last) => {
@@ -258,11 +254,7 @@ impl Function {
             match &attrs.path {
                 Path::None => expr_lit(&self.sig.ident),
                 Path::Rename(last) => expr_lit(&last.ident),
-                Path::Protocol(protocol) => syn::Expr::Path(syn::ExprPath {
-                    attrs: Vec::new(),
-                    qself: None,
-                    path: protocol.clone(),
-                }),
+                Path::Protocol(protocol) => syn::parse_quote!(&#protocol),
             }
         };
 

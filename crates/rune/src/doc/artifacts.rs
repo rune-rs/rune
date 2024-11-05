@@ -35,7 +35,7 @@ pub(crate) enum TestKind {
     #[default]
     Free,
     /// The test originates from a protocol function.
-    Protocol(Protocol),
+    Protocol(&'static Protocol),
 }
 
 /// A discovered test.

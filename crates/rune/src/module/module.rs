@@ -1139,7 +1139,7 @@ impl Module {
     /// associate more metadata with the inserted item.
     pub fn field_function<N, F, A>(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         name: N,
         f: F,
     ) -> Result<ItemFnMut<'_>, ContextError>
@@ -1161,7 +1161,7 @@ impl Module {
     #[inline]
     pub fn field_fn<N, F, A>(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         name: N,
         f: F,
     ) -> Result<ItemFnMut<'_>, ContextError>
@@ -1180,7 +1180,7 @@ impl Module {
     /// enum as configured with [Module::enum_meta].
     pub fn index_function<F, A>(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         index: usize,
         f: F,
     ) -> Result<ItemFnMut<'_>, ContextError>
@@ -1202,7 +1202,7 @@ impl Module {
     #[inline]
     pub fn index_fn<F, A>(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         index: usize,
         f: F,
     ) -> Result<ItemFnMut<'_>, ContextError>

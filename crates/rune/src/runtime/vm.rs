@@ -17,12 +17,13 @@ use crate::runtime;
 use super::{
     budget, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, Dynamic,
     Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GeneratorState,
-    GuardedArgs, Inline, Inst, InstAddress, InstAssignOp, InstOp, InstRange, InstTarget, InstValue,
-    InstVariant, Object, Output, OwnedTuple, Pair, Panic, Protocol, ProtocolCaller, Range,
-    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Repr, RttiKind,
-    RuntimeContext, Select, SelectFuture, Stack, Stream, Type, TypeCheck, TypeHash, TypeInfo,
-    TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError,
-    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult, VmSendExecution,
+    GuardedArgs, Inline, Inst, InstAddress, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
+    InstShiftOp, InstTarget, InstValue, InstVariant, Object, Output, OwnedTuple, Pair, Panic,
+    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type,
+    TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
+    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
+    VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -593,7 +594,7 @@ impl Vm {
     #[inline]
     fn call_field_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: impl IntoHash,
         target: Value,
         name: impl IntoHash,
         args: &mut dyn DynArgs,
@@ -608,7 +609,7 @@ impl Vm {
     #[inline]
     fn call_index_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: impl IntoHash,
         target: Value,
         index: usize,
         args: &mut dyn DynArgs,
@@ -1185,34 +1186,30 @@ impl Vm {
     fn internal_num_assign(
         &mut self,
         target: InstTarget,
-        protocol: Protocol,
-        error: fn() -> VmErrorKind,
-        signed_op: fn(i64, i64) -> Option<i64>,
-        unsigned_op: fn(u64, u64) -> Option<u64>,
-        float_op: fn(f64, f64) -> f64,
+        ops: &'static ArithmeticOps,
         rhs: InstAddress,
     ) -> VmResult<()> {
         let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
             TargetValue::Same(value) => {
                 match value.as_mut() {
                     Repr::Inline(Inline::Signed(value)) => {
-                        let out = vm_try!(signed_op(*value, *value).ok_or_else(error));
+                        let out = vm_try!((ops.signed_op)(*value, *value).ok_or_else(ops.error));
                         *value = out;
                         return VmResult::Ok(());
                     }
                     Repr::Inline(Inline::Unsigned(value)) => {
-                        let out = vm_try!(unsigned_op(*value, *value).ok_or_else(error));
+                        let out = vm_try!((ops.unsigned_op)(*value, *value).ok_or_else(ops.error));
                         *value = out;
                         return VmResult::Ok(());
                     }
                     Repr::Inline(Inline::Float(value)) => {
-                        let out = float_op(*value, *value);
+                        let out = (ops.float_op)(*value, *value);
                         *value = out;
                         return VmResult::Ok(());
                     }
                     Repr::Inline(value) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
+                            op: ops.protocol.name,
                             lhs: value.type_info(),
                             rhs: value.type_info(),
                         });
@@ -1227,24 +1224,24 @@ impl Vm {
                     (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Signed(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!(signed_op(*lhs, rhs).ok_or_else(error));
+                            let out = vm_try!((ops.signed_op)(*lhs, rhs).ok_or_else(ops.error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
                         (Inline::Unsigned(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
+                            let out = vm_try!((ops.unsigned_op)(*lhs, rhs).ok_or_else(ops.error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
                         (Inline::Float(lhs), Inline::Float(rhs)) => {
-                            let out = float_op(*lhs, *rhs);
+                            let out = (ops.float_op)(*lhs, *rhs);
                             *lhs = out;
                             return VmResult::Ok(());
                         }
                         (lhs, rhs) => {
                             return err(VmErrorKind::UnsupportedBinaryOperation {
-                                op: protocol.name,
+                                op: ops.protocol.name,
                                 lhs: lhs.type_info(),
                                 rhs: rhs.type_info(),
                             });
@@ -1252,7 +1249,7 @@ impl Vm {
                     },
                     (Repr::Inline(lhs), rhs) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
+                            op: ops.protocol.name,
                             lhs: lhs.type_info(),
                             rhs: rhs.type_info(),
                         });
@@ -1265,7 +1262,7 @@ impl Vm {
             TargetValue::Fallback(fallback) => fallback,
         };
 
-        self.target_fallback_assign(fallback, protocol)
+        self.target_fallback_assign(fallback, ops.protocol)
     }
 
     /// Execute a fallback operation.
@@ -1273,7 +1270,7 @@ impl Vm {
     fn target_fallback_assign(
         &mut self,
         fallback: TargetFallback,
-        protocol: Protocol,
+        protocol: &Protocol,
     ) -> VmResult<()> {
         match fallback {
             TargetFallback::Value(lhs, rhs) => {
@@ -1282,7 +1279,7 @@ impl Vm {
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(
                     Isolated::None,
                     lhs,
-                    protocol,
+                    protocol.hash,
                     &mut args,
                     Output::discard()
                 )) {
@@ -1316,7 +1313,7 @@ impl Vm {
                 let mut args = DynGuardedArgs::new((rhs,));
 
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_index_fn(
-                    protocol,
+                    protocol.hash,
                     lhs.clone(),
                     index,
                     &mut args,
@@ -1337,7 +1334,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn internal_num(
         &mut self,
-        protocol: Protocol,
+        protocol: &Protocol,
         error: fn() -> VmErrorKind,
         signed_op: fn(i64, i64) -> Option<i64>,
         unsigned_op: fn(u64, u64) -> Option<u64>,
@@ -1407,7 +1404,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn internal_bit(
         &mut self,
-        protocol: Protocol,
+        protocol: &Protocol,
         signed_op: fn(i64, i64) -> i64,
         unsigned_op: fn(u64, u64) -> u64,
         bool_op: fn(bool, bool) -> bool,
@@ -1475,10 +1472,7 @@ impl Vm {
     fn internal_infallible_bitwise_assign(
         &mut self,
         target: InstTarget,
-        protocol: Protocol,
-        signed_op: fn(&mut i64, i64),
-        unsigned_op: fn(&mut u64, u64),
-        bool_op: fn(&mut bool, bool),
+        ops: &'static BitwiseOps,
         rhs: InstAddress,
     ) -> VmResult<()> {
         let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
@@ -1486,22 +1480,22 @@ impl Vm {
                 match value.as_mut() {
                     Repr::Inline(Inline::Unsigned(value)) => {
                         let rhs = *value;
-                        unsigned_op(value, rhs);
+                        (ops.unsigned_op)(value, rhs);
                         return VmResult::Ok(());
                     }
                     Repr::Inline(Inline::Signed(value)) => {
                         let rhs = *value;
-                        signed_op(value, rhs);
+                        (ops.signed_op)(value, rhs);
                         return VmResult::Ok(());
                     }
                     Repr::Inline(Inline::Bool(value)) => {
                         let rhs = *value;
-                        bool_op(value, rhs);
+                        (ops.bool_op)(value, rhs);
                         return VmResult::Ok(());
                     }
                     Repr::Inline(value) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
+                            op: ops.protocol.name,
                             lhs: value.type_info(),
                             rhs: value.type_info(),
                         });
@@ -1516,21 +1510,21 @@ impl Vm {
                     (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Unsigned(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
-                            unsigned_op(lhs, rhs);
+                            (ops.unsigned_op)(lhs, rhs);
                             return VmResult::Ok(());
                         }
                         (Inline::Signed(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
-                            signed_op(lhs, rhs);
+                            (ops.signed_op)(lhs, rhs);
                             return VmResult::Ok(());
                         }
                         (Inline::Bool(lhs), Inline::Bool(rhs)) => {
-                            bool_op(lhs, *rhs);
+                            (ops.bool_op)(lhs, *rhs);
                             return VmResult::Ok(());
                         }
                         (lhs, rhs) => {
                             return err(VmErrorKind::UnsupportedBinaryOperation {
-                                op: protocol.name,
+                                op: ops.protocol.name,
                                 lhs: lhs.type_info(),
                                 rhs: rhs.type_info(),
                             });
@@ -1538,7 +1532,7 @@ impl Vm {
                     },
                     (Repr::Inline(lhs), rhs) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
+                            op: ops.protocol.name,
                             lhs: lhs.type_info(),
                             rhs: rhs.type_info(),
                         });
@@ -1551,12 +1545,12 @@ impl Vm {
             TargetValue::Fallback(fallback) => fallback,
         };
 
-        self.target_fallback_assign(fallback, protocol)
+        self.target_fallback_assign(fallback, ops.protocol)
     }
 
     fn internal_shift(
         &mut self,
-        protocol: Protocol,
+        protocol: &Protocol,
         error: fn() -> VmErrorKind,
         signed_op: fn(i64, u32) -> Option<i64>,
         unsigned_op: fn(u64, u32) -> Option<u64>,
@@ -1653,30 +1647,27 @@ impl Vm {
     fn internal_bitwise_assign(
         &mut self,
         target: InstTarget,
-        protocol: Protocol,
-        error: fn() -> VmErrorKind,
-        signed_op: fn(i64, u32) -> Option<i64>,
-        unsigned_op: fn(u64, u32) -> Option<u64>,
+        ops: &'static ShiftOps,
         rhs: InstAddress,
     ) -> VmResult<()> {
         let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
             TargetValue::Same(value) => {
                 match value.as_mut() {
                     Repr::Inline(Inline::Unsigned(value)) => {
-                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(error));
-                        let out = vm_try!(unsigned_op(*value, shift).ok_or_else(error));
+                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
+                        let out = vm_try!((ops.unsigned_op)(*value, shift).ok_or_else(ops.error));
                         *value = out;
                         return VmResult::Ok(());
                     }
                     Repr::Inline(Inline::Signed(value)) => {
-                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(error));
-                        let out = vm_try!(signed_op(*value, shift).ok_or_else(error));
+                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
+                        let out = vm_try!((ops.signed_op)(*value, shift).ok_or_else(ops.error));
                         *value = out;
                         return VmResult::Ok(());
                     }
                     Repr::Inline(value) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
+                            op: ops.protocol.name,
                             lhs: value.type_info(),
                             rhs: value.type_info(),
                         });
@@ -1691,19 +1682,19 @@ impl Vm {
                     (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Unsigned(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
+                            let out = vm_try!((ops.unsigned_op)(*lhs, rhs).ok_or_else(ops.error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
                         (Inline::Signed(lhs), rhs) => {
                             let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!(signed_op(*lhs, rhs).ok_or_else(error));
+                            let out = vm_try!((ops.signed_op)(*lhs, rhs).ok_or_else(ops.error));
                             *lhs = out;
                             return VmResult::Ok(());
                         }
                         (lhs, rhs) => {
                             return err(VmErrorKind::UnsupportedBinaryOperation {
-                                op: protocol.name,
+                                op: ops.protocol.name,
                                 lhs: lhs.type_info(),
                                 rhs: rhs.type_info(),
                             });
@@ -1711,7 +1702,7 @@ impl Vm {
                     },
                     (Repr::Inline(lhs), rhs) => {
                         return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
+                            op: ops.protocol.name,
                             lhs: lhs.type_info(),
                             rhs: rhs.type_info(),
                         });
@@ -1724,7 +1715,7 @@ impl Vm {
             TargetValue::Fallback(fallback) => fallback,
         };
 
-        self.target_fallback_assign(fallback, protocol)
+        self.target_fallback_assign(fallback, ops.protocol)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1961,7 +1952,7 @@ impl Vm {
         match op {
             InstOp::Add => {
                 vm_try!(self.internal_num(
-                    Protocol::ADD,
+                    &Protocol::ADD,
                     || VmErrorKind::Overflow,
                     i64::checked_add,
                     u64::checked_add,
@@ -1973,7 +1964,7 @@ impl Vm {
             }
             InstOp::Sub => {
                 vm_try!(self.internal_num(
-                    Protocol::SUB,
+                    &Protocol::SUB,
                     || VmErrorKind::Underflow,
                     i64::checked_sub,
                     u64::checked_sub,
@@ -1985,7 +1976,7 @@ impl Vm {
             }
             InstOp::Mul => {
                 vm_try!(self.internal_num(
-                    Protocol::MUL,
+                    &Protocol::MUL,
                     || VmErrorKind::Overflow,
                     i64::checked_mul,
                     u64::checked_mul,
@@ -1997,7 +1988,7 @@ impl Vm {
             }
             InstOp::Div => {
                 vm_try!(self.internal_num(
-                    Protocol::DIV,
+                    &Protocol::DIV,
                     || VmErrorKind::DivideByZero,
                     i64::checked_div,
                     u64::checked_div,
@@ -2009,7 +2000,7 @@ impl Vm {
             }
             InstOp::Rem => {
                 vm_try!(self.internal_num(
-                    Protocol::REM,
+                    &Protocol::REM,
                     || VmErrorKind::DivideByZero,
                     i64::checked_rem,
                     u64::checked_rem,
@@ -2022,7 +2013,7 @@ impl Vm {
             InstOp::BitAnd => {
                 use ops::BitAnd as _;
                 vm_try!(self.internal_bit(
-                    Protocol::BIT_AND,
+                    &Protocol::BIT_AND,
                     i64::bitand,
                     u64::bitand,
                     bool::bitand,
@@ -2034,7 +2025,7 @@ impl Vm {
             InstOp::BitXor => {
                 use ops::BitXor as _;
                 vm_try!(self.internal_bit(
-                    Protocol::BIT_XOR,
+                    &Protocol::BIT_XOR,
                     i64::bitxor,
                     u64::bitxor,
                     bool::bitxor,
@@ -2046,7 +2037,7 @@ impl Vm {
             InstOp::BitOr => {
                 use ops::BitOr as _;
                 vm_try!(self.internal_bit(
-                    Protocol::BIT_OR,
+                    &Protocol::BIT_OR,
                     i64::bitor,
                     u64::bitor,
                     bool::bitor,
@@ -2057,7 +2048,7 @@ impl Vm {
             }
             InstOp::Shl => {
                 vm_try!(self.internal_shift(
-                    Protocol::SHL,
+                    &Protocol::SHL,
                     || VmErrorKind::Overflow,
                     i64::checked_shl,
                     u64::checked_shl,
@@ -2068,7 +2059,7 @@ impl Vm {
             }
             InstOp::Shr => {
                 vm_try!(self.internal_shift(
-                    Protocol::SHR,
+                    &Protocol::SHR,
                     || VmErrorKind::Underflow,
                     i64::checked_shr,
                     u64::checked_shr,
@@ -2151,120 +2142,129 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_assign(
+    fn op_assign_arithmetic(
         &mut self,
-        op: InstAssignOp,
+        op: InstArithmeticOp,
         target: InstTarget,
         value: InstAddress,
     ) -> VmResult<()> {
-        match op {
-            InstAssignOp::Add => {
-                vm_try!(self.internal_num_assign(
-                    target,
-                    Protocol::ADD_ASSIGN,
-                    || VmErrorKind::Overflow,
-                    i64::checked_add,
-                    u64::checked_add,
-                    ops::Add::add,
-                    value,
-                ));
-            }
-            InstAssignOp::Sub => {
-                vm_try!(self.internal_num_assign(
-                    target,
-                    Protocol::SUB_ASSIGN,
-                    || VmErrorKind::Underflow,
-                    i64::checked_sub,
-                    u64::checked_sub,
-                    ops::Sub::sub,
-                    value,
-                ));
-            }
-            InstAssignOp::Mul => {
-                vm_try!(self.internal_num_assign(
-                    target,
-                    Protocol::MUL_ASSIGN,
-                    || VmErrorKind::Overflow,
-                    i64::checked_mul,
-                    u64::checked_mul,
-                    ops::Mul::mul,
-                    value,
-                ));
-            }
-            InstAssignOp::Div => {
-                vm_try!(self.internal_num_assign(
-                    target,
-                    Protocol::DIV_ASSIGN,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_div,
-                    u64::checked_div,
-                    ops::Div::div,
-                    value,
-                ));
-            }
-            InstAssignOp::Rem => {
-                vm_try!(self.internal_num_assign(
-                    target,
-                    Protocol::REM_ASSIGN,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_rem,
-                    u64::checked_rem,
-                    ops::Rem::rem,
-                    value,
-                ));
-            }
-            InstAssignOp::BitAnd => {
-                vm_try!(self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::BIT_AND_ASSIGN,
-                    ops::BitAndAssign::bitand_assign,
-                    ops::BitAndAssign::bitand_assign,
-                    ops::BitAndAssign::bitand_assign,
-                    value,
-                ));
-            }
-            InstAssignOp::BitXor => {
-                vm_try!(self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::BIT_XOR_ASSIGN,
-                    ops::BitXorAssign::bitxor_assign,
-                    ops::BitXorAssign::bitxor_assign,
-                    ops::BitXorAssign::bitxor_assign,
-                    value,
-                ));
-            }
-            InstAssignOp::BitOr => {
-                vm_try!(self.internal_infallible_bitwise_assign(
-                    target,
-                    Protocol::BIT_OR_ASSIGN,
-                    ops::BitOrAssign::bitor_assign,
-                    ops::BitOrAssign::bitor_assign,
-                    ops::BitOrAssign::bitor_assign,
-                    value,
-                ));
-            }
-            InstAssignOp::Shl => {
-                vm_try!(self.internal_bitwise_assign(
-                    target,
-                    Protocol::SHL_ASSIGN,
-                    || VmErrorKind::Overflow,
-                    i64::checked_shl,
-                    u64::checked_shl,
-                    value,
-                ));
-            }
-            InstAssignOp::Shr => {
-                vm_try!(self.internal_bitwise_assign(
-                    target,
-                    Protocol::SHR_ASSIGN,
-                    || VmErrorKind::Underflow,
-                    i64::checked_shr,
-                    u64::checked_shr,
-                    value,
-                ));
-            }
-        }
+        static ADD: ArithmeticOps = ArithmeticOps {
+            protocol: &Protocol::ADD_ASSIGN,
+            error: || VmErrorKind::Overflow,
+            signed_op: i64::checked_add,
+            unsigned_op: u64::checked_add,
+            float_op: ops::Add::add,
+        };
 
+        static SUB: ArithmeticOps = ArithmeticOps {
+            protocol: &Protocol::SUB_ASSIGN,
+            error: || VmErrorKind::Underflow,
+            signed_op: i64::checked_sub,
+            unsigned_op: u64::checked_sub,
+            float_op: ops::Add::add,
+        };
+
+        static MUL: ArithmeticOps = ArithmeticOps {
+            protocol: &Protocol::MUL_ASSIGN,
+            error: || VmErrorKind::Overflow,
+            signed_op: i64::checked_mul,
+            unsigned_op: u64::checked_mul,
+            float_op: ops::Add::add,
+        };
+
+        static DIV: ArithmeticOps = ArithmeticOps {
+            protocol: &Protocol::DIV_ASSIGN,
+            error: || VmErrorKind::DivideByZero,
+            signed_op: i64::checked_div,
+            unsigned_op: u64::checked_div,
+            float_op: ops::Add::add,
+        };
+
+        static REM: ArithmeticOps = ArithmeticOps {
+            protocol: &Protocol::REM_ASSIGN,
+            error: || VmErrorKind::DivideByZero,
+            signed_op: i64::checked_rem,
+            unsigned_op: u64::checked_rem,
+            float_op: ops::Rem::rem,
+        };
+
+        let ops = match op {
+            InstArithmeticOp::Add => &ADD,
+            InstArithmeticOp::Sub => &SUB,
+            InstArithmeticOp::Mul => &MUL,
+            InstArithmeticOp::Div => &DIV,
+            InstArithmeticOp::Rem => &REM,
+        };
+
+        vm_try!(self.internal_num_assign(target, ops, value));
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_assign_bitwise(
+        &mut self,
+        op: InstBitwiseOp,
+        target: InstTarget,
+        value: InstAddress,
+    ) -> VmResult<()> {
+        static BIT_AND: BitwiseOps = BitwiseOps {
+            protocol: &Protocol::BIT_AND_ASSIGN,
+            signed_op: ops::BitAndAssign::bitand_assign,
+            unsigned_op: ops::BitAndAssign::bitand_assign,
+            bool_op: ops::BitAndAssign::bitand_assign,
+        };
+
+        static BIT_XOR: BitwiseOps = BitwiseOps {
+            protocol: &Protocol::BIT_XOR_ASSIGN,
+            signed_op: ops::BitXorAssign::bitxor_assign,
+            unsigned_op: ops::BitXorAssign::bitxor_assign,
+            bool_op: ops::BitXorAssign::bitxor_assign,
+        };
+
+        static BIT_OR: BitwiseOps = BitwiseOps {
+            protocol: &Protocol::BIT_OR_ASSIGN,
+            signed_op: ops::BitOrAssign::bitor_assign,
+            unsigned_op: ops::BitOrAssign::bitor_assign,
+            bool_op: ops::BitOrAssign::bitor_assign,
+        };
+
+        let ops = match op {
+            InstBitwiseOp::BitAnd => &BIT_AND,
+            InstBitwiseOp::BitXor => &BIT_XOR,
+            InstBitwiseOp::BitOr => &BIT_OR,
+        };
+
+        vm_try!(self.internal_infallible_bitwise_assign(target, ops, value,));
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_assign_shift(
+        &mut self,
+        op: InstShiftOp,
+        target: InstTarget,
+        value: InstAddress,
+    ) -> VmResult<()> {
+        static SHL: ShiftOps = ShiftOps {
+            protocol: &Protocol::SHL_ASSIGN,
+            error: || VmErrorKind::Overflow,
+            signed_op: i64::checked_shl,
+            unsigned_op: u64::checked_shl,
+        };
+
+        static SHR: ShiftOps = ShiftOps {
+            protocol: &Protocol::SHR_ASSIGN,
+            error: || VmErrorKind::Underflow,
+            signed_op: i64::checked_shr,
+            unsigned_op: u64::checked_shr,
+        };
+
+        let ops = match op {
+            InstShiftOp::Shl => &SHL,
+            InstShiftOp::Shr => &SHR,
+        };
+
+        vm_try!(self.internal_bitwise_assign(target, ops, value));
         VmResult::Ok(())
     }
 
@@ -2295,7 +2295,7 @@ impl Vm {
         if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
             Isolated::None,
             target,
-            Protocol::INDEX_SET,
+            &Protocol::INDEX_SET,
             &mut args,
             Output::discard()
         )) {
@@ -2437,7 +2437,7 @@ impl Vm {
             if let CallResult::Unsupported(target) = vm_try!(self.call_instance_fn(
                 Isolated::None,
                 target,
-                Protocol::INDEX_GET,
+                &Protocol::INDEX_GET,
                 &mut args,
                 out
             )) {
@@ -2492,7 +2492,7 @@ impl Vm {
         let value = value.clone();
 
         if let CallResult::Unsupported(value) =
-            vm_try!(self.call_index_fn(Protocol::GET, value, index, &mut (), out))
+            vm_try!(self.call_index_fn(&Protocol::GET, value, index, &mut (), out))
         {
             return err(VmErrorKind::UnsupportedTupleIndexGet {
                 target: value.type_info(),
@@ -2530,7 +2530,7 @@ impl Vm {
         let mut args = DynGuardedArgs::new((value,));
 
         let result =
-            vm_try!(self.call_field_fn(Protocol::SET, target, hash, &mut args, Output::discard()));
+            vm_try!(self.call_field_fn(&Protocol::SET, target, hash, &mut args, Output::discard()));
 
         if let CallResult::Unsupported(target) = result {
             return err(VmErrorKind::UnsupportedObjectSlotIndexSet {
@@ -2587,7 +2587,7 @@ impl Vm {
         let target = target.clone();
 
         if let CallResult::Unsupported(target) =
-            vm_try!(self.call_field_fn(Protocol::GET, target, index.hash(), &mut (), out))
+            vm_try!(self.call_field_fn(&Protocol::GET, target, index.hash(), &mut (), out))
         {
             return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                 target: target.type_info(),
@@ -2783,7 +2783,7 @@ impl Vm {
                 value.clone()
             };
 
-            match vm_try!(self.try_call_protocol_fn(Protocol::TRY, value, &mut ())) {
+            match vm_try!(self.try_call_protocol_fn(&Protocol::TRY, value, &mut ())) {
                 CallResultOnly::Ok(value) => vm_try!(ControlFlow::from_value(value)),
                 CallResultOnly::Unsupported(target) => {
                     return err(VmErrorKind::UnsupportedTryOperand {
@@ -2976,7 +2976,7 @@ impl Vm {
             let value = value.clone();
 
             match vm_try!(self.try_call_protocol_fn(
-                Protocol::IS_VARIANT,
+                &Protocol::IS_VARIANT,
                 value,
                 &mut Some((index,))
             )) {
@@ -3624,8 +3624,14 @@ impl Vm {
                 Inst::Op { op, a, b, out } => {
                     vm_try!(self.op_op(op, a, b, out));
                 }
-                Inst::Assign { op, target, value } => {
-                    vm_try!(self.op_assign(op, target, value));
+                Inst::AssignArithmetic { op, target, value } => {
+                    vm_try!(self.op_assign_arithmetic(op, target, value));
+                }
+                Inst::AssignBitwise { op, target, value } => {
+                    vm_try!(self.op_assign_bitwise(op, target, value));
+                }
+                Inst::AssignShift { op, target, value } => {
+                    vm_try!(self.op_assign_shift(op, target, value));
                 }
                 Inst::IterNext { addr, jump, out } => {
                     vm_try!(self.op_iter_next(addr, jump, out));
@@ -3715,6 +3721,28 @@ fn check_args(args: usize, expected: usize) -> Result<(), VmErrorKind> {
     }
 
     Ok(())
+}
+
+struct ArithmeticOps {
+    protocol: &'static Protocol,
+    error: fn() -> VmErrorKind,
+    signed_op: fn(i64, i64) -> Option<i64>,
+    unsigned_op: fn(u64, u64) -> Option<u64>,
+    float_op: fn(f64, f64) -> f64,
+}
+
+struct BitwiseOps {
+    protocol: &'static Protocol,
+    signed_op: fn(&mut i64, i64),
+    unsigned_op: fn(&mut u64, u64),
+    bool_op: fn(&mut bool, bool),
+}
+
+struct ShiftOps {
+    protocol: &'static Protocol,
+    error: fn() -> VmErrorKind,
+    signed_op: fn(i64, u32) -> Option<i64>,
+    unsigned_op: fn(u64, u32) -> Option<u64>,
 }
 
 enum TargetFallback {

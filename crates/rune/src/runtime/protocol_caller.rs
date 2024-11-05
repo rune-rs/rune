@@ -9,7 +9,7 @@ pub(crate) trait ProtocolCaller: 'static {
     /// Call the given protocol function.
     fn call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<Value> {
@@ -27,7 +27,7 @@ pub(crate) trait ProtocolCaller: 'static {
     /// Call the given protocol function.
     fn try_call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<CallResultOnly<Value>>;
@@ -41,7 +41,7 @@ pub(crate) struct EnvProtocolCaller;
 impl ProtocolCaller for EnvProtocolCaller {
     fn try_call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<CallResultOnly<Value>> {
@@ -96,7 +96,7 @@ impl ProtocolCaller for EnvProtocolCaller {
 impl ProtocolCaller for Vm {
     fn try_call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<CallResultOnly<Value>> {

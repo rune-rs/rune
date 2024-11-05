@@ -278,11 +278,11 @@ impl Context {
                         GenerateTarget::Named { field_ident, field_name } => {
                             if let Some(custom) = &protocol.custom {
                                 quote_spanned! { field.span() =>
-                                    module.field_function(#protocol_field, #field_name, #custom)?;
+                                    module.field_function(&#protocol_field, #field_name, #custom)?;
                                 }
                             } else {
                                 quote_spanned! { field.span() =>
-                                    module.field_function(#protocol_field, #field_name, |s: &mut Self, value: #ty| {
+                                    module.field_function(&#protocol_field, #field_name, |s: &mut Self, value: #ty| {
                                         s.#field_ident $op value;
                                     })?;
                                 }
@@ -291,11 +291,11 @@ impl Context {
                         GenerateTarget::Numbered { field_index } => {
                             if let Some(custom) = &protocol.custom {
                                 quote_spanned! { field.span() =>
-                                    module.index_function(#protocol_field, #field_index, #custom)?;
+                                    module.index_function(&#protocol_field, #field_index, #custom)?;
                                 }
                             } else {
                                 quote_spanned! { field.span() =>
-                                    module.index_function(#protocol_field, #field_index, |s: &mut Self, value: #ty| {
+                                    module.index_function(&#protocol_field, #field_index, |s: &mut Self, value: #ty| {
                                         s.#field_index $op value;
                                     })?;
                                 }
@@ -394,7 +394,7 @@ impl Context {
                                     let protocol = g.tokens.protocol(Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.field_function(#protocol, #field_name, |s: &Self| #vm_result::Ok(#access))?;
+                                        module.field_function(&#protocol, #field_name, |s: &Self| #vm_result::Ok(#access))?;
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
@@ -407,7 +407,7 @@ impl Context {
                                     let protocol = g.tokens.protocol(Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.index_function(#protocol, #field_index, |s: &Self| #vm_result::Ok(#access))?;
+                                        module.index_function(&#protocol, #field_index, |s: &Self| #vm_result::Ok(#access))?;
                                     }
                                 }
                             }
@@ -432,14 +432,14 @@ impl Context {
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
                                     quote_spanned! { g.field.span() =>
-                                        module.field_function(#protocol, #field_name, |s: &mut Self, value: #ty| {
+                                        module.field_function(&#protocol, #field_name, |s: &mut Self, value: #ty| {
                                             s.#field_ident = value;
                                         })?;
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
                                     quote_spanned! { g.field.span() =>
-                                        module.index_function(#protocol, #field_index, |s: &mut Self, value: #ty| {
+                                        module.index_function(&#protocol, #field_index, |s: &mut Self, value: #ty| {
                                             s.#field_index = value;
                                         })?;
                                     }

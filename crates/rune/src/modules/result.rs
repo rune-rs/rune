@@ -37,7 +37,7 @@ pub fn module() -> Result<Module, ContextError> {
         .static_docs(&["Contains the error value"])?;
 
     m.associated_function(
-        Protocol::IS_VARIANT,
+        &Protocol::IS_VARIANT,
         |this: &Result<Value, Value>, index: usize| match (this, index) {
             (Result::Ok(_), 0) => true,
             (Result::Err(_), 1) => true,
@@ -45,10 +45,14 @@ pub fn module() -> Result<Module, ContextError> {
         },
     )?;
 
-    m.index_function(Protocol::GET, 0, |this: &Result<Value, Value>| match this {
-        Result::Ok(value) => VmResult::Ok(value.clone()),
-        Result::Err(value) => VmResult::Ok(value.clone()),
-    })?;
+    m.index_function(
+        &Protocol::GET,
+        0,
+        |this: &Result<Value, Value>| match this {
+            Result::Ok(value) => VmResult::Ok(value.clone()),
+            Result::Err(value) => VmResult::Ok(value.clone()),
+        },
+    )?;
 
     m.function_meta(ok)?;
     m.function_meta(is_ok)?;

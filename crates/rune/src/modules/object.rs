@@ -63,7 +63,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(Object::rune_iter__meta)?;
     m.function_meta(Object::rune_keys__meta)?;
     m.function_meta(Object::rune_values__meta)?;
-    m.associated_function(Protocol::INTO_ITER, Object::rune_iter)?;
+    m.associated_function(&Protocol::INTO_ITER, Object::rune_iter)?;
 
     m.ty::<RuneIter>()?;
     m.function_meta(RuneIter::next__meta)?;

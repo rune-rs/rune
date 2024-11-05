@@ -999,7 +999,7 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     Op {
-        /// The actual operation.
+        /// The kind of operation.
         op: InstOp,
         /// The address of the first argument.
         a: InstAddress,
@@ -1008,11 +1008,31 @@ pub enum Inst {
         /// Whether the produced value from the operation should be kept or not.
         out: Output,
     },
-    /// A built-in operation that assigns to the left-hand side operand.
+    /// Instruction for assigned arithmetic operations.
     #[musli(packed)]
-    Assign {
-        /// The actual operation.
-        op: InstAssignOp,
+    AssignArithmetic {
+        /// The kind of operation.
+        op: InstArithmeticOp,
+        /// The target of the operation.
+        target: InstTarget,
+        /// The value being assigned.
+        value: InstAddress,
+    },
+    /// Instruction for assigned bitwise operations.
+    #[musli(packed)]
+    AssignBitwise {
+        /// The kind of operation.
+        op: InstBitwiseOp,
+        /// The target of the operation.
+        target: InstTarget,
+        /// The value being assigned.
+        value: InstAddress,
+    },
+    /// Instruction for assigned shift operations.
+    #[musli(packed)]
+    AssignShift {
+        /// The kind of operation.
+        op: InstShiftOp,
         /// The target of the operation.
         target: InstTarget,
         /// The value being assigned.
@@ -1375,7 +1395,7 @@ impl fmt::Display for InstTarget {
 /// An operation between two values on the machine.
 #[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
 #[try_clone(copy)]
-pub enum InstAssignOp {
+pub enum InstArithmeticOp {
     /// The add operation. `a + b`.
     Add,
     /// The sub operation. `a - b`.
@@ -1386,19 +1406,10 @@ pub enum InstAssignOp {
     Div,
     /// The remainder operation. `a % b`.
     Rem,
-    /// The bitwise and operation. `a & b`.
-    BitAnd,
-    /// The bitwise xor operation. `a ^ b`.
-    BitXor,
-    /// The bitwise or operation. `a | b`.
-    BitOr,
-    /// The shift left operation. `a << b`.
-    Shl,
-    /// The shift right operation. `a << b`.
-    Shr,
 }
 
-impl fmt::Display for InstAssignOp {
+impl fmt::Display for InstArithmeticOp {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Add => {
@@ -1416,6 +1427,28 @@ impl fmt::Display for InstAssignOp {
             Self::Rem => {
                 write!(f, "%")?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+/// An operation between two values on the machine.
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
+pub enum InstBitwiseOp {
+    /// The bitwise and operation. `a & b`.
+    BitAnd,
+    /// The bitwise xor operation. `a ^ b`.
+    BitXor,
+    /// The bitwise or operation. `a | b`.
+    BitOr,
+}
+
+impl fmt::Display for InstBitwiseOp {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
             Self::BitAnd => {
                 write!(f, "&")?;
             }
@@ -1425,6 +1458,26 @@ impl fmt::Display for InstAssignOp {
             Self::BitOr => {
                 write!(f, "|")?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+/// An operation between two values on the machine.
+#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize, Decode, Encode)]
+#[try_clone(copy)]
+pub enum InstShiftOp {
+    /// The shift left operation. `a << b`.
+    Shl,
+    /// The shift right operation. `a << b`.
+    Shr,
+}
+
+impl fmt::Display for InstShiftOp {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
             Self::Shl => {
                 write!(f, "<<")?;
             }

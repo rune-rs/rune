@@ -34,7 +34,7 @@ pub fn module() -> Result<Module, ContextError> {
         .static_docs(&["The empty value."])?;
 
     m.associated_function(
-        Protocol::IS_VARIANT,
+        &Protocol::IS_VARIANT,
         |this: &Option<Value>, index: usize| match (this, index) {
             (Option::Some(_), 0) => true,
             (Option::None, 1) => true,
@@ -42,7 +42,7 @@ pub fn module() -> Result<Module, ContextError> {
         },
     )?;
 
-    m.index_function(Protocol::GET, 0, |this: &Option<Value>| match this {
+    m.index_function(&Protocol::GET, 0, |this: &Option<Value>| match this {
         Option::Some(value) => VmResult::Ok(value.clone()),
         _ => VmResult::err(RuntimeError::__rune_macros__unsupported_tuple_index_get(
             <Option<Value> as Any>::ANY_TYPE_INFO,
