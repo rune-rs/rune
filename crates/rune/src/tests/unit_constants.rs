@@ -13,7 +13,7 @@ fn test_get_const() -> Result<()> {
     let unit = prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
-        unit.constant(Hash::type_hash(["LEET"]))
+        unit.constant(&hash!(LEET))
             .context("missing constant")?
             .to_value()?
             .as_signed()?,
@@ -39,7 +39,7 @@ fn test_get_const_re_export() -> Result<()> {
     let unit = prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
-        unit.constant(Hash::type_hash(["LEET"]))
+        unit.constant(&hash!(LEET))
             .context("missing constant")?
             .to_value()?
             .as_signed()?,
@@ -63,7 +63,7 @@ fn test_get_const_nested() -> Result<()> {
     let unit = prepare(&mut sources).with_context(&context).build()?;
 
     assert_eq!(
-        unit.constant(Hash::type_hash(["inner", "LEET"]))
+        unit.constant(&hash!(inner::LEET))
             .expect("successful lookup")
             .to_value()
             .expect("could not allocate value")

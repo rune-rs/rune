@@ -414,18 +414,11 @@ pub enum Inst {
         /// Where the value is being moved to.
         out: Output,
     },
-    /// Drop the value in the given frame offset, cleaning out it's slot in
-    /// memory.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => *noop*
-    /// ```
+    /// Drop the given value set.
     #[musli(packed)]
     Drop {
-        /// Address of the value being dropped.
-        addr: InstAddress,
+        /// An indicator of the set of addresses to drop.
+        set: usize,
     },
     /// Swap two values on the stack using their offsets relative to the current
     /// stack frame.

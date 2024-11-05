@@ -25,9 +25,7 @@ fn bug_344_function() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime()?;
 
-    let hash = Hash::type_hash(["function"]);
-
-    let function = runtime.function(hash).expect("expect function");
+    let function = runtime.function(&hash!(function)).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
@@ -60,8 +58,7 @@ fn bug_344_inst_fn() -> Result<()> {
     let runtime = context.runtime()?;
 
     let hash = Hash::associated_function(GuardCheck::HASH, "function");
-
-    let function = runtime.function(hash).expect("expect function");
+    let function = runtime.function(&hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
@@ -82,9 +79,7 @@ fn bug_344_async_function() -> Result<()> {
     context.install(module)?;
     let runtime = context.runtime()?;
 
-    let hash = Hash::type_hash(["function"]);
-
-    let function = runtime.function(hash).expect("expect function");
+    let function = runtime.function(&hash!(function)).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
@@ -118,8 +113,7 @@ fn bug_344_async_inst_fn() -> Result<()> {
     let runtime = context.runtime()?;
 
     let hash = Hash::associated_function(GuardCheck::HASH, "function");
-
-    let function = runtime.function(hash).expect("expect function");
+    let function = runtime.function(&hash).expect("expect function");
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;

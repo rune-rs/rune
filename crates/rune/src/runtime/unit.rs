@@ -18,7 +18,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
-use crate::runtime::{Call, ConstValue, DebugInfo, Inst, Rtti, StaticString, VmError, VmErrorKind};
+use crate::runtime::{Call, ConstValue, DebugInfo, Inst, InstAddress, Rtti, StaticString};
 use crate::Hash;
 
 pub use self::storage::{ArrayUnit, EncodeError, UnitEncoder, UnitStorage};
@@ -57,7 +57,7 @@ pub struct Logic<S = DefaultStorage> {
     storage: S,
     /// Where functions are located in the collection of instructions.
     functions: hash::Map<UnitFn>,
-    /// A static string.
+    /// Static strings.
     static_strings: Vec<Arc<StaticString>>,
     /// A static byte string.
     static_bytes: Vec<Vec<u8>>,
@@ -68,6 +68,8 @@ pub struct Logic<S = DefaultStorage> {
     ///
     /// All keys are sorted with the default string sort.
     static_object_keys: Vec<Box<[String]>>,
+    /// Drop sets.
+    drop_sets: Vec<Arc<[InstAddress]>>,
     /// Runtime information for types.
     rtti: hash::Map<Arc<Rtti>>,
     /// Named constants
@@ -93,6 +95,7 @@ impl<S> Unit<S> {
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
+        drop_sets: Vec<Arc<[InstAddress]>>,
         rtti: hash::Map<Arc<Rtti>>,
         debug: Option<Box<DebugInfo>>,
         constants: hash::Map<ConstValue>,
@@ -104,6 +107,7 @@ impl<S> Unit<S> {
                 static_strings,
                 static_bytes,
                 static_object_keys,
+                drop_sets,
                 rtti,
                 constants,
             },
@@ -136,6 +140,20 @@ impl<S> Unit<S> {
         self.logic.static_strings.iter()
     }
 
+    /// Iterate over all static bytes in the unit.
+    #[cfg(feature = "cli")]
+    #[inline]
+    pub(crate) fn iter_static_bytes(&self) -> impl Iterator<Item = &[u8]> + '_ {
+        self.logic.static_bytes.iter().map(|v| &**v)
+    }
+
+    /// Iterate over all available drop sets.
+    #[cfg(feature = "cli")]
+    #[inline]
+    pub(crate) fn iter_static_drop_sets(&self) -> impl Iterator<Item = &[InstAddress]> + '_ {
+        self.logic.drop_sets.iter().map(|v| &**v)
+    }
+
     /// Iterate over all constants in the unit.
     #[cfg(feature = "cli")]
     #[inline]
@@ -166,50 +184,43 @@ impl<S> Unit<S> {
 
     /// Lookup the static string by slot, if it exists.
     #[inline]
-    pub(crate) fn lookup_string(&self, slot: usize) -> Result<&Arc<StaticString>, VmError> {
-        Ok(self
-            .logic
-            .static_strings
-            .get(slot)
-            .ok_or(VmErrorKind::MissingStaticString { slot })?)
+    pub(crate) fn lookup_string(&self, slot: usize) -> Option<&Arc<StaticString>> {
+        self.logic.static_strings.get(slot)
     }
 
     /// Lookup the static byte string by slot, if it exists.
     #[inline]
-    pub(crate) fn lookup_bytes(&self, slot: usize) -> Result<&[u8], VmError> {
-        Ok(self
-            .logic
-            .static_bytes
-            .get(slot)
-            .ok_or(VmErrorKind::MissingStaticString { slot })?
-            .as_ref())
+    pub(crate) fn lookup_bytes(&self, slot: usize) -> Option<&[u8]> {
+        Some(self.logic.static_bytes.get(slot)?)
     }
 
     /// Lookup the static object keys by slot, if it exists.
     #[inline]
     pub(crate) fn lookup_object_keys(&self, slot: usize) -> Option<&[String]> {
-        self.logic
-            .static_object_keys
-            .get(slot)
-            .map(|keys| &keys[..])
+        Some(self.logic.static_object_keys.get(slot)?)
+    }
+
+    #[inline]
+    pub(crate) fn lookup_drop_set(&self, set: usize) -> Option<&[InstAddress]> {
+        Some(self.logic.drop_sets.get(set)?)
     }
 
     /// Lookup run-time information for the given type hash.
     #[inline]
-    pub(crate) fn lookup_rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
-        self.logic.rtti.get(&hash)
+    pub(crate) fn lookup_rtti(&self, hash: &Hash) -> Option<&Arc<Rtti>> {
+        self.logic.rtti.get(hash)
     }
 
     /// Lookup a function in the unit.
     #[inline]
-    pub(crate) fn function(&self, hash: Hash) -> Option<UnitFn> {
-        self.logic.functions.get(&hash).copied()
+    pub(crate) fn function(&self, hash: &Hash) -> Option<&UnitFn> {
+        self.logic.functions.get(hash)
     }
 
     /// Lookup a constant from the unit.
     #[inline]
-    pub(crate) fn constant(&self, hash: Hash) -> Option<&ConstValue> {
-        self.logic.constants.get(&hash)
+    pub(crate) fn constant(&self, hash: &Hash) -> Option<&ConstValue> {
+        self.logic.constants.get(hash)
     }
 }
 

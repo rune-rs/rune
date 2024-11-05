@@ -8,8 +8,8 @@ use crate::modules::collections::VecDeque;
 use crate::modules::collections::{HashMap, HashSet};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
-    FromValue, Function, Inline, InstAddress, Object, Output, OwnedTuple, Protocol, ReprRef,
-    TypeHash, Value, Vec, VmErrorKind, VmResult,
+    FromValue, Function, Inline, InstAddress, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,
+    Value, Vec, VmErrorKind, VmResult,
 };
 use crate::shared::Caller;
 use crate::{Any, ContextError, Module, Params};
@@ -473,17 +473,17 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut string = String::new();
 
                         while let Some(value) = vm_try!(next.call((iter.clone(),))) {
-                            match vm_try!(value.as_ref()) {
-                                ReprRef::Inline(Inline::Char(c)) => {
+                            match value.as_ref() {
+                                Repr::Inline(Inline::Char(c)) => {
                                     vm_try!(string.try_push(*c));
                                 }
-                                ReprRef::Inline(value) => {
+                                Repr::Inline(value) => {
                                     return VmResult::expected::<String>(value.type_info());
                                 }
-                                ReprRef::Dynamic(value) => {
+                                Repr::Dynamic(value) => {
                                     return VmResult::expected::<String>(value.type_info());
                                 }
-                                ReprRef::Any(value) => match value.type_hash() {
+                                Repr::Any(value) => match value.type_hash() {
                                     String::HASH => {
                                         let s = vm_try!(value.borrow_ref::<String>());
                                         vm_try!(string.try_push_str(&s));

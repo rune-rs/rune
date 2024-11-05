@@ -28,13 +28,6 @@ pub struct AccessError {
 
 impl AccessError {
     #[inline]
-    pub(crate) const fn empty() -> Self {
-        Self {
-            kind: AccessErrorKind::Empty,
-        }
-    }
-
-    #[inline]
     pub(crate) const fn not_owned(type_info: TypeInfo) -> Self {
         Self {
             kind: AccessErrorKind::NotAccessibleOwned(type_info),
@@ -50,7 +43,6 @@ impl AccessError {
 impl fmt::Display for AccessError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            AccessErrorKind::Empty => write!(f, "Empty value"),
             AccessErrorKind::NotAccessibleRef(s) => write!(f, "Cannot read, value is {s}"),
             AccessErrorKind::NotAccessibleMut(s) => write!(f, "Cannot write, value is {s}"),
             AccessErrorKind::NotAccessibleTake(s) => write!(f, "Cannot take, value is {s}"),
@@ -73,7 +65,6 @@ impl From<AccessErrorKind> for AccessError {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) enum AccessErrorKind {
-    Empty,
     NotAccessibleRef(Snapshot),
     NotAccessibleMut(Snapshot),
     NotAccessibleTake(Snapshot),

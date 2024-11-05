@@ -38,6 +38,14 @@ impl TypeInfo {
         Self { kind }
     }
 
+    /// Construct type info for the empty type.
+    pub const fn empty() -> Self {
+        Self::new(TypeInfoKind::Any(AnyTypeInfo {
+            full_name: |f| write!(f, "empty"),
+            hash: crate::hash!(::std::empty::Empty),
+        }))
+    }
+
     /// Construct type info from an statically known [`Any`] type.
     #[inline]
     pub const fn any<T>() -> Self

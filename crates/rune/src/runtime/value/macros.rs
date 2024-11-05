@@ -23,9 +23,6 @@ macro_rules! inline_into {
                 Repr::Any(value) => {
                     Err(RuntimeError::expected::<$ty>(value.type_info()))
                 }
-                Repr::Empty => {
-                    Err(RuntimeError::from(AccessError::empty()))
-                }
             }
         }
 
@@ -46,9 +43,6 @@ macro_rules! inline_into {
                 }
                 Repr::Any(value) => {
                     Err(RuntimeError::expected::<$ty>(value.type_info()))
-                }
-                Repr::Empty => {
-                    Err(RuntimeError::from(AccessError::empty()))
                 }
             }
         }

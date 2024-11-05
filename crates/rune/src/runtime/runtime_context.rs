@@ -42,18 +42,21 @@ impl RuntimeContext {
     }
 
     /// Lookup the given native function handler in the context.
-    pub fn function(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
-        self.functions.get(&hash)
+    #[inline]
+    pub fn function(&self, hash: &Hash) -> Option<&Arc<FunctionHandler>> {
+        self.functions.get(hash)
     }
 
     /// Read a constant value.
-    pub fn constant(&self, hash: Hash) -> Option<&ConstValue> {
-        self.constants.get(&hash)
+    #[inline]
+    pub fn constant(&self, hash: &Hash) -> Option<&ConstValue> {
+        self.constants.get(hash)
     }
 
     /// Read a constant constructor.
-    pub(crate) fn construct(&self, hash: Hash) -> Option<&dyn ConstConstruct> {
-        Some(&**self.construct.get(&hash)?)
+    #[inline]
+    pub(crate) fn construct(&self, hash: &Hash) -> Option<&dyn ConstConstruct> {
+        Some(&**self.construct.get(hash)?)
     }
 }
 

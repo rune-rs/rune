@@ -5,7 +5,7 @@ use core::ops;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, ReprRef, RuntimeError, ToValue, Value,
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, Repr, RuntimeError, ToValue, Value,
     VmErrorKind, VmResult,
 };
 use crate::Any;
@@ -95,16 +95,16 @@ impl RangeInclusive {
     /// ```
     #[rune::function(keep)]
     pub fn iter(&self) -> VmResult<Value> {
-        let value = match (vm_try!(self.start.as_ref()), vm_try!(self.end.as_ref())) {
-            (ReprRef::Inline(Inline::Unsigned(start)), ReprRef::Inline(end)) => {
+        let value = match (self.start.as_ref(), self.end.as_ref()) {
+            (Repr::Inline(Inline::Unsigned(start)), Repr::Inline(end)) => {
                 let end = vm_try!(end.as_integer::<u64>());
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=end)))
             }
-            (ReprRef::Inline(Inline::Signed(start)), ReprRef::Inline(end)) => {
+            (Repr::Inline(Inline::Signed(start)), Repr::Inline(end)) => {
                 let end = vm_try!(end.as_integer::<i64>());
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=end)))
             }
-            (ReprRef::Inline(Inline::Char(start)), ReprRef::Inline(Inline::Char(end))) => {
+            (Repr::Inline(Inline::Char(start)), Repr::Inline(Inline::Char(end))) => {
                 vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
             }
             (start, end) => {

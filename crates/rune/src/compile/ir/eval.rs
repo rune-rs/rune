@@ -7,7 +7,7 @@ use crate::ast::{Span, Spanned};
 use crate::compile::ir::{self};
 use crate::compile::{self, WithSpan};
 use crate::query::Used;
-use crate::runtime::{Inline, Object, OwnedTuple, ReprRef, Value};
+use crate::runtime::{Inline, Object, OwnedTuple, Repr, Value};
 use crate::TypeHash;
 
 /// The outcome of a constant evaluation.
@@ -72,11 +72,11 @@ fn eval_ir_binary(
     let a = eval_ir(&ir.lhs, interp, used)?;
     let b = eval_ir(&ir.rhs, interp, used)?;
 
-    let a = a.as_ref().with_span(ir)?;
-    let b = b.as_ref().with_span(ir)?;
+    let a = a.as_ref();
+    let b = b.as_ref();
 
     match (a, b) {
-        (ReprRef::Inline(a), ReprRef::Inline(b)) => {
+        (Repr::Inline(a), Repr::Inline(b)) => {
             let out = 'out: {
                 match (a, b) {
                     (Inline::Signed(a), Inline::Signed(b)) => match ir.op {
@@ -140,7 +140,7 @@ fn eval_ir_binary(
 
             return Ok(Value::from(out));
         }
-        (ReprRef::Any(a), ReprRef::Any(b)) => {
+        (Repr::Any(a), Repr::Any(b)) => {
             let value = 'out: {
                 if let (String::HASH, String::HASH) = (a.type_hash(), b.type_hash()) {
                     let a = a.borrow_ref::<String>().with_span(span)?;
@@ -353,34 +353,23 @@ fn eval_ir_template(
             }
             ir::IrTemplateComponent::Ir(ir) => {
                 let const_value = eval_ir(ir, interp, used)?;
-                let value = const_value.as_ref().with_span(ir)?;
 
-                match value {
-                    ReprRef::Inline(value) => match value {
-                        Inline::Signed(integer) => {
-                            write!(buf, "{integer}")?;
-                        }
-                        Inline::Float(float) => {
-                            let mut buffer = ryu::Buffer::new();
-                            buf.try_push_str(buffer.format(*float))?;
-                        }
-                        Inline::Bool(b) => {
-                            write!(buf, "{b}")?;
-                        }
-                        _ => {
-                            return Err(EvalOutcome::not_const(ir));
-                        }
-                    },
-                    ReprRef::Any(value) => match value.type_hash() {
-                        String::HASH => {
-                            let s = value.borrow_ref::<String>().with_span(ir)?;
-                            buf.try_push_str(&s)?;
-                        }
-                        _ => {
-                            return Err(EvalOutcome::not_const(ir));
-                        }
-                    },
-                    ReprRef::Dynamic(..) => {
+                match const_value.as_ref() {
+                    Repr::Inline(Inline::Signed(integer)) => {
+                        write!(buf, "{integer}")?;
+                    }
+                    Repr::Inline(Inline::Float(float)) => {
+                        let mut buffer = ryu::Buffer::new();
+                        buf.try_push_str(buffer.format(*float))?;
+                    }
+                    Repr::Inline(Inline::Bool(b)) => {
+                        write!(buf, "{b}")?;
+                    }
+                    Repr::Any(value) if value.type_hash() == String::HASH => {
+                        let s = value.borrow_ref::<String>().with_span(ir)?;
+                        buf.try_push_str(&s)?;
+                    }
+                    _ => {
                         return Err(EvalOutcome::not_const(ir));
                     }
                 }

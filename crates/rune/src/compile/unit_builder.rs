@@ -18,8 +18,8 @@ use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, RttiKind, StaticString,
-    Unit, UnitFn,
+    Call, ConstValue, DebugInfo, DebugInst, Inst, InstAddress, Label, Protocol, Rtti, RttiKind,
+    StaticString, Unit, UnitFn,
 };
 use crate::{Context, Diagnostics, Hash, Item, SourceId};
 
@@ -72,6 +72,10 @@ pub(crate) struct UnitBuilder {
     static_object_keys: Vec<Box<[String]>>,
     /// Used to detect duplicates in the collection of static object keys.
     static_object_keys_rev: HashMap<Hash, usize>,
+    /// A static string.
+    drop_sets: Vec<Arc<[InstAddress]>>,
+    /// Reverse lookup for drop sets.
+    drop_sets_rev: HashMap<Vec<InstAddress>, usize>,
     /// Runtime type information for types.
     rtti: hash::Map<Arc<Rtti>>,
     /// The current label count.
@@ -87,6 +91,14 @@ pub(crate) struct UnitBuilder {
 }
 
 impl UnitBuilder {
+    /// Construct a new drop set.
+    pub(crate) fn drop_set(&mut self) -> DropSet<'_> {
+        DropSet {
+            builder: self,
+            addresses: Vec::new(),
+        }
+    }
+
     /// Insert an identifier for debug purposes.
     pub(crate) fn insert_debug_ident(&mut self, ident: &str) -> alloc::Result<()> {
         self.hash_to_ident
@@ -150,6 +162,7 @@ impl UnitBuilder {
             self.static_strings,
             self.static_bytes,
             self.static_object_keys,
+            self.drop_sets,
             self.rtti,
             self.debug,
             self.constants,
@@ -912,5 +925,38 @@ impl UnitBuilder {
         }
 
         Ok(())
+    }
+}
+
+/// A set of addresses that should be dropped.
+pub(crate) struct DropSet<'a> {
+    builder: &'a mut UnitBuilder,
+    addresses: Vec<InstAddress>,
+}
+
+impl DropSet<'_> {
+    /// Construct a new drop set.
+    pub(crate) fn push(&mut self, addr: InstAddress) -> alloc::Result<()> {
+        self.addresses.try_push(addr)
+    }
+
+    pub(crate) fn finish(self) -> alloc::Result<Option<usize>> {
+        if self.addresses.is_empty() {
+            return Ok(None);
+        }
+
+        if let Some(set) = self.builder.drop_sets_rev.get(&self.addresses) {
+            return Ok(Some(*set));
+        }
+
+        let set = self.builder.drop_sets.len();
+
+        self.builder
+            .drop_sets_rev
+            .try_insert(self.addresses.try_clone()?, set)?;
+        self.builder
+            .drop_sets
+            .try_push(Arc::from(&self.addresses[..]))?;
+        Ok(Some(set))
     }
 }

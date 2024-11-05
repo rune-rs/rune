@@ -165,7 +165,7 @@ pub use self::value::{
     Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
     ValueMutGuard, ValueRefGuard,
 };
-pub(crate) use self::value::{Dynamic, DynamicTakeError, ReprMut, ReprOwned, ReprRef, RttiKind};
+pub(crate) use self::value::{Dynamic, DynamicTakeError, Repr, RttiKind};
 
 pub mod slice;
 

@@ -368,7 +368,7 @@ impl Vec {
     /// types, such as vectors and tuples.
     pub(crate) fn index_get(this: &[Value], index: Value) -> VmResult<Option<Value>> {
         let slice: Option<&[Value]> = 'out: {
-            if let Some(value) = vm_try!(index.as_any()) {
+            if let Some(value) = index.as_any() {
                 match value.type_hash() {
                     RangeFrom::HASH => {
                         let range = vm_try!(value.borrow_ref::<RangeFrom>());

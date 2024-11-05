@@ -700,8 +700,14 @@ pub(crate) enum VmErrorKind {
     MissingStaticString {
         slot: usize,
     },
+    MissingStaticBytes {
+        slot: usize,
+    },
     MissingStaticObjectKeys {
         slot: usize,
+    },
+    MissingDropSet {
+        set: usize,
     },
     MissingRtti {
         hash: Hash,
@@ -914,10 +920,16 @@ impl fmt::Display for VmErrorKind {
                 write!(f, "Unsupported unary operation `{op}` on {operand}")
             }
             VmErrorKind::MissingStaticString { slot } => {
-                write!(f, "Static string slot `{slot}` does not exist")
+                write!(f, "Static string slot {slot} does not exist")
+            }
+            VmErrorKind::MissingStaticBytes { slot } => {
+                write!(f, "Static bytes slot {slot} does not exist")
             }
             VmErrorKind::MissingStaticObjectKeys { slot } => {
-                write!(f, "Static object keys slot `{slot}` does not exist")
+                write!(f, "Static object keys slot {slot} does not exist")
+            }
+            VmErrorKind::MissingDropSet { set } => {
+                write!(f, "Static drop set {set} does not exist")
             }
             VmErrorKind::MissingRtti { hash } => {
                 write!(f, "Missing runtime information for type with hash `{hash}`")

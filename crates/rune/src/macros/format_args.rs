@@ -572,7 +572,7 @@ fn expand_format_spec<'a>(
 
             let value = cx.eval(expr)?;
 
-            let number = match value.as_inline().with_span(expr)? {
+            let number = match value.as_inline() {
                 Some(Inline::Signed(n)) => n.to_usize(),
                 _ => None,
             };
@@ -589,7 +589,7 @@ fn expand_format_spec<'a>(
                         to be a positive number in use as precision, \
                         but got `{}`",
                         count,
-                        value.type_info().with_span(span)?
+                        value.type_info()
                     ),
                 ));
             };

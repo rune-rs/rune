@@ -39,8 +39,8 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::function(free, path = Type::of_val)]
 #[inline]
-fn type_of_val(value: Value) -> VmResult<Type> {
-    VmResult::Ok(Type::new(vm_try!(value.type_hash())))
+fn type_of_val(value: Value) -> Type {
+    Type::new(value.type_hash())
 }
 
 /// Formatting a type.

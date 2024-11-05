@@ -12,6 +12,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::ast;
     pub(crate) use crate::compile::{self, ErrorKind, Located, Named};
     pub(crate) use crate::diagnostics::{self, WarningDiagnosticKind};
+    pub(crate) use crate::hash;
     pub(crate) use crate::macros;
     pub(crate) use crate::module::InstallWith;
     pub(crate) use crate::parse;
