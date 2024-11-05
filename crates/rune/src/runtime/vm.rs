@@ -144,7 +144,9 @@ macro_rules! target_value {
             InstTarget::Field(lhs, field) => {
                 let rhs = vm_try!($vm.stack.at($rhs));
 
-                let field = vm_try!($vm.unit.lookup_string(field));
+                let Some(field) = $vm.unit.lookup_string(field) else {
+                    return err(VmErrorKind::MissingStaticString { slot: field });
+                };
 
                 $lhs = vm_try!($vm.stack.at(lhs)).clone();
 
@@ -595,7 +597,7 @@ impl Vm {
     {
         let hash = name.to_type_hash();
 
-        let Some(info) = self.unit.function(hash) else {
+        let Some(info) = self.unit.function(&hash) else {
             return Err(if let Some(item) = name.to_item()? {
                 VmErrorKind::MissingEntry { hash, item }
             } else {
@@ -611,8 +613,8 @@ impl Vm {
                 args: expected,
                 ..
             } => {
-                check_args(count, expected)?;
-                offset
+                check_args(count, *expected)?;
+                *offset
             }
             _ => {
                 return Err(VmErrorKind::MissingFunction { hash });
@@ -691,7 +693,7 @@ impl Vm {
         count: usize,
         out: Output,
     ) -> VmResult<CallResult<()>> {
-        if let Some(handler) = self.context.function(hash) {
+        if let Some(handler) = self.context.function(&hash) {
             let addr = self.stack.addr();
 
             vm_try!(self.called_function_hook(hash));
@@ -709,16 +711,17 @@ impl Vm {
             call,
             args: expected,
             ..
-        }) = self.unit.function(hash)
+        }) = self.unit.function(&hash)
         {
-            vm_try!(check_args(count, expected));
+            vm_try!(check_args(count, *expected));
 
             let addr = self.stack.addr();
+
             vm_try!(self.called_function_hook(hash));
             vm_try!(self.stack.push(target));
             vm_try!(args.push_to_stack(&mut self.stack));
 
-            let result = self.call_offset_fn(offset, call, addr, count, isolated, out);
+            let result = self.call_offset_fn(*offset, *call, addr, count, isolated, out);
 
             if vm_try!(result) {
                 self.stack.truncate(addr);
@@ -1987,8 +1990,15 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_drop(&mut self, addr: InstAddress) -> VmResult<()> {
-        *vm_try!(self.stack.at_mut(addr)) = Value::empty();
+    fn op_drop(&mut self, set: usize) -> VmResult<()> {
+        let Some(addresses) = self.unit.lookup_drop_set(set) else {
+            return err(VmErrorKind::MissingDropSet { set });
+        };
+
+        for &addr in addresses {
+            *vm_try!(self.stack.at_mut(addr)) = Value::empty();
+        }
+
         VmResult::Ok(())
     }
 
@@ -2517,44 +2527,42 @@ impl Vm {
     }
 
     fn lookup_function_by_hash(&self, hash: Hash) -> Result<Function, VmErrorKind> {
-        Ok(match self.unit.function(hash) {
-            Some(info) => match info {
-                UnitFn::Offset {
-                    offset, call, args, ..
-                } => Function::from_vm_offset(
-                    self.context.clone(),
-                    self.unit.clone(),
-                    offset,
-                    call,
-                    args,
-                    hash,
-                ),
-                UnitFn::EmptyStruct { hash } => {
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or(VmErrorKind::MissingRtti { hash })?;
+        let Some(info) = self.unit.function(&hash) else {
+            let Some(handler) = self.context.function(&hash) else {
+                return Err(VmErrorKind::MissingContextFunction { hash });
+            };
 
-                    Function::from_unit_struct(rtti.clone())
-                }
-                UnitFn::TupleStruct { hash, args } => {
-                    let rtti = self
-                        .unit
-                        .lookup_rtti(hash)
-                        .ok_or(VmErrorKind::MissingRtti { hash })?;
+            return Ok(Function::from_handler(handler.clone(), hash));
+        };
 
-                    Function::from_tuple_struct(rtti.clone(), args)
-                }
-            },
-            None => {
-                let handler = self
-                    .context
-                    .function(hash)
-                    .ok_or(VmErrorKind::MissingContextFunction { hash })?;
+        let f = match info {
+            UnitFn::Offset {
+                offset, call, args, ..
+            } => Function::from_vm_offset(
+                self.context.clone(),
+                self.unit.clone(),
+                *offset,
+                *call,
+                *args,
+                hash,
+            ),
+            UnitFn::EmptyStruct { hash } => {
+                let Some(rtti) = self.unit.lookup_rtti(hash) else {
+                    return Err(VmErrorKind::MissingRtti { hash: *hash });
+                };
 
-                Function::from_handler(handler.clone(), hash)
+                Function::from_unit_struct(rtti.clone())
             }
-        })
+            UnitFn::TupleStruct { hash, args } => {
+                let Some(rtti) = self.unit.lookup_rtti(hash) else {
+                    return Err(VmErrorKind::MissingRtti { hash: *hash });
+                };
+
+                Function::from_tuple_struct(rtti.clone(), *args)
+            }
+        };
+
+        Ok(f)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2705,7 +2713,10 @@ impl Vm {
     ) -> VmResult<()> {
         let target = vm_try!(self.stack.at(target));
         let value = vm_try!(self.stack.at(value));
-        let field = vm_try!(self.unit.lookup_string(slot));
+
+        let Some(field) = self.unit.lookup_string(slot) else {
+            return err(VmErrorKind::MissingStaticString { slot });
+        };
 
         if vm_try!(Self::try_object_slot_index_set(target, field, value)) {
             return VmResult::Ok(());
@@ -2739,7 +2750,10 @@ impl Vm {
         out: Output,
     ) -> VmResult<()> {
         let target = vm_try!(self.stack.at(addr));
-        let index = vm_try!(self.unit.lookup_string(slot));
+
+        let Some(index) = self.unit.lookup_string(slot) else {
+            return err(VmErrorKind::MissingStaticString { slot });
+        };
 
         match target.as_ref() {
             Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
@@ -2786,10 +2800,9 @@ impl Vm {
     /// Operation to allocate an object.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_object(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
-        let keys = vm_try!(self
-            .unit
-            .lookup_object_keys(slot)
-            .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
+        let Some(keys) = self.unit.lookup_object_keys(slot) else {
+            return err(VmErrorKind::MissingStaticObjectKeys { slot });
+        };
 
         let mut object = vm_try!(Object::with_capacity(keys.len()));
         let values = vm_try!(self.stack.slice_at_mut(addr, keys.len()));
@@ -2841,10 +2854,9 @@ impl Vm {
     /// Operation to allocate an empty struct.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_empty_struct(&mut self, hash: Hash, out: Output) -> VmResult<()> {
-        let rtti = vm_try!(self
-            .unit
-            .lookup_rtti(hash)
-            .ok_or(VmErrorKind::MissingRtti { hash }));
+        let Some(rtti) = self.unit.lookup_rtti(&hash) else {
+            return err(VmErrorKind::MissingRtti { hash });
+        };
 
         let value = vm_try!(Dynamic::<_, Value>::new(rtti.clone(), []));
         vm_try!(out.store(&mut self.stack, value));
@@ -2854,10 +2866,9 @@ impl Vm {
     /// Operation to allocate an object struct.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_struct(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
-        let rtti = vm_try!(self
-            .unit
-            .lookup_rtti(hash)
-            .ok_or(VmErrorKind::MissingRtti { hash }));
+        let Some(rtti) = self.unit.lookup_rtti(&hash) else {
+            return err(VmErrorKind::MissingRtti { hash });
+        };
 
         let values = vm_try!(self.stack.slice_at_mut(addr, rtti.fields.len()));
         let value = vm_try!(Dynamic::new(rtti.clone(), values.iter_mut().map(take)));
@@ -2876,7 +2887,7 @@ impl Vm {
     ) -> VmResult<()> {
         let values = vm_try!(self.stack.slice_at_mut(addr, count));
 
-        let Some(construct) = self.context.construct(hash) else {
+        let Some(construct) = self.context.construct(&hash) else {
             return err(VmErrorKind::MissingConstantConstructor { hash });
         };
 
@@ -2887,14 +2898,20 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_string(&mut self, slot: usize, out: Output) -> VmResult<()> {
-        let string = vm_try!(self.unit.lookup_string(slot));
+        let Some(string) = self.unit.lookup_string(slot) else {
+            return err(VmErrorKind::MissingStaticString { slot });
+        };
+
         vm_try!(out.store(&mut self.stack, string.as_str()));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_bytes(&mut self, slot: usize, out: Output) -> VmResult<()> {
-        let bytes = vm_try!(self.unit.lookup_bytes(slot));
+        let Some(bytes) = self.unit.lookup_bytes(slot) else {
+            return err(VmErrorKind::MissingStaticBytes { slot });
+        };
+
         vm_try!(out.store(&mut self.stack, bytes));
         VmResult::Ok(())
     }
@@ -3048,7 +3065,10 @@ impl Vm {
                 break 'out false;
             };
 
-            let string = vm_try!(self.unit.lookup_string(slot));
+            let Some(string) = self.unit.lookup_string(slot) else {
+                return err(VmErrorKind::MissingStaticString { slot });
+            };
+
             actual.as_str() == string.as_str()
         };
 
@@ -3067,7 +3087,10 @@ impl Vm {
                 break 'out false;
             };
 
-            let bytes = vm_try!(self.unit.lookup_bytes(slot));
+            let Some(bytes) = self.unit.lookup_bytes(slot) else {
+                return err(VmErrorKind::MissingStaticBytes { slot });
+            };
+
             value.as_slice() == bytes
         };
 
@@ -3224,10 +3247,9 @@ impl Vm {
 
         let is_match = match vm_try!(value.try_borrow_ref::<Object>()) {
             Some(object) => {
-                let keys = vm_try!(self
-                    .unit
-                    .lookup_object_keys(slot)
-                    .ok_or(VmErrorKind::MissingStaticObjectKeys { slot }));
+                let Some(keys) = self.unit.lookup_object_keys(slot) else {
+                    return err(VmErrorKind::MissingStaticObjectKeys { slot });
+                };
 
                 test(&object, keys, exact)
             }
@@ -3279,24 +3301,19 @@ impl Vm {
         count: usize,
         out: Output,
     ) -> VmResult<()> {
-        let info = vm_try!(self
-            .unit
-            .function(hash)
-            .ok_or(VmErrorKind::MissingFunction { hash }));
-
-        let UnitFn::Offset {
+        let Some(UnitFn::Offset {
             offset,
             call,
             args,
             captures: Some(captures),
-        } = info
+        }) = self.unit.function(&hash)
         else {
             return err(VmErrorKind::MissingFunction { hash });
         };
 
-        if captures != count {
+        if *captures != count {
             return err(VmErrorKind::BadEnvironmentCount {
-                expected: captures,
+                expected: *captures,
                 actual: count,
             });
         }
@@ -3311,9 +3328,9 @@ impl Vm {
         let function = Function::from_vm_closure(
             self.context.clone(),
             self.unit.clone(),
-            offset,
-            call,
-            args,
+            *offset,
+            *call,
+            *args,
             environment,
             hash,
         );
@@ -3325,11 +3342,10 @@ impl Vm {
     /// Implementation of a function call.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_call(&mut self, hash: Hash, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-        let Some(info) = self.unit.function(hash) else {
-            let handler = vm_try!(self
-                .context
-                .function(hash)
-                .ok_or(VmErrorKind::MissingFunction { hash }));
+        let Some(info) = self.unit.function(&hash) else {
+            let Some(handler) = self.context.function(&hash) else {
+                return err(VmErrorKind::MissingFunction { hash });
+            };
 
             vm_try!(handler(&mut self.stack, addr, args, out));
             return VmResult::Ok(());
@@ -3342,16 +3358,15 @@ impl Vm {
                 args: expected,
                 ..
             } => {
-                vm_try!(check_args(args, expected));
-                vm_try!(self.call_offset_fn(offset, call, addr, args, Isolated::None, out));
+                vm_try!(check_args(args, *expected));
+                vm_try!(self.call_offset_fn(*offset, *call, addr, args, Isolated::None, out));
             }
             UnitFn::EmptyStruct { hash } => {
                 vm_try!(check_args(args, 0));
 
-                let rtti = vm_try!(self
-                    .unit
-                    .lookup_rtti(hash)
-                    .ok_or(VmErrorKind::MissingRtti { hash }));
+                let Some(rtti) = self.unit.lookup_rtti(hash) else {
+                    return err(VmErrorKind::MissingRtti { hash: *hash });
+                };
 
                 vm_try!(out.store(&mut self.stack, || Value::empty_struct(rtti.clone())));
             }
@@ -3359,12 +3374,11 @@ impl Vm {
                 hash,
                 args: expected,
             } => {
-                vm_try!(check_args(args, expected));
+                vm_try!(check_args(args, *expected));
 
-                let rtti = vm_try!(self
-                    .unit
-                    .lookup_rtti(hash)
-                    .ok_or(VmErrorKind::MissingRtti { hash }));
+                let Some(rtti) = self.unit.lookup_rtti(hash) else {
+                    return err(VmErrorKind::MissingRtti { hash: *hash });
+                };
 
                 let tuple = vm_try!(self.stack.slice_at_mut(addr, args));
                 let data = tuple.iter_mut().map(take);
@@ -3402,7 +3416,7 @@ impl Vm {
         let type_hash = instance.type_hash();
         let hash = Hash::associated_function(type_hash, hash);
 
-        if let Some(handler) = self.context.function(hash) {
+        if let Some(handler) = self.context.function(&hash) {
             vm_try!(self.called_function_hook(hash));
             vm_try!(handler(&mut self.stack, addr, args, out));
             return VmResult::Ok(());
@@ -3413,11 +3427,11 @@ impl Vm {
             call,
             args: expected,
             ..
-        }) = self.unit.function(hash)
+        }) = self.unit.function(&hash)
         {
             vm_try!(self.called_function_hook(hash));
-            vm_try!(check_args(args, expected));
-            vm_try!(self.call_offset_fn(offset, call, addr, args, Isolated::None, out));
+            vm_try!(check_args(args, *expected));
+            vm_try!(self.call_offset_fn(*offset, *call, addr, args, Isolated::None, out));
             return VmResult::Ok(());
         }
 
@@ -3661,8 +3675,8 @@ impl Vm {
                 Inst::Move { addr, out } => {
                     vm_try!(self.op_move(addr, out));
                 }
-                Inst::Drop { addr } => {
-                    vm_try!(self.op_drop(addr));
+                Inst::Drop { set } => {
+                    vm_try!(self.op_drop(set));
                 }
                 Inst::Swap { a, b } => {
                     vm_try!(self.op_swap(a, b));
@@ -3893,6 +3907,7 @@ impl Drop for ClearStack<'_> {
 }
 
 /// Check that arguments matches expected or raise the appropriate error.
+#[inline(always)]
 fn check_args(args: usize, expected: usize) -> Result<(), VmErrorKind> {
     if args != expected {
         return Err(VmErrorKind::BadArgumentCount {

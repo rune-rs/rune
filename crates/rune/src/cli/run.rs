@@ -181,6 +181,8 @@ pub(super) async fn run(
 
         let mut functions = unit.iter_functions().peekable();
         let mut strings = unit.iter_static_strings().peekable();
+        let mut bytes = unit.iter_static_bytes().peekable();
+        let mut drop_sets = unit.iter_static_drop_sets().peekable();
         let mut keys = unit.iter_static_object_keys().peekable();
         let mut constants = unit.iter_constants().peekable();
 
@@ -199,16 +201,16 @@ pub(super) async fn run(
         if strings.peek().is_some() {
             writeln!(io.stdout, "# strings")?;
 
-            for string in strings {
-                writeln!(io.stdout, "{} = {:?}", string.hash(), string)?;
+            for (i, string) in strings.enumerate() {
+                writeln!(io.stdout, "{i} = {string:?}")?;
             }
         }
 
-        if args.dump_constants && constants.peek().is_some() {
-            writeln!(io.stdout, "# constants")?;
+        if bytes.peek().is_some() {
+            writeln!(io.stdout, "# bytes")?;
 
-            for constant in constants {
-                writeln!(io.stdout, "{} = {:?}", constant.0, constant.1)?;
+            for (i, bytes) in bytes.enumerate() {
+                writeln!(io.stdout, "{i} = {bytes:?}")?;
             }
         }
 
@@ -217,6 +219,22 @@ pub(super) async fn run(
 
             for (hash, keys) in keys {
                 writeln!(io.stdout, "{} = {:?}", hash, keys)?;
+            }
+        }
+
+        if drop_sets.peek().is_some() {
+            writeln!(io.stdout, "# drop sets")?;
+
+            for (i, set) in drop_sets.enumerate() {
+                writeln!(io.stdout, "{i} = {set:?}")?;
+            }
+        }
+
+        if args.dump_constants && constants.peek().is_some() {
+            writeln!(io.stdout, "# constants")?;
+
+            for (hash, constant) in constants {
+                writeln!(io.stdout, "{hash} = {constant:?}")?;
             }
         }
     }

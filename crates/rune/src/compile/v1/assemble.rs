@@ -75,8 +75,14 @@ impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
             .drain_dangling_into(&mut self.drop)
             .with_span(span)?;
 
+        let mut drop_set = self.q.unit.drop_set();
+
         for addr in self.drop.drain(..).rev() {
-            self.asm.push(Inst::Drop { addr }, span)?;
+            drop_set.push(addr)?;
+        }
+
+        if let Some(set) = drop_set.finish()? {
+            self.asm.push(Inst::Drop { set }, span)?;
         }
 
         Ok(())
@@ -1738,9 +1744,15 @@ fn expr_break<'hir>(
         cx.asm.push(Inst::unit(out), span)?;
     }
 
+    let mut drop_set = cx.q.unit.drop_set();
+
     // Drop loop temporaries.
     for addr in cx.drop.drain(..) {
-        cx.asm.push(Inst::Drop { addr }, span)?;
+        drop_set.push(addr)?;
+    }
+
+    if let Some(set) = drop_set.finish()? {
+        cx.asm.push(Inst::Drop { set }, span)?;
     }
 
     cx.asm.jump(&break_label, span)?;
@@ -2217,15 +2229,15 @@ fn expr_for<'a, 'hir>(
 
     cx.asm.label(&end_label)?;
 
+    let mut drop_set = cx.q.unit.drop_set();
+    drop_set.push(into_iter.addr())?;
+
     // NB: Dropping has to happen before the break label. When breaking,
     // the break statement is responsible for ensuring that active
     // iterators are dropped.
-    cx.asm.push(
-        Inst::Drop {
-            addr: into_iter.addr(),
-        },
-        span,
-    )?;
+    if let Some(set) = drop_set.finish()? {
+        cx.asm.push(Inst::Drop { set }, span)?;
+    }
 
     cx.asm.label(&break_label)?;
 
@@ -2820,9 +2832,15 @@ fn expr_select_inner<'a, 'hir>(
 
     cx.asm.label(&end_label)?;
 
+    let mut drop_set = cx.q.unit.drop_set();
+
     // Drop futures we are currently using.
     for addr in &linear {
-        cx.asm.push(Inst::Drop { addr: addr.addr() }, span)?;
+        drop_set.push(addr.addr())?;
+    }
+
+    if let Some(set) = drop_set.finish()? {
+        cx.asm.push(Inst::Drop { set }, span)?;
     }
 
     value_addr.free()?;

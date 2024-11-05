@@ -492,7 +492,7 @@ impl Value {
         let hash = Hash::associated_function(self.type_hash(), Protocol::INTO_TYPE_NAME);
 
         crate::runtime::env::shared(|context, unit| {
-            if let Some(name) = context.constant(hash) {
+            if let Some(name) = context.constant(&hash) {
                 match name.as_kind() {
                     ConstValueKind::String(s) => {
                         return VmResult::Ok(vm_try!(String::try_from(s.as_str())))
@@ -501,7 +501,7 @@ impl Value {
                 }
             }
 
-            if let Some(name) = unit.constant(hash) {
+            if let Some(name) = unit.constant(&hash) {
                 match name.as_kind() {
                     ConstValueKind::String(s) => {
                         return VmResult::Ok(vm_try!(String::try_from(s.as_str())))

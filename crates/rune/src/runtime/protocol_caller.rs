@@ -66,19 +66,19 @@ impl ProtocolCaller for EnvProtocolCaller {
                 args: expected,
                 call,
                 ..
-            }) = unit.function(hash)
+            }) = unit.function(&hash)
             {
-                vm_try!(check_args(count, expected));
+                vm_try!(check_args(count, *expected));
 
                 let mut stack = vm_try!(Stack::with_capacity(count));
                 vm_try!(stack.push(target));
                 vm_try!(args.push_to_stack(&mut stack));
                 let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack);
-                vm.set_ip(offset);
+                vm.set_ip(*offset);
                 return VmResult::Ok(CallResultOnly::Ok(vm_try!(call.call_with_vm(vm))));
             }
 
-            if let Some(handler) = context.function(hash) {
+            if let Some(handler) = context.function(&hash) {
                 let mut stack = vm_try!(Stack::with_capacity(count));
                 let addr = stack.addr();
                 vm_try!(stack.push(target));
