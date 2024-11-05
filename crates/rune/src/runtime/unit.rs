@@ -48,6 +48,8 @@ pub struct Unit<S = DefaultStorage> {
     debug: Option<Box<DebugInfo>>,
 }
 
+assert_impl!(Unit<DefaultStorage>: Send + Sync);
+
 /// Instructions from a single source file.
 #[derive(Debug, TryClone, Default, Serialize, Deserialize)]
 #[serde(rename = "Unit")]
