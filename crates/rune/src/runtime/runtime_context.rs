@@ -28,6 +28,8 @@ pub struct RuntimeContext {
     construct: hash::Map<Arc<dyn ConstConstruct>>,
 }
 
+assert_impl!(RuntimeContext: Send + Sync);
+
 impl RuntimeContext {
     pub(crate) fn new(
         functions: hash::Map<Arc<FunctionHandler>>,

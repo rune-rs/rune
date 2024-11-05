@@ -52,3 +52,13 @@ macro_rules! cfg_std {
         )*
     }
 }
+
+macro_rules! assert_impl {
+    ($ty:ty: $first_trait:ident $(+ $rest_trait:ident)*) => {
+        #[cfg(test)]
+        const _: () = const {
+            const fn assert_traits<T>() where T: $first_trait $(+ $rest_trait)* {}
+            assert_traits::<$ty>();
+        };
+    };
+}

@@ -397,6 +397,8 @@ impl Function {
 #[repr(transparent)]
 pub struct SyncFunction(FunctionImpl<ConstValue>);
 
+assert_impl!(SyncFunction: Send + Sync);
+
 impl SyncFunction {
     /// Perform an asynchronous call over the function which also implements
     /// [Send].
@@ -971,27 +973,4 @@ fn check_args(actual: usize, expected: usize) -> VmResult<()> {
     }
 
     VmResult::Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::SyncFunction;
-
-    fn assert_send<T>()
-    where
-        T: Send,
-    {
-    }
-
-    fn assert_sync<T>()
-    where
-        T: Sync,
-    {
-    }
-
-    #[test]
-    fn assert_send_sync() {
-        assert_send::<SyncFunction>();
-        assert_sync::<SyncFunction>();
-    }
 }
