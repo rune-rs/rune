@@ -21,7 +21,7 @@ pub struct BorrowMut<'a, T: ?Sized> {
 impl<'a, T: ?Sized> BorrowMut<'a, T> {
     /// Construct a borrow mut from static data.
     #[inline]
-    pub(crate) fn from_static(data: &mut T) -> Self {
+    pub(crate) fn from_ref(data: &'a mut T) -> Self {
         Self {
             data: NonNull::from(data),
             guard: None,

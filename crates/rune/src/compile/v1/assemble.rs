@@ -12,8 +12,9 @@ use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::{
-    ConstValue, ConstValueKind, Inline, Inst, InstAddress, InstAssignOp, InstOp, InstRange,
-    InstTarget, InstValue, InstVariant, Label, Output, PanicReason, Protocol, TypeCheck,
+    ConstValue, ConstValueKind, Inline, Inst, InstAddress, InstArithmeticOp, InstBitwiseOp, InstOp,
+    InstRange, InstShiftOp, InstTarget, InstValue, InstVariant, Label, Output, PanicReason,
+    Protocol, TypeCheck,
 };
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
@@ -1479,52 +1480,153 @@ fn expr_binary<'a, 'hir>(
         return compile_conditional_binop(cx, &hir.lhs, &hir.rhs, &hir.op, span, needs);
     }
 
-    let op = match hir.op {
-        ast::BinOp::Eq(..) => InstOp::Eq,
-        ast::BinOp::Neq(..) => InstOp::Neq,
-        ast::BinOp::Lt(..) => InstOp::Lt,
-        ast::BinOp::Gt(..) => InstOp::Gt,
-        ast::BinOp::Lte(..) => InstOp::Le,
-        ast::BinOp::Gte(..) => InstOp::Ge,
-        ast::BinOp::As(..) => InstOp::As,
-        ast::BinOp::Is(..) => InstOp::Is,
-        ast::BinOp::IsNot(..) => InstOp::IsNot,
-        ast::BinOp::And(..) => InstOp::And,
-        ast::BinOp::Or(..) => InstOp::Or,
-        ast::BinOp::Add(..) => InstOp::Add,
-        ast::BinOp::Sub(..) => InstOp::Sub,
-        ast::BinOp::Div(..) => InstOp::Div,
-        ast::BinOp::Mul(..) => InstOp::Mul,
-        ast::BinOp::Rem(..) => InstOp::Rem,
-        ast::BinOp::BitAnd(..) => InstOp::BitAnd,
-        ast::BinOp::BitXor(..) => InstOp::BitXor,
-        ast::BinOp::BitOr(..) => InstOp::BitOr,
-        ast::BinOp::Shl(..) => InstOp::Shl,
-        ast::BinOp::Shr(..) => InstOp::Shr,
-
-        op => {
-            return Err(compile::Error::new(
-                span,
-                ErrorKind::UnsupportedBinaryOp { op },
-            ));
-        }
-    };
-
     let mut a = cx.scopes.defer(span);
     let mut b = cx.scopes.defer(span);
 
     let asm = expr_array(cx, span, [(&hir.lhs, &mut a), (&hir.rhs, &mut b)])?;
 
     if let Some([a, b]) = asm.into_converging() {
-        cx.asm.push(
-            Inst::Op {
-                op,
-                a: a.addr(),
-                b: b.addr(),
-                out: needs.alloc_output()?,
+        let a = a.addr();
+        let b = b.addr();
+        let out = needs.alloc_output()?;
+
+        let inst = match hir.op {
+            ast::BinOp::Eq(..) => Inst::Op {
+                op: InstOp::Eq,
+                a,
+                b,
+                out,
             },
-            span,
-        )?;
+            ast::BinOp::Neq(..) => Inst::Op {
+                op: InstOp::Neq,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Lt(..) => Inst::Op {
+                op: InstOp::Lt,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Gt(..) => Inst::Op {
+                op: InstOp::Gt,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Lte(..) => Inst::Op {
+                op: InstOp::Le,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Gte(..) => Inst::Op {
+                op: InstOp::Ge,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::As(..) => Inst::Op {
+                op: InstOp::As,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Is(..) => Inst::Op {
+                op: InstOp::Is,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::IsNot(..) => Inst::Op {
+                op: InstOp::IsNot,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::And(..) => Inst::Op {
+                op: InstOp::And,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Or(..) => Inst::Op {
+                op: InstOp::Or,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Add(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Add,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Sub(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Sub,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Div(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Div,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Mul(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Mul,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Rem(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Rem,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::BitAnd(..) => Inst::Bitwise {
+                op: InstBitwiseOp::BitAnd,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::BitXor(..) => Inst::Bitwise {
+                op: InstBitwiseOp::BitXor,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::BitOr(..) => Inst::Bitwise {
+                op: InstBitwiseOp::BitOr,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Shl(..) => Inst::Shift {
+                op: InstShiftOp::Shl,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Shr(..) => Inst::Shift {
+                op: InstShiftOp::Shr,
+                a,
+                b,
+                out,
+            },
+
+            op => {
+                return Err(compile::Error::new(
+                    span,
+                    ErrorKind::UnsupportedBinaryOp { op },
+                ));
+            }
+        };
+
+        cx.asm.push(inst, span)?;
     }
 
     a.free()?;
@@ -1575,71 +1677,109 @@ fn compile_assign_binop<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let supported = match lhs.kind {
+    let (target, value) = match lhs.kind {
         // <var> <op> <expr>
         hir::ExprKind::Variable(name) => {
             let var = cx.scopes.get(&mut cx.q, lhs, name)?;
-            Some(InstTarget::Address(var.addr))
+
+            let mut value = cx.scopes.defer(rhs);
+            converge!(expr(cx, rhs, &mut value)?, free(value));
+            let value = value.into_addr()?;
+
+            let inst_target = InstTarget::Address(var.addr);
+
+            (inst_target, value)
         }
         // <expr>.<field> <op> <value>
         hir::ExprKind::FieldAccess(field_access) => {
-            let mut field = cx.scopes.defer(&field_access.expr);
-            converge!(expr(cx, &field_access.expr, &mut field)?, free(field));
-            let field = field.into_addr()?;
+            let mut target = cx.scopes.defer(&field_access.expr);
+            converge!(expr(cx, &field_access.expr, &mut target)?, free(target));
+            let target = target.into_addr()?;
+
+            let mut value = cx.scopes.defer(rhs);
+            converge!(expr(cx, rhs, &mut value)?, free(target, value));
+            let value = value.into_addr()?;
 
             // field assignment
-            let output = match field_access.expr_field {
-                hir::ExprField::Index(index) => Some(InstTarget::TupleField(field.addr(), index)),
+            let inst_target = match field_access.expr_field {
+                hir::ExprField::Index(index) => InstTarget::TupleField(target.addr(), index),
                 hir::ExprField::Ident(ident) => {
-                    let n = cx.q.unit.new_static_string(&field_access.expr, ident)?;
-                    Some(InstTarget::Field(field.addr(), n))
+                    let slot = cx.q.unit.new_static_string(&field_access.expr, ident)?;
+                    InstTarget::Field(target.addr(), slot)
                 }
                 _ => {
                     return Err(compile::Error::new(span, ErrorKind::BadFieldAccess));
                 }
             };
 
-            field.free()?;
-            output
+            target.free()?;
+            (inst_target, value)
         }
-        _ => None,
-    };
-
-    let Some(target) = supported else {
-        return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
-    };
-
-    let op = match bin_op {
-        ast::BinOp::AddAssign(..) => InstAssignOp::Add,
-        ast::BinOp::SubAssign(..) => InstAssignOp::Sub,
-        ast::BinOp::MulAssign(..) => InstAssignOp::Mul,
-        ast::BinOp::DivAssign(..) => InstAssignOp::Div,
-        ast::BinOp::RemAssign(..) => InstAssignOp::Rem,
-        ast::BinOp::BitAndAssign(..) => InstAssignOp::BitAnd,
-        ast::BinOp::BitXorAssign(..) => InstAssignOp::BitXor,
-        ast::BinOp::BitOrAssign(..) => InstAssignOp::BitOr,
-        ast::BinOp::ShlAssign(..) => InstAssignOp::Shl,
-        ast::BinOp::ShrAssign(..) => InstAssignOp::Shr,
         _ => {
             return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
         }
     };
 
-    let mut value = cx.scopes.defer(rhs);
-
-    if expr(cx, rhs, &mut value)?.converging() {
-        cx.asm.push(
-            Inst::Assign {
-                target,
-                op,
-                value: value.addr()?.addr(),
-            },
-            span,
-        )?;
-
-        if let Some(out) = needs.try_alloc_output()? {
-            cx.asm.push(Inst::unit(out), span)?;
+    let inst = match bin_op {
+        ast::BinOp::AddAssign(..) => Inst::AssignArithmetic {
+            op: InstArithmeticOp::Add,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::SubAssign(..) => Inst::AssignArithmetic {
+            op: InstArithmeticOp::Sub,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::MulAssign(..) => Inst::AssignArithmetic {
+            op: InstArithmeticOp::Mul,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::DivAssign(..) => Inst::AssignArithmetic {
+            op: InstArithmeticOp::Div,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::RemAssign(..) => Inst::AssignArithmetic {
+            op: InstArithmeticOp::Rem,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::BitAndAssign(..) => Inst::AssignBitwise {
+            op: InstBitwiseOp::BitAnd,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::BitXorAssign(..) => Inst::AssignBitwise {
+            op: InstBitwiseOp::BitXor,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::BitOrAssign(..) => Inst::AssignBitwise {
+            op: InstBitwiseOp::BitOr,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::ShlAssign(..) => Inst::AssignShift {
+            op: InstShiftOp::Shl,
+            target,
+            rhs: value.addr(),
+        },
+        ast::BinOp::ShrAssign(..) => Inst::AssignShift {
+            op: InstShiftOp::Shr,
+            target,
+            rhs: value.addr(),
+        },
+        _ => {
+            return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
         }
+    };
+
+    cx.asm.push(inst, span)?;
+
+    if let Some(out) = needs.try_alloc_output()? {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
     value.free()?;
@@ -2120,7 +2260,7 @@ fn expr_for<'a, 'hir>(
     cx.asm.push_with_comment(
         Inst::CallAssociated {
             addr: into_iter.addr(),
-            hash: *Protocol::INTO_ITER,
+            hash: Protocol::INTO_ITER.hash,
             args: 1,
             out: into_iter.output(),
         },
@@ -2135,7 +2275,7 @@ fn expr_for<'a, 'hir>(
         cx.asm.push_with_comment(
             Inst::LoadInstanceFn {
                 addr: into_iter.addr(),
-                hash: *Protocol::NEXT,
+                hash: Protocol::NEXT.hash,
                 out: offset.output(),
             },
             &hir.iter,
@@ -2182,7 +2322,7 @@ fn expr_for<'a, 'hir>(
         cx.asm.push_with_comment(
             Inst::CallAssociated {
                 addr: into_iter_copy.addr(),
-                hash: *Protocol::NEXT,
+                hash: Protocol::NEXT.hash,
                 args: 1,
                 out: binding.output(),
             },

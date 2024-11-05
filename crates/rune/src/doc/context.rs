@@ -47,11 +47,11 @@ pub(crate) struct Function<'a> {
 #[derive(Debug)]
 pub(crate) enum AssocFnKind<'a> {
     /// A protocol function implemented on the type itself.
-    Protocol(Protocol),
+    Protocol(&'static Protocol),
     /// A field function with the given protocol.
-    FieldFn(Protocol, &'a str),
+    FieldFn(&'static Protocol, &'a str),
     /// An index function with the given protocol.
-    IndexFn(Protocol, usize),
+    IndexFn(&'static Protocol, usize),
     /// The instance function refers to the given named instance fn.
     Method(&'a Item, &'a str, Signature),
 }

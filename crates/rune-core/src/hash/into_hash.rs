@@ -1,4 +1,5 @@
 use crate::hash::Hash;
+use crate::protocol::Protocol;
 
 mod sealed {
     use crate::hash::Hash;
@@ -9,7 +10,7 @@ mod sealed {
 
     impl Sealed for &str {}
     impl Sealed for Hash {}
-    impl Sealed for Protocol {}
+    impl Sealed for &Protocol {}
     impl<T, const N: usize> Sealed for Params<T, N> {}
 }
 
@@ -31,5 +32,12 @@ impl IntoHash for &str {
     #[inline]
     fn into_hash(self) -> Hash {
         Hash::ident(self)
+    }
+}
+
+impl IntoHash for &Protocol {
+    #[inline]
+    fn into_hash(self) -> Hash {
+        self.hash
     }
 }

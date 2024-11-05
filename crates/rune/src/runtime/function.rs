@@ -551,7 +551,7 @@ where
                     count,
                     InstAddress::ZERO.output()
                 ));
-                vm_try!(stack.at(InstAddress::ZERO)).clone()
+                stack.at(InstAddress::ZERO).clone()
             }
             Inner::FnOffset(fn_offset) => {
                 vm_try!(fn_offset.call(args, ()))

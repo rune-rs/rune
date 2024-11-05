@@ -24,8 +24,6 @@ impl fmt::Display for TooManyParameters {
 
 impl core::error::Error for TooManyParameters {}
 
-use crate::protocol::Protocol;
-
 use crate::alloc;
 use crate::alloc::clone::TryClone;
 
@@ -143,26 +141,23 @@ impl Hash {
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
     #[inline]
-    pub fn associated_function<N>(type_hash: Hash, name: N) -> Self
-    where
-        N: IntoHash,
-    {
+    pub fn associated_function(type_hash: impl IntoHash, name: impl IntoHash) -> Self {
+        let type_hash = type_hash.into_hash();
         let name = name.into_hash();
         Self(ASSOCIATED_FUNCTION_HASH ^ (type_hash.0 ^ name.0))
     }
 
     /// Construct a hash corresponding to a field function.
     #[inline]
-    pub fn field_function<N>(protocol: Protocol, type_hash: Hash, name: N) -> Self
-    where
-        N: IntoHash,
-    {
+    pub fn field_function(protocol: impl IntoHash, type_hash: Hash, name: impl IntoHash) -> Self {
+        let protocol = protocol.into_hash();
         Self::associated_function(Hash(type_hash.0 ^ protocol.0), name)
     }
 
     /// Construct an index function.
     #[inline]
-    pub fn index_function(protocol: Protocol, type_hash: Hash, index: Hash) -> Self {
+    pub fn index_function(protocol: impl IntoHash, type_hash: Hash, index: Hash) -> Self {
+        let protocol = protocol.into_hash();
         Self::associated_function(Hash(type_hash.0 ^ protocol.0), index)
     }
 

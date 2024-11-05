@@ -40,8 +40,8 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(VecDeque::rotate_left)?;
     m.function_meta(VecDeque::rotate_right)?;
 
-    m.associated_function(Protocol::INDEX_GET, VecDeque::get)?;
-    m.associated_function(Protocol::INDEX_SET, VecDeque::set)?;
+    m.associated_function(&Protocol::INDEX_GET, VecDeque::get)?;
+    m.associated_function(&Protocol::INDEX_SET, VecDeque::set)?;
 
     m.function_meta(VecDeque::debug_fmt)?;
 

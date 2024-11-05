@@ -19,7 +19,7 @@ impl Foo {
 fn main() -> rune::support::Result<()> {
     let mut module = Module::new();
     module.ty::<Foo>()?;
-    module.associated_function(Protocol::ADD_ASSIGN, Foo::add_assign)?;
+    module.associated_function(&Protocol::ADD_ASSIGN, Foo::add_assign)?;
 
     let mut context = rune_modules::default_context()?;
     context.install(module)?;

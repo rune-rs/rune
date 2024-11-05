@@ -8,7 +8,7 @@ use crate::Hash;
 #[doc(inline)]
 pub use rune_core::protocol::Protocol;
 
-impl ToInstance for Protocol {
+impl ToInstance for &'static Protocol {
     #[inline]
     fn to_instance(self) -> alloc::Result<AssociatedName> {
         Ok(AssociatedName {

@@ -11,7 +11,7 @@ fn custom_try() -> Result<()> {
 
     module.ty::<CustomResult>()?;
 
-    module.associated_function(Protocol::TRY, |r: CustomResult| {
+    module.associated_function(&Protocol::TRY, |r: CustomResult| {
         if r.0 {
             ControlFlow::Continue(42i64)
         } else {

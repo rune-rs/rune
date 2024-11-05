@@ -1,19 +1,14 @@
 use core::cmp;
 use core::fmt;
 use core::hash::Hasher;
-use core::ops;
 
-use crate as rune;
 #[cfg(feature = "alloc")]
 use crate::alloc;
-use crate::alloc::prelude::*;
-use crate::hash::IntoHash;
 use crate::hash::{Hash, ToTypeHash};
 use crate::item::ItemBuf;
 
 /// A built in instance function.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[try_clone(copy)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct Protocol {
     /// The name of the builtin function.
@@ -36,14 +31,7 @@ pub struct Protocol {
     pub doc: &'static [&'static str],
 }
 
-impl IntoHash for Protocol {
-    #[inline]
-    fn into_hash(self) -> Hash {
-        self.hash
-    }
-}
-
-impl ToTypeHash for Protocol {
+impl ToTypeHash for &Protocol {
     #[inline]
     fn to_type_hash(&self) -> Hash {
         self.hash
@@ -53,14 +41,6 @@ impl ToTypeHash for Protocol {
     #[cfg(feature = "alloc")]
     fn to_item(&self) -> alloc::Result<Option<ItemBuf>> {
         Ok(None)
-    }
-}
-
-impl ops::Deref for Protocol {
-    type Target = Hash;
-
-    fn deref(&self) -> &Self::Target {
-        &self.hash
     }
 }
 

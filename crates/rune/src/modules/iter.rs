@@ -155,7 +155,7 @@ pub fn module() -> Result<Module, ContextError> {
         })?;
 
         t.handler(|cx| {
-            _ = cx.find(Protocol::LEN)?;
+            _ = cx.find(&Protocol::LEN)?;
             Ok(())
         })?;
 
@@ -202,15 +202,15 @@ pub fn module() -> Result<Module, ContextError> {
         })?;
 
         t.handler(|cx| {
-            let next = cx.find(Protocol::NEXT)?;
+            let next = cx.find(&Protocol::NEXT)?;
             let next = Caller::<(Value,), 1, Option<Value>>::new(next);
 
             let size_hint =
-                cx.find_or_define(Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?;
+                cx.find_or_define(&Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?;
 
             let size_hint = Caller::<(&Value,), 1, (usize, Option<usize>)>::new(size_hint);
 
-            cx.find_or_define(Protocol::NTH, {
+            cx.find_or_define(&Protocol::NTH, {
                 let next = next.clone();
 
                 move |iter: Value, mut n: usize| loop {
@@ -226,7 +226,7 @@ pub fn module() -> Result<Module, ContextError> {
                 }
             })?;
 
-            cx.function(Protocol::INTO_ITER, |value: Value| value)?;
+            cx.function(&Protocol::INTO_ITER, |value: Value| value)?;
 
             cx.function("into_iter", |value: Value| value)?;
 
@@ -1630,9 +1630,9 @@ pub fn module() -> Result<Module, ContextError> {
         })?;
 
         t.handler(|cx| {
-            let next_back = cx.find(Protocol::NEXT_BACK)?;
+            let next_back = cx.find(&Protocol::NEXT_BACK)?;
 
-            cx.find_or_define(Protocol::NTH_BACK, {
+            cx.find_or_define(&Protocol::NTH_BACK, {
                 let next_back = next_back.clone();
 
                 move |iterator: Value, mut n: usize| loop {

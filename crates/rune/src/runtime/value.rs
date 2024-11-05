@@ -347,7 +347,7 @@ impl Value {
         let mut args = DynGuardedArgs::new((f,));
 
         let result =
-            vm_try!(caller.call_protocol_fn(Protocol::DISPLAY_FMT, self.clone(), &mut args));
+            vm_try!(caller.call_protocol_fn(&Protocol::DISPLAY_FMT, self.clone(), &mut args));
 
         VmResult::Ok(vm_try!(<()>::from_value(result)))
     }
@@ -387,7 +387,7 @@ impl Value {
         }
 
         VmResult::Ok(vm_try!(caller.call_protocol_fn(
-            Protocol::CLONE,
+            &Protocol::CLONE,
             self.clone(),
             &mut ()
         )))
@@ -427,7 +427,7 @@ impl Value {
                 let mut args = DynGuardedArgs::new((&mut *f,));
 
                 match vm_try!(caller.try_call_protocol_fn(
-                    Protocol::DEBUG_FMT,
+                    &Protocol::DEBUG_FMT,
                     self.clone(),
                     &mut args
                 )) {
@@ -470,7 +470,7 @@ impl Value {
     }
 
     pub(crate) fn into_iter_with(self, caller: &mut dyn ProtocolCaller) -> VmResult<Iterator> {
-        let value = vm_try!(caller.call_protocol_fn(Protocol::INTO_ITER, self, &mut ()));
+        let value = vm_try!(caller.call_protocol_fn(&Protocol::INTO_ITER, self, &mut ()));
         VmResult::Ok(Iterator::new(value))
     }
 
@@ -489,7 +489,7 @@ impl Value {
     ///
     /// [`Vm`]: crate::Vm
     pub fn into_type_name(self) -> VmResult<String> {
-        let hash = Hash::associated_function(self.type_hash(), Protocol::INTO_TYPE_NAME);
+        let hash = Hash::associated_function(self.type_hash(), &Protocol::INTO_TYPE_NAME);
 
         crate::runtime::env::shared(|context, unit| {
             if let Some(name) = context.constant(&hash) {
@@ -707,7 +707,7 @@ impl Value {
     #[inline]
     pub fn borrow_tuple_mut(&self) -> Result<BorrowMut<'_, Tuple>, RuntimeError> {
         match self.as_ref() {
-            Repr::Inline(Inline::Unit) => Ok(BorrowMut::from_static(Tuple::new_mut(&mut []))),
+            Repr::Inline(Inline::Unit) => Ok(BorrowMut::from_ref(Tuple::new_mut(&mut []))),
             Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
             Repr::Any(value) => {
@@ -808,7 +808,7 @@ impl Value {
         };
 
         let value = EnvProtocolCaller
-            .call_protocol_fn(Protocol::INTO_FUTURE, target, &mut ())
+            .call_protocol_fn(&Protocol::INTO_FUTURE, target, &mut ())
             .into_result()?;
 
         Future::from_value(value)
@@ -1067,7 +1067,7 @@ impl Value {
         self.bin_op_with(
             b,
             caller,
-            Protocol::PARTIAL_EQ,
+            &Protocol::PARTIAL_EQ,
             Inline::partial_eq,
             |lhs, rhs, caller| {
                 if lhs.0.variant_hash != rhs.0.variant_hash {
@@ -1098,7 +1098,7 @@ impl Value {
     /// This is the basis for the eq operation (`==`).
     #[cfg_attr(feature = "bench", inline(never))]
     pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
-        self.bin_op_with(b, caller, Protocol::EQ, Inline::eq, |lhs, rhs, caller| {
+        self.bin_op_with(b, caller, &Protocol::EQ, Inline::eq, |lhs, rhs, caller| {
             if lhs.0.variant_hash != rhs.0.variant_hash {
                 return VmResult::Ok(false);
             }
@@ -1133,7 +1133,7 @@ impl Value {
         self.bin_op_with(
             b,
             caller,
-            Protocol::PARTIAL_CMP,
+            &Protocol::PARTIAL_CMP,
             Inline::partial_cmp,
             |lhs, rhs, caller| {
                 let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
@@ -1170,15 +1170,21 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<Ordering> {
-        self.bin_op_with(b, caller, Protocol::CMP, Inline::cmp, |lhs, rhs, caller| {
-            let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
+        self.bin_op_with(
+            b,
+            caller,
+            &Protocol::CMP,
+            Inline::cmp,
+            |lhs, rhs, caller| {
+                let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
 
-            if ord != Ordering::Equal {
-                return VmResult::Ok(ord);
-            }
+                if ord != Ordering::Equal {
+                    return VmResult::Ok(ord);
+                }
 
-            Vec::cmp_with(lhs.1, rhs.1, caller)
-        })
+                Vec::cmp_with(lhs.1, rhs.1, caller)
+            },
+        )
     }
 
     /// Hash the current value.
@@ -1213,7 +1219,7 @@ impl Value {
         let mut args = DynGuardedArgs::new((hasher,));
 
         if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(Protocol::HASH, self.clone(), &mut args))
+            vm_try!(caller.try_call_protocol_fn(&Protocol::HASH, self.clone(), &mut args))
         {
             return VmResult::Ok(vm_try!(<_>::from_value(value)));
         }
@@ -1228,7 +1234,7 @@ impl Value {
         &self,
         b: &Value,
         caller: &mut dyn ProtocolCaller,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         inline: fn(&Inline, &Inline) -> Result<T, RuntimeError>,
         dynamic: fn(
             (&Arc<Rtti>, &[Value]),
@@ -1395,26 +1401,29 @@ impl Value {
     }
 
     pub(crate) fn protocol_into_iter(&self) -> VmResult<Value> {
-        EnvProtocolCaller.call_protocol_fn(Protocol::INTO_ITER, self.clone(), &mut ())
+        EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_ITER, self.clone(), &mut ())
     }
 
     pub(crate) fn protocol_next(&self) -> VmResult<Option<Value>> {
         let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::NEXT, self.clone(), &mut ()));
+            vm_try!(EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT, self.clone(), &mut ()));
 
         VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_next_back(&self) -> VmResult<Option<Value>> {
-        let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::NEXT_BACK, self.clone(), &mut ()));
+        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
+            &Protocol::NEXT_BACK,
+            self.clone(),
+            &mut ()
+        ));
 
         VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_nth_back(&self, n: usize) -> VmResult<Option<Value>> {
         let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
-            Protocol::NTH_BACK,
+            &Protocol::NTH_BACK,
             self.clone(),
             &mut Some((n,))
         ));
@@ -1424,14 +1433,17 @@ impl Value {
 
     pub(crate) fn protocol_len(&self) -> VmResult<usize> {
         let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::LEN, self.clone(), &mut ()));
+            vm_try!(EnvProtocolCaller.call_protocol_fn(&Protocol::LEN, self.clone(), &mut ()));
 
         VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }
 
     pub(crate) fn protocol_size_hint(&self) -> VmResult<(usize, Option<usize>)> {
-        let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(Protocol::SIZE_HINT, self.clone(), &mut ()));
+        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
+            &Protocol::SIZE_HINT,
+            self.clone(),
+            &mut ()
+        ));
 
         VmResult::Ok(vm_try!(FromValue::from_value(value)))
     }

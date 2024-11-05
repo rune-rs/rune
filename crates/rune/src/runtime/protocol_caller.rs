@@ -9,7 +9,7 @@ pub(crate) trait ProtocolCaller: 'static {
     /// Call the given protocol function.
     fn call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<Value> {
@@ -27,7 +27,7 @@ pub(crate) trait ProtocolCaller: 'static {
     /// Call the given protocol function.
     fn try_call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<CallResultOnly<Value>>;
@@ -41,7 +41,7 @@ pub(crate) struct EnvProtocolCaller;
 impl ProtocolCaller for EnvProtocolCaller {
     fn try_call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<CallResultOnly<Value>> {
@@ -84,7 +84,7 @@ impl ProtocolCaller for EnvProtocolCaller {
                 vm_try!(stack.push(target));
                 vm_try!(args.push_to_stack(&mut stack));
                 vm_try!(handler(&mut stack, addr, count, addr.output()));
-                let value = vm_try!(stack.at(addr)).clone();
+                let value = stack.at(addr).clone();
                 return VmResult::Ok(CallResultOnly::Ok(value));
             }
 
@@ -96,7 +96,7 @@ impl ProtocolCaller for EnvProtocolCaller {
 impl ProtocolCaller for Vm {
     fn try_call_protocol_fn(
         &mut self,
-        protocol: Protocol,
+        protocol: &'static Protocol,
         target: Value,
         args: &mut dyn DynArgs,
     ) -> VmResult<CallResultOnly<Value>> {
@@ -112,7 +112,7 @@ impl ProtocolCaller for Vm {
         )) {
             CallResult::Unsupported(value) => VmResult::Ok(CallResultOnly::Unsupported(value)),
             CallResult::Ok(()) => {
-                let value = vm_try!(self.stack().at(addr)).clone();
+                let value = self.stack().at(addr).clone();
                 self.stack_mut().truncate(addr);
                 VmResult::Ok(CallResultOnly::Ok(value))
             }

@@ -677,7 +677,7 @@ pub(crate) enum VmErrorKind {
         hash: Hash,
     },
     MissingProtocolFunction {
-        protocol: Protocol,
+        protocol: &'static Protocol,
         instance: TypeInfo,
     },
     MissingInstanceFunction {

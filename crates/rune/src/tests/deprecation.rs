@@ -26,7 +26,7 @@ fn create_context() -> Result<Context> {
     module.function_meta(new)?;
 
     module
-        .field_function(Protocol::GET, "hello", |_this: &TestStruct| 1)?
+        .field_function(&Protocol::GET, "hello", |_this: &TestStruct| 1)?
         .deprecated("Deprecated get field fn")?;
 
     module

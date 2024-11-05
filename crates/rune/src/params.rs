@@ -30,7 +30,7 @@ where
     T: ToFieldFunction,
 {
     #[inline]
-    fn to_field_function(self, protocol: Protocol) -> alloc::Result<AssociatedName> {
+    fn to_field_function(self, protocol: &'static Protocol) -> alloc::Result<AssociatedName> {
         let info = self.name.to_field_function(protocol)?;
 
         Ok(AssociatedName {

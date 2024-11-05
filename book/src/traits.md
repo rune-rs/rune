@@ -120,9 +120,9 @@ let mut m = Module::with_crate("std", ["iter"]);
 let mut t = m.define_trait(["Iterator"])?;
 
 t.handler(|cx| {
-    let next = cx.find(Protocol::NEXT)?;
+    let next = cx.find(&Protocol::NEXT)?;
 
-    let size_hint = cx.find_or_define(Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?;
+    let size_hint = cx.find_or_define(&Protocol::SIZE_HINT, |_: Value| (0usize, None::<usize>))?;
 
     /* more methods */
     Ok(())

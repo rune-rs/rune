@@ -517,11 +517,11 @@ impl DocType {
 #[non_exhaustive]
 pub enum AssociatedKind {
     /// A protocol function implemented on the type itself.
-    Protocol(Protocol),
+    Protocol(&'static Protocol),
     /// A field function with the given protocol.
-    FieldFn(Protocol, Cow<'static, str>),
+    FieldFn(&'static Protocol, Cow<'static, str>),
     /// An index function with the given protocol.
-    IndexFn(Protocol, usize),
+    IndexFn(&'static Protocol, usize),
     /// The instance function refers to the given named instance fn.
     Instance(Cow<'static, str>),
 }
@@ -532,10 +532,10 @@ impl AssociatedKind {
         match self {
             Self::Protocol(protocol) => Hash::associated_function(instance_type, protocol.hash),
             Self::IndexFn(protocol, index) => {
-                Hash::index_function(*protocol, instance_type, Hash::index(*index))
+                Hash::index_function(protocol.hash, instance_type, Hash::index(*index))
             }
             Self::FieldFn(protocol, field) => {
-                Hash::field_function(*protocol, instance_type, field.as_ref())
+                Hash::field_function(protocol.hash, instance_type, field.as_ref())
             }
             Self::Instance(name) => Hash::associated_function(instance_type, name.as_ref()),
         }
