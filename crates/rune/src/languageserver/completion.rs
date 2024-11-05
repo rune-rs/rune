@@ -1,3 +1,5 @@
+use std::borrow::ToOwned;
+
 use anyhow::Result;
 use lsp::CompletionItem;
 use lsp::CompletionItemKind;
@@ -36,6 +38,10 @@ pub(super) fn complete_for_unit(
             continue;
         }
 
+        let Some(last) = function.path.base_name() else {
+            continue;
+        };
+
         let args = match &function.args {
             DebugArgs::EmptyArgs => None,
             DebugArgs::TupleArgs(n) => Some({
@@ -64,7 +70,7 @@ pub(super) fn complete_for_unit(
         let detail = args.map(|a| format!("({a:}) -> ?"));
 
         results.try_push(CompletionItem {
-            label: format!("{}", function.path.last().unwrap()),
+            label: last.to_owned(),
             kind: Some(CompletionItemKind::FUNCTION),
             detail: detail.clone(),
             documentation: docs.map(|d| {
@@ -126,6 +132,10 @@ pub(super) fn complete_native_instance_data(
 
             let detail = return_type.map(|r| format!("({args}) -> {r}"));
 
+            let Ok(data) = serde_json::to_value(meta.hash.into_inner()) else {
+                continue;
+            };
+
             results.try_push(CompletionItem {
                 label: n.try_to_string()?.into_std(),
                 kind: Some(kind),
@@ -148,7 +158,7 @@ pub(super) fn complete_native_instance_data(
                     detail: None,
                     description: Some(prefix.try_to_string()?.into_std()),
                 }),
-                data: Some(serde_json::to_value(meta.hash.into_inner() as i64).unwrap()),
+                data: Some(data),
                 ..Default::default()
             })?;
         }
@@ -187,6 +197,10 @@ pub(super) fn complete_native_loose_data(
 
             let detail = return_type.map(|r| format!("({args}) -> {r}"));
 
+            let Ok(data) = serde_json::to_value(meta.hash.into_inner()) else {
+                continue;
+            };
+
             results.try_push(CompletionItem {
                 label: func_name.try_clone()?.into_std(),
                 kind: Some(kind),
@@ -205,7 +219,7 @@ pub(super) fn complete_native_loose_data(
                     },
                     new_text: func_name.into_std(),
                 })),
-                data: Some(serde_json::to_value(meta.hash.into_inner() as i64).unwrap()),
+                data: Some(data),
                 ..Default::default()
             })?;
         }
