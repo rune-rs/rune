@@ -9,12 +9,13 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
-use crate::runtime::{
+use crate::{Any, Hash, ItemBuf};
+
+use super::{
     AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnyTypeInfo, BoxedPanic, CallFrame,
     DynArgsUsed, DynamicTakeError, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
-    StackError, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    StackError, StaticString, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
-use crate::{Any, Hash, ItemBuf};
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
@@ -741,9 +742,11 @@ pub(crate) enum VmErrorKind {
     },
     UnsupportedObjectSlotIndexGet {
         target: TypeInfo,
+        field: Arc<StaticString>,
     },
     UnsupportedObjectSlotIndexSet {
         target: TypeInfo,
+        field: Arc<StaticString>,
     },
     UnsupportedIs {
         value: TypeInfo,
@@ -962,11 +965,11 @@ impl fmt::Display for VmErrorKind {
                 f,
                 "The tuple index set operation is not supported on `{target}`",
             ),
-            VmErrorKind::UnsupportedObjectSlotIndexGet { target } => {
-                write!(f, "Field not available to get on `{target}`")
+            VmErrorKind::UnsupportedObjectSlotIndexGet { target, field } => {
+                write!(f, "Field `{field}` not available on `{target}`")
             }
-            VmErrorKind::UnsupportedObjectSlotIndexSet { target } => {
-                write!(f, "Field not available to set on `{target}`")
+            VmErrorKind::UnsupportedObjectSlotIndexSet { target, field } => {
+                write!(f, "Field `{field}` not available to set on `{target}`")
             }
             VmErrorKind::UnsupportedIs { value, test_type } => {
                 write!(f, "Operation `{value} is {test_type}` is not supported")

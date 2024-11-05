@@ -1212,7 +1212,7 @@ impl Vm {
 
                 VmResult::Ok(())
             }
-            TargetFallback::Field(lhs, hash, rhs) => {
+            TargetFallback::Field(lhs, hash, slot, rhs) => {
                 let mut args = DynGuardedArgs::new((rhs,));
 
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_field_fn(
@@ -1222,8 +1222,13 @@ impl Vm {
                     &mut args,
                     Output::discard()
                 )) {
+                    let Some(field) = self.unit.lookup_string(slot) else {
+                        return err(VmErrorKind::MissingStaticString { slot });
+                    };
+
                     return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                         target: lhs.type_info(),
+                        field: field.clone(),
                     });
                 }
 
@@ -2213,8 +2218,13 @@ impl Vm {
             vm_try!(self.call_field_fn(&Protocol::SET, target, hash, &mut args, Output::discard()));
 
         if let CallResult::Unsupported(target) = result {
+            let Some(field) = self.unit.lookup_string(slot) else {
+                return err(VmErrorKind::MissingStaticString { slot });
+            };
+
             return err(VmErrorKind::UnsupportedObjectSlotIndexSet {
                 target: target.type_info(),
+                field: field.clone(),
             });
         };
 
@@ -2260,6 +2270,7 @@ impl Vm {
             target => {
                 return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                     target: target.type_info(),
+                    field: index.clone(),
                 });
             }
         }
@@ -2269,8 +2280,13 @@ impl Vm {
         if let CallResult::Unsupported(target) =
             vm_try!(self.call_field_fn(&Protocol::GET, target, index.hash(), &mut (), out))
         {
+            let Some(field) = self.unit.lookup_string(slot) else {
+                return err(VmErrorKind::MissingStaticString { slot });
+            };
+
             return err(VmErrorKind::UnsupportedObjectSlotIndexGet {
                 target: target.type_info(),
+                field: field.clone(),
             });
         }
 
@@ -3414,7 +3430,7 @@ fn check_args(args: usize, expected: usize) -> Result<(), VmErrorKind> {
 
 enum TargetFallback {
     Value(Value, Value),
-    Field(Value, Hash, Value),
+    Field(Value, Hash, usize, Value),
     Index(Value, usize, Value),
 }
 
@@ -3468,6 +3484,7 @@ fn target_value<'a>(
                 Ok(TargetValue::Fallback(TargetFallback::Field(
                     lhs.clone(),
                     field.hash(),
+                    slot,
                     rhs.clone(),
                 )))
             }
