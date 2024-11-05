@@ -1008,23 +1008,13 @@ pub enum Inst {
         /// Whether the produced value from the operation should be kept or not.
         out: Output,
     },
-    /// A built-in operation that assigns to the left-hand side operand. Like
-    /// `a += b`.
-    ///
-    /// The target determines the left hand side operation.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// =>
-    /// ```
+    /// A built-in operation that assigns to the left-hand side operand.
     #[musli(packed)]
     Assign {
-        /// The target of the operation.
-        target: InstTarget,
         /// The actual operation.
         op: InstAssignOp,
+        /// The target of the operation.
+        target: InstTarget,
         /// The value being assigned.
         value: InstAddress,
     },

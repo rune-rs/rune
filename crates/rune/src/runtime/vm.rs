@@ -2153,8 +2153,8 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_assign(
         &mut self,
-        target: InstTarget,
         op: InstAssignOp,
+        target: InstTarget,
         value: InstAddress,
     ) -> VmResult<()> {
         match op {
@@ -3624,8 +3624,8 @@ impl Vm {
                 Inst::Op { op, a, b, out } => {
                     vm_try!(self.op_op(op, a, b, out));
                 }
-                Inst::Assign { target, op, value } => {
-                    vm_try!(self.op_assign(target, op, value));
+                Inst::Assign { op, target, value } => {
+                    vm_try!(self.op_assign(op, target, value));
                 }
                 Inst::IterNext { addr, jump, out } => {
                     vm_try!(self.op_iter_next(addr, jump, out));

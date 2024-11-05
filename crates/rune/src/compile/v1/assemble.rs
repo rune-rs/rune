@@ -1575,40 +1575,6 @@ fn compile_assign_binop<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let supported = match lhs.kind {
-        // <var> <op> <expr>
-        hir::ExprKind::Variable(name) => {
-            let var = cx.scopes.get(&mut cx.q, lhs, name)?;
-            Some(InstTarget::Address(var.addr))
-        }
-        // <expr>.<field> <op> <value>
-        hir::ExprKind::FieldAccess(field_access) => {
-            let mut field = cx.scopes.defer(&field_access.expr);
-            converge!(expr(cx, &field_access.expr, &mut field)?, free(field));
-            let field = field.into_addr()?;
-
-            // field assignment
-            let output = match field_access.expr_field {
-                hir::ExprField::Index(index) => Some(InstTarget::TupleField(field.addr(), index)),
-                hir::ExprField::Ident(ident) => {
-                    let n = cx.q.unit.new_static_string(&field_access.expr, ident)?;
-                    Some(InstTarget::Field(field.addr(), n))
-                }
-                _ => {
-                    return Err(compile::Error::new(span, ErrorKind::BadFieldAccess));
-                }
-            };
-
-            field.free()?;
-            output
-        }
-        _ => None,
-    };
-
-    let Some(target) = supported else {
-        return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
-    };
-
     let op = match bin_op {
         ast::BinOp::AddAssign(..) => InstAssignOp::Add,
         ast::BinOp::SubAssign(..) => InstAssignOp::Sub,
@@ -1625,24 +1591,66 @@ fn compile_assign_binop<'a, 'hir>(
         }
     };
 
-    let mut value = cx.scopes.defer(rhs);
+    let inst = match lhs.kind {
+        // <var> <op> <expr>
+        hir::ExprKind::Variable(name) => {
+            let var = cx.scopes.get(&mut cx.q, lhs, name)?;
 
-    if expr(cx, rhs, &mut value)?.converging() {
-        cx.asm.push(
+            let mut value = cx.scopes.defer(rhs);
+            converge!(expr(cx, rhs, &mut value)?, free(value));
+
             Inst::Assign {
-                target,
                 op,
+                target: InstTarget::Address(var.addr),
                 value: value.addr()?.addr(),
-            },
-            span,
-        )?;
-
-        if let Some(out) = needs.try_alloc_output()? {
-            cx.asm.push(Inst::unit(out), span)?;
+            }
         }
+        // <expr>.<field> <op> <value>
+        hir::ExprKind::FieldAccess(field_access) => {
+            let mut target = cx.scopes.defer(&field_access.expr);
+            converge!(expr(cx, &field_access.expr, &mut target)?, free(target));
+            let target = target.into_addr()?;
+
+            let mut value = cx.scopes.defer(rhs);
+            converge!(expr(cx, rhs, &mut value)?, free(target, value));
+            let value = value.into_addr()?;
+
+            // field assignment
+            let inst = match field_access.expr_field {
+                hir::ExprField::Index(index) => Inst::Assign {
+                    op,
+                    target: InstTarget::TupleField(target.addr(), index),
+                    value: value.addr(),
+                },
+                hir::ExprField::Ident(ident) => {
+                    let slot = cx.q.unit.new_static_string(&field_access.expr, ident)?;
+
+                    Inst::Assign {
+                        op,
+                        target: InstTarget::Field(target.addr(), slot),
+                        value: value.addr(),
+                    }
+                }
+                _ => {
+                    return Err(compile::Error::new(span, ErrorKind::BadFieldAccess));
+                }
+            };
+
+            target.free()?;
+            value.free()?;
+            inst
+        }
+        _ => {
+            return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));
+        }
+    };
+
+    cx.asm.push(inst, span)?;
+
+    if let Some(out) = needs.try_alloc_output()? {
+        cx.asm.push(Inst::unit(out), span)?;
     }
 
-    value.free()?;
     Ok(Asm::new(span, ()))
 }
 
