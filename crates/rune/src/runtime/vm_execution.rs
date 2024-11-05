@@ -261,7 +261,7 @@ where
                 }
                 VmHalt::Yielded(addr, out) => {
                     let value = match addr {
-                        Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
+                        Some(addr) => vm.stack().at(addr).clone(),
                         None => Value::unit(),
                     };
 
@@ -350,7 +350,7 @@ where
                 }
                 VmHalt::Yielded(addr, out) => {
                     let value = match addr {
-                        Some(addr) => vm_try!(vm.stack().at(addr)).clone(),
+                        Some(addr) => vm.stack().at(addr).clone(),
                         None => Value::unit(),
                     };
 
@@ -447,7 +447,7 @@ where
         };
 
         let value = match addr {
-            Some(addr) => vm_try!(self.head.as_ref().stack().at(addr)).clone(),
+            Some(addr) => self.head.as_ref().stack().at(addr).clone(),
             None => Value::unit(),
         };
 

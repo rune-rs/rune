@@ -130,9 +130,9 @@ macro_rules! target_value {
                 Pair::Pair(lhs, rhs) => TargetValue::Pair(lhs, rhs),
             },
             InstTarget::TupleField(lhs, index) => {
-                let rhs = vm_try!($vm.stack.at($rhs));
+                let rhs = $vm.stack.at($rhs);
 
-                $lhs = vm_try!($vm.stack.at(lhs)).clone();
+                $lhs = $vm.stack.at(lhs).clone();
 
                 if let Some(value) = vm_try!(Vm::try_tuple_like_index_get_mut(&$lhs, index)) {
                     $guard = value;
@@ -142,13 +142,13 @@ macro_rules! target_value {
                 }
             }
             InstTarget::Field(lhs, field) => {
-                let rhs = vm_try!($vm.stack.at($rhs));
+                let rhs = $vm.stack.at($rhs);
 
                 let Some(field) = $vm.unit.lookup_string(field) else {
                     return err(VmErrorKind::MissingStaticString { slot: field });
                 };
 
-                $lhs = vm_try!($vm.stack.at(lhs)).clone();
+                $lhs = $vm.stack.at(lhs).clone();
 
                 if let Some(value) = vm_try!(Vm::try_object_like_index_get_mut(&$lhs, field)) {
                     $guard = value;
@@ -742,8 +742,8 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.at(rhs));
-        let lhs = vm_try!(self.stack.at(lhs));
+        let rhs = self.stack.at(rhs);
+        let lhs = self.stack.at(lhs);
 
         let ordering = match (lhs.as_inline_unchecked(), rhs.as_inline_unchecked()) {
             (Some(lhs), Some(rhs)) => vm_try!(lhs.partial_cmp(rhs)),
@@ -1194,8 +1194,8 @@ impl Vm {
 
     /// Internal implementation of the instance check.
     fn as_op(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<Value> {
-        let b = vm_try!(self.stack.at(rhs));
-        let a = vm_try!(self.stack.at(lhs));
+        let b = self.stack.at(rhs);
+        let a = self.stack.at(lhs);
 
         let Repr::Inline(Inline::Type(ty)) = b.as_ref() else {
             return err(VmErrorKind::UnsupportedIs {
@@ -1237,8 +1237,8 @@ impl Vm {
 
     /// Internal implementation of the instance check.
     fn test_is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<bool> {
-        let b = vm_try!(self.stack.at(rhs));
-        let a = vm_try!(self.stack.at(lhs));
+        let b = self.stack.at(rhs);
+        let a = self.stack.at(lhs);
 
         let Some(Inline::Type(ty)) = b.as_inline() else {
             return err(VmErrorKind::UnsupportedIs {
@@ -1258,8 +1258,8 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.at(rhs));
-        let lhs = vm_try!(self.stack.at(lhs));
+        let rhs = self.stack.at(rhs);
+        let lhs = self.stack.at(lhs);
 
         let inline = match (lhs.as_ref(), rhs.as_ref()) {
             (Repr::Inline(Inline::Bool(lhs)), Repr::Inline(Inline::Bool(rhs))) => {
@@ -1547,8 +1547,8 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let rhs = vm_try!(self.stack.at(rhs));
-        let lhs = vm_try!(self.stack.at(lhs));
+        let rhs = self.stack.at(rhs);
+        let lhs = self.stack.at(lhs);
 
         'fallback: {
             let inline = match (lhs.as_ref(), rhs.as_ref()) {
@@ -1616,8 +1616,8 @@ impl Vm {
         rhs: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let lhs = vm_try!(self.stack.at(lhs));
-        let rhs = vm_try!(self.stack.at(rhs));
+        let lhs = self.stack.at(lhs);
+        let rhs = self.stack.at(rhs);
 
         'fallback: {
             let inline = match (lhs.as_ref(), rhs.as_ref()) {
@@ -1936,7 +1936,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_await(&mut self, addr: InstAddress) -> VmResult<Future> {
-        VmResult::Ok(vm_try!(vm_try!(self.stack.at(addr)).clone().into_future()))
+        VmResult::Ok(vm_try!(self.stack.at(addr).clone().into_future()))
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1983,7 +1983,7 @@ impl Vm {
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_move(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr)).clone();
+        let value = self.stack.at(addr).clone();
         let value = vm_try!(value.move_());
         vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
@@ -2018,22 +2018,29 @@ impl Vm {
 
     /// Perform a conditional jump operation.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if(&mut self, cond: InstAddress, jump: usize) -> VmResult<()> {
-        if vm_try!(vm_try!(self.stack.at(cond)).as_bool()) {
-            self.ip = vm_try!(self.unit.translate(jump));
+    #[cfg_attr(not(feature = "bench"), inline)]
+    fn op_jump_if(&mut self, cond: InstAddress, jump: usize) -> Result<(), VmErrorKind> {
+        if matches!(
+            self.stack.at(cond).as_ref(),
+            Repr::Inline(Inline::Bool(true))
+        ) {
+            self.ip = self.unit.translate(jump)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// pop-and-jump-if-not instruction.
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_jump_if_not(&mut self, cond: InstAddress, jump: usize) -> VmResult<()> {
-        if !vm_try!(vm_try!(self.stack.at(cond)).as_bool()) {
-            self.ip = vm_try!(self.unit.translate(jump));
+    fn op_jump_if_not(&mut self, cond: InstAddress, jump: usize) -> Result<(), VmErrorKind> {
+        if matches!(
+            self.stack.at(cond).as_ref(),
+            Repr::Inline(Inline::Bool(false))
+        ) {
+            self.ip = self.unit.translate(jump)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Construct a new vec.
@@ -2065,7 +2072,7 @@ impl Vm {
         let mut tuple = vm_try!(alloc::Vec::<Value>::try_with_capacity(addr.len()));
 
         for &arg in addr {
-            let value = vm_try!(self.stack.at(arg)).clone();
+            let value = self.stack.at(arg).clone();
             vm_try!(tuple.try_push(value));
         }
 
@@ -2076,7 +2083,7 @@ impl Vm {
     /// Push the tuple that is on top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_environment(&mut self, addr: InstAddress, count: usize, out: Output) -> VmResult<()> {
-        let tuple = vm_try!(self.stack.at(addr)).clone();
+        let tuple = self.stack.at(addr).clone();
         let tuple = vm_try!(tuple.borrow_tuple_ref());
 
         if tuple.len() != count {
@@ -2105,7 +2112,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_not(&mut self, operand: InstAddress, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(operand));
+        let value = self.stack.at(operand);
 
         let value = match value.as_ref() {
             Repr::Inline(value) => match value {
@@ -2129,7 +2136,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_neg(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         let value = match value.as_ref() {
             Repr::Inline(value) => match value {
@@ -2300,8 +2307,8 @@ impl Vm {
                 ));
             }
             InstOp::Eq => {
-                let rhs = vm_try!(self.stack.at(rhs));
-                let lhs = vm_try!(self.stack.at(lhs));
+                let rhs = self.stack.at(rhs);
+                let lhs = self.stack.at(lhs);
 
                 let test = if let (Some(lhs), Some(rhs)) = (lhs.as_inline(), rhs.as_inline()) {
                     vm_try!(lhs.partial_eq(rhs))
@@ -2314,8 +2321,8 @@ impl Vm {
                 vm_try!(out.store(&mut self.stack, test));
             }
             InstOp::Neq => {
-                let rhs = vm_try!(self.stack.at(rhs));
-                let lhs = vm_try!(self.stack.at(lhs));
+                let rhs = self.stack.at(rhs);
+                let lhs = self.stack.at(lhs);
 
                 let test = if let (Some(lhs), Some(rhs)) = (lhs.as_inline(), rhs.as_inline()) {
                     vm_try!(lhs.partial_eq(rhs))
@@ -2476,9 +2483,9 @@ impl Vm {
         index: InstAddress,
         value: InstAddress,
     ) -> VmResult<()> {
-        let target = vm_try!(self.stack.at(target));
-        let index = vm_try!(self.stack.at(index));
-        let value = vm_try!(self.stack.at(value));
+        let target = self.stack.at(target);
+        let index = self.stack.at(index);
+        let value = self.stack.at(value);
 
         if let Some(field) = vm_try!(index.try_borrow_ref::<String>()) {
             if vm_try!(Self::try_object_slot_index_set(target, &field, value)) {
@@ -2567,7 +2574,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_return(&mut self, addr: InstAddress) -> VmResult<Option<Output>> {
-        let return_value = vm_try!(self.stack.at(addr)).clone();
+        let return_value = self.stack.at(addr).clone();
         self.op_return_internal(return_value)
     }
 
@@ -2590,7 +2597,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_instance_fn(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
-        let instance = vm_try!(self.stack.at(addr));
+        let instance = self.stack.at(addr);
         let ty = instance.type_hash();
         let hash = Hash::associated_function(ty, hash);
         vm_try!(out.store(&mut self.stack, || Type::new(hash)));
@@ -2606,8 +2613,8 @@ impl Vm {
         out: Output,
     ) -> VmResult<()> {
         let value = 'store: {
-            let index = vm_try!(self.stack.at(index));
-            let target = vm_try!(self.stack.at(target));
+            let index = self.stack.at(index);
+            let target = self.stack.at(target);
 
             match index.as_ref() {
                 Repr::Inline(inline) => {
@@ -2662,8 +2669,8 @@ impl Vm {
         index: usize,
         value: InstAddress,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(value));
-        let target = vm_try!(self.stack.at(target));
+        let value = self.stack.at(value);
+        let target = self.stack.at(target);
 
         if vm_try!(Self::try_tuple_like_index_set(target, index, value)) {
             return VmResult::Ok(());
@@ -2682,7 +2689,7 @@ impl Vm {
         index: usize,
         out: Output,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         if let Some(value) = vm_try!(Self::try_tuple_like_index_get(value, index)) {
             vm_try!(out.store(&mut self.stack, value));
@@ -2711,8 +2718,8 @@ impl Vm {
         slot: usize,
         value: InstAddress,
     ) -> VmResult<()> {
-        let target = vm_try!(self.stack.at(target));
-        let value = vm_try!(self.stack.at(value));
+        let target = self.stack.at(target);
+        let value = self.stack.at(value);
 
         let Some(field) = self.unit.lookup_string(slot) else {
             return err(VmErrorKind::MissingStaticString { slot });
@@ -2749,7 +2756,7 @@ impl Vm {
         slot: usize,
         out: Output,
     ) -> VmResult<()> {
-        let target = vm_try!(self.stack.at(addr));
+        let target = self.stack.at(addr);
 
         let Some(index) = self.unit.lookup_string(slot) else {
             return err(VmErrorKind::MissingStaticString { slot });
@@ -2821,28 +2828,28 @@ impl Vm {
     fn op_range(&mut self, range: InstRange, out: Output) -> VmResult<()> {
         let value = match range {
             InstRange::RangeFrom { start } => {
-                let s = vm_try!(self.stack.at(start)).clone();
+                let s = self.stack.at(start).clone();
                 vm_try!(Value::new(RangeFrom::new(s.clone())))
             }
             InstRange::RangeFull => {
                 vm_try!(Value::new(RangeFull::new()))
             }
             InstRange::RangeInclusive { start, end } => {
-                let s = vm_try!(self.stack.at(start)).clone();
-                let e = vm_try!(self.stack.at(end)).clone();
+                let s = self.stack.at(start).clone();
+                let e = self.stack.at(end).clone();
                 vm_try!(Value::new(RangeInclusive::new(s.clone(), e.clone())))
             }
             InstRange::RangeToInclusive { end } => {
-                let e = vm_try!(self.stack.at(end)).clone();
+                let e = self.stack.at(end).clone();
                 vm_try!(Value::new(RangeToInclusive::new(e.clone())))
             }
             InstRange::RangeTo { end } => {
-                let e = vm_try!(self.stack.at(end)).clone();
+                let e = self.stack.at(end).clone();
                 vm_try!(Value::new(RangeTo::new(e.clone())))
             }
             InstRange::Range { start, end } => {
-                let s = vm_try!(self.stack.at(start)).clone();
-                let e = vm_try!(self.stack.at(end)).clone();
+                let s = self.stack.at(start).clone();
+                let e = self.stack.at(end).clone();
                 vm_try!(Value::new(Range::new(s.clone(), e.clone())))
             }
         };
@@ -2946,14 +2953,14 @@ impl Vm {
     /// Push a format specification onto the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, addr: InstAddress, spec: FormatSpec, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr)).clone();
+        let value = self.stack.at(addr).clone();
         vm_try!(out.store(&mut self.stack, || Format { value, spec }));
         VmResult::Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_is_unit(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
         let is_unit = matches!(value.as_inline(), Some(Inline::Unit));
         vm_try!(out.store(&mut self.stack, is_unit));
         VmResult::Ok(())
@@ -2964,7 +2971,7 @@ impl Vm {
     fn op_try(&mut self, addr: InstAddress, out: Output) -> VmResult<Option<Output>> {
         let result = 'out: {
             let value = {
-                let value = vm_try!(self.stack.at(addr));
+                let value = self.stack.at(addr);
 
                 if let Repr::Any(value) = value.as_ref() {
                     match value.type_hash() {
@@ -3004,7 +3011,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_eq_character(&mut self, addr: InstAddress, value: char, out: Output) -> VmResult<()> {
-        let v = vm_try!(self.stack.at(addr));
+        let v = self.stack.at(addr);
 
         let is_match = match v.as_inline() {
             Some(Inline::Char(actual)) => *actual == value,
@@ -3017,7 +3024,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_eq_unsigned(&mut self, addr: InstAddress, value: u64, out: Output) -> VmResult<()> {
-        let v = vm_try!(self.stack.at(addr));
+        let v = self.stack.at(addr);
 
         let is_match = match v.as_inline() {
             Some(Inline::Unsigned(actual)) => *actual == value,
@@ -3030,9 +3037,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_eq_signed(&mut self, addr: InstAddress, value: i64, out: Output) -> VmResult<()> {
-        let v = vm_try!(self.stack.at(addr));
-
-        let is_match = match v.as_inline() {
+        let is_match = match self.stack.at(addr).as_inline() {
             Some(Inline::Signed(actual)) => *actual == value,
             _ => false,
         };
@@ -3043,7 +3048,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_eq_bool(&mut self, addr: InstAddress, value: bool, out: Output) -> VmResult<()> {
-        let v = vm_try!(self.stack.at(addr));
+        let v = self.stack.at(addr);
 
         let is_match = match v.as_inline() {
             Some(Inline::Bool(actual)) => *actual == value,
@@ -3058,7 +3063,7 @@ impl Vm {
     /// string slot.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_eq_string(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
-        let v = vm_try!(self.stack.at(addr));
+        let v = self.stack.at(addr);
 
         let is_match = 'out: {
             let Some(actual) = vm_try!(v.try_borrow_ref::<String>()) else {
@@ -3080,7 +3085,7 @@ impl Vm {
     /// bytes slot.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_eq_bytes(&mut self, addr: InstAddress, slot: usize, out: Output) -> VmResult<()> {
-        let v = vm_try!(self.stack.at(addr));
+        let v = self.stack.at(addr);
 
         let is_match = 'out: {
             let Some(value) = vm_try!(v.try_borrow_ref::<Bytes>()) else {
@@ -3107,7 +3112,7 @@ impl Vm {
         addr: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         let result = vm_try!(self.on_tuple(ty, value, move |tuple| {
             if exact {
@@ -3123,7 +3128,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_type(&mut self, hash: Hash, addr: InstAddress, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
         let is_match = value.type_hash() == hash;
         vm_try!(out.store(&mut self.stack, is_match));
         VmResult::Ok(())
@@ -3138,7 +3143,7 @@ impl Vm {
         addr: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         let is_match = 'out: {
             match value.as_ref() {
@@ -3198,7 +3203,7 @@ impl Vm {
         addr: InstAddress,
         out: Output,
     ) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         let is_match = match value.as_ref() {
             Repr::Inline(value) => match (type_check, value) {
@@ -3243,7 +3248,7 @@ impl Vm {
             true
         }
 
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         let is_match = match vm_try!(value.try_borrow_ref::<Object>()) {
             Some(object) => {
@@ -3265,18 +3270,18 @@ impl Vm {
     fn op_variant(&mut self, addr: InstAddress, variant: InstVariant, out: Output) -> VmResult<()> {
         match variant {
             InstVariant::Some => {
-                let some = vm_try!(self.stack.at(addr)).clone();
+                let some = self.stack.at(addr).clone();
                 vm_try!(out.store(&mut self.stack, || Value::try_from(Some(some))));
             }
             InstVariant::None => {
                 vm_try!(out.store(&mut self.stack, || Value::try_from(None)));
             }
             InstVariant::Ok => {
-                let ok = vm_try!(self.stack.at(addr)).clone();
+                let ok = self.stack.at(addr).clone();
                 vm_try!(out.store(&mut self.stack, || Value::try_from(Ok(ok))));
             }
             InstVariant::Err => {
-                let err = vm_try!(self.stack.at(addr)).clone();
+                let err = self.stack.at(addr).clone();
                 vm_try!(out.store(&mut self.stack, || Value::try_from(Err(err))));
             }
         }
@@ -3412,7 +3417,7 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> VmResult<()> {
-        let instance = vm_try!(self.stack.at(addr));
+        let instance = self.stack.at(addr);
         let type_hash = instance.type_hash();
         let hash = Hash::associated_function(type_hash, hash);
 
@@ -3450,7 +3455,7 @@ impl Vm {
         args: usize,
         out: Output,
     ) -> VmResult<Option<VmHalt>> {
-        let function = vm_try!(self.stack.at(function));
+        let function = self.stack.at(function);
 
         match function.as_ref() {
             Repr::Inline(Inline::Type(ty)) => {
@@ -3470,7 +3475,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_iter_next(&mut self, addr: InstAddress, jump: usize, out: Output) -> VmResult<()> {
-        let value = vm_try!(self.stack.at(addr));
+        let value = self.stack.at(addr);
 
         let some = match value.as_ref() {
             Repr::Any(value) => match value.type_hash() {

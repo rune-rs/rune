@@ -9,6 +9,13 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 use crate::runtime::{InstAddress, Output, Value, VmErrorKind};
 
+// This is a bit tricky. We know that `Value::empty()` is `Sync` but we can't
+// convince Rust that is the case.
+struct AssertSync<T>(T);
+unsafe impl<T> Sync for AssertSync<T> {}
+
+static EMPTY: AssertSync<Value> = AssertSync(Value::empty());
+
 /// An error raised when accessing an address on the stack.
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -234,16 +241,17 @@ impl Stack {
     /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
     ///
     /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-    ///     let value = vm_try!(vm_try!(stack.at(addr)).as_integer::<i64>());
+    ///     let value = vm_try!(stack.at(addr).as_integer::<i64>());
     ///     out.store(stack, value + 1);
     ///     VmResult::Ok(())
     /// }
     /// ```
-    pub fn at(&self, addr: InstAddress) -> Result<&Value, StackError> {
+    #[inline(always)]
+    pub fn at(&self, addr: InstAddress) -> &Value {
         self.top
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get(n))
-            .ok_or(StackError { addr })
+            .unwrap_or(&EMPTY.0)
     }
 
     /// Get a value mutable at the given index from the stack bottom.
