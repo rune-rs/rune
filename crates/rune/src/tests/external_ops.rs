@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 
 #[test]
-fn assign_ops_struct() -> Result<()> {
+fn strut_assign() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
             #[derive(Debug, Default, Any)]
@@ -37,7 +37,7 @@ fn assign_ops_struct() -> Result<()> {
             module.associated_function(&Protocol::$protocol, External::value)?;
             module.field_function(&Protocol::$protocol, "field", External::field)?;
 
-            let mut context = Context::with_default_modules()?;
+            let mut context = Context::default();
             context.install(module)?;
 
             let mut sources = Sources::new();
@@ -83,17 +83,17 @@ fn assign_ops_struct() -> Result<()> {
     test_case!([-=], SUB_ASSIGN, sub_assign, 4, 3, 1);
     test_case!([*=], MUL_ASSIGN, mul_assign, 8, 2, 16);
     test_case!([/=], DIV_ASSIGN, div_assign, 8, 3, 2);
+    test_case!([%=], REM_ASSIGN, rem_assign, 25, 10, 5);
     test_case!([&=], BIT_AND_ASSIGN, bit_and_assign, 0b1001, 0b0011, 0b0001);
     test_case!([|=], BIT_OR_ASSIGN, bit_or_assign, 0b1001, 0b0011, 0b1011);
     test_case!([^=], BIT_XOR_ASSIGN, bit_xor_assign, 0b1001, 0b0011, 0b1010);
     test_case!([<<=], SHL_ASSIGN, shl_assign, 0b1001, 0b0001, 0b10010);
     test_case!([>>=], SHR_ASSIGN, shr_assign, 0b1001, 0b0001, 0b100);
-    test_case!([%=], REM_ASSIGN, rem_assign, 25, 10, 5);
     Ok(())
 }
 
 #[test]
-fn assign_ops_tuple() -> Result<()> {
+fn tuple_assign() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
             #[derive(Debug, Default, Any)]
@@ -119,7 +119,7 @@ fn assign_ops_tuple() -> Result<()> {
             module.associated_function(&Protocol::$protocol, External::value)?;
             module.index_function(&Protocol::$protocol, 1, External::field)?;
 
-            let mut context = Context::with_default_modules()?;
+            let mut context = Context::default();
             context.install(module)?;
 
             let mut sources = Sources::new();
@@ -165,12 +165,102 @@ fn assign_ops_tuple() -> Result<()> {
     test_case!([-=], SUB_ASSIGN, sub_assign, 4, 3, 1);
     test_case!([*=], MUL_ASSIGN, mul_assign, 8, 2, 16);
     test_case!([/=], DIV_ASSIGN, div_assign, 8, 3, 2);
+    test_case!([%=], REM_ASSIGN, rem_assign, 25, 10, 5);
     test_case!([&=], BIT_AND_ASSIGN, bit_and_assign, 0b1001, 0b0011, 0b0001);
     test_case!([|=], BIT_OR_ASSIGN, bit_or_assign, 0b1001, 0b0011, 0b1011);
     test_case!([^=], BIT_XOR_ASSIGN, bit_xor_assign, 0b1001, 0b0011, 0b1010);
     test_case!([<<=], SHL_ASSIGN, shl_assign, 0b1001, 0b0001, 0b10010);
     test_case!([>>=], SHR_ASSIGN, shr_assign, 0b1001, 0b0001, 0b100);
-    test_case!([%=], REM_ASSIGN, rem_assign, 25, 10, 5);
+    Ok(())
+}
+
+#[test]
+#[ignore = "assembly currently doesn't know how to handle this"]
+fn struct_ops() -> Result<()> {
+    macro_rules! test_case {
+        ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
+            #[derive(Debug, Default, Any)]
+            struct External {
+                value: i64,
+                field: i64,
+                #[rune($derived)]
+                derived: i64,
+                #[rune($derived = External::custom)]
+                custom: i64,
+            }
+
+            impl External {
+                fn value(&self, value: i64) -> i64 {
+                    self.value $($op)* value
+                }
+
+                fn field(&self, value: i64) -> i64 {
+                    self.field $($op)* value
+                }
+
+                fn custom(&self, value: i64) -> i64 {
+                    self.custom $($op)* value
+                }
+            }
+
+            let mut module = Module::new();
+            module.ty::<External>()?;
+
+            module.associated_function(&Protocol::$protocol, External::value)?;
+            module.field_function(&Protocol::$protocol, "field", External::field)?;
+
+            let mut context = Context::default();
+            context.install(module)?;
+
+            let source = format!(r#"
+            pub fn type(number) {{
+                let a = number {op} {arg};
+                let b = number.field {op} {arg};
+                let c = number.derived {op} {arg};
+                let d = number.custom {op} {arg};
+                (a, b, c, d)
+            }}
+            "#, op = stringify!($($op)*), arg = stringify!($arg));
+
+            let mut sources = Sources::new();
+            sources.insert(Source::memory(source)?)?;
+
+            let unit = prepare(&mut sources)
+                .with_context(&context)
+                .build()?;
+
+            let unit = Arc::new(unit);
+
+            let mut vm = Vm::new(Arc::new(context.runtime()?), unit);
+
+            let mut foo = External::default();
+            foo.value = $initial;
+            foo.field = $initial;
+            foo.derived = $initial;
+            foo.custom = $initial;
+
+            let output = vm.call(["type"], (&mut foo,))?;
+            let (a, b, c, d) = crate::from_value::<(i64, i64, i64, i64)>(output)?;
+
+            let expected: i64 = $expected;
+
+            assert_eq!(a, expected, "{a} != {expected} (value)");
+            assert_eq!(b, expected, "{b} != {expected} (field)");
+            assert_eq!(c, expected, "{c} != {expected} (derived)");
+            assert_eq!(d, expected, "{d} != {expected} (custom)");
+        }};
+    }
+
+    test_case!([+], ADD, add, 0, 3, 3);
+    test_case!([-], SUB, sub, 4, 3, 1);
+    test_case!([*], MUL, mul, 8, 2, 16);
+    test_case!([/], DIV, div, 8, 3, 2);
+    test_case!([%], REM, rem, 25, 10, 5);
+    test_case!([&], BIT_AND, bit_and, 0b1001, 0b0011, 0b0001);
+    test_case!([|], BIT_OR, bit_or, 0b1001, 0b0011, 0b1011);
+    test_case!([^], BIT_XOR, bit_xor, 0b1001, 0b0011, 0b1010);
+    test_case!([<<], SHL, shl, 0b1001, 0b0001, 0b10010);
+    test_case!([>>], SHR, shr, 0b1001, 0b0001, 0b100);
     Ok(())
 }
 
@@ -194,7 +284,7 @@ fn ordering_struct() -> Result<()> {
 
             module.associated_function(&Protocol::$protocol, External::value)?;
 
-            let mut context = Context::with_default_modules()?;
+            let mut context = Context::default();
             context.install(module)?;
 
             let mut sources = Sources::new();
@@ -263,16 +353,14 @@ fn eq_struct() -> Result<()> {
 
             module.associated_function(&Protocol::$protocol, External::value)?;
 
-            let mut context = Context::with_default_modules()?;
+            let mut context = Context::default();
             context.install(module)?;
 
             let mut sources = Sources::new();
             sources.insert(Source::new(
                 "test",
                 format!(r#"
-                pub fn type(number) {{
-                    number {op} {arg}
-                }}
+                pub fn type(number) {{ number {op} {arg} }}
                 "#, op = stringify!($($op)*), arg = stringify!($arg)),
             )?)?;
 

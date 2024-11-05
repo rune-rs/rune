@@ -72,6 +72,13 @@ impl AsRef<String> for StaticString {
     }
 }
 
+impl fmt::Display for StaticString {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
 impl fmt::Debug for StaticString {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

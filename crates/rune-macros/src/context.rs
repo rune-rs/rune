@@ -306,6 +306,51 @@ impl Context {
             };
         }
 
+        macro_rules! generate {
+            ($proto:ident, $op:tt) => {
+                |g| {
+                    let Generate {
+                        ty,
+                        target,
+                        field,
+                        protocol,
+                        ..
+                    } = g;
+
+                    let protocol_field = g.tokens.protocol(&Protocol::$proto);
+
+                    match target {
+                        GenerateTarget::Named { field_ident, field_name } => {
+                            if let Some(custom) = &protocol.custom {
+                                quote_spanned! { field.span() =>
+                                    module.field_function(&#protocol_field, #field_name, #custom)?;
+                                }
+                            } else {
+                                quote_spanned! { field.span() =>
+                                    module.field_function(&#protocol_field, #field_name, |s: &mut Self, value: #ty| {
+                                        s.#field_ident $op value
+                                    })?;
+                                }
+                            }
+                        }
+                        GenerateTarget::Numbered { field_index } => {
+                            if let Some(custom) = &protocol.custom {
+                                quote_spanned! { field.span() =>
+                                    module.index_function(&#protocol_field, #field_index, #custom)?;
+                                }
+                            } else {
+                                quote_spanned! { field.span() =>
+                                    module.index_function(&#protocol_field, #field_index, |s: &mut Self, value: #ty| {
+                                        s.#field_index $op value
+                                    })?;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
         let mut attr = FieldAttrs::default();
 
         for a in input {
@@ -314,6 +359,35 @@ impl Context {
             }
 
             let result = a.parse_nested_meta(|meta| {
+                macro_rules! field_functions {
+                    (
+                        $(
+                            $assign:literal, $assign_proto:ident, [$($assign_op:tt)*],
+                            $op:literal, $op_proto:ident, [$($op_op:tt)*],
+                        )*
+                    ) => {{
+                        $(
+                            if meta.path.is_ident($assign) {
+                                attr.protocols.push(FieldProtocol {
+                                    custom: self.parse_field_custom(meta.input)?,
+                                    generate: generate_assign!($assign_proto, $($assign_op)*),
+                                });
+
+                                return Ok(());
+                            }
+
+                            if meta.path.is_ident($op) {
+                                attr.protocols.push(FieldProtocol {
+                                    custom: self.parse_field_custom(meta.input)?,
+                                    generate: generate!($op_proto, $($op_op)*),
+                                });
+
+                                return Ok(());
+                            }
+                        )*
+                    }};
+                }
+
                 if meta.path.is_ident("id") {
                     attr.id = Some(meta.path.span());
                     return Ok(());
@@ -451,94 +525,17 @@ impl Context {
                     return Ok(());
                 }
 
-                if meta.path.is_ident("add_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(ADD_ASSIGN, +=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("sub_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(SUB_ASSIGN, -=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("div_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(DIV_ASSIGN, /=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("mul_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(MUL_ASSIGN, *=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("bit_and_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(BIT_AND_ASSIGN, &=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("bit_or_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(BIT_OR_ASSIGN, |=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("bit_xor_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(BIT_XOR_ASSIGN, ^=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("shl_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(SHL_ASSIGN, <<=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("shr_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(SHR_ASSIGN, >>=),
-                    });
-
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("rem_assign") {
-                    attr.protocols.push(FieldProtocol {
-                        custom: self.parse_field_custom(meta.input)?,
-                        generate: generate_assign!(REM_ASSIGN, %=),
-                    });
-
-                    return Ok(());
+                field_functions! {
+                    "add_assign", ADD_ASSIGN, [+=], "add", ADD, [+],
+                    "sub_assign", SUB_ASSIGN, [-=], "sub", SUB, [-],
+                    "div_assign", DIV_ASSIGN, [/=], "div", DIV, [/],
+                    "mul_assign", MUL_ASSIGN, [*=], "mul", MUL, [*],
+                    "rem_assign", REM_ASSIGN, [%=], "rem", REM, [%],
+                    "bit_and_assign", BIT_AND_ASSIGN, [&=], "bit_and", BIT_AND, [&],
+                    "bit_or_assign", BIT_OR_ASSIGN, [|=], "bit_or", BIT_OR, [|],
+                    "bit_xor_assign", BIT_XOR_ASSIGN, [^=], "bit_xor", BIT_XOR, [^],
+                    "shl_assign", SHL_ASSIGN, [<<=], "shl", SHL, [<<],
+                    "shr_assign", SHR_ASSIGN, [>>=], "shr", SHR, [>>],
                 }
 
                 Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"))
