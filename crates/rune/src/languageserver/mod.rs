@@ -2,6 +2,9 @@
 
 #![allow(clippy::too_many_arguments)]
 
+#[cfg(test)]
+mod tests;
+
 mod completion;
 mod connection;
 pub mod envelope;
