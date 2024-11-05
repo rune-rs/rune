@@ -707,7 +707,7 @@ impl Value {
     #[inline]
     pub fn borrow_tuple_mut(&self) -> Result<BorrowMut<'_, Tuple>, RuntimeError> {
         match self.as_ref() {
-            Repr::Inline(Inline::Unit) => Ok(BorrowMut::from_static(Tuple::new_mut(&mut []))),
+            Repr::Inline(Inline::Unit) => Ok(BorrowMut::from_ref(Tuple::new_mut(&mut []))),
             Repr::Inline(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected::<Tuple>(value.type_info())),
             Repr::Any(value) => {

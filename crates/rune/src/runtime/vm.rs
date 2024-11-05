@@ -107,60 +107,6 @@ pub(crate) enum CallResult<T> {
     Unsupported(Value),
 }
 
-enum TargetFallback<'a> {
-    Value(Value, Value),
-    Field(&'a Value, Hash, Value),
-    Index(&'a Value, usize, Value),
-}
-
-enum TargetValue<'a, 'b> {
-    /// Resolved internal target to mutable value.
-    Same(&'a mut Value),
-    /// Resolved internal target to mutable value.
-    Pair(&'a mut Value, &'a Value),
-    /// Fallback to a different kind of operation.
-    Fallback(TargetFallback<'b>),
-}
-
-macro_rules! target_value {
-    ($vm:ident, $target:expr, $guard:ident, $lhs:ident, $rhs:ident) => {{
-        match $target {
-            InstTarget::Address(addr) => match vm_try!($vm.stack.pair(addr, $rhs)) {
-                Pair::Same(value) => TargetValue::Same(value),
-                Pair::Pair(lhs, rhs) => TargetValue::Pair(lhs, rhs),
-            },
-            InstTarget::TupleField(lhs, index) => {
-                let rhs = $vm.stack.at($rhs);
-
-                $lhs = $vm.stack.at(lhs).clone();
-
-                if let Some(value) = vm_try!(Vm::try_tuple_like_index_get_mut(&$lhs, index)) {
-                    $guard = value;
-                    TargetValue::Pair(&mut *$guard, rhs)
-                } else {
-                    TargetValue::Fallback(TargetFallback::Index(&$lhs, index, rhs.clone()))
-                }
-            }
-            InstTarget::Field(lhs, field) => {
-                let rhs = $vm.stack.at($rhs);
-
-                let Some(field) = $vm.unit.lookup_string(field) else {
-                    return err(VmErrorKind::MissingStaticString { slot: field });
-                };
-
-                $lhs = $vm.stack.at(lhs).clone();
-
-                if let Some(value) = vm_try!(Vm::try_object_like_index_get_mut(&$lhs, field)) {
-                    $guard = value;
-                    TargetValue::Pair(&mut *$guard, rhs)
-                } else {
-                    TargetValue::Fallback(TargetFallback::Field(&$lhs, field.hash(), rhs.clone()))
-                }
-            }
-        }
-    }};
-}
-
 /// A stack which references variables indirectly from a slab.
 #[derive(Debug)]
 pub struct Vm {
@@ -918,150 +864,6 @@ impl Vm {
         }
     }
 
-    /// Implementation of getting a mutable value out of a tuple-like value.
-    fn try_tuple_like_index_get_mut(
-        target: &Value,
-        index: usize,
-    ) -> VmResult<Option<BorrowMut<'_, Value>>> {
-        match target.as_ref() {
-            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
-                let Some(value) = vm_try!(data.get_mut(index)) else {
-                    return err(VmErrorKind::MissingIndexInteger {
-                        target: data.type_info(),
-                        index: VmIntegerRepr::from(index),
-                    });
-                };
-
-                VmResult::Ok(Some(value))
-            }
-            Repr::Dynamic(data) => err(VmErrorKind::MissingIndexInteger {
-                target: data.type_info(),
-                index: VmIntegerRepr::from(index),
-            }),
-            Repr::Any(value) => match value.type_hash() {
-                Result::<Value, Value>::HASH => {
-                    let result = BorrowMut::try_map(
-                        vm_try!(value.borrow_mut::<Result<Value, Value>>()),
-                        |value| match (index, value) {
-                            (0, Ok(value)) => Some(value),
-                            (0, Err(value)) => Some(value),
-                            _ => None,
-                        },
-                    );
-
-                    if let Ok(value) = result {
-                        return VmResult::Ok(Some(value));
-                    }
-
-                    err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::any::<Result<Value, Value>>(),
-                        index: VmIntegerRepr::from(index),
-                    })
-                }
-                Option::<Value>::HASH => {
-                    let result =
-                        BorrowMut::try_map(vm_try!(value.borrow_mut::<Option<Value>>()), |value| {
-                            match (index, value) {
-                                (0, Some(value)) => Some(value),
-                                _ => None,
-                            }
-                        });
-
-                    if let Ok(value) = result {
-                        return VmResult::Ok(Some(value));
-                    }
-
-                    err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::any::<Option<Value>>(),
-                        index: VmIntegerRepr::from(index),
-                    })
-                }
-                GeneratorState::HASH => {
-                    let result = BorrowMut::try_map(
-                        vm_try!(value.borrow_mut::<GeneratorState>()),
-                        |value| match (index, value) {
-                            (0, GeneratorState::Yielded(value)) => Some(value),
-                            (0, GeneratorState::Complete(value)) => Some(value),
-                            _ => None,
-                        },
-                    );
-
-                    if let Ok(value) = result {
-                        return VmResult::Ok(Some(value));
-                    }
-
-                    err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::any::<GeneratorState>(),
-                        index: VmIntegerRepr::from(index),
-                    })
-                }
-                runtime::Vec::HASH => {
-                    let vec = vm_try!(value.borrow_mut::<runtime::Vec>());
-                    let result = BorrowMut::try_map(vec, |vec| vec.get_mut(index));
-
-                    if let Ok(value) = result {
-                        return VmResult::Ok(Some(value));
-                    }
-
-                    err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::any::<runtime::Vec>(),
-                        index: VmIntegerRepr::from(index),
-                    })
-                }
-                runtime::OwnedTuple::HASH => {
-                    let tuple = vm_try!(value.borrow_mut::<runtime::OwnedTuple>());
-                    let result = BorrowMut::try_map(tuple, |tuple| tuple.get_mut(index));
-
-                    if let Ok(value) = result {
-                        return VmResult::Ok(Some(value));
-                    }
-
-                    err(VmErrorKind::MissingIndexInteger {
-                        target: TypeInfo::any::<runtime::OwnedTuple>(),
-                        index: VmIntegerRepr::from(index),
-                    })
-                }
-                _ => VmResult::Ok(None),
-            },
-            _ => VmResult::Ok(None),
-        }
-    }
-
-    /// Implementation of getting a mutable string index on an object-like type.
-    fn try_object_like_index_get_mut<'a>(
-        target: &'a Value,
-        field: &str,
-    ) -> VmResult<Option<BorrowMut<'a, Value>>> {
-        match target.as_ref() {
-            Repr::Inline(value) => err(VmErrorKind::MissingField {
-                target: value.type_info(),
-                field: vm_try!(field.try_to_owned()),
-            }),
-            Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
-                VmResult::Ok(vm_try!(data.get_field_mut(field)))
-            }
-            Repr::Dynamic(data) => err(VmErrorKind::MissingField {
-                target: data.type_info(),
-                field: vm_try!(field.try_to_owned()),
-            }),
-            Repr::Any(value) => match value.type_hash() {
-                Object::HASH => {
-                    let object = vm_try!(value.borrow_mut::<Object>());
-
-                    if let Ok(value) = BorrowMut::try_map(object, |object| object.get_mut(field)) {
-                        return VmResult::Ok(Some(value));
-                    }
-
-                    err(VmErrorKind::MissingField {
-                        target: value.type_info(),
-                        field: vm_try!(field.try_to_owned()),
-                    })
-                }
-                _ => VmResult::Ok(None),
-            },
-        }
-    }
-
     /// Implementation of getting a string index on an object-like type.
     fn try_tuple_like_index_set(target: &Value, index: usize, from: &Value) -> VmResult<bool> {
         match target.as_ref() {
@@ -1390,10 +1192,7 @@ impl Vm {
         float_op: fn(f64, f64) -> f64,
         rhs: InstAddress,
     ) -> VmResult<()> {
-        let lhs;
-        let mut guard;
-
-        let fallback = match target_value!(self, target, guard, lhs, rhs) {
+        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
             TargetValue::Same(value) => {
                 match value.as_mut() {
                     Repr::Inline(Inline::Signed(value)) => {
@@ -1423,7 +1222,7 @@ impl Vm {
 
                 TargetFallback::Value(value.clone(), value.clone())
             }
-            TargetValue::Pair(lhs, rhs) => {
+            TargetValue::Pair(mut lhs, rhs) => {
                 match (lhs.as_mut(), rhs.as_ref()) {
                     (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Signed(lhs), rhs) => {
@@ -1473,12 +1272,12 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn target_fallback_assign(
         &mut self,
-        fallback: TargetFallback<'_>,
+        fallback: TargetFallback,
         protocol: Protocol,
     ) -> VmResult<()> {
         match fallback {
             TargetFallback::Value(lhs, rhs) => {
-                let mut args = DynGuardedArgs::new((&rhs,));
+                let mut args = DynGuardedArgs::new((rhs.clone(),));
 
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_instance_fn(
                     Isolated::None,
@@ -1497,7 +1296,7 @@ impl Vm {
                 VmResult::Ok(())
             }
             TargetFallback::Field(lhs, hash, rhs) => {
-                let mut args = DynGuardedArgs::new((&rhs,));
+                let mut args = DynGuardedArgs::new((rhs,));
 
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_field_fn(
                     protocol,
@@ -1514,7 +1313,7 @@ impl Vm {
                 VmResult::Ok(())
             }
             TargetFallback::Index(lhs, index, rhs) => {
-                let mut args = DynGuardedArgs::new((&rhs,));
+                let mut args = DynGuardedArgs::new((rhs,));
 
                 if let CallResult::Unsupported(lhs) = vm_try!(self.call_index_fn(
                     protocol,
@@ -1682,10 +1481,7 @@ impl Vm {
         bool_op: fn(&mut bool, bool),
         rhs: InstAddress,
     ) -> VmResult<()> {
-        let lhs;
-        let mut guard;
-
-        let fallback = match target_value!(self, target, guard, lhs, rhs) {
+        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
             TargetValue::Same(value) => {
                 match value.as_mut() {
                     Repr::Inline(Inline::Unsigned(value)) => {
@@ -1715,7 +1511,7 @@ impl Vm {
 
                 TargetFallback::Value(value.clone(), value.clone())
             }
-            TargetValue::Pair(lhs, rhs) => {
+            TargetValue::Pair(mut lhs, rhs) => {
                 match (lhs.as_mut(), rhs.as_ref()) {
                     (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Unsigned(lhs), rhs) => {
@@ -1863,10 +1659,7 @@ impl Vm {
         unsigned_op: fn(u64, u32) -> Option<u64>,
         rhs: InstAddress,
     ) -> VmResult<()> {
-        let lhs;
-        let mut guard;
-
-        let fallback = match target_value!(self, target, guard, lhs, rhs) {
+        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
             TargetValue::Same(value) => {
                 match value.as_mut() {
                     Repr::Inline(Inline::Unsigned(value)) => {
@@ -1893,7 +1686,7 @@ impl Vm {
 
                 TargetFallback::Value(value.clone(), value.clone())
             }
-            TargetValue::Pair(lhs, rhs) => {
+            TargetValue::Pair(mut lhs, rhs) => {
                 match (lhs.as_mut(), rhs.as_ref()) {
                     (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                         (Inline::Unsigned(lhs), rhs) => {
@@ -3922,4 +3715,209 @@ fn check_args(args: usize, expected: usize) -> Result<(), VmErrorKind> {
     }
 
     Ok(())
+}
+
+enum TargetFallback {
+    Value(Value, Value),
+    Field(Value, Hash, Value),
+    Index(Value, usize, Value),
+}
+
+enum TargetValue<'a> {
+    /// Resolved internal target to mutable value.
+    Same(&'a mut Value),
+    /// Resolved internal target to mutable value.
+    Pair(BorrowMut<'a, Value>, &'a Value),
+    /// Fallback to a different kind of operation.
+    Fallback(TargetFallback),
+}
+
+fn target_value<'a>(
+    stack: &'a mut Stack,
+    unit: &Unit,
+    target: InstTarget,
+    rhs: InstAddress,
+) -> Result<TargetValue<'a>, VmErrorKind> {
+    match target {
+        InstTarget::Address(addr) => match stack.pair(addr, rhs)? {
+            Pair::Same(value) => Ok(TargetValue::Same(value)),
+            Pair::Pair(lhs, rhs) => Ok(TargetValue::Pair(BorrowMut::from_ref(lhs), rhs)),
+        },
+        InstTarget::TupleField(lhs, index) => {
+            let lhs = stack.at(lhs);
+            let rhs = stack.at(rhs);
+
+            if let Some(value) = try_tuple_like_index_get_mut(lhs, index)? {
+                Ok(TargetValue::Pair(value, rhs))
+            } else {
+                Ok(TargetValue::Fallback(TargetFallback::Index(
+                    lhs.clone(),
+                    index,
+                    rhs.clone(),
+                )))
+            }
+        }
+        InstTarget::Field(lhs, slot) => {
+            let rhs = stack.at(rhs);
+
+            let Some(field) = unit.lookup_string(slot) else {
+                return Err(VmErrorKind::MissingStaticString { slot });
+            };
+
+            let lhs = stack.at(lhs);
+
+            if let Some(value) = try_object_like_index_get_mut(lhs, field)? {
+                Ok(TargetValue::Pair(value, rhs))
+            } else {
+                Ok(TargetValue::Fallback(TargetFallback::Field(
+                    lhs.clone(),
+                    field.hash(),
+                    rhs.clone(),
+                )))
+            }
+        }
+    }
+}
+
+/// Implementation of getting a mutable value out of a tuple-like value.
+fn try_tuple_like_index_get_mut(
+    target: &Value,
+    index: usize,
+) -> Result<Option<BorrowMut<'_, Value>>, VmErrorKind> {
+    match target.as_ref() {
+        Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
+            let Some(value) = data.get_mut(index)? else {
+                return Err(VmErrorKind::MissingIndexInteger {
+                    target: data.type_info(),
+                    index: VmIntegerRepr::from(index),
+                });
+            };
+
+            Ok(Some(value))
+        }
+        Repr::Dynamic(data) => Err(VmErrorKind::MissingIndexInteger {
+            target: data.type_info(),
+            index: VmIntegerRepr::from(index),
+        }),
+        Repr::Any(value) => match value.type_hash() {
+            Result::<Value, Value>::HASH => {
+                let result = BorrowMut::try_map(
+                    value.borrow_mut::<Result<Value, Value>>()?,
+                    |value| match (index, value) {
+                        (0, Ok(value)) => Some(value),
+                        (0, Err(value)) => Some(value),
+                        _ => None,
+                    },
+                );
+
+                if let Ok(value) = result {
+                    return Ok(Some(value));
+                }
+
+                Err(VmErrorKind::MissingIndexInteger {
+                    target: TypeInfo::any::<Result<Value, Value>>(),
+                    index: VmIntegerRepr::from(index),
+                })
+            }
+            Option::<Value>::HASH => {
+                let result =
+                    BorrowMut::try_map(value.borrow_mut::<Option<Value>>()?, |value| {
+                        match (index, value) {
+                            (0, Some(value)) => Some(value),
+                            _ => None,
+                        }
+                    });
+
+                if let Ok(value) = result {
+                    return Ok(Some(value));
+                }
+
+                Err(VmErrorKind::MissingIndexInteger {
+                    target: TypeInfo::any::<Option<Value>>(),
+                    index: VmIntegerRepr::from(index),
+                })
+            }
+            GeneratorState::HASH => {
+                let result = BorrowMut::try_map(value.borrow_mut::<GeneratorState>()?, |value| {
+                    match (index, value) {
+                        (0, GeneratorState::Yielded(value)) => Some(value),
+                        (0, GeneratorState::Complete(value)) => Some(value),
+                        _ => None,
+                    }
+                });
+
+                if let Ok(value) = result {
+                    return Ok(Some(value));
+                }
+
+                Err(VmErrorKind::MissingIndexInteger {
+                    target: TypeInfo::any::<GeneratorState>(),
+                    index: VmIntegerRepr::from(index),
+                })
+            }
+            runtime::Vec::HASH => {
+                let vec = value.borrow_mut::<runtime::Vec>()?;
+                let result = BorrowMut::try_map(vec, |vec| vec.get_mut(index));
+
+                if let Ok(value) = result {
+                    return Ok(Some(value));
+                }
+
+                Err(VmErrorKind::MissingIndexInteger {
+                    target: TypeInfo::any::<runtime::Vec>(),
+                    index: VmIntegerRepr::from(index),
+                })
+            }
+            runtime::OwnedTuple::HASH => {
+                let tuple = value.borrow_mut::<runtime::OwnedTuple>()?;
+                let result = BorrowMut::try_map(tuple, |tuple| tuple.get_mut(index));
+
+                if let Ok(value) = result {
+                    return Ok(Some(value));
+                }
+
+                Err(VmErrorKind::MissingIndexInteger {
+                    target: TypeInfo::any::<runtime::OwnedTuple>(),
+                    index: VmIntegerRepr::from(index),
+                })
+            }
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
+/// Implementation of getting a mutable string index on an object-like type.
+fn try_object_like_index_get_mut<'a>(
+    target: &'a Value,
+    field: &str,
+) -> Result<Option<BorrowMut<'a, Value>>, VmErrorKind> {
+    match target.as_ref() {
+        Repr::Inline(value) => Err(VmErrorKind::MissingField {
+            target: value.type_info(),
+            field: field.try_to_owned()?,
+        }),
+        Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
+            Ok(data.get_field_mut(field)?)
+        }
+        Repr::Dynamic(data) => Err(VmErrorKind::MissingField {
+            target: data.type_info(),
+            field: field.try_to_owned()?,
+        }),
+        Repr::Any(value) => match value.type_hash() {
+            Object::HASH => {
+                let object = value.borrow_mut::<Object>()?;
+
+                let Ok(value) = BorrowMut::try_map(object, |object| object.get_mut(field)) else {
+                    return Err(VmErrorKind::MissingField {
+                        target: value.type_info(),
+                        field: field.try_to_owned()?,
+                    });
+                };
+
+                Ok(Some(value))
+            }
+            _ => Ok(None),
+        },
+    }
 }
