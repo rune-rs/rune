@@ -34,8 +34,8 @@ fn assign_ops_struct() -> Result<()> {
             let mut module = Module::new();
             module.ty::<External>()?;
 
-            module.associated_function(Protocol::$protocol, External::value)?;
-            module.field_function(Protocol::$protocol, "field", External::field)?;
+            module.associated_function(&Protocol::$protocol, External::value)?;
+            module.field_function(&Protocol::$protocol, "field", External::field)?;
 
             let mut context = Context::with_default_modules()?;
             context.install(module)?;
@@ -116,8 +116,8 @@ fn assign_ops_tuple() -> Result<()> {
             let mut module = Module::new();
             module.ty::<External>()?;
 
-            module.associated_function(Protocol::$protocol, External::value)?;
-            module.index_function(Protocol::$protocol, 1, External::field)?;
+            module.associated_function(&Protocol::$protocol, External::value)?;
+            module.index_function(&Protocol::$protocol, 1, External::field)?;
 
             let mut context = Context::with_default_modules()?;
             context.install(module)?;
@@ -192,7 +192,7 @@ fn ordering_struct() -> Result<()> {
             let mut module = Module::new();
             module.ty::<External>()?;
 
-            module.associated_function(Protocol::$protocol, External::value)?;
+            module.associated_function(&Protocol::$protocol, External::value)?;
 
             let mut context = Context::with_default_modules()?;
             context.install(module)?;
@@ -261,7 +261,7 @@ fn eq_struct() -> Result<()> {
             let mut module = Module::new();
             module.ty::<External>()?;
 
-            module.associated_function(Protocol::$protocol, External::value)?;
+            module.associated_function(&Protocol::$protocol, External::value)?;
 
             let mut context = Context::with_default_modules()?;
             context.install(module)?;

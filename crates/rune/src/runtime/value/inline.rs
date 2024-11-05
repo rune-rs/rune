@@ -47,7 +47,6 @@ pub enum Inline {
 }
 
 impl Inline {
-    #[inline]
     pub(crate) fn as_integer<T>(self) -> Result<T, RuntimeError>
     where
         T: TryFrom<u64> + TryFrom<i64>,

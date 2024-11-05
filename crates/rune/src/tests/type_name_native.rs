@@ -20,7 +20,7 @@ fn make_native_module() -> Result<Module, ContextError> {
     module.ty::<NativeStruct>()?;
     module.function("native_fn", native_fn).build()?;
     module.associated_function("instance_fn", NativeStruct::instance_fn)?;
-    module.field_function(Protocol::GET, "x", NativeStruct::get_x)?;
+    module.field_function(&Protocol::GET, "x", NativeStruct::get_x)?;
 
     Ok(module)
 }

@@ -272,7 +272,7 @@ impl Context {
                         ..
                     } = g;
 
-                    let protocol_field = g.tokens.protocol(Protocol::$proto);
+                    let protocol_field = g.tokens.protocol(&Protocol::$proto);
 
                     match target {
                         GenerateTarget::Named { field_ident, field_name } => {
@@ -391,7 +391,7 @@ impl Context {
                                         quote!(#vm_try!(#try_clone::try_clone(&s.#field_ident)))
                                     };
 
-                                    let protocol = g.tokens.protocol(Protocol::GET);
+                                    let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
                                         module.field_function(&#protocol, #field_name, |s: &Self| #vm_result::Ok(#access))?;
@@ -404,7 +404,7 @@ impl Context {
                                         quote!(#vm_try!(#try_clone::try_clone(&s.#field_index)))
                                     };
 
-                                    let protocol = g.tokens.protocol(Protocol::GET);
+                                    let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
                                         module.index_function(&#protocol, #field_index, |s: &Self| #vm_result::Ok(#access))?;
@@ -427,7 +427,7 @@ impl Context {
                                 ..
                             } = g;
 
-                            let protocol = g.tokens.protocol(Protocol::SET);
+                            let protocol = g.tokens.protocol(&Protocol::SET);
 
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
@@ -939,7 +939,7 @@ pub(crate) struct Tokens {
 
 impl Tokens {
     /// Define a tokenstream for the specified protocol
-    pub(crate) fn protocol(&self, sym: Protocol) -> TokenStream {
+    pub(crate) fn protocol(&self, sym: &Protocol) -> TokenStream {
         let mut stream = TokenStream::default();
         self.protocol.to_tokens(&mut stream);
         <Token![::]>::default().to_tokens(&mut stream);

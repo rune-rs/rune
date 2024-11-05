@@ -1480,52 +1480,153 @@ fn expr_binary<'a, 'hir>(
         return compile_conditional_binop(cx, &hir.lhs, &hir.rhs, &hir.op, span, needs);
     }
 
-    let op = match hir.op {
-        ast::BinOp::Eq(..) => InstOp::Eq,
-        ast::BinOp::Neq(..) => InstOp::Neq,
-        ast::BinOp::Lt(..) => InstOp::Lt,
-        ast::BinOp::Gt(..) => InstOp::Gt,
-        ast::BinOp::Lte(..) => InstOp::Le,
-        ast::BinOp::Gte(..) => InstOp::Ge,
-        ast::BinOp::As(..) => InstOp::As,
-        ast::BinOp::Is(..) => InstOp::Is,
-        ast::BinOp::IsNot(..) => InstOp::IsNot,
-        ast::BinOp::And(..) => InstOp::And,
-        ast::BinOp::Or(..) => InstOp::Or,
-        ast::BinOp::Add(..) => InstOp::Add,
-        ast::BinOp::Sub(..) => InstOp::Sub,
-        ast::BinOp::Div(..) => InstOp::Div,
-        ast::BinOp::Mul(..) => InstOp::Mul,
-        ast::BinOp::Rem(..) => InstOp::Rem,
-        ast::BinOp::BitAnd(..) => InstOp::BitAnd,
-        ast::BinOp::BitXor(..) => InstOp::BitXor,
-        ast::BinOp::BitOr(..) => InstOp::BitOr,
-        ast::BinOp::Shl(..) => InstOp::Shl,
-        ast::BinOp::Shr(..) => InstOp::Shr,
-
-        op => {
-            return Err(compile::Error::new(
-                span,
-                ErrorKind::UnsupportedBinaryOp { op },
-            ));
-        }
-    };
-
     let mut a = cx.scopes.defer(span);
     let mut b = cx.scopes.defer(span);
 
     let asm = expr_array(cx, span, [(&hir.lhs, &mut a), (&hir.rhs, &mut b)])?;
 
     if let Some([a, b]) = asm.into_converging() {
-        cx.asm.push(
-            Inst::Op {
-                op,
-                a: a.addr(),
-                b: b.addr(),
-                out: needs.alloc_output()?,
+        let a = a.addr();
+        let b = b.addr();
+        let out = needs.alloc_output()?;
+
+        let inst = match hir.op {
+            ast::BinOp::Eq(..) => Inst::Op {
+                op: InstOp::Eq,
+                a,
+                b,
+                out,
             },
-            span,
-        )?;
+            ast::BinOp::Neq(..) => Inst::Op {
+                op: InstOp::Neq,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Lt(..) => Inst::Op {
+                op: InstOp::Lt,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Gt(..) => Inst::Op {
+                op: InstOp::Gt,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Lte(..) => Inst::Op {
+                op: InstOp::Le,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Gte(..) => Inst::Op {
+                op: InstOp::Ge,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::As(..) => Inst::Op {
+                op: InstOp::As,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Is(..) => Inst::Op {
+                op: InstOp::Is,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::IsNot(..) => Inst::Op {
+                op: InstOp::IsNot,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::And(..) => Inst::Op {
+                op: InstOp::And,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Or(..) => Inst::Op {
+                op: InstOp::Or,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Add(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Add,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Sub(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Sub,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Div(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Div,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Mul(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Mul,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Rem(..) => Inst::Arithmetic {
+                op: InstArithmeticOp::Rem,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::BitAnd(..) => Inst::Bitwise {
+                op: InstBitwiseOp::BitAnd,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::BitXor(..) => Inst::Bitwise {
+                op: InstBitwiseOp::BitXor,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::BitOr(..) => Inst::Bitwise {
+                op: InstBitwiseOp::BitOr,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Shl(..) => Inst::Shift {
+                op: InstShiftOp::Shl,
+                a,
+                b,
+                out,
+            },
+            ast::BinOp::Shr(..) => Inst::Shift {
+                op: InstShiftOp::Shr,
+                a,
+                b,
+                out,
+            },
+
+            op => {
+                return Err(compile::Error::new(
+                    span,
+                    ErrorKind::UnsupportedBinaryOp { op },
+                ));
+            }
+        };
+
+        cx.asm.push(inst, span)?;
     }
 
     a.free()?;
@@ -1623,52 +1724,52 @@ fn compile_assign_binop<'a, 'hir>(
         ast::BinOp::AddAssign(..) => Inst::AssignArithmetic {
             op: InstArithmeticOp::Add,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::SubAssign(..) => Inst::AssignArithmetic {
             op: InstArithmeticOp::Sub,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::MulAssign(..) => Inst::AssignArithmetic {
             op: InstArithmeticOp::Mul,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::DivAssign(..) => Inst::AssignArithmetic {
             op: InstArithmeticOp::Div,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::RemAssign(..) => Inst::AssignArithmetic {
             op: InstArithmeticOp::Rem,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::BitAndAssign(..) => Inst::AssignBitwise {
             op: InstBitwiseOp::BitAnd,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::BitXorAssign(..) => Inst::AssignBitwise {
             op: InstBitwiseOp::BitXor,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::BitOrAssign(..) => Inst::AssignBitwise {
             op: InstBitwiseOp::BitOr,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::ShlAssign(..) => Inst::AssignShift {
             op: InstShiftOp::Shl,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         ast::BinOp::ShrAssign(..) => Inst::AssignShift {
             op: InstShiftOp::Shr,
             target,
-            value: value.addr(),
+            rhs: value.addr(),
         },
         _ => {
             return Err(compile::Error::new(span, ErrorKind::UnsupportedBinaryExpr));

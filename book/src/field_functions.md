@@ -67,7 +67,7 @@ impl External {
 }
 
 let mut module = Module::new();
-module.field_function(Protocol::GET, "field", External::field_get)?;
+module.field_function(&Protocol::GET, "field", External::field_get)?;
 ```
 
 Would allow for this in Rune:

@@ -1,7 +1,6 @@
 use core::cmp::Ordering;
 use core::fmt;
 use core::mem::replace;
-use core::ops;
 use core::ptr::NonNull;
 
 use ::rust_alloc::sync::Arc;
@@ -13,6 +12,9 @@ use crate::hash;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime;
+
+mod ops;
+use self::ops::*;
 
 use super::{
     budget, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, Dynamic,
@@ -1066,7 +1068,8 @@ impl Vm {
 
         let inline = match (lhs.as_ref(), rhs.as_ref()) {
             (Repr::Inline(Inline::Bool(lhs)), Repr::Inline(Inline::Bool(rhs))) => {
-                Inline::Bool(bool_op(*lhs, *rhs))
+                let value = bool_op(*lhs, *rhs);
+                Inline::Bool(value)
             }
             (lhs, rhs) => {
                 return err(VmErrorKind::UnsupportedBinaryOperation {
@@ -1182,89 +1185,6 @@ impl Vm {
         Ok(moved)
     }
 
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn internal_num_assign(
-        &mut self,
-        target: InstTarget,
-        ops: &'static ArithmeticOps,
-        rhs: InstAddress,
-    ) -> VmResult<()> {
-        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
-            TargetValue::Same(value) => {
-                match value.as_mut() {
-                    Repr::Inline(Inline::Signed(value)) => {
-                        let out = vm_try!((ops.signed_op)(*value, *value).ok_or_else(ops.error));
-                        *value = out;
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(Inline::Unsigned(value)) => {
-                        let out = vm_try!((ops.unsigned_op)(*value, *value).ok_or_else(ops.error));
-                        *value = out;
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(Inline::Float(value)) => {
-                        let out = (ops.float_op)(*value, *value);
-                        *value = out;
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(value) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: ops.protocol.name,
-                            lhs: value.type_info(),
-                            rhs: value.type_info(),
-                        });
-                    }
-                    _ => {}
-                }
-
-                TargetFallback::Value(value.clone(), value.clone())
-            }
-            TargetValue::Pair(mut lhs, rhs) => {
-                match (lhs.as_mut(), rhs.as_ref()) {
-                    (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
-                        (Inline::Signed(lhs), rhs) => {
-                            let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!((ops.signed_op)(*lhs, rhs).ok_or_else(ops.error));
-                            *lhs = out;
-                            return VmResult::Ok(());
-                        }
-                        (Inline::Unsigned(lhs), rhs) => {
-                            let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!((ops.unsigned_op)(*lhs, rhs).ok_or_else(ops.error));
-                            *lhs = out;
-                            return VmResult::Ok(());
-                        }
-                        (Inline::Float(lhs), Inline::Float(rhs)) => {
-                            let out = (ops.float_op)(*lhs, *rhs);
-                            *lhs = out;
-                            return VmResult::Ok(());
-                        }
-                        (lhs, rhs) => {
-                            return err(VmErrorKind::UnsupportedBinaryOperation {
-                                op: ops.protocol.name,
-                                lhs: lhs.type_info(),
-                                rhs: rhs.type_info(),
-                            });
-                        }
-                    },
-                    (Repr::Inline(lhs), rhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: ops.protocol.name,
-                            lhs: lhs.type_info(),
-                            rhs: rhs.type_info(),
-                        });
-                    }
-                    _ => {}
-                }
-
-                TargetFallback::Value(lhs.clone(), rhs.clone())
-            }
-            TargetValue::Fallback(fallback) => fallback,
-        };
-
-        self.target_fallback_assign(fallback, ops.protocol)
-    }
-
     /// Execute a fallback operation.
     #[cfg_attr(feature = "bench", inline(never))]
     fn target_fallback_assign(
@@ -1328,394 +1248,6 @@ impl Vm {
                 VmResult::Ok(())
             }
         }
-    }
-
-    /// Internal impl of a numeric operation.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn internal_num(
-        &mut self,
-        protocol: &Protocol,
-        error: fn() -> VmErrorKind,
-        signed_op: fn(i64, i64) -> Option<i64>,
-        unsigned_op: fn(u64, u64) -> Option<u64>,
-        float_op: fn(f64, f64) -> f64,
-        lhs: InstAddress,
-        rhs: InstAddress,
-        out: Output,
-    ) -> VmResult<()> {
-        let rhs = self.stack.at(rhs);
-        let lhs = self.stack.at(lhs);
-
-        'fallback: {
-            let inline = match (lhs.as_ref(), rhs.as_ref()) {
-                (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
-                    (Inline::Unsigned(lhs), rhs) => {
-                        let rhs = vm_try!(rhs.as_integer());
-                        Inline::Unsigned(vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error)))
-                    }
-                    (Inline::Signed(lhs), rhs) => {
-                        let rhs = vm_try!(rhs.as_integer());
-                        Inline::Signed(vm_try!(signed_op(*lhs, rhs).ok_or_else(error)))
-                    }
-                    (Inline::Float(lhs), Inline::Float(rhs)) => Inline::Float(float_op(*lhs, *rhs)),
-                    (lhs, rhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
-                            lhs: lhs.type_info(),
-                            rhs: rhs.type_info(),
-                        });
-                    }
-                },
-                (Repr::Inline(lhs), rhs) => {
-                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                        op: protocol.name,
-                        lhs: lhs.type_info(),
-                        rhs: rhs.type_info(),
-                    });
-                }
-                _ => {
-                    break 'fallback;
-                }
-            };
-
-            vm_try!(out.store(&mut self.stack, inline));
-            return VmResult::Ok(());
-        }
-
-        let lhs = lhs.clone();
-        let rhs = rhs.clone();
-
-        let mut args = DynGuardedArgs::new((&rhs,));
-
-        if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, &mut args, out))
-        {
-            return err(VmErrorKind::UnsupportedBinaryOperation {
-                op: protocol.name,
-                lhs: lhs.type_info(),
-                rhs: rhs.type_info(),
-            });
-        }
-
-        VmResult::Ok(())
-    }
-
-    /// Internal impl of a numeric operation.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn internal_bit(
-        &mut self,
-        protocol: &Protocol,
-        signed_op: fn(i64, i64) -> i64,
-        unsigned_op: fn(u64, u64) -> u64,
-        bool_op: fn(bool, bool) -> bool,
-        lhs: InstAddress,
-        rhs: InstAddress,
-        out: Output,
-    ) -> VmResult<()> {
-        let lhs = self.stack.at(lhs);
-        let rhs = self.stack.at(rhs);
-
-        'fallback: {
-            let inline = match (lhs.as_ref(), rhs.as_ref()) {
-                (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
-                    (Inline::Unsigned(lhs), rhs) => {
-                        let rhs = vm_try!(rhs.as_integer());
-                        Inline::Unsigned(unsigned_op(*lhs, rhs))
-                    }
-                    (Inline::Signed(lhs), rhs) => {
-                        let rhs = vm_try!(rhs.as_integer());
-                        Inline::Signed(signed_op(*lhs, rhs))
-                    }
-                    (Inline::Bool(lhs), Inline::Bool(rhs)) => Inline::Bool(bool_op(*lhs, *rhs)),
-                    (lhs, rhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: protocol.name,
-                            lhs: lhs.type_info(),
-                            rhs: rhs.type_info(),
-                        });
-                    }
-                },
-                (Repr::Inline(lhs), rhs) => {
-                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                        op: protocol.name,
-                        lhs: lhs.type_info(),
-                        rhs: rhs.type_info(),
-                    });
-                }
-                _ => {
-                    break 'fallback;
-                }
-            };
-
-            vm_try!(out.store(&mut self.stack, inline));
-            return VmResult::Ok(());
-        };
-
-        let lhs = lhs.clone();
-        let rhs = rhs.clone();
-
-        let mut args = DynGuardedArgs::new((&rhs,));
-
-        if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, &mut args, out))
-        {
-            return err(VmErrorKind::UnsupportedBinaryOperation {
-                op: protocol.name,
-                lhs: lhs.type_info(),
-                rhs: rhs.type_info(),
-            });
-        }
-
-        VmResult::Ok(())
-    }
-
-    fn internal_infallible_bitwise_assign(
-        &mut self,
-        target: InstTarget,
-        ops: &'static BitwiseOps,
-        rhs: InstAddress,
-    ) -> VmResult<()> {
-        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
-            TargetValue::Same(value) => {
-                match value.as_mut() {
-                    Repr::Inline(Inline::Unsigned(value)) => {
-                        let rhs = *value;
-                        (ops.unsigned_op)(value, rhs);
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(Inline::Signed(value)) => {
-                        let rhs = *value;
-                        (ops.signed_op)(value, rhs);
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(Inline::Bool(value)) => {
-                        let rhs = *value;
-                        (ops.bool_op)(value, rhs);
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(value) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: ops.protocol.name,
-                            lhs: value.type_info(),
-                            rhs: value.type_info(),
-                        });
-                    }
-                    _ => {}
-                }
-
-                TargetFallback::Value(value.clone(), value.clone())
-            }
-            TargetValue::Pair(mut lhs, rhs) => {
-                match (lhs.as_mut(), rhs.as_ref()) {
-                    (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
-                        (Inline::Unsigned(lhs), rhs) => {
-                            let rhs = vm_try!(rhs.as_integer());
-                            (ops.unsigned_op)(lhs, rhs);
-                            return VmResult::Ok(());
-                        }
-                        (Inline::Signed(lhs), rhs) => {
-                            let rhs = vm_try!(rhs.as_integer());
-                            (ops.signed_op)(lhs, rhs);
-                            return VmResult::Ok(());
-                        }
-                        (Inline::Bool(lhs), Inline::Bool(rhs)) => {
-                            (ops.bool_op)(lhs, *rhs);
-                            return VmResult::Ok(());
-                        }
-                        (lhs, rhs) => {
-                            return err(VmErrorKind::UnsupportedBinaryOperation {
-                                op: ops.protocol.name,
-                                lhs: lhs.type_info(),
-                                rhs: rhs.type_info(),
-                            });
-                        }
-                    },
-                    (Repr::Inline(lhs), rhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: ops.protocol.name,
-                            lhs: lhs.type_info(),
-                            rhs: rhs.type_info(),
-                        });
-                    }
-                    _ => {}
-                }
-
-                TargetFallback::Value(lhs.clone(), rhs.clone())
-            }
-            TargetValue::Fallback(fallback) => fallback,
-        };
-
-        self.target_fallback_assign(fallback, ops.protocol)
-    }
-
-    fn internal_shift(
-        &mut self,
-        protocol: &Protocol,
-        error: fn() -> VmErrorKind,
-        signed_op: fn(i64, u32) -> Option<i64>,
-        unsigned_op: fn(u64, u32) -> Option<u64>,
-        lhs: InstAddress,
-        rhs: InstAddress,
-        out: Output,
-    ) -> VmResult<()> {
-        let (lhs, rhs) = 'fallback: {
-            let inline = 'inline: {
-                match vm_try!(self.stack.pair(lhs, rhs)) {
-                    Pair::Same(value) => {
-                        if let Repr::Inline(lhs) = value.as_mut() {
-                            match lhs {
-                                Inline::Unsigned(value) => {
-                                    let shift =
-                                        vm_try!(u32::try_from(*value).ok().ok_or_else(error));
-                                    let value =
-                                        vm_try!(unsigned_op(*value, shift).ok_or_else(error));
-                                    break 'inline Inline::Unsigned(value);
-                                }
-                                Inline::Signed(value) => {
-                                    let shift =
-                                        vm_try!(u32::try_from(*value).ok().ok_or_else(error));
-                                    let value = vm_try!(signed_op(*value, shift).ok_or_else(error));
-                                    break 'inline Inline::Signed(value);
-                                }
-                                value => {
-                                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                                        op: protocol.name,
-                                        lhs: value.type_info(),
-                                        rhs: value.type_info(),
-                                    });
-                                }
-                            }
-                        };
-
-                        break 'fallback (value.clone(), value.clone());
-                    }
-                    Pair::Pair(lhs, rhs) => {
-                        match (lhs.as_mut(), rhs.as_ref()) {
-                            (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
-                                (Inline::Unsigned(lhs), rhs) => {
-                                    let rhs = vm_try!(rhs.as_integer());
-                                    let value = vm_try!(unsigned_op(*lhs, rhs).ok_or_else(error));
-                                    break 'inline Inline::Unsigned(value);
-                                }
-                                (Inline::Signed(lhs), rhs) => {
-                                    let rhs = vm_try!(rhs.as_integer());
-                                    let value = vm_try!(signed_op(*lhs, rhs).ok_or_else(error));
-                                    break 'inline Inline::Signed(value);
-                                }
-                                (lhs, rhs) => {
-                                    return err(VmErrorKind::UnsupportedBinaryOperation {
-                                        op: protocol.name,
-                                        lhs: lhs.type_info(),
-                                        rhs: rhs.type_info(),
-                                    });
-                                }
-                            },
-                            (Repr::Inline(lhs), rhs) => {
-                                return err(VmErrorKind::UnsupportedBinaryOperation {
-                                    op: protocol.name,
-                                    lhs: lhs.type_info(),
-                                    rhs: rhs.type_info(),
-                                });
-                            }
-                            _ => {}
-                        }
-
-                        break 'fallback (lhs.clone(), rhs.clone());
-                    }
-                }
-            };
-
-            vm_try!(out.store(&mut self.stack, inline));
-            return VmResult::Ok(());
-        };
-
-        let mut args = DynGuardedArgs::new((&rhs,));
-
-        if let CallResult::Unsupported(lhs) =
-            vm_try!(self.call_instance_fn(Isolated::None, lhs, protocol, &mut args, out))
-        {
-            return err(VmErrorKind::UnsupportedBinaryOperation {
-                op: protocol.name,
-                lhs: lhs.type_info(),
-                rhs: rhs.type_info(),
-            });
-        }
-
-        VmResult::Ok(())
-    }
-
-    fn internal_bitwise_assign(
-        &mut self,
-        target: InstTarget,
-        ops: &'static ShiftOps,
-        rhs: InstAddress,
-    ) -> VmResult<()> {
-        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
-            TargetValue::Same(value) => {
-                match value.as_mut() {
-                    Repr::Inline(Inline::Unsigned(value)) => {
-                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
-                        let out = vm_try!((ops.unsigned_op)(*value, shift).ok_or_else(ops.error));
-                        *value = out;
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(Inline::Signed(value)) => {
-                        let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
-                        let out = vm_try!((ops.signed_op)(*value, shift).ok_or_else(ops.error));
-                        *value = out;
-                        return VmResult::Ok(());
-                    }
-                    Repr::Inline(value) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: ops.protocol.name,
-                            lhs: value.type_info(),
-                            rhs: value.type_info(),
-                        });
-                    }
-                    _ => {}
-                }
-
-                TargetFallback::Value(value.clone(), value.clone())
-            }
-            TargetValue::Pair(mut lhs, rhs) => {
-                match (lhs.as_mut(), rhs.as_ref()) {
-                    (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
-                        (Inline::Unsigned(lhs), rhs) => {
-                            let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!((ops.unsigned_op)(*lhs, rhs).ok_or_else(ops.error));
-                            *lhs = out;
-                            return VmResult::Ok(());
-                        }
-                        (Inline::Signed(lhs), rhs) => {
-                            let rhs = vm_try!(rhs.as_integer());
-                            let out = vm_try!((ops.signed_op)(*lhs, rhs).ok_or_else(ops.error));
-                            *lhs = out;
-                            return VmResult::Ok(());
-                        }
-                        (lhs, rhs) => {
-                            return err(VmErrorKind::UnsupportedBinaryOperation {
-                                op: ops.protocol.name,
-                                lhs: lhs.type_info(),
-                                rhs: rhs.type_info(),
-                            });
-                        }
-                    },
-                    (Repr::Inline(lhs), rhs) => {
-                        return err(VmErrorKind::UnsupportedBinaryOperation {
-                            op: ops.protocol.name,
-                            lhs: lhs.type_info(),
-                            rhs: rhs.type_info(),
-                        });
-                    }
-                    _ => {}
-                }
-
-                TargetFallback::Value(lhs.clone(), rhs.clone())
-            }
-            TargetValue::Fallback(fallback) => fallback,
-        };
-
-        self.target_fallback_assign(fallback, ops.protocol)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1899,17 +1431,11 @@ impl Vm {
         let value = self.stack.at(operand);
 
         let value = match value.as_ref() {
-            Repr::Inline(value) => match value {
-                Inline::Bool(value) => Value::from(!value),
-                Inline::Unsigned(value) => Value::from(!value),
-                Inline::Signed(value) => Value::from(!value),
-                actual => {
-                    let operand = actual.type_info();
-                    return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
-                }
-            },
-            actual => {
-                let operand = actual.type_info();
+            Repr::Inline(Inline::Bool(value)) => Value::from(!value),
+            Repr::Inline(Inline::Unsigned(value)) => Value::from(!value),
+            Repr::Inline(Inline::Signed(value)) => Value::from(!value),
+            value => {
+                let operand = value.type_info();
                 return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
             }
         };
@@ -1923,14 +1449,8 @@ impl Vm {
         let value = self.stack.at(addr);
 
         let value = match value.as_ref() {
-            Repr::Inline(value) => match value {
-                Inline::Float(value) => Value::from(-value),
-                Inline::Signed(value) => Value::from(-value),
-                actual => {
-                    let operand = actual.type_info();
-                    return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
-                }
-            },
+            Repr::Inline(Inline::Float(value)) => Value::from(-value),
+            Repr::Inline(Inline::Signed(value)) => Value::from(-value),
             actual => {
                 let operand = actual.type_info();
                 return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
@@ -1950,124 +1470,6 @@ impl Vm {
         out: Output,
     ) -> VmResult<()> {
         match op {
-            InstOp::Add => {
-                vm_try!(self.internal_num(
-                    &Protocol::ADD,
-                    || VmErrorKind::Overflow,
-                    i64::checked_add,
-                    u64::checked_add,
-                    ops::Add::add,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::Sub => {
-                vm_try!(self.internal_num(
-                    &Protocol::SUB,
-                    || VmErrorKind::Underflow,
-                    i64::checked_sub,
-                    u64::checked_sub,
-                    ops::Sub::sub,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::Mul => {
-                vm_try!(self.internal_num(
-                    &Protocol::MUL,
-                    || VmErrorKind::Overflow,
-                    i64::checked_mul,
-                    u64::checked_mul,
-                    ops::Mul::mul,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::Div => {
-                vm_try!(self.internal_num(
-                    &Protocol::DIV,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_div,
-                    u64::checked_div,
-                    ops::Div::div,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::Rem => {
-                vm_try!(self.internal_num(
-                    &Protocol::REM,
-                    || VmErrorKind::DivideByZero,
-                    i64::checked_rem,
-                    u64::checked_rem,
-                    ops::Rem::rem,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::BitAnd => {
-                use ops::BitAnd as _;
-                vm_try!(self.internal_bit(
-                    &Protocol::BIT_AND,
-                    i64::bitand,
-                    u64::bitand,
-                    bool::bitand,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::BitXor => {
-                use ops::BitXor as _;
-                vm_try!(self.internal_bit(
-                    &Protocol::BIT_XOR,
-                    i64::bitxor,
-                    u64::bitxor,
-                    bool::bitxor,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::BitOr => {
-                use ops::BitOr as _;
-                vm_try!(self.internal_bit(
-                    &Protocol::BIT_OR,
-                    i64::bitor,
-                    u64::bitor,
-                    bool::bitor,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::Shl => {
-                vm_try!(self.internal_shift(
-                    &Protocol::SHL,
-                    || VmErrorKind::Overflow,
-                    i64::checked_shl,
-                    u64::checked_shl,
-                    lhs,
-                    rhs,
-                    out,
-                ));
-            }
-            InstOp::Shr => {
-                vm_try!(self.internal_shift(
-                    &Protocol::SHR,
-                    || VmErrorKind::Underflow,
-                    i64::checked_shr,
-                    u64::checked_shr,
-                    lhs,
-                    rhs,
-                    out
-                ));
-            }
             InstOp::Lt => {
                 vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Less), lhs, rhs, out));
             }
@@ -2142,62 +1544,283 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
+    fn op_arithmetic(
+        &mut self,
+        op: InstArithmeticOp,
+        lhs: InstAddress,
+        rhs: InstAddress,
+        out: Output,
+    ) -> VmResult<()> {
+        let ops = ArithmeticOps::from_op(op);
+
+        let lhs = self.stack.at(lhs);
+        let rhs = self.stack.at(rhs);
+
+        'fallback: {
+            let inline = match (lhs.as_ref(), rhs.as_ref()) {
+                (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
+                    (Inline::Unsigned(lhs), rhs) => {
+                        let rhs = vm_try!(rhs.as_integer());
+                        let value = vm_try!((ops.u64)(*lhs, rhs).ok_or_else(ops.error));
+                        Inline::Unsigned(value)
+                    }
+                    (Inline::Signed(lhs), rhs) => {
+                        let rhs = vm_try!(rhs.as_integer());
+                        let value = vm_try!((ops.i64)(*lhs, rhs).ok_or_else(ops.error));
+                        Inline::Signed(value)
+                    }
+                    (Inline::Float(lhs), Inline::Float(rhs)) => {
+                        let value = (ops.f64)(*lhs, *rhs);
+                        Inline::Float(value)
+                    }
+                    (lhs, rhs) => {
+                        return err(VmErrorKind::UnsupportedBinaryOperation {
+                            op: ops.protocol.name,
+                            lhs: lhs.type_info(),
+                            rhs: rhs.type_info(),
+                        });
+                    }
+                },
+                (Repr::Any(..), ..) => {
+                    break 'fallback;
+                }
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            };
+
+            vm_try!(out.store(&mut self.stack, inline));
+            return VmResult::Ok(());
+        }
+
+        let lhs = lhs.clone();
+        let rhs = rhs.clone();
+
+        let mut args = DynGuardedArgs::new((rhs.clone(),));
+
+        if let CallResult::Unsupported(lhs) =
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, &ops.protocol, &mut args, out))
+        {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
+                op: ops.protocol.name,
+                lhs: lhs.type_info(),
+                rhs: rhs.type_info(),
+            });
+        }
+
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_bitwise(
+        &mut self,
+        op: InstBitwiseOp,
+        lhs: InstAddress,
+        rhs: InstAddress,
+        out: Output,
+    ) -> VmResult<()> {
+        let ops = BitwiseOps::from_op(op);
+
+        let lhs = self.stack.at(lhs);
+        let rhs = self.stack.at(rhs);
+
+        'fallback: {
+            let inline = match (lhs.as_ref(), rhs.as_ref()) {
+                (Repr::Inline(Inline::Unsigned(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    let value = (ops.u64)(*lhs, rhs);
+                    Inline::Unsigned(value)
+                }
+                (Repr::Inline(Inline::Signed(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    let value = (ops.i64)(*lhs, rhs);
+                    Inline::Signed(value)
+                }
+                (Repr::Inline(Inline::Bool(lhs)), Repr::Inline(Inline::Bool(rhs))) => {
+                    let value = (ops.bool)(*lhs, *rhs);
+                    Inline::Bool(value)
+                }
+                (Repr::Any(_), _) => {
+                    break 'fallback;
+                }
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            };
+
+            vm_try!(out.store(&mut self.stack, inline));
+            return VmResult::Ok(());
+        };
+
+        let lhs = lhs.clone();
+        let rhs = rhs.clone();
+
+        let mut args = DynGuardedArgs::new((&rhs,));
+
+        if let CallResult::Unsupported(lhs) =
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, &ops.protocol, &mut args, out))
+        {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
+                op: ops.protocol.name,
+                lhs: lhs.type_info(),
+                rhs: rhs.type_info(),
+            });
+        }
+
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_shift(
+        &mut self,
+        op: InstShiftOp,
+        lhs: InstAddress,
+        rhs: InstAddress,
+        out: Output,
+    ) -> VmResult<()> {
+        let ops = ShiftOps::from_op(op);
+
+        let (lhs, rhs) = 'fallback: {
+            let inline = {
+                match vm_try!(self.stack.pair(lhs, rhs)) {
+                    Pair::Same(value) => match value.as_mut() {
+                        Repr::Inline(Inline::Unsigned(value)) => {
+                            let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
+                            let value = vm_try!((ops.u64)(*value, shift).ok_or_else(ops.error));
+                            Inline::Unsigned(value)
+                        }
+                        Repr::Inline(Inline::Signed(value)) => {
+                            let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
+                            let value = vm_try!((ops.i64)(*value, shift).ok_or_else(ops.error));
+                            Inline::Signed(value)
+                        }
+                        Repr::Any(..) => break 'fallback (value.clone(), value.clone()),
+                        value => {
+                            return err(VmErrorKind::UnsupportedBinaryOperation {
+                                op: ops.protocol.name,
+                                lhs: value.type_info(),
+                                rhs: value.type_info(),
+                            });
+                        }
+                    },
+                    Pair::Pair(lhs, rhs) => match (lhs.as_mut(), rhs.as_ref()) {
+                        (Repr::Inline(Inline::Unsigned(lhs)), Repr::Inline(rhs)) => {
+                            let rhs = vm_try!(rhs.as_integer());
+                            let value = vm_try!((ops.u64)(*lhs, rhs).ok_or_else(ops.error));
+                            Inline::Unsigned(value)
+                        }
+                        (Repr::Inline(Inline::Signed(lhs)), Repr::Inline(rhs)) => {
+                            let rhs = vm_try!(rhs.as_integer());
+                            let value = vm_try!((ops.i64)(*lhs, rhs).ok_or_else(ops.error));
+                            Inline::Signed(value)
+                        }
+                        (Repr::Any(..), _) => {
+                            break 'fallback (lhs.clone(), rhs.clone());
+                        }
+                        (lhs, rhs) => {
+                            return err(VmErrorKind::UnsupportedBinaryOperation {
+                                op: ops.protocol.name,
+                                lhs: lhs.type_info(),
+                                rhs: rhs.type_info(),
+                            });
+                        }
+                    },
+                }
+            };
+
+            vm_try!(out.store(&mut self.stack, inline));
+            return VmResult::Ok(());
+        };
+
+        let mut args = DynGuardedArgs::new((rhs.clone(),));
+
+        if let CallResult::Unsupported(lhs) =
+            vm_try!(self.call_instance_fn(Isolated::None, lhs, &ops.protocol, &mut args, out))
+        {
+            return err(VmErrorKind::UnsupportedBinaryOperation {
+                op: ops.protocol.name,
+                lhs: lhs.type_info(),
+                rhs: rhs.type_info(),
+            });
+        }
+
+        VmResult::Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
     fn op_assign_arithmetic(
         &mut self,
         op: InstArithmeticOp,
         target: InstTarget,
-        value: InstAddress,
+        rhs: InstAddress,
     ) -> VmResult<()> {
-        static ADD: ArithmeticOps = ArithmeticOps {
-            protocol: &Protocol::ADD_ASSIGN,
-            error: || VmErrorKind::Overflow,
-            signed_op: i64::checked_add,
-            unsigned_op: u64::checked_add,
-            float_op: ops::Add::add,
+        let ops = AssignArithmeticOps::from_op(op);
+
+        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
+            TargetValue::Same(value) => match value.as_mut() {
+                Repr::Inline(Inline::Signed(value)) => {
+                    let out = vm_try!((ops.i64)(*value, *value).ok_or_else(ops.error));
+                    *value = out;
+                    return VmResult::Ok(());
+                }
+                Repr::Inline(Inline::Unsigned(value)) => {
+                    let out = vm_try!((ops.u64)(*value, *value).ok_or_else(ops.error));
+                    *value = out;
+                    return VmResult::Ok(());
+                }
+                Repr::Inline(Inline::Float(value)) => {
+                    let out = (ops.f64)(*value, *value);
+                    *value = out;
+                    return VmResult::Ok(());
+                }
+                Repr::Any(..) => TargetFallback::Value(value.clone(), value.clone()),
+                value => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: value.type_info(),
+                        rhs: value.type_info(),
+                    });
+                }
+            },
+            TargetValue::Pair(mut lhs, rhs) => match (lhs.as_mut(), rhs.as_ref()) {
+                (Repr::Inline(Inline::Signed(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    let out = vm_try!((ops.i64)(*lhs, rhs).ok_or_else(ops.error));
+                    *lhs = out;
+                    return VmResult::Ok(());
+                }
+                (Repr::Inline(Inline::Unsigned(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    let out = vm_try!((ops.u64)(*lhs, rhs).ok_or_else(ops.error));
+                    *lhs = out;
+                    return VmResult::Ok(());
+                }
+                (Repr::Inline(Inline::Float(lhs)), Repr::Inline(Inline::Float(rhs))) => {
+                    let out = (ops.f64)(*lhs, *rhs);
+                    *lhs = out;
+                    return VmResult::Ok(());
+                }
+                (Repr::Any(..), _) => TargetFallback::Value(lhs.clone(), rhs.clone()),
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            },
+            TargetValue::Fallback(fallback) => fallback,
         };
 
-        static SUB: ArithmeticOps = ArithmeticOps {
-            protocol: &Protocol::SUB_ASSIGN,
-            error: || VmErrorKind::Underflow,
-            signed_op: i64::checked_sub,
-            unsigned_op: u64::checked_sub,
-            float_op: ops::Add::add,
-        };
-
-        static MUL: ArithmeticOps = ArithmeticOps {
-            protocol: &Protocol::MUL_ASSIGN,
-            error: || VmErrorKind::Overflow,
-            signed_op: i64::checked_mul,
-            unsigned_op: u64::checked_mul,
-            float_op: ops::Add::add,
-        };
-
-        static DIV: ArithmeticOps = ArithmeticOps {
-            protocol: &Protocol::DIV_ASSIGN,
-            error: || VmErrorKind::DivideByZero,
-            signed_op: i64::checked_div,
-            unsigned_op: u64::checked_div,
-            float_op: ops::Add::add,
-        };
-
-        static REM: ArithmeticOps = ArithmeticOps {
-            protocol: &Protocol::REM_ASSIGN,
-            error: || VmErrorKind::DivideByZero,
-            signed_op: i64::checked_rem,
-            unsigned_op: u64::checked_rem,
-            float_op: ops::Rem::rem,
-        };
-
-        let ops = match op {
-            InstArithmeticOp::Add => &ADD,
-            InstArithmeticOp::Sub => &SUB,
-            InstArithmeticOp::Mul => &MUL,
-            InstArithmeticOp::Div => &DIV,
-            InstArithmeticOp::Rem => &REM,
-        };
-
-        vm_try!(self.internal_num_assign(target, ops, value));
-        VmResult::Ok(())
+        self.target_fallback_assign(fallback, &ops.protocol)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2205,37 +1828,64 @@ impl Vm {
         &mut self,
         op: InstBitwiseOp,
         target: InstTarget,
-        value: InstAddress,
+        rhs: InstAddress,
     ) -> VmResult<()> {
-        static BIT_AND: BitwiseOps = BitwiseOps {
-            protocol: &Protocol::BIT_AND_ASSIGN,
-            signed_op: ops::BitAndAssign::bitand_assign,
-            unsigned_op: ops::BitAndAssign::bitand_assign,
-            bool_op: ops::BitAndAssign::bitand_assign,
+        let ops = AssignBitwiseOps::from_ops(op);
+
+        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
+            TargetValue::Same(value) => match value.as_mut() {
+                Repr::Inline(Inline::Unsigned(value)) => {
+                    let rhs = *value;
+                    (ops.u64)(value, rhs);
+                    return VmResult::Ok(());
+                }
+                Repr::Inline(Inline::Signed(value)) => {
+                    let rhs = *value;
+                    (ops.i64)(value, rhs);
+                    return VmResult::Ok(());
+                }
+                Repr::Inline(Inline::Bool(value)) => {
+                    let rhs = *value;
+                    (ops.bool)(value, rhs);
+                    return VmResult::Ok(());
+                }
+                Repr::Any(..) => TargetFallback::Value(value.clone(), value.clone()),
+                value => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: value.type_info(),
+                        rhs: value.type_info(),
+                    });
+                }
+            },
+            TargetValue::Pair(mut lhs, rhs) => match (lhs.as_mut(), rhs.as_ref()) {
+                (Repr::Inline(Inline::Unsigned(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    (ops.u64)(lhs, rhs);
+                    return VmResult::Ok(());
+                }
+                (Repr::Inline(Inline::Signed(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    (ops.i64)(lhs, rhs);
+                    return VmResult::Ok(());
+                }
+                (Repr::Inline(Inline::Bool(lhs)), Repr::Inline(Inline::Bool(rhs))) => {
+                    (ops.bool)(lhs, *rhs);
+                    return VmResult::Ok(());
+                }
+                (Repr::Any(..), ..) => TargetFallback::Value(lhs.clone(), rhs.clone()),
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            },
+            TargetValue::Fallback(fallback) => fallback,
         };
 
-        static BIT_XOR: BitwiseOps = BitwiseOps {
-            protocol: &Protocol::BIT_XOR_ASSIGN,
-            signed_op: ops::BitXorAssign::bitxor_assign,
-            unsigned_op: ops::BitXorAssign::bitxor_assign,
-            bool_op: ops::BitXorAssign::bitxor_assign,
-        };
-
-        static BIT_OR: BitwiseOps = BitwiseOps {
-            protocol: &Protocol::BIT_OR_ASSIGN,
-            signed_op: ops::BitOrAssign::bitor_assign,
-            unsigned_op: ops::BitOrAssign::bitor_assign,
-            bool_op: ops::BitOrAssign::bitor_assign,
-        };
-
-        let ops = match op {
-            InstBitwiseOp::BitAnd => &BIT_AND,
-            InstBitwiseOp::BitXor => &BIT_XOR,
-            InstBitwiseOp::BitOr => &BIT_OR,
-        };
-
-        vm_try!(self.internal_infallible_bitwise_assign(target, ops, value,));
-        VmResult::Ok(())
+        self.target_fallback_assign(fallback, &ops.protocol)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2243,29 +1893,59 @@ impl Vm {
         &mut self,
         op: InstShiftOp,
         target: InstTarget,
-        value: InstAddress,
+        rhs: InstAddress,
     ) -> VmResult<()> {
-        static SHL: ShiftOps = ShiftOps {
-            protocol: &Protocol::SHL_ASSIGN,
-            error: || VmErrorKind::Overflow,
-            signed_op: i64::checked_shl,
-            unsigned_op: u64::checked_shl,
+        let ops = AssignShiftOps::from_op(op);
+
+        let fallback = match vm_try!(target_value(&mut self.stack, &self.unit, target, rhs)) {
+            TargetValue::Same(value) => match value.as_mut() {
+                Repr::Inline(Inline::Unsigned(value)) => {
+                    let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
+                    let out = vm_try!((ops.u64)(*value, shift).ok_or_else(ops.error));
+                    *value = out;
+                    return VmResult::Ok(());
+                }
+                Repr::Inline(Inline::Signed(value)) => {
+                    let shift = vm_try!(u32::try_from(*value).ok().ok_or_else(ops.error));
+                    let out = vm_try!((ops.i64)(*value, shift).ok_or_else(ops.error));
+                    *value = out;
+                    return VmResult::Ok(());
+                }
+                Repr::Any(..) => TargetFallback::Value(value.clone(), value.clone()),
+                value => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: value.type_info(),
+                        rhs: value.type_info(),
+                    });
+                }
+            },
+            TargetValue::Pair(mut lhs, rhs) => match (lhs.as_mut(), rhs.as_ref()) {
+                (Repr::Inline(Inline::Unsigned(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    let out = vm_try!((ops.u64)(*lhs, rhs).ok_or_else(ops.error));
+                    *lhs = out;
+                    return VmResult::Ok(());
+                }
+                (Repr::Inline(Inline::Signed(lhs)), Repr::Inline(rhs)) => {
+                    let rhs = vm_try!(rhs.as_integer());
+                    let out = vm_try!((ops.i64)(*lhs, rhs).ok_or_else(ops.error));
+                    *lhs = out;
+                    return VmResult::Ok(());
+                }
+                (Repr::Any(..), _) => TargetFallback::Value(lhs.clone(), rhs.clone()),
+                (lhs, rhs) => {
+                    return err(VmErrorKind::UnsupportedBinaryOperation {
+                        op: ops.protocol.name,
+                        lhs: lhs.type_info(),
+                        rhs: rhs.type_info(),
+                    });
+                }
+            },
+            TargetValue::Fallback(fallback) => fallback,
         };
 
-        static SHR: ShiftOps = ShiftOps {
-            protocol: &Protocol::SHR_ASSIGN,
-            error: || VmErrorKind::Underflow,
-            signed_op: i64::checked_shr,
-            unsigned_op: u64::checked_shr,
-        };
-
-        let ops = match op {
-            InstShiftOp::Shl => &SHL,
-            InstShiftOp::Shr => &SHR,
-        };
-
-        vm_try!(self.internal_bitwise_assign(target, ops, value));
-        VmResult::Ok(())
+        self.target_fallback_assign(fallback, &ops.protocol)
     }
 
     /// Perform an index set operation.
@@ -3624,14 +3304,23 @@ impl Vm {
                 Inst::Op { op, a, b, out } => {
                     vm_try!(self.op_op(op, a, b, out));
                 }
-                Inst::AssignArithmetic { op, target, value } => {
-                    vm_try!(self.op_assign_arithmetic(op, target, value));
+                Inst::Arithmetic { op, a, b, out } => {
+                    vm_try!(self.op_arithmetic(op, a, b, out));
                 }
-                Inst::AssignBitwise { op, target, value } => {
-                    vm_try!(self.op_assign_bitwise(op, target, value));
+                Inst::Bitwise { op, a, b, out } => {
+                    vm_try!(self.op_bitwise(op, a, b, out));
                 }
-                Inst::AssignShift { op, target, value } => {
-                    vm_try!(self.op_assign_shift(op, target, value));
+                Inst::Shift { op, a, b, out } => {
+                    vm_try!(self.op_shift(op, a, b, out));
+                }
+                Inst::AssignArithmetic { op, target, rhs } => {
+                    vm_try!(self.op_assign_arithmetic(op, target, rhs));
+                }
+                Inst::AssignBitwise { op, target, rhs } => {
+                    vm_try!(self.op_assign_bitwise(op, target, rhs));
+                }
+                Inst::AssignShift { op, target, rhs } => {
+                    vm_try!(self.op_assign_shift(op, target, rhs));
                 }
                 Inst::IterNext { addr, jump, out } => {
                     vm_try!(self.op_iter_next(addr, jump, out));
@@ -3723,28 +3412,6 @@ fn check_args(args: usize, expected: usize) -> Result<(), VmErrorKind> {
     Ok(())
 }
 
-struct ArithmeticOps {
-    protocol: &'static Protocol,
-    error: fn() -> VmErrorKind,
-    signed_op: fn(i64, i64) -> Option<i64>,
-    unsigned_op: fn(u64, u64) -> Option<u64>,
-    float_op: fn(f64, f64) -> f64,
-}
-
-struct BitwiseOps {
-    protocol: &'static Protocol,
-    signed_op: fn(&mut i64, i64),
-    unsigned_op: fn(&mut u64, u64),
-    bool_op: fn(&mut bool, bool),
-}
-
-struct ShiftOps {
-    protocol: &'static Protocol,
-    error: fn() -> VmErrorKind,
-    signed_op: fn(i64, u32) -> Option<i64>,
-    unsigned_op: fn(u64, u32) -> Option<u64>,
-}
-
 enum TargetFallback {
     Value(Value, Value),
     Field(Value, Hash, Value),
@@ -3760,6 +3427,7 @@ enum TargetValue<'a> {
     Fallback(TargetFallback),
 }
 
+#[inline]
 fn target_value<'a>(
     stack: &'a mut Stack,
     unit: &Unit,
