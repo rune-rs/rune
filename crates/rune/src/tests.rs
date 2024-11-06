@@ -25,7 +25,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Item, ItemBuf, Module, Options, Source, Sources, Value, Vm,
+        FromValue, Hash, Item, ItemBuf, Module, Source, Sources, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 
@@ -43,7 +43,7 @@ use ::rust_alloc::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
 
-use crate::runtime::{Args, VmError};
+use crate::runtime::{GuardedArgs, VmError};
 use crate::{
     alloc, termcolor, BuildError, Context, Diagnostics, FromValue, Hash, Options, Source, Sources,
     Unit, Vm,
@@ -149,7 +149,7 @@ pub fn run_helper<T>(
     context: &Context,
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
-    args: impl Args,
+    args: impl GuardedArgs,
     script: bool,
 ) -> Result<T, TestError>
 where
@@ -157,16 +157,13 @@ where
 {
     let mut vm = vm(context, sources, diagnostics, script)?;
 
-    let mut execute = if script {
-        vm.execute(Hash::EMPTY, args).map_err(TestError::VmError)?
+    let result = if script {
+        ::futures_executor::block_on(vm.async_call(Hash::EMPTY, args))
     } else {
-        vm.execute(["main"], args).map_err(TestError::VmError)?
+        ::futures_executor::block_on(vm.async_call(["main"], args))
     };
 
-    let output = ::futures_executor::block_on(execute.async_complete())
-        .into_result()
-        .map_err(TestError::VmError)?;
-
+    let output = result.map_err(TestError::VmError)?;
     crate::from_value(output).map_err(|error| TestError::VmError(error.into()))
 }
 
@@ -180,7 +177,7 @@ pub fn sources(source: &str) -> Sources {
 }
 
 /// Run the given source with diagnostics being printed to stderr.
-pub fn run<T>(context: &Context, source: &str, args: impl Args, script: bool) -> Result<T>
+pub fn run<T>(context: &Context, source: &str, args: impl GuardedArgs, script: bool) -> Result<T>
 where
     T: FromValue,
 {
@@ -487,6 +484,7 @@ mod getter_setter;
 mod iterator;
 #[cfg(not(miri))]
 mod macros;
+mod matching;
 #[cfg(not(miri))]
 mod moved;
 #[cfg(not(miri))]
