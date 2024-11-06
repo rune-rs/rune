@@ -13,12 +13,8 @@ fn test_import_cycle() {
         }
 
         use self::a::Foo;
-
-        pub fn main() {
-            Foo
-        }             
         "#,
-        span!(244, 247), ImportCycle { .. }
+        span!(49, 69), ImportCycle { .. }
     };
 
     assert_errors! {

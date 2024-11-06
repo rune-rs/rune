@@ -17,9 +17,7 @@ fn test_grouped_imports() {
             }
         }
 
-        pub fn main() {
-            (c::VALUE, Foo::Bar is a::b::Foo, Baz is a::b::Foo)
-        }
+        (c::VALUE, Foo::Bar is a::b::Foo, Baz is a::b::Foo)
     };
     assert_eq!(out, (2, true, true));
 }
@@ -28,20 +26,23 @@ fn test_grouped_imports() {
 fn test_reexport() {
     let out: i64 = rune! {
         mod inner { pub fn func() { 42 } }
-        pub use self::inner::func as main;
+        use self::inner::func as main;
+        main()
     };
     assert_eq!(out, 42);
 
     let out: i64 = rune! {
         mod inner { pub fn func() { 42 } }
-        pub use crate::inner::func as main;
+        use crate::inner::func as main;
+        main()
     };
     assert_eq!(out, 42);
 
     let out: i64 = rune! {
         mod inner2 { pub fn func() { 42 } }
         mod inner1 { pub use super::inner2::func; }
-        pub use crate::inner1::func as main;
+        use crate::inner1::func as main;
+        main()
     };
 
     assert_eq!(out, 42);

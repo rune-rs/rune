@@ -2,28 +2,28 @@ prelude!();
 
 macro_rules! test_case {
     (($($k:tt)*), $field:tt, $index:tt, $($extra:tt)*) => {
-        let out: bool = rune!(pub fn main() { let m = $($k)*; m[return true]; false } $($extra)*);
+        let out: bool = rune!(fn main() { let m = $($k)*; m[return true]; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)*);
+        let out: bool = rune!(fn main() { let m = $($k)*; m[return true] = 0; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)*);
+        let out: bool = rune!(fn main() { let m = $($k)*; m[$index] = return true; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { let m = $($k)*; m.$field = return true; false } $($extra)*);
+        let out: bool = rune!(fn main() { let m = $($k)*; m.$field = return true; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { $($k)*[return true]; false } $($extra)*);
+        let out: bool = rune!(fn main() { $($k)*[return true]; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { $($k)*[return true] = 0; false } $($extra)*);
+        let out: bool = rune!(fn main() { $($k)*[return true] = 0; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { $($k)*[$index] = return true; false } $($extra)*);
+        let out: bool = rune!(fn main() { $($k)*[$index] = return true; false } $($extra)* main());
         assert_eq!(out, true);
 
-        let out: bool = rune!(pub fn main() { $($k)*.$field = return true; false } $($extra)*);
+        let out: bool = rune!(fn main() { $($k)*.$field = return true; false } $($extra)* main());
         assert_eq!(out, true);
     };
 

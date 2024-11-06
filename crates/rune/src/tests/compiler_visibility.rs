@@ -15,9 +15,7 @@ fn test_working_visibility() {
             pub fn visible() { b::hidden() }
         }
 
-        pub fn main() {
-            a::visible()
-        }
+        a::visible()
     };
 
     assert_eq!(output, 42);
@@ -58,7 +56,7 @@ fn test_hidden_reexport() {
             pub fn test() { Foo }
         }
 
-        pub fn main() { b::test() }
+        b::test()
         "#,
         span, NotVisible { .. } => {
             assert_eq!(span, span!(107, 110));
@@ -85,9 +83,7 @@ fn test_indirect_access() {
             }
         }
 
-        pub fn main() {
-            d::e::test().0
-        }
+        d::e::test().0
     };
 
     assert_eq!(result, 2);
@@ -119,9 +115,7 @@ fn test_rust_example() {
             }
         }
 
-        pub fn main() {
-            submodule::my_method();
-        }
+        submodule::my_method();
     };
 }
 
@@ -134,9 +128,7 @@ fn test_access_super() {
             pub fn test() { let _ = super::Test; 1 }
         }
 
-        pub fn main() {
-            c::test()
-        }
+        c::test()
     };
 
     assert_eq!(value, 1);
@@ -145,9 +137,7 @@ fn test_access_super() {
         mod a { pub(super) fn test() { 1 } }
         mod b { pub fn test() { crate::a::test() } }
 
-        pub fn main() {
-            b::test()
-        }
+        b::test()
     };
 
     assert_eq!(value, 1);

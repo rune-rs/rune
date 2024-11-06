@@ -19,23 +19,20 @@ fn custom_try() -> Result<()> {
         }
     })?;
 
-    assert_eq!(
-        42,
-        rune_n! {
-            &module,
-            (CustomResult(true),),
-            i64 => pub fn main(r) { r? }
-        }
-    );
+    let n: u32 = rune_n! {
+        mod module,
+        (CustomResult(true),),
+        pub fn main(r) { r? }
+    };
 
-    assert_eq!(
-        Err(0),
-        rune_n! {
-            &module,
-            (CustomResult(false),),
-            Result<(), i64> => pub fn main(r) { r? }
-        }
-    );
+    assert_eq!(n, 42);
 
+    let result: Result<(), i64> = rune_n! {
+        mod module,
+        (CustomResult(false),),
+        pub fn main(r) { r? }
+    };
+
+    assert_eq!(result, Err(0));
     Ok(())
 }

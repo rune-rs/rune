@@ -25,7 +25,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
         from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Item, ItemBuf, Module, Source, Sources, Value, Vm,
+        FromValue, Hash, Item, ItemBuf, Module, Options, Source, Sources, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 
@@ -43,11 +43,10 @@ use ::rust_alloc::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
 
-use crate::alloc;
-use crate::item::IntoComponent;
 use crate::runtime::{Args, VmError};
 use crate::{
-    termcolor, BuildError, Context, Diagnostics, FromValue, ItemBuf, Source, Sources, Unit, Vm,
+    alloc, termcolor, BuildError, Context, Diagnostics, FromValue, Hash, Options, Source, Sources,
+    Unit, Vm,
 };
 
 /// An error that can be raised during testing.
@@ -97,9 +96,13 @@ pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Uni
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source)?)?;
 
+    let mut options = Options::default();
+    options.script(true);
+
     let unit = crate::prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(diagnostics)
+        .with_options(&options)
         .build()?;
 
     Ok(unit)
@@ -111,10 +114,18 @@ pub fn vm(
     context: &Context,
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
+    script: bool,
 ) -> Result<Vm, TestError> {
+    let mut options = Options::default();
+
+    if script {
+        options.script(true);
+    }
+
     let result = crate::prepare(sources)
         .with_context(context)
         .with_diagnostics(diagnostics)
+        .with_options(&options)
         .build();
 
     let Ok(unit) = result else {
@@ -134,24 +145,23 @@ pub fn vm(
 
 /// Call the specified function in the given script sources.
 #[doc(hidden)]
-pub fn run_helper<N, A, T>(
+pub fn run_helper<T>(
     context: &Context,
     sources: &mut Sources,
     diagnostics: &mut Diagnostics,
-    function: N,
-    args: A,
+    args: impl Args,
+    script: bool,
 ) -> Result<T, TestError>
 where
-    N: IntoIterator,
-    N::Item: IntoComponent,
-    A: Args,
     T: FromValue,
 {
-    let mut vm = vm(context, sources, diagnostics)?;
+    let mut vm = vm(context, sources, diagnostics, script)?;
 
-    let item = ItemBuf::with_item(function)?;
-
-    let mut execute = vm.execute(&item, args).map_err(TestError::VmError)?;
+    let mut execute = if script {
+        vm.execute(Hash::EMPTY, args).map_err(TestError::VmError)?
+    } else {
+        vm.execute(["main"], args).map_err(TestError::VmError)?
+    };
 
     let output = ::futures_executor::block_on(execute.async_complete())
         .into_result()
@@ -170,19 +180,16 @@ pub fn sources(source: &str) -> Sources {
 }
 
 /// Run the given source with diagnostics being printed to stderr.
-pub fn run<N, A, T>(context: &Context, source: &str, function: N, args: A) -> Result<T>
+pub fn run<T>(context: &Context, source: &str, args: impl Args, script: bool) -> Result<T>
 where
-    N: IntoIterator,
-    N::Item: IntoComponent,
-    A: Args,
     T: FromValue,
 {
     let mut sources = Sources::new();
-    sources.insert(Source::new("main", source)?)?;
+    sources.insert(Source::memory(source)?)?;
 
     let mut diagnostics = Default::default();
 
-    let e = match run_helper(context, &mut sources, &mut diagnostics, function, args) {
+    let e = match run_helper(context, &mut sources, &mut diagnostics, args, script) {
         Ok(value) => return Ok(value),
         Err(e) => e,
     };
@@ -229,7 +236,7 @@ where
     let source = source.as_ref();
     let context = Context::with_default_modules().expect("Failed to build context");
 
-    match run(&context, source, ["main"], ()) {
+    match run(&context, source, (), true) {
         Ok(output) => output,
         Err(error) => {
             panic!("Program failed to run:\n{error}\n{source}");
@@ -257,10 +264,10 @@ macro_rules! rune_assert {
 /// of native Rust data. This also accepts a tuple of arguments in the second
 /// position, to pass native objects as arguments to the script.
 macro_rules! rune_n {
-    ($module:expr, $args:expr, $ty:ty => $($tt:tt)*) => {{
+    ($(mod $module:expr,)* $args:expr, $($tt:tt)*) => {{
         let mut context = $crate::Context::with_default_modules().expect("Failed to build context");
-        context.install($module).expect("Failed to install native module");
-        $crate::tests::run::<_, _, $ty>(&context, stringify!($($tt)*), ["main"], $args).expect("Program ran unsuccessfully")
+        $(context.install(&$module).expect("Failed to install native module");)*
+        $crate::tests::run(&context, stringify!($($tt)*), $args, false).expect("Program ran unsuccessfully")
     }};
 }
 
@@ -277,7 +284,7 @@ macro_rules! assert_vm_error {
         let mut diagnostics = Default::default();
 
         let mut sources = $crate::tests::sources($source);
-        let e = match $crate::tests::run_helper::<_, _, $ty>(&context, &mut sources, &mut diagnostics, ["main"], ()) {
+        let e = match $crate::tests::run_helper::<$ty>(&context, &mut sources, &mut diagnostics, (), true) {
             Err(e) => e,
             actual => {
                 expected!("program error", Err(e), actual, $source)
@@ -429,8 +436,6 @@ mod bugfixes;
 mod builtin_macros;
 #[cfg(not(miri))]
 mod capture;
-#[cfg(not(miri))]
-mod collections;
 #[cfg(not(miri))]
 mod comments;
 #[cfg(not(miri))]

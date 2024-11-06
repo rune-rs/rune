@@ -12,14 +12,14 @@ fn test_from_value_object_like() {
     let value: Proxy = rune! {
         struct Ignored;
         struct Value { field, ignored }
-        pub fn main() { Value { field: 42, ignored: Ignored } }
+        Value { field: 42, ignored: Ignored }
     };
 
     assert_eq!(value.field, 42);
 
     let value: Proxy = rune! {
         struct Ignored;
-        pub fn main() { #{ field: 42, ignored: Ignored } }
+        #{ field: 42, ignored: Ignored }
     };
 
     assert_eq!(value.field, 42);
@@ -32,15 +32,12 @@ fn test_from_value_tuple_like() {
 
     let value: Proxy = rune! {
         struct Value(field);
-        pub fn main() { Value(42) }
+        Value(42)
     };
 
     assert_eq!(value.0, 42);
 
-    let value: Proxy = rune! {
-        pub fn main() { (42,) }
-    };
-
+    let value: Proxy = rune!((42,));
     assert_eq!(value.0, 42);
 }
 
@@ -54,11 +51,9 @@ fn test_missing_dynamic_field() {
 
     assert_vm_error!(
         ProxyStruct => r#"
-        pub fn main() {
-            struct Ignored;
-            struct Value { other, ignored }
-            Value { other: 42, ignored: Ignored }
-        }
+        struct Ignored;
+        struct Value { other, ignored }
+        Value { other: 42, ignored: Ignored }
         "#,
         MissingStructField { target, name } => {
             assert!(target.ends_with("::test_missing_dynamic_field::ProxyStruct"));
@@ -72,11 +67,9 @@ fn test_missing_dynamic_field() {
 
     assert_vm_error!(
         ProxyTuple => r#"
-        pub fn main() {
-            struct Ignored;
-            struct Value(other);
-            Value(42)
-        }
+        struct Ignored;
+        struct Value(other);
+        Value(42)
         "#,
         MissingTupleIndex { target, index } => {
             assert!(target.ends_with("::test_missing_dynamic_field::ProxyTuple"));
@@ -95,28 +88,22 @@ fn test_enum_proxy() {
     }
 
     let proxy: Proxy = rune! {
-        pub fn main() {
-            enum Proxy { Empty, Tuple(a), Struct { field } }
-            Proxy::Empty
-        }
+        enum Proxy { Empty, Tuple(a), Struct { field } }
+        Proxy::Empty
     };
 
     assert_eq!(proxy, Proxy::Empty);
 
     let proxy: Proxy = rune! {
-        pub fn main() {
-            enum Proxy { Empty, Tuple(a), Struct { field } }
-            Proxy::Tuple("Hello World")
-        }
+        enum Proxy { Empty, Tuple(a), Struct { field } }
+        Proxy::Tuple("Hello World")
     };
 
     assert_eq!(proxy, Proxy::Tuple(String::from("Hello World")));
 
     let proxy: Proxy = rune! {
-        pub fn main() {
-            enum Proxy { Empty, Tuple(a), Struct { field } }
-            Proxy::Struct { field: "Hello World" }
-        }
+        enum Proxy { Empty, Tuple(a), Struct { field } }
+        Proxy::Struct { field: "Hello World" }
     };
 
     assert_eq!(

@@ -6,11 +6,9 @@ prelude!();
 fn test_template_string() {
     let out: String = eval(
         r#"
-        pub fn main() {
-            let name = "John Doe";
-            `Hello ${name}, I am ${1 - 10} years old!`
-        }
-    "#,
+        let name = "John Doe";
+        `Hello ${name}, I am ${1 - 10} years old!`
+        "#,
     );
     assert_eq!(out, "Hello John Doe, I am -9 years old!");
 
@@ -19,16 +17,14 @@ fn test_template_string() {
     // accidentally clobber the scope.
     let out: String = eval(
         r#"
-        pub fn main() {
-            let name = "John Doe";
+        let name = "John Doe";
 
-            `Hello ${name}, I am ${{
-                let a = 20;
-                a += 2;
-                a
-            }} years old!`
-        }
-    "#,
+        `Hello ${name}, I am ${{
+            let a = 20;
+            a += 2;
+            a
+        }} years old!`
+        "#,
     );
     assert_eq!(out, "Hello John Doe, I am 22 years old!");
 }
@@ -41,9 +37,7 @@ fn test_complex_field_access() {
             #{hello: #{world: 42}}
         }
 
-        pub fn main() {
-            Some((foo()).hello["world"])
-        }
+        Some((foo()).hello["world"])
     "#,
     );
     assert_eq!(out, Some(42));

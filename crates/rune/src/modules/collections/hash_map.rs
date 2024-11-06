@@ -61,6 +61,78 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(m)
 }
 
+/// A [hash map] implemented with quadratic probing and SIMD lookup.
+///
+/// By default, `HashMap` uses a hashing algorithm selected to provide
+/// resistance against HashDoS attacks. The algorithm is randomly seeded, and a
+/// reasonable best-effort is made to generate this seed from a high quality,
+/// secure source of randomness provided by the host without blocking the
+/// program. Because of this, the randomness of the seed depends on the output
+/// quality of the system's random number coroutine when the seed is created. In
+/// particular, seeds generated when the system's entropy pool is abnormally low
+/// such as during system boot may be of a lower quality.
+///
+/// The default hashing algorithm is currently SipHash 1-3, though this is
+/// subject to change at any point in the future. While its performance is very
+/// competitive for medium sized keys, other hashing algorithms will outperform
+/// it for small keys such as integers as well as large keys such as long
+/// strings, though those algorithms will typically *not* protect against
+/// attacks such as HashDoS.
+///
+/// The hashing algorithm can be replaced on a per-`HashMap` basis using the
+/// [`default`], [`with_hasher`], and [`with_capacity_and_hasher`] methods.
+/// There are many alternative [hashing algorithms available on crates.io].
+///
+/// It is required that the keys implement the [`EQ`] and [`HASH`] protocols. If
+/// you implement these yourself, it is important that the following property
+/// holds:
+///
+/// ```text
+/// k1 == k2 -> hash(k1) == hash(k2)
+/// ```
+///
+/// In other words, if two keys are equal, their hashes must be equal. Violating
+/// this property is a logic error.
+///
+/// It is also a logic error for a key to be modified in such a way that the
+/// key's hash, as determined by the [`HASH`] protocol, or its equality, as
+/// determined by the [`EQ`] protocol, changes while it is in the map. This is
+/// normally only possible through [`Cell`], [`RefCell`], global state, I/O, or
+/// unsafe code.
+///
+/// The behavior resulting from either logic error is not specified, but will be
+/// encapsulated to the `HashMap` that observed the logic error and not result
+/// in undefined behavior. This could include panics, incorrect results, aborts,
+/// memory leaks, and non-termination.
+///
+/// The hash table implementation is a Rust port of Google's [SwissTable]. The
+/// original C++ version of SwissTable can be found [here], and this [CppCon
+/// talk] gives an overview of how the algorithm works.
+///
+/// [hash map]: crate::collections#use-a-hashmap-when
+/// [hashing algorithms available on crates.io]: https://crates.io/keywords/hasher
+/// [SwissTable]: https://abseil.io/blog/20180927-swisstables
+/// [here]: https://github.com/abseil/abseil-cpp/blob/master/absl/container/internal/raw_hash_set.h
+/// [CppCon talk]: https://www.youtube.com/watch?v=ncHmEUmJZf4
+///
+/// # Examples
+///
+/// ```rune
+/// use std::collections::HashMap;
+///
+/// enum Tile {
+///     Wall,
+/// }
+///
+/// let m = HashMap::new();
+///
+/// m.insert((0, 1), Tile::Wall);
+/// m[(0, 3)] = 5;
+///
+/// assert_eq!(m.get((0, 1)), Some(Tile::Wall));
+/// assert_eq!(m.get((0, 2)), None);
+/// assert_eq!(m[(0, 3)], 5);
+/// ```
 #[derive(Any)]
 #[rune(item = ::std::collections::hash_map)]
 pub(crate) struct HashMap {

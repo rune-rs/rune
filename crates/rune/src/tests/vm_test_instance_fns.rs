@@ -31,9 +31,7 @@ fn test_instance_kinds() {
             }
         }
 
-        pub fn main() {
-            (Foo { n: 3 }.test(1), Custom::A(4).test(), Custom::B{n: 5}.test(), Custom::C.test())
-        }
+        (Foo { n: 3 }.test(1), Custom::A(4).test(), Custom::B{n: 5}.test(), Custom::C.test())
     };
 
     assert_eq!(out, (4, 5, 6, 7));

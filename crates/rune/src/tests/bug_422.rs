@@ -8,10 +8,7 @@ prelude!();
 pub fn test_bug_422() {
     macro_rules! test_case {
         ($expr:expr) => {
-            let value: u32 = rune! {
-                pub fn main() { $expr }
-            };
-
+            let value: u32 = rune!($expr);
             assert_eq!(value, $expr);
         };
     }

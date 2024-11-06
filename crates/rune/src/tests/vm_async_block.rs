@@ -8,10 +8,8 @@ fn test_async_block() {
             output
         }
 
-        pub async fn main() {
-            let value = 42;
-            foo(async { value }).await / foo(async { 2 }).await
-        }
+        let value = 42;
+        foo(async { value }).await / foo(async { 2 }).await
     };
     assert_eq!(out, 21);
 }

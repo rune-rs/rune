@@ -22,41 +22,37 @@ fn struct_match() {
 
     let e = Struct { a: 40, b: 41 };
 
-    assert_eq!(
-        rune_n! {
-            &m,
-            (e,),
-            i64 => pub fn main(v) { match v { Struct { .. } => 2, _ => 0 } }
-        },
-        2
-    );
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Struct { .. } => 2, _ => 0 } }
+    };
 
-    assert_eq!(
-        rune_n! {
-            &m,
-            (e,),
-            i64 => pub fn main(v) { match v { Struct { a, .. } => a, _ => 0 } }
-        },
-        40
-    );
+    assert_eq!(n, 2);
 
-    assert_eq!(
-        rune_n! {
-            &m,
-            (e,),
-            i64 => pub fn main(v) { match v { Struct { b, .. } => b, _ => 0 } }
-        },
-        41
-    );
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Struct { a, .. } => a, _ => 0 } }
+    };
 
-    assert_eq!(
-        rune_n! {
-            &m,
-            (e,),
-            i64 => pub fn main(v) { match v { Struct { a, b } => a + b, _ => 0 } }
-        },
-        81
-    );
+    assert_eq!(n, 40);
+
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Struct { b, .. } => b, _ => 0 } }
+    };
+
+    assert_eq!(n, 41);
+
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Struct { a, b } => a + b, _ => 0 } }
+    };
+
+    assert_eq!(n, 81);
 }
 
 #[test]
@@ -81,36 +77,31 @@ fn enum_match() {
         ($expected:ident, $other:ident) => {{
             let e = Enum::$expected;
 
-            assert_eq!(
-                rune_n! {
-                    &m,
-                    (e,),
-                    i64 => pub fn main(v) { match v { Enum::$expected => 1, Enum::$other => 2, _ => 0 } }
-                },
-                1
-            );
+            let n: u32 = rune_n! {
+                mod m,
+                (e,),
+                pub fn main(v) { match v { Enum::$expected => 1, Enum::$other => 2, _ => 0 } }
+            };
 
-            // TODO: Eventually we want this to be fine - we want the `{ .. }`
-            // pattern to match *any* kind of enum.
-            // assert_eq!(
-            //     rune_n! {
-            //         &m,
-            //         (e,),
-            //         i64 => pub fn main(v) { match v { Enum::$expected { .. } => 1, Enum::$other => 2, _ => 0 } }
-            //     },
-            //     1
-            // );
+            assert_eq!(n, 1);
+
+            let n: u32 = rune_n! {
+                mod m,
+                (e,),
+                pub fn main(v) { match v { Enum::$expected { .. } => 1, Enum::$other => 2, _ => 0 } }
+            };
+
+            assert_eq!(n, 1);
 
             let e = Enum::$other;
 
-            assert_eq!(
-                rune_n! {
-                    &m,
-                    (e,),
-                    i64 => pub fn main(v) { match v { Enum::$expected => 1, Enum::$other => 2, _ => 0 } }
-                },
-                2
-            );
+            let n: u32 = rune_n! {
+                mod m,
+                (e,),
+                pub fn main(v) { match v { Enum::$expected => 1, Enum::$other => 2, _ => 0 } }
+            };
+
+            assert_eq!(n, 2);
         }}
     }
 

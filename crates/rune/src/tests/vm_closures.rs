@@ -2,8 +2,7 @@ prelude!();
 
 #[test]
 fn test_closure_in_lit_vec() -> VmResult<()> {
-    let ret: VecTuple<(i64, Function, Function, i64)> =
-        eval(r#"pub fn main() { let a = 4; [0, || 2, || 4, 3] }"#);
+    let ret: VecTuple<(i64, Function, Function, i64)> = eval(r#"let a = 4; [0, || 2, || 4, 3]"#);
 
     let (start, first, second, end) = ret.0;
     assert_eq!(0, start);
@@ -15,8 +14,7 @@ fn test_closure_in_lit_vec() -> VmResult<()> {
 
 #[test]
 fn test_closure_in_lit_tuple() -> VmResult<()> {
-    let ret: (i64, Function, Function, i64) =
-        eval(r#"pub fn main() { let a = 4; (0, || 2, || a, 3) }"#);
+    let ret: (i64, Function, Function, i64) = eval(r#"let a = 4; (0, || 2, || a, 3)"#);
 
     let (start, first, second, end) = ret;
     assert_eq!(0, start);
@@ -36,7 +34,7 @@ fn test_closure_in_lit_object() -> Result<()> {
         d: i64,
     }
 
-    let proxy: Proxy = eval("pub fn main() { let a = 4; #{a: 0, b: || 2, c: || a, d: 3} }");
+    let proxy: Proxy = eval("let a = 4; #{a: 0, b: || 2, c: || a, d: 3}");
 
     assert_eq!(0, proxy.a);
     assert_eq!(2, proxy.b.call::<i64>(()).into_result()?);

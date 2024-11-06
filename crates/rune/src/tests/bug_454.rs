@@ -16,9 +16,7 @@ pub fn test_bug_454() {
             }
         }
 
-        pub fn main() {
-            let test = Test;
-            assert_eq!(test.call(), 3);
-        }
+        let test = Test;
+        assert_eq!(test.call(), 3);
     };
 }

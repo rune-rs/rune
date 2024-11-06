@@ -4,78 +4,41 @@ prelude!();
 
 #[test]
 fn test_literals() {
-    let out: String = rune!(
-        pub fn main() {
-            "Hello World"
-        }
-    );
+    let out: String = rune!("Hello World");
     assert_eq!(out, "Hello World");
-
-    let out: Bytes = rune!(
-        pub fn main() {
-            b"Hello World"
-        }
-    );
+    let out: Bytes = rune!(b"Hello World");
     assert_eq!(out, b"Hello World"[..]);
-
-    let out: u8 = rune!(
-        pub fn main() {
-            b'0'
-        }
-    );
+    let out: u8 = rune!(b'0');
     assert_eq!(out, b'0');
-    let out: u8 = rune!(
-        pub fn main() {
-            b'\xaf'
-        }
-    );
+    let out: u8 = rune!(b'\xaf');
     assert_eq!(out, b'\xaf');
-
-    let out: char = rune!(
-        pub fn main() {
-            '\x60'
-        }
-    );
+    let out: char = rune!('\x60');
     assert_eq!(out, '\x60');
-    let out: char = rune!(
-        pub fn main() {
-            '\u{1F4AF}'
-        }
-    );
+    let out: char = rune!('\u{1F4AF}');
     assert_eq!(out, '\u{1F4AF}');
-    let out: char = rune!(
-        pub fn main() {
-            '💯'
-        }
-    );
+    let out: char = rune!('💯');
     assert_eq!(out, '💯');
 }
 
 #[test]
 fn test_string_literals() {
     let out: String = rune!(
-        pub fn main() {
-            "
+        "
     "
-        }
     );
     assert_eq!(out, "\n    ");
 
     let out: String = rune!(
-        pub fn main() {
-            "\
+        "\
     "
-        }
     );
     assert_eq!(out, "");
 
     let out: String = rune!(
-        pub fn main() {
-            "\
+        "\
     a \
 \
     b"
-        }
     );
     assert_eq!(out, "a b");
 }
@@ -83,28 +46,22 @@ fn test_string_literals() {
 #[test]
 fn test_byte_string_literals() {
     let out: Bytes = rune!(
-        pub fn main() {
-            b"
+        b"
     "
-        }
     );
     assert_eq!(out, b"\n    "[..]);
 
     let out: Bytes = rune!(
-        pub fn main() {
-            b"\
+        b"\
     "
-        }
     );
     assert_eq!(out, b""[..]);
 
     let out: Bytes = rune!(
-        pub fn main() {
-            b"\
+        b"\
     a \
 \
     b"
-        }
     );
     assert_eq!(out, b"a b"[..]);
 }
@@ -117,11 +74,7 @@ fn test_number_literals() {
         };
 
         ($lit:expr, $ty:ty) => {
-            let out: $ty = rune!(
-                pub fn main() {
-                    $lit
-                }
-            );
+            let out: $ty = rune!($lit);
             assert_eq!(out, $lit);
         };
     }
