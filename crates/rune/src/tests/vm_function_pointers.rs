@@ -6,24 +6,9 @@ prelude!();
 fn vm_execution_unit_fn() -> Result<()> {
     let context = Context::with_default_modules()?;
 
-    let function: Function = run(
-        &context,
-        r#"
-        fn test() { 42 }
-        pub fn main() { test }
-        "#,
-        ["main"],
-        (),
-    )?;
+    let function: Function = run(&context, "fn test() { 42 } test", (), true)?;
 
-    let output: i64 = run(
-        &context,
-        r#"
-        pub fn main(f) { f() }
-        "#,
-        ["main"],
-        (function,),
-    )?;
+    let output: i64 = run(&context, "pub fn main(f) { f() }", (function,), false)?;
 
     assert_eq!(42, output);
     Ok(())
@@ -46,10 +31,10 @@ fn vm_execution_with_complex_external() -> Result<()> {
         r#"
         fn unit() { 84 }
         fn function() { (external, unit) }
-        pub fn main() { function }
+        function
         "#,
-        ["main"],
         (),
+        true,
     )?;
 
     let (o1, o2): (i64, i64) = run(
@@ -60,8 +45,8 @@ fn vm_execution_with_complex_external() -> Result<()> {
             (f1(), f2())
         }
         "#,
-        ["main"],
         (function,),
+        false,
     )?;
 
     assert_eq!(o1, 42);
@@ -81,10 +66,10 @@ fn test_external_generator() -> Result<()> {
         &context,
         r#"
         fn test() { yield 42; }
-        pub fn main() { test }
+        test
         "#,
-        ["main"],
         (),
+        true,
     )?;
 
     let output: (Option<i64>, Option<i64>) = run(
@@ -92,8 +77,8 @@ fn test_external_generator() -> Result<()> {
         r#"
         pub fn main(f) { let gen = f(); (gen.next(), gen.next()) }
         "#,
-        ["main"],
         (function,),
+        false,
     )?;
 
     assert_eq!((Some(42), None), output);

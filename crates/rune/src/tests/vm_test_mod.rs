@@ -15,9 +15,7 @@ fn test_nested_mods() {
             }
         }
 
-        pub fn main() {
-            hello::test()
-        }
+        hello::test()
     };
     assert_eq!(out, 3);
 }

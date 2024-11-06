@@ -22,32 +22,34 @@ fn make_native_module() -> Result<Module, ContextError> {
     module.ty::<NativeStructWithProtocol>()?;
     module.function_meta(NativeStructWithProtocol::debug_fmt)?;
     module.ty::<NativeStructWithoutProtocol>()?;
-
     Ok(module)
 }
 
 #[test]
 fn test_with_debug_fmt() {
     let t1 = NativeStructWithProtocol;
-    assert_eq!(
-        rune_n! {
-            make_native_module().expect("failed making native module"),
-            (t1, ),
-            String =>
-            pub fn main(v) { format!("{:?}", v) }
-        },
-        "NativeStructWithProtocol"
-    );
+
+    let m = make_native_module().unwrap();
+
+    let s: String = rune_n! {
+        mod m,
+        (t1,),
+        pub fn main(v) { format!("{v:?}") }
+    };
+
+    assert_eq!(s, "NativeStructWithProtocol");
 }
 
 #[test]
 fn test_without_debug_fmt() {
     let t1 = NativeStructWithoutProtocol;
-    let result = rune_n! {
-        make_native_module().expect("failed making native module"),
-        (t1, ),
-        String =>
-            pub fn main(v) { format!("{:?}", v) }
+
+    let m = make_native_module().unwrap();
+
+    let result: String = rune_n! {
+        mod m,
+        (t1,),
+        pub fn main(v) { format!("{v:?}") }
     };
 
     assert!(

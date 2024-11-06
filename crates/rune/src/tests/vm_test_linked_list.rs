@@ -68,22 +68,20 @@ fn test_linked_list() {
             }
         }
 
-        pub fn main() {
-            let ll = List::new();
-            ll.push_back(1);
-            ll.push_back(2);
-            ll.push_back(3);
+        let ll = List::new();
+        ll.push_back(1);
+        ll.push_back(2);
+        ll.push_back(3);
 
-            let it = ll.iter();
+        let it = ll.iter();
 
-            let out = [];
+        let out = [];
 
-            while let Some(value) = Iter::next(it) {
-                out.push(value);
-            }
-
-            out
+        while let Some(value) = Iter::next(it) {
+            out.push(value);
         }
+
+        out
     };
 
     assert_eq!(out, vec![1, 2, 3]);

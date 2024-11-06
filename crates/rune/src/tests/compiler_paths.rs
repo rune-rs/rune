@@ -27,7 +27,7 @@ fn test_super_self_crate_mod() {
 
         fn root() { 0b1 }
 
-        pub fn main() { Foo::foo() }
+        Foo::foo()
     };
     assert_eq!(out, 0b111111);
 }
@@ -49,7 +49,7 @@ fn test_super_use() {
 
         const VALUE = 1;
 
-        pub fn main() { x::y::foo() }
+        x::y::foo()
     };
     assert_eq!(out, 3);
 }

@@ -28,53 +28,57 @@ fn make_native_module() -> Result<Module, ContextError> {
 #[test]
 fn test_struct() {
     let t1 = NativeStruct(1);
-    assert_eq!(
-        rune_n! {
-            make_native_module().expect("failed making native module"),
-            (t1, ),
-            String =>
-                pub fn main(v) { std::any::type_name_of_val(v) }
-        },
-        "::native_crate::NativeStruct"
-    );
+
+    let m = make_native_module().expect("failed making native module");
+
+    let s: String = rune_n! {
+        mod m,
+        (t1,),
+        pub fn main(v) { std::any::type_name_of_val(v) }
+    };
+
+    assert_eq!(s, "::native_crate::NativeStruct");
 }
 
 #[test]
 fn test_fn() {
-    assert_eq!(
-        rune_n! {
-            make_native_module().expect("failed making native module"),
-            (),
-            String => pub fn main() { std::any::type_name_of_val(native_crate::native_fn) }
-        },
-        "::std::ops::Function"
-    );
+    let m = make_native_module().expect("failed making native module");
+
+    let s: String = rune_n! {
+        mod m,
+        (),
+        pub fn main() { std::any::type_name_of_val(native_crate::native_fn) }
+    };
+
+    assert_eq!(s, "::std::ops::Function");
 }
 
 #[test]
 fn test_inst_fn() {
-    assert_eq!(
-        rune_n! {
-            make_native_module().expect("failed making native module"),
-            (),
-            String =>
-            pub fn main() {
-                std::any::type_name_of_val(native_crate::NativeStruct::instance_fn)
-            }
-        },
-        "::std::ops::Function"
-    );
+    let m = make_native_module().expect("failed making native module");
+
+    let s: String = rune_n! {
+        mod m,
+        (),
+        pub fn main() {
+            std::any::type_name_of_val(native_crate::NativeStruct::instance_fn)
+        }
+    };
+
+    assert_eq!(s, "::std::ops::Function");
 }
 
 #[test]
 fn test_field_fn() {
     let t1 = NativeStruct(1);
-    assert_eq!(
-        rune_n! {
-            make_native_module().expect("failed making native module"),
-            (t1, ),
-            String => pub fn main(val) { std::any::type_name_of_val(val.x) }
-        },
-        "::std::u64"
-    );
+
+    let m = make_native_module().expect("failed making native module");
+
+    let s: String = rune_n! {
+        mod m,
+        (t1, ),
+        pub fn main(val) { std::any::type_name_of_val(val.x) }
+    };
+
+    assert_eq!(s, "::std::u64");
 }

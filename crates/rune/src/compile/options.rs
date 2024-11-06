@@ -128,7 +128,7 @@ pub struct Options {
 
 impl Options {
     /// The default options.
-    const DEFAULT: Options = Options {
+    pub(crate) const DEFAULT: Options = Options {
         link_checks: true,
         memoize_instance_fn: true,
         debug_info: true,
@@ -441,5 +441,18 @@ impl Options {
     /// Memoize the instance function in a loop. Defaults to `false`.
     pub fn memoize_instance_fn(&mut self, enabled: bool) {
         self.memoize_instance_fn = enabled;
+    }
+
+    /// Whether to build sources as scripts where the source is executed like a
+    /// function body.
+    pub fn script(&mut self, enabled: bool) {
+        self.function_body = enabled;
+    }
+}
+
+impl Default for Options {
+    #[inline]
+    fn default() -> Self {
+        Options::DEFAULT
     }
 }

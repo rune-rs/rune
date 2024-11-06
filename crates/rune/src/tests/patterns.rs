@@ -7,11 +7,7 @@ use VmErrorKind::*;
 fn test_bad_pattern() {
     // Attempting to assign to an unmatched pattern leads to a panic.
     assert_vm_error!(
-        r#"
-        pub fn main() {
-            let [] = [1, 2, 3];
-        }
-        "#,
+        "let [] = [1, 2, 3];",
         Panic { reason } => {
             assert_eq!(reason.to_string(), "pattern did not match");
         }
@@ -34,14 +30,12 @@ fn test_const_in_pattern() {
                     }}
                 }};
 
-                pub fn main() {{
-                    let value = {pat1};
-                    let a = match value {{ PAT => 1, _ => 5 }};
-                    let b = match value {{ PAT2 => 2, _ => 6 }};
-                    let c = match value {{ PAT3 => 3, _ => 7 }};
-                    let d = match value {{ PAT4 => 4, _ => 8 }};
-                    (a, b, c, d)
-                }}
+                let value = {pat1};
+                let a = match value {{ PAT => 1, _ => 5 }};
+                let b = match value {{ PAT2 => 2, _ => 6 }};
+                let c = match value {{ PAT3 => 3, _ => 7 }};
+                let d = match value {{ PAT4 => 4, _ => 8 }};
+                (a, b, c, d)
                 "#,
                 pat1 = $pat1,
                 pat2 = $pat2,

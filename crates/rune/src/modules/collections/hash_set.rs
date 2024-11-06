@@ -66,6 +66,49 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(m)
 }
 
+/// A [hash set] implemented as a `HashMap` where the value is `()`.
+///
+/// As with the [`HashMap`] type, a `HashSet` requires that the elements
+/// implement the [`EQ`] and [`HASH`] protocols. If you implement these
+/// yourself, it is important that the following property holds:
+///
+/// ```text
+/// k1 == k2 -> hash(k1) == hash(k2)
+/// ```
+///
+/// In other words, if two keys are equal, their hashes must be equal. Violating
+/// this property is a logic error.
+///
+/// It is also a logic error for a key to be modified in such a way that the
+/// key's hash, as determined by the [`HASH`] protocol, or its equality, as
+/// determined by the [`EQ`] protocol, changes while it is in the map. This is
+/// normally only possible through [`Cell`], [`RefCell`], global state, I/O, or
+/// unsafe code.
+///
+/// The behavior resulting from either logic error is not specified, but will be
+/// encapsulated to the `HashSet` that observed the logic error and not result
+/// in undefined behavior. This could include panics, incorrect results, aborts,
+/// memory leaks, and non-termination.
+///
+/// [hash set]: crate::collections#use-the-set-variant-of-any-of-these-maps-when
+/// [`HashMap`]: crate::collections::HashMap
+///
+/// # Examples
+///
+/// ```rune
+/// use std::collections::HashSet;
+///
+/// enum Tile {
+///     Wall,
+/// }
+///
+/// let m = HashSet::new();
+///
+/// m.insert((0, 1));
+///
+/// assert!(m.contains((0, 1)));
+/// assert!(!m.contains((0, 2)));
+/// ```
 #[derive(Any)]
 #[rune(module = crate, item = ::std::collections::hash_set)]
 pub(crate) struct HashSet {

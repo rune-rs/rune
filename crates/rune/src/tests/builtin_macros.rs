@@ -12,14 +12,21 @@ macro_rules! capture {
         let mut context = Context::with_config(false).context("building context")?;
         context.install(module).context("installing module")?;
 
-        let source = Source::memory(concat!("pub fn main() { ", stringify!($($tt)*), " }")).context("building source")?;
+        let source = Source::memory(stringify!($($tt)*)).context("building source")?;
 
         let mut sources = Sources::new();
         sources.insert(source).context("inserting source")?;
 
         let mut diagnostics = Diagnostics::new();
 
-        let unit = prepare(&mut sources).with_context(&context).with_diagnostics(&mut diagnostics).build();
+        let mut options = Options::default();
+        options.script(true);
+
+        let unit = prepare(&mut sources)
+            .with_context(&context)
+            .with_diagnostics(&mut diagnostics)
+            .with_options(&options)
+            .build();
 
         if !diagnostics.is_empty() {
             let mut writer = StandardStream::stderr(ColorChoice::Always);
@@ -32,7 +39,7 @@ macro_rules! capture {
         let context = Arc::new(context);
 
         let mut vm = Vm::new(context, unit);
-        vm.call(["main"], ()).context("calling main")?;
+        vm.call(Hash::EMPTY, ()).context("calling main")?;
         capture.drain_utf8().context("draining utf-8 capture")?
     }};
 }
@@ -45,7 +52,7 @@ macro_rules! test_case {
         let string = capture!($($prefix)* print!($($format)*));
         assert_eq!(string, $expected, "Expecting print!");
 
-        let string: String = rune!(pub fn main() { $($prefix)* format!($($format)*) });
+        let string: String = rune!($($prefix)* format!($($format)*));
         assert_eq!(string, $expected, "Expecting format!");
     }}
 }

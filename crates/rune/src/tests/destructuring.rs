@@ -9,34 +9,30 @@ macro_rules! test_case {
                 a + b
             }
 
-            pub fn main() {
-                let n = 0;
+            let n = 0;
 
-                for (a, b) in [(1, 2), (2, 3), (3, 4)] {
-                    n += foo($($st)*);
-                }
-
-                n
+            for (a, b) in [(1, 2), (2, 3), (3, 4)] {
+                n += foo($($st)*);
             }
+
+            n
         };
         assert_eq!(out, 15);
 
         let out: i64 = rune! {
             $($($extra)*)?
 
-            pub fn main() {
-                let foo = |$($ds)*| {
-                    a + b
-                };
+            let foo = |$($ds)*| {
+                a + b
+            };
 
-                let n = 0;
+            let n = 0;
 
-                for (a, b) in [(1, 2), (2, 3), (3, 4)] {
-                    n += foo($($st)*);
-                }
-
-                n
+            for (a, b) in [(1, 2), (2, 3), (3, 4)] {
+                n += foo($($st)*);
             }
+
+            n
         };
         assert_eq!(out, 15);
     }

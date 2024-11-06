@@ -381,11 +381,11 @@ impl Vm {
     /// println!("output: {}", output);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn execute<A, N>(&mut self, name: N, args: A) -> Result<VmExecution<&mut Self>, VmError>
-    where
-        N: ToTypeHash,
-        A: Args,
-    {
+    pub fn execute(
+        &mut self,
+        name: impl ToTypeHash,
+        args: impl Args,
+    ) -> Result<VmExecution<&mut Self>, VmError> {
         self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack).into_result()?;
         Ok(VmExecution::new(self))
@@ -397,11 +397,11 @@ impl Vm {
     /// This is accomplished by preventing values escaping from being
     /// non-exclusively sent with the execution or escaping the execution. We
     /// only support encoding arguments which themselves are `Send`.
-    pub fn send_execute<A, N>(mut self, name: N, args: A) -> Result<VmSendExecution, VmError>
-    where
-        N: ToTypeHash,
-        A: Send + Args,
-    {
+    pub fn send_execute(
+        mut self,
+        name: impl ToTypeHash,
+        args: impl Args + Send,
+    ) -> Result<VmSendExecution, VmError> {
         // Safety: make sure the stack is clear, preventing any values from
         // being sent along with the virtual machine.
         self.stack.clear();

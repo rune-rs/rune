@@ -3,27 +3,28 @@ prelude!();
 macro_rules! test_op {
     ($ty:ty => $lhs:literal $op:tt $rhs:literal = $result:literal) => {{
         let program = format!(
-            r#"const A = {lhs}; const B = {rhs}; const VALUE = A {op} B; pub fn main() {{ VALUE }}"#,
-            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+            r#"const A = {lhs}; const B = {rhs}; const VALUE = A {op} B; VALUE"#,
+            lhs = $lhs,
+            rhs = $rhs,
+            op = stringify!($op),
         );
 
         let out: $ty = eval(&program);
 
         assert_eq!(
-            out,
-            $result,
+            out, $result,
             concat!("expected ", stringify!($result), " out of program `{}`"),
             program
         );
-    }}
+    }};
 }
 
 #[test]
 fn test_const_values() {
-    let out: bool = rune!(const VALUE = true; pub fn main() { VALUE });
+    let out: bool = rune!(const VALUE = true; VALUE);
     assert_eq!(out, true);
 
-    let out: String = rune!(const VALUE = "Hello World"; pub fn main() { VALUE });
+    let out: String = rune!(const VALUE = "Hello World"; VALUE);
     assert_eq!(out, "Hello World");
 
     let out: String = eval(
@@ -33,7 +34,7 @@ fn test_const_values() {
         const A = 1;
         const B = 1.0;
         const C = true;
-        pub fn main() { VALUE }
+        VALUE
     "#,
     );
     assert_eq!(out, "Hello World 1 1.0 true");
@@ -60,19 +61,20 @@ fn test_integer_ops() {
 macro_rules! test_float_op {
     ($ty:ty => $lhs:literal $op:tt $rhs:literal = $result:literal) => {{
         let program = format!(
-            r#"const A = {lhs}.0; const B = {rhs}.0; const VALUE = A {op} B; pub fn main() {{ VALUE }}"#,
-            lhs = $lhs, rhs = $rhs, op = stringify!($op),
+            r#"const A = {lhs}.0; const B = {rhs}.0; const VALUE = A {op} B; VALUE"#,
+            lhs = $lhs,
+            rhs = $rhs,
+            op = stringify!($op),
         );
 
         let out: $ty = eval(&program);
 
         assert_eq!(
-            out,
-            $result,
+            out, $result,
             concat!("expected ", stringify!($result), " out of program `{}`"),
             program
         );
-    }}
+    }};
 }
 
 #[test]
@@ -93,22 +95,22 @@ fn test_float_ops() {
 
 #[test]
 fn test_const_collections() {
-    let object: Object = rune!(pub fn main() { VALUE } const VALUE = #{};);
+    let object: Object = rune!(fn main() { VALUE } const VALUE = #{}; main());
     assert!(object.is_empty());
 
-    let tuple: Box<Tuple> = rune!(pub fn main() { VALUE } const VALUE = (););
+    let tuple: Box<Tuple> = rune!(fn main() { VALUE } const VALUE = (); main());
     assert!(tuple.is_empty());
 
-    let tuple: Box<Tuple> = rune!(pub fn main() { VALUE } const VALUE = ("Hello World",););
+    let tuple: Box<Tuple> = rune!(fn main() { VALUE } const VALUE = ("Hello World",); main());
     assert_eq!(
         Some("Hello World"),
         tuple.get_value::<String>(0).unwrap().as_deref()
     );
 
-    let vec: runtime::Vec = rune!(pub fn main() { VALUE } const VALUE = [];);
+    let vec: runtime::Vec = rune!(fn main() { VALUE } const VALUE = []; main());
     assert!(vec.is_empty());
 
-    let vec: runtime::Vec = rune!(pub fn main() { VALUE } const VALUE = ["Hello World"];);
+    let vec: runtime::Vec = rune!(fn main() { VALUE } const VALUE = ["Hello World"]; main());
     assert_eq!(
         Some("Hello World"),
         vec.get_value::<String>(0).unwrap().as_deref()
@@ -131,7 +133,7 @@ fn test_more_complexity() {
             timeout
         };
 
-        pub fn main() { VALUE }
+        VALUE
     };
 
     assert_eq!(result, 1280);
@@ -141,19 +143,19 @@ fn test_more_complexity() {
 fn test_if_else() {
     let result: i64 = rune! {
         const VALUE = { if true { 1 } else if true { 2 } else { 3 } };
-        pub fn main() { VALUE }
+        VALUE
     };
     assert_eq!(result, 1);
 
     let result: i64 = rune! {
         const VALUE = { if false { 1 } else if true { 2 } else { 3 } };
-        pub fn main() { VALUE }
+        VALUE
     };
     assert_eq!(result, 2);
 
     let result: i64 = rune! {
         const VALUE = { if false { 1 } else if false { 2 } else { 3 } };
-        pub fn main() { VALUE }
+        VALUE
     };
     assert_eq!(result, 3);
 }
@@ -164,10 +166,12 @@ fn test_const_fn() {
         const VALUE = 2;
         const fn foo(n) { n + VALUE }
 
-        pub fn main() {
+        fn bar() {
             const VALUE = 1;
             foo(1 + 4 / 2 - VALUE) + foo(VALUE - 1)
         }
+
+        bar()
     };
 
     assert_eq!(result, 6);
@@ -180,9 +184,7 @@ fn test_const_fn() {
         `foo ${n}`
     }
 
-    pub fn main() {
-        foo(`bar ${VALUE}`)
-    }
+    foo(`bar ${VALUE}`)
     "#,
     );
 
@@ -200,9 +202,7 @@ fn test_const_fn() {
             c
         }
 
-        pub fn main() {
-            VALUE
-        }
+        VALUE
     "#,
     );
 
@@ -230,9 +230,7 @@ fn test_const_fn_visibility() {
             const B = 2;
         }
 
-        pub fn main() {
-            b::out()
-        }
+        b::out()
     };
 
     assert_eq!(result, 3);
@@ -241,31 +239,25 @@ fn test_const_fn_visibility() {
 #[test]
 fn test_const_block() {
     let result: i64 = rune! {
-        pub fn main() {
-            let u = 2;
-            let value = const { 1 << test() };
-            return value - u;
-            const fn test() { 32 }
-        }
+        let u = 2;
+        let value = const { 1 << test() };
+        return value - u;
+        const fn test() { 32 }
     };
 
     assert_eq!(result, (1i64 << 32) - 2);
 
     let result: String = rune! {
-        pub fn main() {
-            let var = "World";
-            format!(const { "Hello {}" }, var)
-        }
+        let var = "World";
+        format!(const { "Hello {}" }, var)
     };
 
     assert_eq!(result, "Hello World");
 
     let result: String = rune! {
-        pub fn main() {
-            let var = "World";
-            return format!(const { FORMAT }, var);
-            const FORMAT = "Hello {}";
-        }
+        let var = "World";
+        return format!(const { FORMAT }, var);
+        const FORMAT = "Hello {}";
     };
 
     assert_eq!(result, "Hello World");

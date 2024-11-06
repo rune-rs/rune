@@ -12,118 +12,118 @@ macro_rules! op_tests {
     };
 
     (@binary $ty:ty, $lhs:literal, $op:tt, $rhs:literal, $out:expr) => {
-        let out: $ty = rune!(pub fn main() { let a = $lhs; let b = $rhs; a $op b});
+        let out: $ty = rune!(let a = $lhs; let b = $rhs; a $op b);
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = {lhs}; let b = {rhs}; a {op}= b; a }}"#,
+            r#"let a = {lhs}; let b = {rhs}; a {op}= b; a"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"struct Foo {{ padding, field }}; pub fn main() {{ let a = Foo{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
+            r#"struct Foo {{ padding, field }}; let a = Foo{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"enum Enum {{ Foo {{ padding, field }} }}; pub fn main() {{ let a = Enum::Foo {{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
+            r#"enum Enum {{ Foo {{ padding, field }} }}; let a = Enum::Foo {{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field }}"#,
+            r#"let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; a.field"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
+            r#"let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"struct Foo(padding, a); pub fn main() {{ let a = Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
+            r#"struct Foo(padding, a); let a = Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"enum Enum {{ Foo(padding, a) }}; pub fn main() {{ let a = Enum::Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1 }}"#,
+            r#"enum Enum {{ Foo(padding, a) }}; let a = Enum::Foo(0, {lhs}); let b = {rhs}; a.1 {op}= b; a.1"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = Ok({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
+            r#"let a = Ok({lhs}); let b = {rhs}; a.0 {op}= b; a.0"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = Some({lhs}); let b = {rhs}; a.0 {op}= b; a.0 }}"#,
+            r#"let a = Some({lhs}); let b = {rhs}; a.0 {op}= b; a.0"#,
             lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
     };
 
     (@unary $ty:ty, $op:tt, $lhs:literal, $out:expr) => {
-        let out: $ty = rune!(pub fn main() { let a = $lhs; $op a});
+        let out: $ty = rune!(let a = $lhs; $op a);
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = {lhs}; {op} a }}"#,
+            r#"let a = {lhs}; {op} a"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"struct Foo {{ padding, field }}; pub fn main() {{ let a = Foo{{ padding: 0, field: {lhs} }}; {op} a.field }}"#,
+            r#"struct Foo {{ padding, field }}; let a = Foo{{ padding: 0, field: {lhs} }}; {op} a.field"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"enum Enum {{ Foo {{ padding, field }} }}; pub fn main() {{ let a = Enum::Foo {{ padding: 0, field: {lhs} }}; {op} a.field }}"#,
+            r#"enum Enum {{ Foo {{ padding, field }} }}; let a = Enum::Foo {{ padding: 0, field: {lhs} }}; {op} a.field"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; {op} a.field }}"#,
+            r#"let a = #{{ padding: 0, field: {lhs} }}; {op} a.field"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = (0, {lhs}); {op} a.1 }}"#,
+            r#"let a = (0, {lhs}); {op} a.1"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"struct Foo(padding, a); pub fn main() {{ let a = Foo(0, {lhs}); {op} a.1 }}"#,
+            r#"struct Foo(padding, a); let a = Foo(0, {lhs}); {op} a.1"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"enum Enum {{ Foo(padding, a) }}; pub fn main() {{ let a = Enum::Foo(0, {lhs}); {op} a.1 }}"#,
+            r#"enum Enum {{ Foo(padding, a) }}; let a = Enum::Foo(0, {lhs}); {op} a.1"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = Ok({lhs}); {op} a.0 }}"#,
+            r#"let a = Ok({lhs}); {op} a.0"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
 
         let out: $ty = eval(&format!(
-            r#"pub fn main() {{ let a = Some({lhs}); {op} a.0 }}"#,
+            r#"let a = Some({lhs}); {op} a.0"#,
             lhs = stringify!($lhs), op = stringify!($op),
         ));
         assert_eq!(out, $out);
@@ -134,7 +134,7 @@ macro_rules! error_test {
     ($lhs:literal $op:tt $rhs:literal = $error:ident) => {
         assert_vm_error!(
             &format!(
-                r#"pub fn main() {{ let a = {lhs}; let b = {rhs}; a {op} b; }}"#,
+                r#"let a = {lhs}; let b = {rhs}; a {op} b;"#,
                 lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
             ),
             $error => {}
@@ -142,7 +142,7 @@ macro_rules! error_test {
 
         assert_vm_error!(
             &format!(
-                r#"pub fn main() {{ let a = {lhs}; let b = {rhs}; a {op}= b; }}"#,
+                r#"let a = {lhs}; let b = {rhs}; a {op}= b;"#,
                 lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
             ),
             $error => {}
@@ -150,7 +150,7 @@ macro_rules! error_test {
 
         assert_vm_error!(
             &format!(
-                r#"pub fn main() {{ let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b; }}"#,
+                r#"let a = #{{ padding: 0, field: {lhs} }}; let b = {rhs}; a.field {op}= b;"#,
                 lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
             ),
             $error => {}
@@ -158,7 +158,7 @@ macro_rules! error_test {
 
         assert_vm_error!(
             &format!(
-                r#"pub fn main() {{ let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b; }}"#,
+                r#"let a = (0, {lhs}); let b = {rhs}; a.1 {op}= b;"#,
                 lhs = stringify!($lhs), rhs = stringify!($rhs), op = stringify!($op),
             ),
             $error => {}

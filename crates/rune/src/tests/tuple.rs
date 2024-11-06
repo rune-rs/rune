@@ -20,10 +20,10 @@ fn make_module() -> Result<Module, ContextError> {
 fn test_tuple_ownership() {
     let m = make_module().expect("Failed to make module");
 
-    rune_n! {
-        &m,
+    let _: () = rune_n! {
+        mod m,
         (),
-        () => pub fn main() {
+        pub fn main() {
             let a = [];
             let b = [];
             let tuple = (a, b);
@@ -34,10 +34,10 @@ fn test_tuple_ownership() {
         }
     };
 
-    rune_n! {
-        &m,
+    let _: () = rune_n! {
+        mod m,
         (),
-        () => pub fn main() {
+        pub fn main() {
             let a = [];
             let b = [];
             let vec = [a, b];

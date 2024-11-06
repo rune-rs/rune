@@ -3,33 +3,29 @@ prelude!();
 use ErrorKind::*;
 
 #[test]
-fn test_number_literals() {
-    assert_parse!(r#"pub fn main() { -9223372036854775808 }"#);
-    assert_parse!(
-        r#"pub fn main() { -0b1000000000000000000000000000000000000000000000000000000000000000 }"#
-    );
-    assert_parse!(
-        r#"pub fn main() { 0b0111111111111111111111111111111111111111111111111111111111111111 }"#
-    );
+fn number_literals_oob() {
+    assert_parse!("-9223372036854775808");
+    assert_parse!("-0b1000000000000000000000000000000000000000000000000000000000000000");
+    assert_parse!("0b0111111111111111111111111111111111111111111111111111111111111111");
 
     assert_errors! {
-        r#"pub fn main() { -0aardvark }"#,
-        span!(17, 26), BadNumberLiteral { .. }
+        "-0aardvark",
+        span!(1, 10), BadNumberLiteral { .. }
     };
 
     assert_errors! {
-        r#"pub fn main() { -9223372036854775809 }"#,
-        span!(16, 36), BadSignedOutOfBounds { .. }
+        "-9223372036854775809",
+        span!(0, 20), BadSignedOutOfBounds { .. }
     };
 
-    assert_parse!(r#"pub fn main() { 9223372036854775807 }"#);
+    assert_parse!("9223372036854775807");
     assert_errors! {
-        r#"pub fn main() { 9223372036854775808 }"#,
-        span!(16, 35), BadSignedOutOfBounds { .. }
+        "9223372036854775808",
+        span!(0, 19), BadSignedOutOfBounds { .. }
     };
 
     assert_errors! {
-        r#"pub fn main() { 0b1000000000000000000000000000000000000000000000000000000000000000 }"#,
-        span!(16, 82), BadSignedOutOfBounds { .. }
+        "0b1000000000000000000000000000000000000000000000000000000000000000",
+        span!(0, 66), BadSignedOutOfBounds { .. }
     };
 }

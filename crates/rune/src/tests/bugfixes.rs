@@ -16,9 +16,7 @@ fn test_pattern_binding_bug() {
             x
         }
 
-        pub fn main() {
-            foo(3)
-        }
+        foo(3)
     };
 
     assert_eq!(out, 3 * 11);
@@ -44,9 +42,7 @@ fn test_string_pattern_in_instance_fn_bug() {
             assert_eq!(program, [Inst::A]);
         }
 
-        pub fn main() {
-            works();
-            broken();
-        }
+        works();
+        broken();
     };
 }
