@@ -72,7 +72,7 @@ impl<'a> Ignore<'a> for Indexer<'_, '_> {
     }
 }
 
-impl<'a, 'arena> Indexer<'a, 'arena> {
+impl Indexer<'_, '_> {
     /// Push an identifier item.
     pub(super) fn push_id(&mut self) -> alloc::Result<Guard> {
         let id = self.q.pool.next_id(self.item.id);

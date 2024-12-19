@@ -389,7 +389,7 @@ enum SourceInner<'a> {
     Node(NodeSource<'a>),
 }
 
-impl<'a> Advance for Parser<'a> {
+impl Advance for Parser<'_> {
     type Error = Error;
 
     #[inline]

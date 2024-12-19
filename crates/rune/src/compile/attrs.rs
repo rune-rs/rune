@@ -97,7 +97,7 @@ pub(crate) struct ParseAll<'this, 'a, T> {
     _marker: PhantomData<T>,
 }
 
-impl<'this, 'a, T> Iterator for ParseAll<'this, 'a, T>
+impl<'a, T> Iterator for ParseAll<'_, 'a, T>
 where
     T: Attribute + Parse,
 {

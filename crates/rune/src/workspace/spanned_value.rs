@@ -307,7 +307,7 @@ pub(crate) trait Sealed {}
 impl Sealed for usize {}
 impl Sealed for str {}
 impl Sealed for String {}
-impl<'a, T: Sealed + ?Sized> Sealed for &'a T {}
+impl<T: ?Sized + Sealed> Sealed for &T {}
 
 impl Index for usize {
     fn index<'a>(&self, val: &'a Value) -> Option<&'a SpannedValue> {
@@ -351,9 +351,9 @@ impl Index for String {
     }
 }
 
-impl<'s, T: ?Sized> Index for &'s T
+impl<T> Index for &T
 where
-    T: Index,
+    T: ?Sized + Index,
 {
     fn index<'a>(&self, val: &'a Value) -> Option<&'a SpannedValue> {
         (**self).index(val)
@@ -547,7 +547,7 @@ impl<'de> de::Deserialize<'de> for DatetimeFromString {
     {
         struct Visitor;
 
-        impl<'de> de::Visitor<'de> for Visitor {
+        impl de::Visitor<'_> for Visitor {
             type Value = DatetimeFromString;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

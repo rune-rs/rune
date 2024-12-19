@@ -1676,7 +1676,7 @@ impl<'a, K> Iterator for Iter<'a, K> {
         self.iter.size_hint()
     }
 }
-impl<'a, K> ExactSizeIterator for Iter<'a, K> {
+impl<K> ExactSizeIterator for Iter<'_, K> {
     #[cfg_attr(feature = "inline-more", inline)]
     fn len(&self) -> usize {
         self.iter.len()

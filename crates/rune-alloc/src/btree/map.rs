@@ -1978,7 +1978,7 @@ impl<K, V> ExactSizeIterator for IterMut<'_, K, V> {
 
 impl<K, V> FusedIterator for IterMut<'_, K, V> {}
 
-impl<'a, K, V> IterMut<'a, K, V> {
+impl<K, V> IterMut<'_, K, V> {
     /// Returns an iterator of references over the remaining items.
     #[inline]
     pub(super) fn iter(&self) -> Iter<'_, K, V> {
@@ -2017,7 +2017,7 @@ impl<K, V, A: Allocator> Drop for IntoIter<K, V, A> {
     fn drop(&mut self) {
         struct DropGuard<'a, K, V, A: Allocator>(&'a mut IntoIter<K, V, A>);
 
-        impl<'a, K, V, A: Allocator> Drop for DropGuard<'a, K, V, A> {
+        impl<K, V, A: Allocator> Drop for DropGuard<'_, K, V, A> {
             fn drop(&mut self) {
                 // Continue the same loop we perform below. This only runs when unwinding, so we
                 // don't have to care about panics this time (they'll abort).
@@ -2272,7 +2272,7 @@ where
     }
 }
 
-impl<'a, K, V> ExtractIfInner<'a, K, V> {
+impl<K, V> ExtractIfInner<'_, K, V> {
     /// Allow Debug implementations to predict the next element.
     pub(super) fn peek(&self) -> Option<(&K, &V)> {
         let edge = self.cur_leaf_edge.as_ref()?;
@@ -3270,7 +3270,7 @@ impl<'a, K, V> Cursor<'a, K, V> {
     }
 }
 
-impl<'a, K, V, A> CursorMut<'a, K, V, A> {
+impl<K, V, A> CursorMut<'_, K, V, A> {
     /// Moves the cursor to the next element of the `BTreeMap`.
     ///
     /// If the cursor is pointing to the "ghost" non-element then this will move it to
@@ -3409,7 +3409,7 @@ impl<'a, K, V, A> CursorMut<'a, K, V, A> {
 }
 
 // Now the tree editing operations
-impl<'a, K: Ord, V, A: Allocator> CursorMut<'a, K, V, A> {
+impl<K: Ord, V, A: Allocator> CursorMut<'_, K, V, A> {
     /// Inserts a new element into the `BTreeMap` after the current one.
     ///
     /// If the cursor is pointing at the "ghost" non-element then the new element is

@@ -1365,9 +1365,9 @@ where
     }
 }
 
-impl<'a, T, F, A: Allocator> Iterator for ExtractIf<'_, T, F, A>
+impl<T, F, A: Allocator> Iterator for ExtractIf<'_, T, F, A>
 where
-    F: 'a + FnMut(&T) -> bool,
+    F: FnMut(&T) -> bool,
 {
     type Item = T;
 

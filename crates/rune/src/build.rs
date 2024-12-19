@@ -164,7 +164,7 @@ struct CompileVisitorGroup<'a> {
     visitors: Vec<&'a mut dyn compile::CompileVisitor>,
 }
 
-impl<'a> compile::CompileVisitor for CompileVisitorGroup<'a> {
+impl compile::CompileVisitor for CompileVisitorGroup<'_> {
     fn register_meta(&mut self, meta: compile::MetaRef<'_>) -> Result<(), MetaError> {
         for v in self.visitors.iter_mut() {
             v.register_meta(meta)?;

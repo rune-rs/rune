@@ -86,7 +86,7 @@ impl<T, A: Allocator> Drop for Drain<'_, T, A> {
     fn drop(&mut self) {
         struct DropGuard<'r, 'a, T, A: Allocator>(&'r mut Drain<'a, T, A>);
 
-        impl<'r, 'a, T, A: Allocator> Drop for DropGuard<'r, 'a, T, A> {
+        impl<T, A: Allocator> Drop for DropGuard<'_, '_, T, A> {
             fn drop(&mut self) {
                 if self.0.remaining != 0 {
                     unsafe {

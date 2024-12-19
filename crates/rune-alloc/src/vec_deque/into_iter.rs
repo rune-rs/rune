@@ -77,7 +77,7 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
             consumed: usize,
         }
 
-        impl<'a, T, A: Allocator> Drop for Guard<'a, T, A> {
+        impl<T, A: Allocator> Drop for Guard<'_, T, A> {
             fn drop(&mut self) {
                 self.deque.len -= self.consumed;
                 self.deque.head = self.deque.to_physical_idx(self.consumed);
@@ -134,7 +134,7 @@ impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
             consumed: usize,
         }
 
-        impl<'a, T, A: Allocator> Drop for Guard<'a, T, A> {
+        impl<T, A: Allocator> Drop for Guard<'_, T, A> {
             fn drop(&mut self) {
                 self.deque.len -= self.consumed;
             }

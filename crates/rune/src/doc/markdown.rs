@@ -51,7 +51,7 @@ struct Writer<'a, 'o, I> {
     numbers: HashMap<CowStr<'a>, usize>,
 }
 
-impl<'a, 'o, I> Writer<'a, 'o, I>
+impl<'a, I> Writer<'a, '_, I>
 where
     I: Iterator<Item = Event<'a>>,
 {

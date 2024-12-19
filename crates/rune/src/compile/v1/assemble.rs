@@ -70,7 +70,7 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     pub(crate) drop: Vec<InstAddress>,
 }
 
-impl<'a, 'hir, 'arena> Ctxt<'a, 'hir, 'arena> {
+impl<'hir> Ctxt<'_, 'hir, '_> {
     fn drop_dangling(&mut self, span: &dyn Spanned) -> compile::Result<()> {
         self.scopes
             .drain_dangling_into(&mut self.drop)
@@ -178,7 +178,7 @@ impl<'hir, T> Asm<'hir, T> {
     fn ignore(self) {}
 }
 
-impl<'hir, T> Asm<'hir, T> {
+impl<T> Asm<'_, T> {
     /// Test if the assembly converges and return the data associated with it.
     #[inline]
     fn into_converging(self) -> Option<T> {

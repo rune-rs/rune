@@ -349,7 +349,8 @@ impl Value {
         let result =
             vm_try!(caller.call_protocol_fn(&Protocol::DISPLAY_FMT, self.clone(), &mut args));
 
-        VmResult::Ok(vm_try!(<()>::from_value(result)))
+        vm_try!(<()>::from_value(result));
+        VmResult::Ok(())
     }
 
     /// Perform a shallow clone of the value using the [`CLONE`] protocol.
@@ -1201,7 +1202,10 @@ impl Value {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         match self.as_ref() {
-            Repr::Inline(value) => return VmResult::Ok(vm_try!(value.hash(hasher))),
+            Repr::Inline(value) => {
+                vm_try!(value.hash(hasher));
+                return VmResult::Ok(());
+            }
             Repr::Any(value) => match value.type_hash() {
                 Vec::HASH => {
                     let vec = vm_try!(value.borrow_ref::<Vec>());
@@ -1221,7 +1225,8 @@ impl Value {
         if let CallResultOnly::Ok(value) =
             vm_try!(caller.try_call_protocol_fn(&Protocol::HASH, self.clone(), &mut args))
         {
-            return VmResult::Ok(vm_try!(<_>::from_value(value)));
+            vm_try!(<()>::from_value(value));
+            return VmResult::Ok(());
         }
 
         err(VmErrorKind::UnsupportedUnaryOperation {

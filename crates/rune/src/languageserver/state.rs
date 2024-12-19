@@ -1199,7 +1199,7 @@ impl<'a> ScriptSourceLoader<'a> {
     }
 }
 
-impl<'a> crate::compile::SourceLoader for ScriptSourceLoader<'a> {
+impl crate::compile::SourceLoader for ScriptSourceLoader<'_> {
     fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source> {
         tracing::trace!("load {} (root: {})", item, root.display());
 
@@ -1230,7 +1230,7 @@ impl<'a> WorkspaceSourceLoader<'a> {
     }
 }
 
-impl<'a> workspace::SourceLoader for WorkspaceSourceLoader<'a> {
+impl workspace::SourceLoader for WorkspaceSourceLoader<'_> {
     fn load(&mut self, span: Span, path: &Path) -> Result<Source, WorkspaceError> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {

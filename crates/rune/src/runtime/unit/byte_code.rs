@@ -26,7 +26,7 @@ pub struct ByteCodeUnitIter<'a> {
     len: usize,
 }
 
-impl<'a> Iterator for ByteCodeUnitIter<'a> {
+impl Iterator for ByteCodeUnitIter<'_> {
     type Item = (usize, Inst);
 
     #[inline]

@@ -94,7 +94,7 @@ impl IntoExpectation for &Path {
 }
 
 /// Resolve implementation for path which "stringifies" it.
-impl<'a> Resolve<'a> for Path {
+impl Resolve<'_> for Path {
     type Output = Box<str>;
 
     fn resolve(&self, cx: ResolveContext<'_>) -> Result<Self::Output> {

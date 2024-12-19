@@ -168,7 +168,7 @@ pub(crate) struct Matcher<'a> {
     queue: VecDeque<(PathBuf, &'a [Component<'a>])>,
 }
 
-impl<'a> Iterator for Matcher<'a> {
+impl Iterator for Matcher<'_> {
     type Item = Result<PathBuf, GlobError>;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -163,7 +163,7 @@ struct Inner<'a> {
     updates: HashMap<PathBuf, Update>,
 }
 
-impl<'a> Inner<'a> {
+impl Inner<'_> {
     fn reload(&mut self, events: &mut Vec<Event>) -> Result<()> {
         fn compile(context: &Context, path: &Path) -> Result<Unit> {
             let mut sources = Sources::new();
