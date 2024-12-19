@@ -138,7 +138,7 @@ copied and called with zero arguments.
 [`Loops`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/loops.rs
 [`Query`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/query.rs
 [`Resolve` implementation of `LitStr`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/ast/lit_str.rs
-[`Resolve`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/parsing/resolve.rs
+[`Resolve`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/parse/resolve.rs
 [`Scopes`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/compiling/scopes.rs
 [`Source::insert`]: https://docs.rs/rune/0/rune/struct.Source.html#method.insert
 [`Worker`]: https://github.com/rune-rs/rune/blob/main/crates/rune/src/worker.rs
