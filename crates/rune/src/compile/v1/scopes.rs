@@ -27,7 +27,7 @@ pub(super) struct Scope<'hir> {
     locals: Dangling,
 }
 
-impl<'hir> Scope<'hir> {
+impl Scope<'_> {
     /// Construct a new locals handlers.
     fn new(parent: ScopeId, id: ScopeId) -> Self {
         Self {
@@ -600,14 +600,14 @@ impl fmt::Debug for Var<'_> {
     }
 }
 
-impl<'hir> fmt::Display for Var<'hir> {
+impl fmt::Display for Var<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.name.fmt(f)
     }
 }
 
-impl<'hir> Var<'hir> {
+impl Var<'_> {
     /// Copy the declared variable.
     pub(super) fn copy(
         &self,

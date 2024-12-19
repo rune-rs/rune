@@ -233,7 +233,7 @@ pub struct Peeker<'a> {
     default_span: Span,
 }
 
-impl<'a> Peeker<'a> {
+impl Peeker<'_> {
     /// Peek the token kind at the given position.
     pub(crate) fn nth(&mut self, n: usize) -> Kind {
         // Error tripped already, this peeker returns nothing but errors from
@@ -396,7 +396,7 @@ enum SourceInner<'a> {
     TokenStream(TokenStreamIter<'a>),
 }
 
-impl<'a> Advance for Parser<'a> {
+impl Advance for Parser<'_> {
     type Error = compile::Error;
 
     #[inline]

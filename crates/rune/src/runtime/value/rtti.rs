@@ -19,7 +19,7 @@ pub struct Accessor<'a> {
     pub(crate) data: &'a [Value],
 }
 
-impl<'a> Accessor<'a> {
+impl Accessor<'_> {
     /// Get a field through the accessor.
     #[doc(hidden)]
     pub fn get<Q>(&self, key: &Q) -> Option<&Value>

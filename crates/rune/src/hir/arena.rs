@@ -98,9 +98,7 @@ impl Arena {
 
         // SAFETY: we're ensuring the valid contents of the returned string by
         // safely accessing it above.
-        unsafe {
-            return Ok(str::from_utf8_unchecked(bytes));
-        }
+        unsafe { Ok(str::from_utf8_unchecked(bytes)) }
     }
 
     /// Allocate a new object of the given type.

@@ -41,7 +41,7 @@ impl<'de> de::Deserialize<'de> for Box<str> {
     }
 }
 
-impl<'de, 'a, T: ?Sized> de::Deserialize<'de> for Cow<'a, T>
+impl<'de, T: ?Sized> de::Deserialize<'de> for Cow<'_, T>
 where
     T: TryToOwned,
     T::Owned: de::Deserialize<'de>,
@@ -58,7 +58,7 @@ where
 struct StringVisitor;
 struct StringInPlaceVisitor<'a>(&'a mut String);
 
-impl<'de> de::Visitor<'de> for StringVisitor {
+impl de::Visitor<'_> for StringVisitor {
     type Value = String;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -105,7 +105,7 @@ impl<'de> de::Visitor<'de> for StringVisitor {
     }
 }
 
-impl<'a, 'de> de::Visitor<'de> for StringInPlaceVisitor<'a> {
+impl de::Visitor<'_> for StringInPlaceVisitor<'_> {
     type Value = ();
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

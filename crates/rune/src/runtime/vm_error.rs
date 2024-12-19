@@ -123,6 +123,8 @@ pub trait TryFromResult: self::sealed::Sealed {
 /// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
 /// at your own risk.
 #[doc(hidden)]
+#[inline(always)]
+#[allow(clippy::unit_arg)]
 pub fn try_result<T>(result: T) -> VmResult<T::Ok>
 where
     T: TryFromResult,

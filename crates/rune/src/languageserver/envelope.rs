@@ -117,6 +117,7 @@ pub(super) struct ResponseError<'a, D> {
 pub(super) struct V2;
 
 impl serde::Serialize for V2 {
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -126,21 +127,22 @@ impl serde::Serialize for V2 {
 }
 
 impl<'a> serde::Deserialize<'a> for V2 {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<V2, D::Error>
     where
         D: serde::Deserializer<'a>,
     {
-        return deserializer.deserialize_identifier(Visitor);
-
         struct Visitor;
 
-        impl<'a> serde::de::Visitor<'a> for Visitor {
+        impl serde::de::Visitor<'_> for Visitor {
             type Value = V2;
 
+            #[inline]
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a string")
             }
 
+            #[inline]
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
@@ -151,5 +153,7 @@ impl<'a> serde::Deserialize<'a> for V2 {
                 }
             }
         }
+
+        deserializer.deserialize_identifier(Visitor)
     }
 }

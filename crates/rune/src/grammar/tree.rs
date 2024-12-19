@@ -1157,7 +1157,8 @@ impl<'a> Remaining<'a> {
     }
 }
 
-impl<'a> Default for Remaining<'a> {
+impl Default for Remaining<'_> {
+    #[inline]
     fn default() -> Self {
         Self {
             inside: Kind::Root,
@@ -1203,7 +1204,7 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for Iter<'a> {
+impl DoubleEndedIterator for Iter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let node = self.last.take()?;
 

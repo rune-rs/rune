@@ -36,7 +36,7 @@ impl<T: fmt::Debug, A: Allocator> fmt::Debug for Drain<'_, T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> Drain<'a, T, A> {
+impl<T, A: Allocator> Drain<'_, T, A> {
     /// Returns the remaining items of this iterator as a slice.
     ///
     /// # Examples
@@ -130,7 +130,7 @@ impl<'a, T, A: Allocator> Drain<'a, T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> AsRef<[T]> for Drain<'a, T, A> {
+impl<T, A: Allocator> AsRef<[T]> for Drain<'_, T, A> {
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
@@ -168,7 +168,7 @@ impl<T, A: Allocator> Drop for Drain<'_, T, A> {
         /// Moves back the un-`Drain`ed elements to restore the original `Vec`.
         struct DropGuard<'r, 'a, T, A: Allocator>(&'r mut Drain<'a, T, A>);
 
-        impl<'r, 'a, T, A: Allocator> Drop for DropGuard<'r, 'a, T, A> {
+        impl<T, A: Allocator> Drop for DropGuard<'_, '_, T, A> {
             fn drop(&mut self) {
                 if self.0.tail_len > 0 {
                     unsafe {

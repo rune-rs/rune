@@ -144,7 +144,7 @@ impl<T, A: Allocator> Drop for VecDeque<T, A> {
         /// during unwinding).
         struct Dropper<'a, T>(&'a mut [T]);
 
-        impl<'a, T> Drop for Dropper<'a, T> {
+        impl<T> Drop for Dropper<'_, T> {
             fn drop(&mut self) {
                 unsafe {
                     ptr::drop_in_place(self.0);
@@ -923,7 +923,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
         /// during unwinding).
         struct Dropper<'a, T>(&'a mut [T]);
 
-        impl<'a, T> Drop for Dropper<'a, T> {
+        impl<T> Drop for Dropper<'_, T> {
             fn drop(&mut self) {
                 unsafe {
                     ptr::drop_in_place(self.0);

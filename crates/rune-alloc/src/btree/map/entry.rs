@@ -99,7 +99,7 @@ impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for OccupiedError<'_, K, V, A
     }
 }
 
-impl<'a, K: Debug + Ord, V: Debug, A: Allocator> fmt::Display for OccupiedError<'a, K, V, A> {
+impl<K: Debug + Ord, V: Debug, A: Allocator> fmt::Display for OccupiedError<'_, K, V, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

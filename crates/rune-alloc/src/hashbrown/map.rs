@@ -4707,7 +4707,7 @@ impl<'a, K, Q: ?Sized> KeyOrRef<'a, K, Q> {
     }
 }
 
-impl<'a, K: Borrow<Q>, Q: ?Sized> AsRef<Q> for KeyOrRef<'a, K, Q> {
+impl<K: Borrow<Q>, Q: ?Sized> AsRef<Q> for KeyOrRef<'_, K, Q> {
     fn as_ref(&self) -> &Q {
         match self {
             Self::Borrowed(borrowed) => borrowed,
@@ -4771,7 +4771,7 @@ pub struct OccupiedEntryRef<'a, 'b, K, Q: ?Sized, V, S, A: Allocator = Global> {
     table: &'a mut HashMap<K, V, S, A>,
 }
 
-unsafe impl<'a, 'b, K, Q, V, S, A> Send for OccupiedEntryRef<'a, 'b, K, Q, V, S, A>
+unsafe impl<K, Q, V, S, A> Send for OccupiedEntryRef<'_, '_, K, Q, V, S, A>
 where
     K: Send,
     Q: Sync + ?Sized,
@@ -4780,7 +4780,7 @@ where
     A: Send + Allocator,
 {
 }
-unsafe impl<'a, 'b, K, Q, V, S, A> Sync for OccupiedEntryRef<'a, 'b, K, Q, V, S, A>
+unsafe impl<K, Q, V, S, A> Sync for OccupiedEntryRef<'_, '_, K, Q, V, S, A>
 where
     K: Sync,
     Q: Sync + ?Sized,
@@ -4889,7 +4889,7 @@ impl<K: Debug, V: Debug, S, A: Allocator> Debug for OccupiedError<'_, K, V, S, A
     }
 }
 
-impl<'a, K: Debug, V: Debug, S, A: Allocator> fmt::Display for OccupiedError<'a, K, V, S, A> {
+impl<K: Debug, V: Debug, S, A: Allocator> fmt::Display for OccupiedError<'_, K, V, S, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -5174,7 +5174,7 @@ impl<K, V: Debug> fmt::Debug for ValuesMut<'_, K, V> {
     }
 }
 
-impl<'a, K, V, A: Allocator> Iterator for Drain<'a, K, V, A> {
+impl<K, V, A: Allocator> Iterator for Drain<'_, K, V, A> {
     type Item = (K, V);
 
     #[cfg_attr(feature = "inline-more", inline)]

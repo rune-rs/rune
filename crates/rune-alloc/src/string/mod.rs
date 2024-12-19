@@ -1216,7 +1216,7 @@ impl<A: Allocator> String<A> {
             del_bytes: usize,
         }
 
-        impl<'a, A: Allocator> Drop for SetLenOnDrop<'a, A> {
+        impl<A: Allocator> Drop for SetLenOnDrop<'_, A> {
             fn drop(&mut self) {
                 let new_len = self.idx - self.del_bytes;
                 debug_assert!(new_len <= self.s.len());
@@ -2279,7 +2279,7 @@ impl<A: Allocator> Drop for Drain<'_, A> {
     }
 }
 
-impl<'a, A: Allocator> Drain<'a, A> {
+impl<A: Allocator> Drain<'_, A> {
     /// Returns the remaining (sub)string of this iterator as a slice.
     ///
     /// # Examples
@@ -2300,13 +2300,13 @@ impl<'a, A: Allocator> Drain<'a, A> {
     }
 }
 
-impl<'a, A: Allocator> AsRef<str> for Drain<'a, A> {
+impl<A: Allocator> AsRef<str> for Drain<'_, A> {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl<'a, A: Allocator> AsRef<[u8]> for Drain<'a, A> {
+impl<A: Allocator> AsRef<[u8]> for Drain<'_, A> {
     fn as_ref(&self) -> &[u8] {
         self.as_str().as_bytes()
     }

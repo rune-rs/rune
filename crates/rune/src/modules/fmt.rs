@@ -76,11 +76,8 @@ pub(crate) fn format(
 /// ```
 #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
 fn format_display_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
-    VmResult::Ok(vm_try!(format.spec.format(
-        &format.value,
-        f,
-        &mut EnvProtocolCaller
-    )))
+    vm_try!(format.spec.format(&format.value, f, &mut EnvProtocolCaller));
+    VmResult::Ok(())
 }
 
 /// Write a debug representation of a format specification.
@@ -94,7 +91,7 @@ fn format_display_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
 /// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 fn format_debug_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
-    VmResult::Ok(vm_try!(vm_write!(f, "{format:?}")))
+    vm_write!(f, "{format:?}")
 }
 
 /// Clones a format specification.

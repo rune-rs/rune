@@ -96,7 +96,7 @@ impl<'a, 'arena> Deref for QuerySource<'a, 'arena> {
     }
 }
 
-impl<'a, 'arena> DerefMut for QuerySource<'a, 'arena> {
+impl DerefMut for QuerySource<'_, '_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.query

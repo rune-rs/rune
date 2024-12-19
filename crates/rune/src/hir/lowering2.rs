@@ -297,7 +297,7 @@ enum ExprInnerKind<'hir, 'a> {
     Path(StreamBuf<'a>),
 }
 
-impl<'hir, 'a> ExprInner<'hir, 'a> {
+impl<'hir> ExprInner<'hir, '_> {
     fn into_call(self, cx: &mut Ctxt<'hir, '_, '_>, args: usize) -> Result<hir::Call<'hir>> {
         match self.kind {
             ExprInnerKind::Path(p) => {

@@ -119,7 +119,7 @@ impl<'a, 'hir> Deref for Linear<'a, 'hir> {
     }
 }
 
-impl<'a, 'hir> DerefMut for Linear<'a, 'hir> {
+impl DerefMut for Linear<'_, '_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         match &mut self.addresses {
@@ -172,7 +172,7 @@ impl<'a, 'hir> Iterator for IntoIter<'a, 'hir> {
     }
 }
 
-impl<'a, 'hir> ExactSizeIterator for IntoIter<'a, 'hir> {
+impl ExactSizeIterator for IntoIter<'_, '_> {
     #[inline]
     fn len(&self) -> usize {
         match &self.inner {
@@ -182,7 +182,7 @@ impl<'a, 'hir> ExactSizeIterator for IntoIter<'a, 'hir> {
     }
 }
 
-impl<'a, 'hir> DoubleEndedIterator for IntoIter<'a, 'hir> {
+impl DoubleEndedIterator for IntoIter<'_, '_> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         match &mut self.inner {

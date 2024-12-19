@@ -144,7 +144,7 @@ pub(crate) mod hack {
                     num_init: usize,
                 }
 
-                impl<'a, T, A: Allocator> Drop for DropGuard<'a, T, A> {
+                impl<T, A: Allocator> Drop for DropGuard<'_, T, A> {
                     #[inline]
                     fn drop(&mut self) {
                         // SAFETY:

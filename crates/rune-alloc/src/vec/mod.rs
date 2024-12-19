@@ -1629,7 +1629,7 @@ impl<T, A: Allocator> Vec<T, A> {
             vec: &'a mut Vec<T, A>,
         }
 
-        impl<'a, T, A: Allocator> Drop for FillGapOnDrop<'a, T, A> {
+        impl<T, A: Allocator> Drop for FillGapOnDrop<'_, T, A> {
             fn drop(&mut self) {
                 /* This code gets executed when `same_bucket` panics */
 

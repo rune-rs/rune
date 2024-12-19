@@ -288,7 +288,7 @@ impl<BorrowType, K, V> NodeRef<BorrowType, K, V, marker::Internal> {
     }
 }
 
-impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::Internal> {
+impl<K, V> NodeRef<marker::Mut<'_>, K, V, marker::Internal> {
     /// Borrows exclusive access to the data of an internal node.
     fn as_internal_mut(&mut self) -> &mut InternalNode<K, V> {
         let ptr = Self::as_internal_ptr(self);
@@ -629,7 +629,7 @@ impl<'a, K: 'a, V: 'a, Type> NodeRef<marker::Mut<'a>, K, V, Type> {
     }
 }
 
-impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::Internal> {
+impl<K, V> NodeRef<marker::Mut<'_>, K, V, marker::Internal> {
     /// # Safety
     /// Every item returned by `range` is a valid edge index for the node.
     unsafe fn correct_childrens_parent_links<R: Iterator<Item = usize>>(&mut self, range: R) {
@@ -934,7 +934,7 @@ impl<BorrowType, K, V, NodeType, HandleType>
     }
 }
 
-impl<'a, K, V, NodeType, HandleType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, HandleType> {
+impl<K, V, NodeType, HandleType> Handle<NodeRef<marker::Mut<'_>, K, V, NodeType>, HandleType> {
     /// Temporarily takes out another mutable handle on the same location. Beware, as
     /// this method is very dangerous, doubly so since it might not immediately appear
     /// dangerous.
@@ -1105,7 +1105,7 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
     }
 }
 
-impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::Edge> {
+impl<K, V> Handle<NodeRef<marker::Mut<'_>, K, V, marker::Internal>, marker::Edge> {
     /// Fixes the parent pointer and index in the child node that this edge
     /// links to. This is useful when the ordering of edges has been changed,
     fn correct_parent_link(self) {
@@ -1989,10 +1989,10 @@ pub(crate) mod marker {
         const TRAVERSAL_PERMIT: bool = false;
     }
     impl BorrowType for Dying {}
-    impl<'a> BorrowType for Immut<'a> {}
+    impl BorrowType for Immut<'_> {}
     impl BorrowType for Raw {}
-    impl<'a> BorrowType for Mut<'a> {}
-    impl<'a> BorrowType for ValMut<'a> {}
+    impl BorrowType for Mut<'_> {}
+    impl BorrowType for ValMut<'_> {}
     impl BorrowType for DormantMut {}
 
     pub(crate) enum KV {}
