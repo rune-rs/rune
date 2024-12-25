@@ -153,9 +153,13 @@ where
 ///     field: u64,
 /// }
 ///
-/// let mut sources = rune::sources!(entry => {
-///     pub fn main() { #{field: 42} }
-/// });
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub fn main() {
+///             #{field: 42}
+///         }
+///     }
+/// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
 ///

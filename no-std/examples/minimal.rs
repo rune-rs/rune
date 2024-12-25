@@ -1,5 +1,6 @@
 #![no_std]
-#![feature(alloc_error_handler, start, core_intrinsics, lang_items, link_cfg)]
+#![no_main]
+#![feature(alloc_error_handler, core_intrinsics, lang_items, link_cfg)]
 #![allow(internal_features)]
 
 extern crate alloc;
@@ -33,6 +34,8 @@ extern "C" fn eh_personality() {}
 #[no_mangle]
 pub extern "C" fn _Unwind_Resume() {}
 
+use core::ffi::c_int;
+
 use alloc::sync::Arc;
 
 use rune::{Diagnostics, Vm};
@@ -53,10 +56,10 @@ unsafe impl critical_section::Impl for MyCriticalSection {
     unsafe fn release(_: RawRestoreState) {}
 }
 
-#[start]
-fn main(_argc: isize, _argv: *const *const u8) -> isize {
+#[no_mangle]
+extern "C" fn main(_argc: c_int, _argv: *const *const u8) -> c_int {
     match inner_main() {
-        Ok(output) => output as isize,
+        Ok(output) => output as c_int,
         Err(..) => -1,
     }
 }
@@ -64,13 +67,13 @@ fn main(_argc: isize, _argv: *const *const u8) -> isize {
 fn inner_main() -> rune::support::Result<i32> {
     let context = rune::Context::with_default_modules()?;
 
-    let mut sources = rune::sources!(
+    let mut sources = rune::sources! {
         entry => {
             pub fn main(number) {
                 number + 10
             }
         }
-    );
+    };
 
     let mut diagnostics = Diagnostics::new();
 
