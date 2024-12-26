@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1734657506734,
+  "lastUpdate": 1735175856650,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -30285,6 +30285,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 349,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]",
+            "email": "49699333+dependabot[bot]@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "c28b33d6cf4f5c3084420a89add8fd08382866ef",
+          "message": "build(deps-dev): bump cross-spawn from 7.0.3 to 7.0.6 in /editors/code\n\nBumps [cross-spawn](https://github.com/moxystudio/node-cross-spawn) from 7.0.3 to 7.0.6.\n- [Changelog](https://github.com/moxystudio/node-cross-spawn/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/moxystudio/node-cross-spawn/compare/v7.0.3...v7.0.6)\n\n---\nupdated-dependencies:\n- dependency-name: cross-spawn\n  dependency-type: indirect\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2024-12-25T20:49:57Z",
+          "url": "https://github.com/rune-rs/rune/commit/c28b33d6cf4f5c3084420a89add8fd08382866ef"
+        },
+        "date": 1735175855411,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10352077,
+            "range": "± 489921",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4250442,
+            "range": "± 116599",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1636,
+            "range": "± 134",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1227,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 151099,
+            "range": "± 1761",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 862727,
+            "range": "± 6133",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 78985207,
+            "range": "± 340114",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 209307573,
+            "range": "± 1535022",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 521862,
+            "range": "± 89120",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 5595437,
+            "range": "± 22645",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 29543471,
+            "range": "± 208544",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 4734472,
+            "range": "± 35948",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 214049,
+            "range": "± 1198",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2385359,
+            "range": "± 35199",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 353,
+            "range": "± 11",
             "unit": "ns/iter"
           }
         ]
