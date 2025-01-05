@@ -8,7 +8,6 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::Vec;
 use crate::runtime::{Bytes, Formatter, Hasher, Panic, VmErrorKind, VmResult};
-
 use crate::{ContextError, Module, Value};
 
 /// The bytes module.
