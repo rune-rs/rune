@@ -550,10 +550,8 @@ fn shrink_to_fit(this: &mut Bytes) -> VmResult<()> {
 
 /// Returns a subslice of Bytes.
 ///
-/// - If given a position, returns the byte at that position or `None` if
-///    out of bounds.
-/// - If given a range, returns the subslice corresponding to that range, or
-///   `panic` if out of bounds.
+/// - If given a position, returns the byte at that position.
+/// - If given a range, returns the subslice corresponding to that range.
 ///
 /// # Panics
 ///
