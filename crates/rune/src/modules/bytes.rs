@@ -237,7 +237,7 @@ fn remove(this: &mut Bytes, index: usize) -> VmResult<u8> {
 ///
 /// # Panics
 ///
-/// Panics if `index > len`.
+/// Panics if `index` is out of bounds.
 ///
 /// # Examples
 ///
@@ -558,7 +558,7 @@ fn shrink_to_fit(this: &mut Bytes) -> VmResult<()> {
 ///
 /// # Panics
 ///
-/// Panics if the specified `index` is out of range.
+/// Panics if `index` is out of bounds.
 ///
 /// ```rune,should_panic
 /// let bytes = b"abc";
