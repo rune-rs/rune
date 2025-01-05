@@ -257,6 +257,16 @@ impl Bytes {
     ///
     /// Panics if `index` is out of bounds.
     ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.remove(2);
+    /// assert_eq!(bytes, b"abd");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn remove(&mut self, index: usize) -> u8 {
         self.bytes.remove(index)
     }
@@ -266,8 +276,18 @@ impl Bytes {
     ///
     /// # Panics
     ///
-    /// Panics if `index > len`.
+    /// Panics if `index` is out of bounds.
     ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.insert(2, b'e');
+    /// assert_eq!(bytes, b"abecd");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn insert(&mut self, index: usize, value: u8) -> alloc::Result<()> {
         self.bytes.try_insert(index, value)
     }
@@ -283,6 +303,17 @@ impl Bytes {
     }
 
     /// Set by index
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.set(0, b'A');
+    /// assert_eq!(bytes, b"Abcd");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn set(&mut self, index: usize, value: u8) -> VmResult<()> {
         let Some(v) = self.bytes.get_mut(index) else {
             return VmResult::err(VmErrorKind::OutOfRange {
