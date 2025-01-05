@@ -7,8 +7,9 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::Vec;
-use crate::runtime::{Bytes, Formatter, Hasher, VmResult};
-use crate::{ContextError, Module};
+use crate::runtime::{Bytes, Formatter, Hasher, Panic, VmErrorKind, VmResult};
+
+use crate::{ContextError, Module, Value};
 
 /// The bytes module.
 #[rune::module(::std::bytes)]
@@ -24,6 +25,12 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(extend)?;
     m.function_meta(extend_str)?;
     m.function_meta(pop)?;
+    m.function_meta(push)?;
+    m.function_meta(remove)?;
+    m.function_meta(insert)?;
+    m.function_meta(index_get)?;
+    m.function_meta(index_set)?;
+    m.function_meta(first)?;
     m.function_meta(last)?;
     m.function_meta(len)?;
     m.function_meta(is_empty)?;
@@ -175,6 +182,83 @@ pub fn extend_str(this: &mut Bytes, s: &str) -> VmResult<()> {
 #[inline]
 pub fn pop(this: &mut Bytes) -> Option<u8> {
     this.pop()
+}
+
+/// Append a byte to the back.
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = b"abcd";
+/// bytes.push(b'e');
+/// assert_eq!(bytes, b"abcde");
+/// ```
+#[rune::function(instance)]
+#[inline]
+pub fn push(this: &mut Bytes, value: u8) -> VmResult<()> {
+    vm_try!(this.push(value));
+    VmResult::Ok(())
+}
+
+/// Removes and returns the byte at position `index` within the Bytes,
+/// shifting all bytes after it to the left.
+///
+/// # Panics
+///
+/// Panics if `index` is out of bounds.
+///
+/// ```rune,should_panic
+/// let bytes = b"abc";
+/// bytes.remove(3);
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = b"abc";
+/// assert_eq!(bytes.remove(1), b'b');
+/// assert_eq!(bytes, b"ac");
+/// ```
+#[rune::function(instance)]
+fn remove(this: &mut Bytes, index: usize) -> VmResult<u8> {
+    if index >= this.len() {
+        return VmResult::err(VmErrorKind::OutOfRange {
+            index: index.into(),
+            length: this.len().into(),
+        });
+    }
+
+    let value = this.remove(index);
+    VmResult::Ok(value)
+}
+
+/// Inserts a byte at position `index` within the inner vector, shifting all
+/// elements after it to the right.
+///
+/// # Panics
+///
+/// Panics if `index > len`.
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = b"abc";
+/// bytes.insert(1, b'e');
+/// assert_eq!(bytes, b"aebc");
+/// bytes.insert(4, b'd');
+/// assert_eq!(bytes, b"aebcd");
+/// ```
+#[rune::function(instance)]
+fn insert(this: &mut Bytes, index: usize, value: u8) -> VmResult<()> {
+    if index > this.len() {
+        return VmResult::err(VmErrorKind::OutOfRange {
+            index: index.into(),
+            length: this.len().into(),
+        });
+    }
+
+    vm_try!(this.insert(index, value));
+    VmResult::Ok(())
 }
 
 /// Get the first byte.
@@ -463,4 +547,54 @@ fn debug_fmt(this: &[u8], f: &mut Formatter) -> VmResult<()> {
 fn shrink_to_fit(this: &mut Bytes) -> VmResult<()> {
     vm_try!(this.shrink_to_fit());
     VmResult::Ok(())
+}
+
+/// Returns a subslice of Bytes.
+///
+/// - If given a position, returns the byte at that position or `None` if
+///    out of bounds.
+/// - If given a range, returns the subslice corresponding to that range, or
+///   `panic` if out of bounds.
+///
+/// # Panics
+///
+/// Panics if the specified `index` is out of range.
+///
+/// ```rune,should_panic
+/// let bytes = b"abc";
+/// assert_eq!(None, bytes[1..4]);
+/// ```
+///
+/// ```rune,should_panic
+/// let bytes = b"abc";
+/// assert_eq!(None, bytes[3]);
+/// ```
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = b"abcd";
+/// assert_eq!(bytes[0..2], b"ab");
+/// assert_eq!(bytes[0], b'a');
+/// ```
+#[rune::function(instance, protocol = INDEX_GET)]
+fn index_get(this: &Bytes, index: Value) -> VmResult<Value> {
+    match vm_try!(this.index_get(index)) {
+        Some(bytes) => VmResult::Ok(bytes),
+        None => VmResult::err(Panic::custom("missing bytes slice")),
+    }
+}
+
+/// Inserts a byte into the Bytes.
+///
+/// # Examples
+///
+/// ```rune
+/// let bytes = b"abcd";
+/// bytes[1] = b'e';
+/// assert_eq!(bytes, b"aecd");
+/// ```
+#[rune::function(instance, protocol = INDEX_SET)]
+fn index_set(this: &mut Bytes, index: usize, value: u8) -> VmResult<()> {
+    this.set(index, value)
 }
