@@ -11,9 +11,14 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::Any;
+use crate::runtime::VmResult;
+use crate::TypeHash as _;
+use crate::{Any, FromValue};
 
-use super::{IntoOutput, RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value};
+use super::{
+    IntoOutput, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+    RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value, VmErrorKind,
+};
 
 /// A vector of bytes.
 #[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -228,6 +233,97 @@ impl Bytes {
     /// ```
     pub fn pop(&mut self) -> Option<u8> {
         self.bytes.pop()
+    }
+
+    /// Append a byte to the back.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.push(b'e');
+    /// assert_eq!(bytes, b"abcde");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn push(&mut self, value: u8) -> alloc::Result<()> {
+        self.bytes.try_push(value)
+    }
+
+    /// Removes the byte at the specified index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.remove(2);
+    /// assert_eq!(bytes, b"abd");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn remove(&mut self, index: usize) -> u8 {
+        self.bytes.remove(index)
+    }
+
+    /// Inserts a byte at position index within the vector, shifting all
+    /// elements after it to the right.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.insert(2, b'e');
+    /// assert_eq!(bytes, b"abecd");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn insert(&mut self, index: usize, value: u8) -> alloc::Result<()> {
+        self.bytes.try_insert(index, value)
+    }
+
+    /// Returns a subslice of Bytes.
+    ///
+    /// -  If given a position, returns the byte at that position or `None` if
+    ///    out of bounds.
+    /// - If given a range, returns the subslice corresponding to that range, or
+    ///   `None` if out of bounds.
+    pub(crate) fn index_get(&self, index: Value) -> VmResult<Option<Value>> {
+        bytes_slice_index_get(&self.bytes, index)
+    }
+
+    /// Set by index
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::Bytes;
+    ///
+    /// let mut bytes = Bytes::from_slice(b"abcd")?;
+    /// bytes.set(0, b'A');
+    /// assert_eq!(bytes, b"Abcd");
+    /// Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn set(&mut self, index: usize, value: u8) -> VmResult<()> {
+        let Some(v) = self.bytes.get_mut(index) else {
+            return VmResult::err(VmErrorKind::OutOfRange {
+                index: index.into(),
+                length: self.len().into(),
+            });
+        };
+
+        *v = value;
+        VmResult::Ok(())
     }
 
     /// Get the first byte.
@@ -457,4 +553,60 @@ impl IntoOutput for &[u8] {
     fn into_output(self) -> Result<Value, RuntimeError> {
         Ok(Value::try_from(self)?)
     }
+}
+
+/// This is a common index get implementation that is helpfull for custom type to impl `INDEX_GET` protocol.
+pub fn bytes_slice_index_get(this: &[u8], index: Value) -> VmResult<Option<Value>> {
+    let slice: Option<&[u8]> = 'out: {
+        if let Some(value) = index.as_any() {
+            match value.type_hash() {
+                RangeFrom::HASH => {
+                    let range = vm_try!(value.borrow_ref::<RangeFrom>());
+                    let start = vm_try!(range.start.as_usize());
+                    break 'out this.get(start..);
+                }
+                RangeFull::HASH => {
+                    _ = vm_try!(value.borrow_ref::<RangeFull>());
+                    break 'out this.get(..);
+                }
+                RangeInclusive::HASH => {
+                    let range = vm_try!(value.borrow_ref::<RangeInclusive>());
+                    let start = vm_try!(range.start.as_usize());
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(start..=end);
+                }
+                RangeToInclusive::HASH => {
+                    let range = vm_try!(value.borrow_ref::<RangeToInclusive>());
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(..=end);
+                }
+                RangeTo::HASH => {
+                    let range = vm_try!(value.borrow_ref::<RangeTo>());
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(..end);
+                }
+                Range::HASH => {
+                    let range = vm_try!(value.borrow_ref::<Range>());
+                    let start = vm_try!(range.start.as_usize());
+                    let end = vm_try!(range.end.as_usize());
+                    break 'out this.get(start..end);
+                }
+                _ => {}
+            }
+        };
+
+        let index = vm_try!(usize::from_value(index));
+        let Some(value) = this.get(index) else {
+            return VmResult::Ok(None);
+        };
+
+        return VmResult::Ok(Some((*value).into()));
+    };
+
+    let Some(values) = slice else {
+        return VmResult::Ok(None);
+    };
+
+    let bytes = vm_try!(Bytes::try_from(values));
+    VmResult::Ok(Some(vm_try!(bytes.try_into())))
 }

@@ -16,3 +16,35 @@ if let [b'h', b'e', b'l', b'l', b'o', ..] = vec {
 }
 
 dbg!(Bytes::from_vec(vec));
+
+let bytes = Bytes::new();
+bytes.push(b'h');
+bytes.push(b'e');
+bytes.push(b'l');
+bytes.push(b'l');
+bytes.push(b'o');
+assert_eq!(bytes, b"hello");
+
+bytes.remove(0);
+assert_eq!(bytes, b"ello");
+bytes.remove(1);
+assert_eq!(bytes, b"elo");
+bytes.remove(2);
+assert_eq!(bytes, b"el");
+
+bytes.insert(2, b'o');
+assert_eq!(bytes, b"elo");
+bytes.insert(0, b'h');
+assert_eq!(bytes, b"helo");
+bytes.insert(2, b'l');
+assert_eq!(bytes, b"hello");
+
+assert_eq!(bytes[0], b'h');
+assert_eq!(bytes[1], b'e');
+assert_eq!(bytes[0..2], b"he");
+assert_eq!(bytes[2..5], b"llo");
+
+bytes[0] = b'H';
+assert_eq!(bytes, b"Hello");
+bytes[1] = b'E';
+assert_eq!(bytes, b"HEllo");

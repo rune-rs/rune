@@ -37,7 +37,7 @@ pub(crate) use self::awaited::Awaited;
 pub mod budget;
 
 mod bytes;
-pub use self::bytes::Bytes;
+pub use self::bytes::{bytes_slice_index_get, Bytes};
 
 mod call;
 pub use self::call::Call;
