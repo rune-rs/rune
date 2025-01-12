@@ -35,19 +35,7 @@ pub fn instrument_ast(
 ) -> proc_macro::TokenStream {
     let attr = syn::parse_macro_input!(attr as instrument::Attr);
     let internal_call = syn::parse_macro_input!(item as instrument::Expander);
-
-    internal_call
-        .expand(&attr)
-        .unwrap_or_else(to_compile_errors)
-        .into()
-}
-
-fn to_compile_errors<I>(errors: I) -> proc_macro2::TokenStream
-where
-    I: IntoIterator<Item = syn::Error>,
-{
-    let compile_errors = errors.into_iter().map(syn::Error::into_compile_error);
-    ::quote::quote!(#(#compile_errors)*)
+    internal_call.expand(&attr).into()
 }
 
 /// Passthrough attribute macro.

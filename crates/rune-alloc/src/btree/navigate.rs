@@ -521,10 +521,7 @@ impl<BorrowType: marker::BorrowType, K, V>
         loop {
             edge = match edge.right_kv() {
                 Ok(internal_kv) => return Ok(internal_kv),
-                Err(last_edge) => match last_edge.into_node().ascend() {
-                    Ok(parent_edge) => parent_edge,
-                    Err(root) => return Err(root),
-                },
+                Err(last_edge) => last_edge.into_node().ascend()?,
             }
         }
     }

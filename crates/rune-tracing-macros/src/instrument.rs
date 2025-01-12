@@ -54,7 +54,7 @@ impl syn::parse::Parse for Expander {
 }
 
 impl Expander {
-    pub fn expand(self, attr: &Attr) -> Result<TokenStream, Vec<syn::Error>> {
+    pub(super) fn expand(self, attr: &Attr) -> TokenStream {
         let mut it = self.sig.inputs.iter();
 
         let first = match it.next() {
@@ -97,12 +97,12 @@ impl Expander {
         let sig = &self.sig;
         let remaining = &self.remaining;
 
-        Ok(quote! {
+        quote! {
             #(#attrs)*
             #vis #sig {
                 #log
                 #remaining
             }
-        })
+        }
     }
 }
