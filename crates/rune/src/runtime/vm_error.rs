@@ -13,8 +13,8 @@ use crate::{Any, Hash, ItemBuf};
 
 use super::{
     AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnyTypeInfo, BoxedPanic, CallFrame,
-    DynArgsUsed, DynamicTakeError, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
-    StackError, StaticString, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    DynArgsUsed, DynamicTakeError, MaybeTypeOf, Panic, Protocol, SliceError, StackError,
+    StaticString, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 /// A virtual machine error which includes tracing information.
@@ -659,7 +659,6 @@ pub(crate) enum VmErrorKind {
     Panic {
         reason: Panic,
     },
-    NoRunningVm,
     Halted {
         halt: VmHaltInfo,
     },
@@ -834,12 +833,6 @@ pub(crate) enum VmErrorKind {
         actual: TypeInfo,
     },
     MissingInterfaceEnvironment,
-    ExpectedExecutionState {
-        actual: ExecutionState,
-    },
-    ExpectedExitedExecutionState {
-        actual: ExecutionState,
-    },
     GeneratorComplete,
     FutureCompleted,
     // Used in rune-macros.
@@ -888,7 +881,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::BadJump { error } => error.fmt(f),
             VmErrorKind::DynArgsUsed { error } => error.fmt(f),
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
-            VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
             VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
             VmErrorKind::Overflow {} => write!(f, "Numerical overflow"),
             VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
@@ -1051,12 +1043,6 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MissingInterfaceEnvironment {} => {
                 write!(f, "Missing interface environment")
-            }
-            VmErrorKind::ExpectedExecutionState { actual } => {
-                write!(f, "Expected resume execution state, but was {actual}")
-            }
-            VmErrorKind::ExpectedExitedExecutionState { actual } => {
-                write!(f, "Expected exited execution state, but was {actual}")
             }
             VmErrorKind::GeneratorComplete {} => {
                 write!(f, "Cannot resume a generator that has completed")

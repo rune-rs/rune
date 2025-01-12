@@ -1,12 +1,13 @@
 use std::io::Write;
 use std::path::PathBuf;
+use std::pin::pin;
 use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::runtime::{UnitStorage, VmError, VmExecution, VmResult};
+use crate::runtime::{budget, GeneratorState, UnitStorage, VmError, VmExecution, VmResult};
 use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
 mod cli {
@@ -365,7 +366,7 @@ where
     T: AsRef<Vm> + AsMut<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
-    let mut result = VmResult::Ok(None);
+    let mut result = VmResult::Ok(GeneratorState::Yielded(Value::unit()));
 
     while limit > 0 {
         let vm = execution.vm();
@@ -443,7 +444,7 @@ where
 
         match result {
             VmResult::Ok(result) => {
-                if let Some(result) = result {
+                if let GeneratorState::Complete(result) = result {
                     return Ok(result);
                 }
             }
@@ -452,7 +453,7 @@ where
             }
         }
 
-        result = execution.async_step().await;
+        result = pin!(budget::with(1, execution.async_resume())).await;
 
         result = match result {
             VmResult::Err(error) => {

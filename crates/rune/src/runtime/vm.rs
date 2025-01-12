@@ -3018,7 +3018,7 @@ impl Vm {
     }
 
     /// Evaluate a single instruction.
-    pub(crate) fn run(&mut self, diagnostics: Option<&mut dyn VmDiagnostics>) -> VmResult<VmHalt> {
+    pub(super) fn run(&mut self, diagnostics: Option<&mut dyn VmDiagnostics>) -> VmResult<VmHalt> {
         let mut vm_diagnostics_obj;
 
         let diagnostics = match diagnostics {

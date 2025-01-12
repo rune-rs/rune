@@ -5,6 +5,7 @@ mod tests;
 
 #[macro_use]
 mod macros;
+use self::macros::future_vm_try;
 
 mod steps_between;
 use self::steps_between::StepsBetween;
@@ -32,7 +33,7 @@ pub use self::args::{Args, FixedArgs};
 pub(crate) use self::args::{DynArgs, DynArgsUsed, DynGuardedArgs};
 
 mod awaited;
-pub(crate) use self::awaited::Awaited;
+use self::awaited::Awaited;
 
 pub mod budget;
 
@@ -192,11 +193,11 @@ pub use self::vm_error::{try_result, RuntimeError, TryFromResult, VmError, VmRes
 pub(crate) use self::vm_error::{VmErrorKind, VmIntegerRepr};
 
 mod vm_execution;
-pub(crate) use self::vm_execution::ExecutionState;
 pub use self::vm_execution::{VmExecution, VmSendExecution};
 
 mod vm_halt;
-pub(crate) use self::vm_halt::{VmHalt, VmHaltInfo};
+use self::vm_halt::VmHalt;
+pub use self::vm_halt::VmHaltInfo;
 
 mod fmt;
 pub use self::fmt::Formatter;

@@ -195,7 +195,7 @@ impl Function {
     ///
     /// A stop reason will be returned in case the function call results in
     /// a need to suspend the execution.
-    pub(crate) fn call_with_vm(
+    pub(super) fn call_with_vm(
         &self,
         vm: &mut Vm,
         addr: InstAddress,
@@ -607,7 +607,7 @@ where
     ///
     /// A stop reason will be returned in case the function call results in
     /// a need to suspend the execution.
-    pub(crate) fn call_with_vm(
+    pub(super) fn call_with_vm(
         &self,
         vm: &mut Vm,
         addr: InstAddress,

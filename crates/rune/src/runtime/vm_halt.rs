@@ -4,7 +4,7 @@ use crate::runtime::{Awaited, InstAddress, Output, VmCall};
 
 /// The reason why the virtual machine execution stopped.
 #[derive(Debug)]
-pub(crate) enum VmHalt {
+pub(super) enum VmHalt {
     /// The virtual machine exited by running out of call frames, returning the given value.
     Exited(Option<InstAddress>),
     /// The virtual machine exited because it ran out of execution quota.
@@ -17,22 +17,10 @@ pub(crate) enum VmHalt {
     VmCall(VmCall),
 }
 
-impl VmHalt {
-    /// Convert into cheap info enum which only described the reason.
-    pub(crate) fn into_info(self) -> VmHaltInfo {
-        match self {
-            Self::Exited(..) => VmHaltInfo::Exited,
-            Self::Limited => VmHaltInfo::Limited,
-            Self::Yielded(..) => VmHaltInfo::Yielded,
-            Self::Awaited(..) => VmHaltInfo::Awaited,
-            Self::VmCall(..) => VmHaltInfo::VmCall,
-        }
-    }
-}
-
 /// The reason why the virtual machine execution stopped.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum VmHaltInfo {
+#[non_exhaustive]
+pub enum VmHaltInfo {
     /// The virtual machine exited by running out of call frames.
     Exited,
     /// The virtual machine exited because it ran out of execution quota.

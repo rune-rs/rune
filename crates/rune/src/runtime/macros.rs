@@ -139,3 +139,16 @@ macro_rules! double_ended_range_iter {
         }
     };
 }
+
+macro_rules! __future_vm_try {
+    ($expr:expr) => {
+        match $crate::runtime::try_result($expr) {
+            $crate::runtime::VmResult::Ok(value) => value,
+            $crate::runtime::VmResult::Err(err) => {
+                return core::task::Poll::Ready($crate::runtime::VmResult::Err(err));
+            }
+        }
+    };
+}
+
+pub(super) use __future_vm_try as future_vm_try;

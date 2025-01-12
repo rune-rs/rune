@@ -1,18 +1,29 @@
 use core::fmt;
 use core::future::Future;
 use core::mem::{replace, take};
+use core::pin::{pin, Pin};
+use core::task::{ready, Context, Poll};
 
 use ::rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
-use crate::runtime::budget;
 use crate::runtime::{
-    Generator, GeneratorState, InstAddress, Output, RuntimeContext, Stream, Unit, Value, Vm,
-    VmErrorKind, VmHalt, VmHaltInfo, VmResult,
+    Generator, GeneratorState, Output, RuntimeContext, Stream, Unit, Value, Vm, VmErrorKind,
+    VmHalt, VmHaltInfo, VmResult,
 };
 use crate::shared::AssertSend;
 
-use super::VmDiagnostics;
+use super::{future_vm_try, Awaited, VmDiagnostics};
+
+use core::ptr;
+use core::task::{RawWaker, RawWakerVTable, Waker};
+
+const NOOP_RAW_WAKER: RawWaker = {
+    const VTABLE: RawWakerVTable = RawWakerVTable::new(|_| NOOP_RAW_WAKER, |_| {}, |_| {}, |_| {});
+    RawWaker::new(ptr::null(), &VTABLE)
+};
+
+static NOOP_WAKER: Waker = unsafe { Waker::from_raw(NOOP_RAW_WAKER) };
 
 /// The state of an execution. We keep track of this because it's important to
 /// correctly interact with functions that yield (like generators and streams)
@@ -20,24 +31,20 @@ use super::VmDiagnostics;
 /// onto the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
-pub(crate) enum ExecutionState {
-    /// The initial state of an execution.
-    Initial,
-    /// execution is waiting.
-    Resumed(Output),
-    /// Suspended execution.
-    Suspended,
-    /// Execution exited.
-    Exited(Option<InstAddress>),
+enum InnerExecutionState {
+    /// The execution is running.
+    Running,
+    /// Execution has stopped running for yielding and expect output to be
+    /// written to the given output.
+    Yielded(Output),
 }
 
-impl fmt::Display for ExecutionState {
+impl fmt::Display for InnerExecutionState {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExecutionState::Initial => write!(f, "initial"),
-            ExecutionState::Resumed(out) => write!(f, "resumed({out})"),
-            ExecutionState::Suspended => write!(f, "suspended"),
-            ExecutionState::Exited(..) => write!(f, "exited"),
+            InnerExecutionState::Running => write!(f, "running"),
+            InnerExecutionState::Yielded(out) => write!(f, "yielded({out})"),
         }
     }
 }
@@ -60,7 +67,7 @@ where
     /// The current head vm which holds the execution.
     head: T,
     /// The state of an execution.
-    state: ExecutionState,
+    state: InnerExecutionState,
     /// Indicates the current stack of suspended contexts.
     states: Vec<VmExecutionState>,
 }
@@ -70,17 +77,13 @@ where
     T: AsRef<Vm> + AsMut<Vm>,
 {
     /// Construct an execution from a virtual machine.
+    #[inline]
     pub(crate) fn new(head: T) -> Self {
         Self {
             head,
-            state: ExecutionState::Initial,
+            state: InnerExecutionState::Running,
             states: Vec::new(),
         }
-    }
-
-    /// Test if the current execution state is resumed.
-    pub(crate) fn is_resumed(&self) -> bool {
-        matches!(self.state, ExecutionState::Resumed(..))
     }
 
     /// Coerce the current execution into a generator if appropriate.
@@ -112,6 +115,7 @@ where
     /// }
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn into_generator(self) -> Generator<T> {
         Generator::from_execution(self)
     }
@@ -148,16 +152,19 @@ where
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn into_stream(self) -> Stream<T> {
         Stream::from_execution(self)
     }
 
     /// Get a reference to the current virtual machine.
+    #[inline]
     pub fn vm(&self) -> &Vm {
         self.head.as_ref()
     }
 
     /// Get a mutable reference the current virtual machine.
+    #[inline]
     pub fn vm_mut(&mut self) -> &mut Vm {
         self.head.as_mut()
     }
@@ -165,19 +172,16 @@ where
     /// Complete the current execution without support for async instructions.
     ///
     /// This will error if the execution is suspended through yielding.
-    pub async fn async_complete(&mut self) -> VmResult<Value> {
-        match vm_try!(self.async_resume().await) {
-            GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                halt: VmHaltInfo::Yielded,
-            }),
-        }
+    #[inline]
+    pub fn async_complete(&mut self) -> Complete<'_, '_, T> {
+        self.inner_poll(None, ResumeState::Default).into_complete()
     }
 
     /// Complete the current execution without support for async instructions.
     ///
     /// If any async instructions are encountered, this will error. This will
     /// also error if the execution is suspended through yielding.
+    #[inline]
     pub fn complete(&mut self) -> VmResult<Value> {
         self.complete_with_diagnostics(None)
     }
@@ -186,116 +190,46 @@ where
     ///
     /// If any async instructions are encountered, this will error. This will
     /// also error if the execution is suspended through yielding.
+    #[inline]
     pub fn complete_with_diagnostics(
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<Value> {
-        match vm_try!(self.resume_with_diagnostics(diagnostics)) {
-            GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                halt: VmHaltInfo::Yielded,
-            }),
-        }
+        vm_try!(self.inner_resume(diagnostics, ResumeState::Resume(Value::empty()))).complete()
     }
 
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
-    pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let state = replace(&mut self.state, ExecutionState::Suspended);
-
-        let ExecutionState::Resumed(out) = state else {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
-        };
-
-        vm_try!(out.store(self.head.as_mut().stack_mut(), value));
-        self.inner_async_resume(None).await
+    pub fn async_resume_with(&mut self, value: Value) -> Resume<'_, '_, T> {
+        self.inner_poll(None, ResumeState::Resume(value))
+            .into_resume()
     }
 
     /// Resume the current execution with support for async instructions.
     ///
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
-    pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
-        self.async_resume_with_diagnostics(None).await
+    pub fn async_resume(&mut self) -> Resume<'_, '_, T> {
+        self.async_resume_with_diagnostics(None)
     }
 
     /// Resume the current execution with support for async instructions.
     ///
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
-    pub async fn async_resume_with_diagnostics(
-        &mut self,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        if let ExecutionState::Resumed(out) = self.state {
-            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::unit));
-        }
-
-        self.inner_async_resume(diagnostics).await
-    }
-
-    async fn inner_async_resume(
-        &mut self,
-        mut diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        loop {
-            let vm = self.head.as_mut();
-
-            match vm_try!(vm
-                .run(match diagnostics {
-                    Some(ref mut value) => Some(&mut **value),
-                    None => None,
-                })
-                .with_vm(vm))
-            {
-                VmHalt::Exited(addr) => {
-                    self.state = ExecutionState::Exited(addr);
-                }
-                VmHalt::Awaited(awaited) => {
-                    vm_try!(awaited.into_vm(vm).await);
-                    continue;
-                }
-                VmHalt::VmCall(vm_call) => {
-                    vm_try!(vm_call.into_execution(self));
-                    continue;
-                }
-                VmHalt::Yielded(addr, out) => {
-                    let value = match addr {
-                        Some(addr) => vm.stack().at(addr).clone(),
-                        None => Value::unit(),
-                    };
-
-                    self.state = ExecutionState::Resumed(out);
-                    return VmResult::Ok(GeneratorState::Yielded(value));
-                }
-                halt => {
-                    return VmResult::err(VmErrorKind::Halted {
-                        halt: halt.into_info(),
-                    })
-                }
-            }
-
-            if self.states.is_empty() {
-                let value = vm_try!(self.end());
-                return VmResult::Ok(GeneratorState::Complete(value));
-            }
-
-            vm_try!(self.pop_state());
-        }
+    pub fn async_resume_with_diagnostics<'this, 'diag>(
+        &'this mut self,
+        diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+    ) -> Resume<'this, 'diag, T> {
+        self.inner_poll(diagnostics, ResumeState::Resume(Value::empty()))
+            .into_resume()
     }
 
     /// Resume the current execution with the given value and resume synchronous
     /// execution.
     #[tracing::instrument(skip_all, fields(?value))]
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let state = replace(&mut self.state, ExecutionState::Suspended);
-
-        let ExecutionState::Resumed(out) = state else {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
-        };
-
-        vm_try!(out.store(self.head.as_mut().stack_mut(), value));
-        self.inner_resume(None)
+        vm_try!(self.inner_resume(None, ResumeState::Resume(value))).generator_state()
     }
 
     /// Resume the current execution without support for async instructions.
@@ -305,7 +239,7 @@ where
     ///
     /// If any async instructions are encountered, this will error.
     pub fn resume(&mut self) -> VmResult<GeneratorState> {
-        self.resume_with_diagnostics(None)
+        vm_try!(self.inner_resume(None, ResumeState::Resume(Value::empty()))).generator_state()
     }
 
     /// Resume the current execution without support for async instructions.
@@ -315,174 +249,46 @@ where
     ///
     /// If any async instructions are encountered, this will error.
     #[tracing::instrument(skip_all, fields(diagnostics=diagnostics.is_some()))]
+    #[inline]
     pub fn resume_with_diagnostics(
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if let ExecutionState::Resumed(out) = replace(&mut self.state, ExecutionState::Suspended) {
-            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::unit()));
-        }
-
-        self.inner_resume(diagnostics)
+        vm_try!(self.inner_resume(diagnostics, ResumeState::Resume(Value::empty())))
+            .generator_state()
     }
 
+    #[inline]
     fn inner_resume(
         &mut self,
         mut diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        loop {
-            let len = self.states.len();
-            let vm = self.head.as_mut();
-
-            match vm_try!(vm
-                .run(match diagnostics {
-                    Some(ref mut value) => Some(&mut **value),
-                    None => None,
-                })
-                .with_vm(vm))
-            {
-                VmHalt::Exited(addr) => {
-                    self.state = ExecutionState::Exited(addr);
-                }
-                VmHalt::VmCall(vm_call) => {
-                    vm_try!(vm_call.into_execution(self));
-                    continue;
-                }
-                VmHalt::Yielded(addr, out) => {
-                    let value = match addr {
-                        Some(addr) => vm.stack().at(addr).clone(),
-                        None => Value::unit(),
-                    };
-
-                    self.state = ExecutionState::Resumed(out);
-                    return VmResult::Ok(GeneratorState::Yielded(value));
-                }
-                halt => {
-                    return VmResult::err(VmErrorKind::Halted {
-                        halt: halt.into_info(),
-                    });
-                }
-            }
-
-            if len == 0 {
-                let value = vm_try!(self.end());
-                return VmResult::Ok(GeneratorState::Complete(value));
-            }
-
-            vm_try!(self.pop_state());
-        }
+        state: ResumeState,
+    ) -> VmResult<ExecutionState> {
+        pin!(self.inner_poll(diagnostics.take(), state)).once()
     }
 
-    /// Step the single execution for one step without support for async
-    /// instructions.
-    ///
-    /// If any async instructions are encountered, this will error.
-    pub fn step(&mut self) -> VmResult<Option<Value>> {
-        let len = self.states.len();
-        let vm = self.head.as_mut();
-
-        match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
-            VmHalt::Exited(addr) => {
-                self.state = ExecutionState::Exited(addr);
-            }
-            VmHalt::VmCall(vm_call) => {
-                vm_try!(vm_call.into_execution(self));
-                return VmResult::Ok(None);
-            }
-            VmHalt::Limited => return VmResult::Ok(None),
-            halt => {
-                return VmResult::err(VmErrorKind::Halted {
-                    halt: halt.into_info(),
-                })
-            }
+    #[inline]
+    fn inner_poll<'this, 'diag>(
+        &'this mut self,
+        diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+        state: ResumeState,
+    ) -> Execution<'this, 'diag, T> {
+        Execution {
+            this: self,
+            diagnostics,
+            state,
         }
-
-        if len == 0 {
-            let value = vm_try!(self.end());
-            return VmResult::Ok(Some(value));
-        }
-
-        vm_try!(self.pop_state());
-        VmResult::Ok(None)
-    }
-
-    /// Step the single execution for one step with support for async
-    /// instructions.
-    pub async fn async_step(&mut self) -> VmResult<Option<Value>> {
-        let vm = self.head.as_mut();
-
-        match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
-            VmHalt::Exited(addr) => {
-                self.state = ExecutionState::Exited(addr);
-            }
-            VmHalt::Awaited(awaited) => {
-                vm_try!(awaited.into_vm(vm).await);
-                return VmResult::Ok(None);
-            }
-            VmHalt::VmCall(vm_call) => {
-                vm_try!(vm_call.into_execution(self));
-                return VmResult::Ok(None);
-            }
-            VmHalt::Limited => return VmResult::Ok(None),
-            halt => {
-                return VmResult::err(VmErrorKind::Halted {
-                    halt: halt.into_info(),
-                });
-            }
-        }
-
-        if self.states.is_empty() {
-            let value = vm_try!(self.end());
-            return VmResult::Ok(Some(value));
-        }
-
-        vm_try!(self.pop_state());
-        VmResult::Ok(None)
-    }
-
-    /// End execution and perform debug checks.
-    pub(crate) fn end(&mut self) -> VmResult<Value> {
-        let ExecutionState::Exited(addr) = self.state else {
-            return VmResult::err(VmErrorKind::ExpectedExitedExecutionState { actual: self.state });
-        };
-
-        let value = match addr {
-            Some(addr) => self.head.as_ref().stack().at(addr).clone(),
-            None => Value::unit(),
-        };
-
-        debug_assert!(self.states.is_empty(), "Execution states should be empty");
-        VmResult::Ok(value)
     }
 
     /// Push a virtual machine state onto the execution.
     #[tracing::instrument(skip_all)]
+    #[inline]
     pub(crate) fn push_state(&mut self, state: VmExecutionState) -> VmResult<()> {
         tracing::trace!("pushing suspended state");
         let vm = self.head.as_mut();
         let context = state.context.map(|c| replace(vm.context_mut(), c));
         let unit = state.unit.map(|u| replace(vm.unit_mut(), u));
         vm_try!(self.states.try_push(VmExecutionState { context, unit }));
-        VmResult::Ok(())
-    }
-
-    /// Pop a virtual machine state from the execution and transfer the top of
-    /// the stack from the popped machine.
-    #[tracing::instrument(skip_all)]
-    fn pop_state(&mut self) -> VmResult<()> {
-        tracing::trace!("popping suspended state");
-
-        let state = vm_try!(self.states.pop().ok_or(VmErrorKind::NoRunningVm));
-        let vm = self.head.as_mut();
-
-        if let Some(context) = state.context {
-            *vm.context_mut() = context;
-        }
-
-        if let Some(unit) = state.unit {
-            *vm.unit_mut() = unit;
-        }
-
         VmResult::Ok(())
     }
 }
@@ -523,14 +329,8 @@ impl VmSendExecution {
     /// values from escaping from the virtual machine.
     pub fn async_complete(mut self) -> impl Future<Output = VmResult<Value>> + Send + 'static {
         let future = async move {
-            let result = vm_try!(self.0.async_resume().await);
-
-            match result {
-                GeneratorState::Complete(value) => VmResult::Ok(value),
-                GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                    halt: VmHaltInfo::Yielded,
-                }),
-            }
+            let future = self.0.inner_poll(None, ResumeState::Default);
+            vm_try!(future.await).complete()
         };
 
         // Safety: we wrap all APIs around the [VmExecution], preventing values
@@ -543,19 +343,13 @@ impl VmSendExecution {
     /// This requires that the result of the Vm is converted into a
     /// [crate::FromValue] that also implements [Send],  which prevents non-Send
     /// values from escaping from the virtual machine.
-    pub fn async_complete_with_diagnostics(
+    pub async fn async_complete_with_diagnostics(
         mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> impl Future<Output = VmResult<Value>> + Send + '_ {
         let future = async move {
-            let result = vm_try!(self.0.async_resume_with_diagnostics(diagnostics).await);
-
-            match result {
-                GeneratorState::Complete(value) => VmResult::Ok(value),
-                GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                    halt: VmHaltInfo::Yielded,
-                }),
-            }
+            let future = self.0.inner_poll(diagnostics, ResumeState::Default);
+            vm_try!(future.await).complete()
         };
 
         // Safety: we wrap all APIs around the [VmExecution], preventing values
@@ -575,5 +369,221 @@ where
             state: self.state,
             states: self.states.try_clone()?,
         })
+    }
+}
+
+enum ResumeState {
+    Default,
+    Resume(Value),
+    Await(Awaited),
+}
+
+/// The future when a virtual machine is resumed.
+pub struct Resume<'a, 'b, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    inner: Execution<'a, 'b, T>,
+}
+
+impl<T> Future for Resume<'_, '_, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    type Output = VmResult<GeneratorState>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let inner = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.inner) };
+        let result = future_vm_try!(ready!(inner.poll(cx))).generator_state();
+        Poll::Ready(result)
+    }
+}
+
+/// The future when a value is produced.
+pub struct Complete<'a, 'b, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    inner: Execution<'a, 'b, T>,
+}
+
+impl<T> Future for Complete<'_, '_, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    type Output = VmResult<Value>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let inner = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.inner) };
+        let result = future_vm_try!(ready!(inner.poll(cx))).complete();
+        Poll::Ready(result)
+    }
+}
+
+/// The full outcome of an execution.
+///
+/// This includes whether or not the execution was limited.
+pub enum ExecutionState {
+    Complete(Value),
+    Yielded(Value),
+    Limited,
+}
+
+impl ExecutionState {
+    #[inline]
+    fn complete(self) -> VmResult<Value> {
+        match self {
+            ExecutionState::Complete(value) => VmResult::Ok(value),
+            ExecutionState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Yielded,
+            }),
+            ExecutionState::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
+        }
+    }
+
+    #[inline]
+    fn generator_state(self) -> VmResult<GeneratorState> {
+        match self {
+            ExecutionState::Complete(value) => VmResult::Ok(GeneratorState::Complete(value)),
+            ExecutionState::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
+            ExecutionState::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
+        }
+    }
+}
+
+/// The future when a virtual machine has been polled.
+pub struct Execution<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    this: &'this mut VmExecution<T>,
+    diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+    state: ResumeState,
+}
+
+impl<'this, 'diag, T> Execution<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    /// Consume and poll the future once.
+    ///
+    /// This will produce an error if the future is not ready, which implies
+    /// that some async operation was involved that needed to be awaited.
+    #[inline]
+    pub fn once(self: Pin<&mut Self>) -> VmResult<ExecutionState> {
+        let mut cx = Context::from_waker(&NOOP_WAKER);
+
+        match self.poll(&mut cx) {
+            Poll::Ready(result) => result,
+            Poll::Pending => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Awaited,
+            }),
+        }
+    }
+
+    #[inline]
+    fn into_resume(self) -> Resume<'this, 'diag, T> {
+        Resume { inner: self }
+    }
+
+    #[inline]
+    fn into_complete(self) -> Complete<'this, 'diag, T> {
+        Complete { inner: self }
+    }
+}
+
+impl<T> Future for Execution<'_, '_, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    type Output = VmResult<ExecutionState>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let Self {
+            this,
+            diagnostics,
+            state,
+        } = self.get_mut();
+
+        loop {
+            let vm = this.head.as_mut();
+
+            match state {
+                ResumeState::Resume(..) => {
+                    let ResumeState::Resume(value) = replace(state, ResumeState::Default) else {
+                        unreachable!();
+                    };
+
+                    if let InnerExecutionState::Yielded(out) =
+                        replace(&mut this.state, InnerExecutionState::Running)
+                    {
+                        future_vm_try!(out.store(vm.stack_mut(), value));
+                    }
+                }
+                ResumeState::Await(awaited) => {
+                    // SAFETY: We are polling from within a pinned type.
+                    let awaited = unsafe { Pin::new_unchecked(awaited) };
+                    future_vm_try!(ready!(awaited.poll(cx, vm)));
+                    *state = ResumeState::Default;
+                }
+                ResumeState::Default => {
+                    let result = vm
+                        .run(match diagnostics {
+                            Some(ref mut value) => Some(&mut **value),
+                            None => None,
+                        })
+                        .with_vm(vm);
+
+                    match future_vm_try!(result) {
+                        VmHalt::Exited(addr) => {
+                            let Some(state) = this.states.pop() else {
+                                let value = match addr {
+                                    Some(addr) => replace(
+                                        future_vm_try!(vm.stack_mut().at_mut(addr)),
+                                        Value::empty(),
+                                    ),
+                                    None => Value::unit(),
+                                };
+
+                                return Poll::Ready(VmResult::Ok(ExecutionState::Complete(value)));
+                            };
+
+                            if let Some(context) = state.context {
+                                *vm.context_mut() = context;
+                            }
+
+                            if let Some(unit) = state.unit {
+                                *vm.unit_mut() = unit;
+                            }
+                        }
+                        VmHalt::Awaited(new) => {
+                            *state = ResumeState::Await(new);
+                        }
+                        VmHalt::VmCall(vm_call) => {
+                            future_vm_try!(vm_call.into_execution(this));
+                        }
+                        VmHalt::Yielded(addr, out) => {
+                            let value = match addr {
+                                Some(addr) => vm.stack().at(addr).clone(),
+                                None => Value::unit(),
+                            };
+
+                            this.state = InnerExecutionState::Yielded(out);
+                            return Poll::Ready(VmResult::Ok(ExecutionState::Yielded(value)));
+                        }
+                        VmHalt::Limited => {
+                            return Poll::Ready(VmResult::Ok(ExecutionState::Limited));
+                        }
+                    }
+                }
+            }
+        }
     }
 }
