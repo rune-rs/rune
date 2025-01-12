@@ -75,33 +75,31 @@ pub(super) fn expand(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<syn
                         (index, f, member, var, attr)
                     });
 
-                    let assigns =
-                        members
-                            .clone()
-                            .map(|(index, f, member, var, _)| match &f.ident {
-                                Some(..) => syn::FieldValue {
-                                    attrs: Vec::new(),
-                                    member,
-                                    colon_token: None,
-                                    expr: syn::Expr::Verbatim(quote!()),
-                                },
-                                None => {
-                                    let member = syn::Member::Unnamed(syn::Index::from(index));
+                    let assigns = members.clone().map(|(index, f, member, var, _)| {
+                        if f.ident.is_some() {
+                            syn::FieldValue {
+                                attrs: Vec::new(),
+                                member,
+                                colon_token: None,
+                                expr: syn::Expr::Verbatim(quote!()),
+                            }
+                        } else {
+                            let member = syn::Member::Unnamed(syn::Index::from(index));
 
-                                    let expr = syn::Expr::Path(syn::ExprPath {
-                                        attrs: Vec::new(),
-                                        qself: None,
-                                        path: syn::Path::from(var),
-                                    });
-
-                                    syn::FieldValue {
-                                        attrs: Vec::new(),
-                                        member,
-                                        colon_token: Some(<syn::Token![:]>::default()),
-                                        expr,
-                                    }
-                                }
+                            let expr = syn::Expr::Path(syn::ExprPath {
+                                attrs: Vec::new(),
+                                qself: None,
+                                path: syn::Path::from(var),
                             });
+
+                            syn::FieldValue {
+                                attrs: Vec::new(),
+                                member,
+                                colon_token: Some(<syn::Token![:]>::default()),
+                                expr,
+                            }
+                        }
+                    });
 
                     let fields = members.clone().map(|(_, _, member, var, attr)| {
                         let expr = match attr.with {
