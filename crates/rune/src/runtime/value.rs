@@ -286,20 +286,18 @@ impl Value {
         }
     }
 
-    /// Format the value using the [Protocol::DISPLAY_FMT] protocol.
-    ///
-    /// Requires a work buffer `buf` which will be used in case the value
-    /// provided requires out-of-line formatting. This must be cleared between
-    /// calls and can be re-used.
+    /// Format the value using the [`DISPLAY_FMT`] protocol.
     ///
     /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
     ///
     /// [`Vm::with`]: crate::Vm::with
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This function will panic if called outside of a virtual machine.
+    /// This function errors if called outside of a virtual machine.
+    ///
+    /// [`DISPLAY_FMT`]: Protocol::DISPLAY_FMT
     pub fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
         self.display_fmt_with(f, &mut EnvProtocolCaller)
     }
@@ -355,16 +353,14 @@ impl Value {
 
     /// Perform a shallow clone of the value using the [`CLONE`] protocol.
     ///
-    /// This requires read access to the underlying value.
-    ///
     /// You must use [`Vm::with`] to specify which virtual machine this function
     /// is called inside.
     ///
     /// [`Vm::with`]: crate::Vm::with
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This function will panic if called outside of a virtual machine.
+    /// This function errors if called outside of a virtual machine.
     ///
     /// [`CLONE`]: Protocol::CLONE
     pub fn clone_(&self) -> VmResult<Self> {
@@ -401,9 +397,9 @@ impl Value {
     ///
     /// [`Vm::with`]: crate::Vm::with
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This function will panic if called outside of a virtual machine.
+    /// This function errors if called outside of a virtual machine.
     ///
     /// [`DEBUG_FMT`]: Protocol::DEBUG_FMT
     pub fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
