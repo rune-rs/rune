@@ -37,7 +37,7 @@ use rune::ast::Spanned;
 use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::modules::capture_io::CaptureIo;
-use rune::runtime::{budget, Value, VmResult};
+use rune::runtime::{budget, VmResult};
 use rune::{Context, ContextError, Options};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -106,7 +106,7 @@ impl WasmCompileResult {
     /// Construct output from compile result.
     fn output(
         io: &CaptureIo,
-        output: Value,
+        result: String,
         diagnostics_output: Option<String>,
         diagnostics: Vec<WasmDiagnostic>,
         instructions: Option<String>,
@@ -115,7 +115,7 @@ impl WasmCompileResult {
             error: None,
             diagnostics_output,
             diagnostics,
-            result: Some(format!("{:?}", output)),
+            result: Some(result),
             output: io.drain_utf8().ok().map(|s| s.into_std()),
             instructions,
         }
@@ -352,9 +352,11 @@ async fn inner_compile(
         }
     };
 
+    let result = vm.with(|| format!("{output:?}"));
+
     Ok(WasmCompileResult::output(
         io,
-        output,
+        result,
         diagnostics_output(writer),
         diagnostics,
         instructions,
