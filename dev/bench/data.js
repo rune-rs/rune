@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1736731321343,
+  "lastUpdate": 1737162857569,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -30733,6 +30733,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 358,
             "range": "± 5",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "a833d25625fde93de2120ec3e6bca6e6fde293ad",
+          "message": "Fix missing interface error in rune-wasm",
+          "timestamp": "2025-01-17T13:52:57Z",
+          "url": "https://github.com/rune-rs/rune/commit/a833d25625fde93de2120ec3e6bca6e6fde293ad"
+        },
+        "date": 1737162856821,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10448698,
+            "range": "± 241352",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4209560,
+            "range": "± 138382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1469,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1209,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 157846,
+            "range": "± 617",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 839524,
+            "range": "± 2079",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 83460379,
+            "range": "± 1418870",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 192441531,
+            "range": "± 1127843",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 541935,
+            "range": "± 13073",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 5846161,
+            "range": "± 35615",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 30618325,
+            "range": "± 167307",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 4935729,
+            "range": "± 102160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 217289,
+            "range": "± 1018",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2383299,
+            "range": "± 13339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 348,
+            "range": "± 13",
             "unit": "ns/iter"
           }
         ]
