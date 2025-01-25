@@ -36,6 +36,10 @@ fn ast_parse() {
     assert_eq!(item.attributes.len(), 1);
     assert!(item.async_token.is_none());
     assert!(item.const_token.is_some());
+
+    let item_with_type = rt::<ast::ItemFn>("pub async fn hello(foo, bar) -> Type {}");
+    assert!(item_with_type.arrow.is_some());
+    assert!(item_with_type.fn_type.is_some());
 }
 
 /// A function item.
@@ -61,6 +65,12 @@ pub struct ItemFn {
     pub name: ast::Ident,
     /// The arguments of the function.
     pub args: ast::Parenthesized<ast::FnArg, T![,]>,
+    /// The arrow token.
+    #[rune(option)]
+    pub arrow: Option<ast::Arrow>,
+    /// The function type.
+    #[rune(option)]
+    pub fn_type: Option<ast::Ident>,
     /// The body of the function.
     pub body: ast::Block,
     /// Opaque identifier for fn item.
