@@ -504,6 +504,8 @@ mod rename_type;
 #[cfg(not(miri))]
 mod result;
 #[cfg(not(miri))]
+mod static_typing;
+#[cfg(not(miri))]
 mod tuple;
 #[cfg(not(miri))]
 mod type_name_native;

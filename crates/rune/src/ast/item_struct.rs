@@ -23,6 +23,15 @@ fn ast_parse() {
 
     rt::<ast::Field>("a");
     rt::<ast::Field>("#[x] a");
+
+    rt::<ast::ItemStruct>(
+        r"
+        struct Foo { 
+            a: i32, 
+            b: f64, 
+            c: CustomType, 
+        }",
+    );
 }
 
 /// A struct item.
@@ -69,4 +78,7 @@ pub struct Field {
     pub visibility: ast::Visibility,
     /// Name of the field.
     pub name: ast::Ident,
+    /// The type.
+    #[rune(option)]
+    pub ty: Option<(T![:], ast::Type)>,
 }

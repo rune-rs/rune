@@ -160,6 +160,7 @@ mod macro_utils;
 mod pat;
 mod path;
 mod prelude;
+mod rn_type;
 mod span;
 pub(crate) mod spanned;
 mod stmt;
@@ -230,6 +231,7 @@ pub use self::pat::{
 };
 pub use self::path::{Path, PathKind, PathSegment, PathSegmentExpr};
 use self::prelude::*;
+pub use self::rn_type::Type;
 pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};
