@@ -160,8 +160,8 @@ mod macro_utils;
 mod pat;
 mod path;
 mod prelude;
-mod span;
 mod rn_type;
+mod span;
 pub(crate) mod spanned;
 mod stmt;
 mod to_ast;
@@ -226,12 +226,12 @@ pub use self::lit_str::LitStr;
 pub use self::local::Local;
 pub use self::macro_call::MacroCall;
 pub use self::macro_utils::{EqValue, Group};
-pub use self::rn_type::Type;
 pub use self::pat::{
     Pat, PatBinding, PatIgnore, PatLit, PatObject, PatPath, PatRest, PatTuple, PatVec,
 };
 pub use self::path::{Path, PathKind, PathSegment, PathSegmentExpr};
 use self::prelude::*;
+pub use self::rn_type::Type;
 pub use self::span::{ByteIndex, Span};
 pub use self::spanned::{OptionSpanned, Spanned};
 pub use self::stmt::{ItemOrExpr, Stmt, StmtSemi, StmtSortKey};

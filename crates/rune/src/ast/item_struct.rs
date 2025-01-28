@@ -24,12 +24,13 @@ fn ast_parse() {
     rt::<ast::Field>("a");
     rt::<ast::Field>("#[x] a");
 
-    rt::<ast::ItemStruct>(r"
+    rt::<ast::ItemStruct>(
+        r"
         struct Foo { 
             a: i32, 
             b: f64, 
             c: CustomType, 
-        }"
+        }",
     );
 }
 

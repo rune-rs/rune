@@ -38,8 +38,7 @@ fn ast_parse() {
     assert!(item.const_token.is_some());
 
     let item_with_type = rt::<ast::ItemFn>("pub async fn hello(foo, bar) -> Type {}");
-    assert!(item_with_type.arrow.is_some());
-    assert!(item_with_type.fn_type.is_some());
+    assert!(item_with_type.output.is_some());
 }
 
 /// A function item.

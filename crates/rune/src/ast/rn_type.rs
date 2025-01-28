@@ -12,10 +12,10 @@ fn ast_parse() {
 #[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
 pub enum Type {
-	/// If the type is an identifier or a path.
-	Path(ast::Path),
-	/// If the type should return nothing (a.k.a the "never" type in Rust).
-	Bang(T![!]),
+    /// If the type is an identifier or a path.
+    Path(ast::Path),
+    /// If the type should return nothing (a.k.a the "never" type in Rust).
+    Bang(T![!]),
 }
 
 impl Parse for Type {
