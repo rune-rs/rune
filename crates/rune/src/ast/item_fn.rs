@@ -65,12 +65,9 @@ pub struct ItemFn {
     pub name: ast::Ident,
     /// The arguments of the function.
     pub args: ast::Parenthesized<ast::FnArg, T![,]>,
-    /// The arrow token.
-    #[rune(option)]
-    pub arrow: Option<ast::Arrow>,
     /// The function type.
     #[rune(option)]
-    pub fn_type: Option<ast::Ident>,
+    pub fn_type: Option<(ast::Arrow, ast::Type)>,
     /// The body of the function.
     pub body: ast::Block,
     /// Opaque identifier for fn item.
