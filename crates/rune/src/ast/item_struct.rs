@@ -79,5 +79,5 @@ pub struct Field {
     pub name: ast::Ident,
     /// The type.
     #[rune(option)]
-    pub field_type: Option<(ast::Colon, ast::Type)>,
+    pub ty: Option<(T![:], ast::Type)>,
 }

@@ -14,8 +14,6 @@ fn ast_parse() {
 pub enum Type {
 	/// If the type is an identifier or a path.
 	Path(ast::Path),
-	/// If the type is "Self".
-	SelfType(T![Self]),
 	/// If the type should return nothing (a.k.a the "never" type in Rust).
 	Bang(T![!]),
 }
@@ -23,8 +21,7 @@ pub enum Type {
 impl Parse for Type {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let segment = match p.nth(0)? {
-            K![Self] => Self::SelfType(p.parse()?),
-            K![ident] => Self::Path(p.parse()?),
+            K![ident] | K![Self] => Self::Path(p.parse()?),
             K![!] => Self::Bang(p.parse()?),
             _ => {
                 return Err(compile::Error::expected(p.tok_at(0)?, "type"));

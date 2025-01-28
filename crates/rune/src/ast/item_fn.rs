@@ -67,7 +67,7 @@ pub struct ItemFn {
     pub args: ast::Parenthesized<ast::FnArg, T![,]>,
     /// The function type.
     #[rune(option)]
-    pub fn_type: Option<(ast::Arrow, ast::Type)>,
+    pub output: Option<(T![->], ast::Type)>,
     /// The body of the function.
     pub body: ast::Block,
     /// Opaque identifier for fn item.
