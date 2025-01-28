@@ -6,6 +6,8 @@ fn ast_parse() {
     rt::<ast::Type>("Bar");
     rt::<ast::Type>("do::re::mi::fa::sol::la::si::Do");
     rt::<ast::Type>("Self");
+    rt::<ast::Type>("(one::One, two::Two)");
+    rt::<ast::Type>("(one::One, (two::Two, three::Three))");
 }
 
 /// A type, used for static typing.
@@ -16,6 +18,8 @@ pub enum Type {
     Path(ast::Path),
     /// If the type should return nothing (a.k.a the "never" type in Rust).
     Bang(T![!]),
+    /// If the type is a tuple.
+    Tuple(ast::Parenthesized<Box<Type>, T![,]>),
 }
 
 impl Parse for Type {
@@ -23,6 +27,7 @@ impl Parse for Type {
         let segment = match p.nth(0)? {
             K![ident] | K![Self] => Self::Path(p.parse()?),
             K![!] => Self::Bang(p.parse()?),
+            K!['('] => Self::Tuple(p.parse()?),
             _ => {
                 return Err(compile::Error::expected(p.tok_at(0)?, "type"));
             }
