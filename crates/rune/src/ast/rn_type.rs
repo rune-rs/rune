@@ -4,7 +4,7 @@ use crate::ast::prelude::*;
 #[cfg(not(miri))]
 fn ast_parse() {
     rt::<ast::Type>("Bar");
-    rt::<ast::Type>("do::re::mi::fa::sol::la::si::Do");
+    rt::<ast::Type>("one::two::three::four::Five");
     rt::<ast::Type>("Self");
     rt::<ast::Type>("(one::One, two::Two)");
     rt::<ast::Type>("(one::One, (two::Two, three::Three))");
@@ -25,12 +25,9 @@ pub enum Type {
 impl Parse for Type {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
         let segment = match p.nth(0)? {
-            K![ident] | K![Self] => Self::Path(p.parse()?),
             K![!] => Self::Bang(p.parse()?),
             K!['('] => Self::Tuple(p.parse()?),
-            _ => {
-                return Err(compile::Error::expected(p.tok_at(0)?, "type"));
-            }
+            _ => Self::Path(p.parse()?),
         };
 
         Ok(segment)
