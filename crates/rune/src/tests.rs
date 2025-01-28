@@ -551,3 +551,5 @@ mod vm_test_mod;
 mod vm_try;
 #[cfg(not(miri))]
 mod wildcard_imports;
+#[cfg(not(miri))]
+mod static_typing;

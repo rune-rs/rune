@@ -317,6 +317,13 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
         ));
     }
 
+    if ast.output.is_some() {
+        return Err(compile::Error::msg(
+            &ast,
+            "Adding a return type in functions is not supported",
+        ));
+    }
+
     let is_instance = ast.is_instance();
 
     if is_instance {
@@ -949,6 +956,13 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
             return Err(compile::Error::msg(
                 first,
                 "Attributes on fields are not supported",
+            ));
+        }
+
+        if field.ty.is_some() {
+            return Err(compile::Error::msg(
+                field,
+                "Static typing on fields is not supported",
             ));
         }
 
