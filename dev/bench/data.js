@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1737162857569,
+  "lastUpdate": 1738113381304,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -30845,6 +30845,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 348,
             "range": "± 13",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "TheNachoBIT",
+            "username": "TheNachoBIT",
+            "email": "43283743+TheNachoBIT@users.noreply.github.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "92e623086f8b06791b3e2a33750e26338b642618",
+          "message": "Add optional static typing to functions and structs (#904)",
+          "timestamp": "2025-01-28T23:27:41Z",
+          "url": "https://github.com/rune-rs/rune/commit/92e623086f8b06791b3e2a33750e26338b642618"
+        },
+        "date": 1738113380524,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10473008,
+            "range": "± 203357",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4214108,
+            "range": "± 112087",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1512,
+            "range": "± 50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1255,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 154548,
+            "range": "± 1031",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 862970,
+            "range": "± 5456",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 80503371,
+            "range": "± 645888",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 189148992,
+            "range": "± 618545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 525909,
+            "range": "± 2046",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 5625134,
+            "range": "± 26009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 31052840,
+            "range": "± 104670",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 4829276,
+            "range": "± 157952",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 208838,
+            "range": "± 9493",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2316177,
+            "range": "± 24612",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 356,
+            "range": "± 11",
             "unit": "ns/iter"
           }
         ]
