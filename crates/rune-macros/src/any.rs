@@ -353,6 +353,7 @@ fn expand_enum_install_with(
         vm_result,
         vm_try,
         any_t,
+        try_clone,
         ..
     } = tokens;
 
@@ -407,18 +408,38 @@ fn expand_enum_install_with(
 
                         let fields = field_fns.entry(f_name).or_default();
 
-                        let value = if attrs.copy {
-                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(*#f_ident))))
+                        let to_value = if attrs.copy {
+                            quote!(#vm_try!(#to_value::to_value(*#f_ident)))
                         } else {
-                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(#f_ident.clone()))))
+                            quote!(#vm_try!(#to_value::to_value(#vm_try!(#try_clone::try_clone(#f_ident)))))
                         };
 
-                        fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #value));
+                        fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #vm_result::Ok(#to_value)));
                     }
                 }
 
+                let constructor = variant_attr
+                    .constructor
+                    .is_some()
+                    .then(|| {
+                        let args = fields.named.iter().map(|f| {
+                            let ident = f.ident.as_ref().expect("named fields must have an Ident");
+                            let typ = &f.ty;
+                            quote!(#ident: #typ)
+                        });
+
+                        let field_names = fields.named.iter().map(|f| f.ident.as_ref());
+
+                        quote!(|#(#args),*| {
+                            #ident::#variant_ident {
+                                #(#field_names),*
+                            }
+                        })
+                    })
+                    .map(|c| quote!(.constructor(#c)?));
+
                 variant_metas.push(quote! {
-                    enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?.static_docs(&#variant_docs)?
+                    enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?#constructor.static_docs(&#variant_docs)?
                 });
 
                 variants.push((None, variant_attr));
@@ -435,13 +456,13 @@ fn expand_enum_install_with(
                         let fields = index_fns.entry(n).or_default();
                         let n = syn::LitInt::new(&n.to_string(), span);
 
-                        let value = if attrs.copy {
-                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(*value))))
+                        let to_value = if attrs.copy {
+                            quote!(#vm_try!(#to_value::to_value(*value)))
                         } else {
-                            quote!(#vm_result::Ok(#vm_try!(#to_value::to_value(value.clone()))))
+                            quote!(#vm_try!(#to_value::to_value(#vm_try!(#try_clone::try_clone(value)))))
                         };
 
-                        fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #value));
+                        fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #vm_result::Ok(#to_value)));
                     }
                 }
 
@@ -677,6 +698,7 @@ where
             impl #impl_generics #named for #ident #type_generics #where_clause {
                 const ITEM: &'static #item = unsafe { #item::from_bytes(&#type_item) };
 
+                #[inline]
                 fn full_name(f: &mut #fmt::Formatter<'_>) -> #fmt::Result {
                     #fmt::Display::fmt(Self::ITEM, f)?;
                     #named_rest

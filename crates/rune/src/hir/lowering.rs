@@ -359,10 +359,18 @@ fn expr_object<'hir>(
                 }
                 meta::Kind::Variant {
                     fields: meta::Fields::Named(st),
+                    constructor,
                     ..
                 } => {
                     check_object_fields(&st.fields, item)?;
-                    hir::ExprObjectKind::StructVariant { hash: meta.hash }
+
+                    match constructor {
+                        Some(_) => hir::ExprObjectKind::ExternalType {
+                            hash: meta.hash,
+                            args: st.fields.len(),
+                        },
+                        None => hir::ExprObjectKind::StructVariant { hash: meta.hash },
+                    }
                 }
                 _ => {
                     return Err(compile::Error::new(

@@ -431,6 +431,8 @@ mod bug_454;
 #[cfg(not(miri))]
 mod bug_700;
 #[cfg(not(miri))]
+mod bug_905;
+#[cfg(not(miri))]
 mod bugfixes;
 #[cfg(not(miri))]
 mod builtin_macros;

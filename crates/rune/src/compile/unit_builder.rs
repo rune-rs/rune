@@ -321,13 +321,16 @@ impl UnitBuilder {
         pool: &Pool,
         query: &mut QueryInner,
     ) -> compile::Result<()> {
+        debug_assert_eq! {
+            pool.item_type_hash(meta.item_meta.item),
+            meta.hash,
+        };
+
         match meta.kind {
             meta::Kind::Type { .. } => {
-                let hash = pool.item_type_hash(meta.item_meta.item);
-
                 let rtti = Arc::new(Rtti {
                     kind: RttiKind::Empty,
-                    hash,
+                    hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
@@ -335,15 +338,20 @@ impl UnitBuilder {
 
                 self.constants
                     .try_insert(
-                        Hash::associated_function(hash, &Protocol::INTO_TYPE_NAME),
+                        Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
                         ConstValue::from(rtti.item.try_to_string()?),
                     )
                     .with_span(span)?;
 
-                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
-                        ErrorKind::TypeRttiConflict { hash },
+                        ErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
             }
@@ -466,11 +474,9 @@ impl UnitBuilder {
                 fields: meta::Fields::Named(ref named),
                 ..
             } => {
-                let hash = pool.item_type_hash(meta.item_meta.item);
-
                 let rtti = Arc::new(Rtti {
                     kind: RttiKind::Struct,
-                    hash,
+                    hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
@@ -478,15 +484,20 @@ impl UnitBuilder {
 
                 self.constants
                     .try_insert(
-                        Hash::associated_function(hash, &Protocol::INTO_TYPE_NAME),
+                        Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
                         ConstValue::from(rtti.item.try_to_string()?),
                     )
                     .with_span(span)?;
 
-                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
-                        ErrorKind::TypeRttiConflict { hash },
+                        ErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
             }
@@ -598,18 +609,24 @@ impl UnitBuilder {
                 fields: meta::Fields::Named(ref named),
                 ..
             } => {
-                let hash = pool.item_type_hash(meta.item_meta.item);
-
                 let rtti = Arc::new(Rtti {
                     kind: RttiKind::Struct,
                     hash: enum_hash,
-                    variant_hash: hash,
+                    variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
                 });
 
-                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
-                    return Err(compile::Error::new(span, ErrorKind::RttiConflict { hash }));
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::RttiConflict { hash: meta.hash },
+                    ));
                 }
             }
             meta::Kind::Enum { .. } => {

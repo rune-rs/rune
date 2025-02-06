@@ -24,6 +24,8 @@ impl ModuleAttrs {
 pub(crate) struct Module {
     attributes: Vec<syn::Attribute>,
     docs: syn::ExprArray,
+    vis: syn::Visibility,
+    signature: syn::Signature,
     remainder: TokenStream,
 }
 
@@ -50,12 +52,12 @@ impl Module {
             attributes.push(attr);
         }
 
-        let remainder = input.parse::<TokenStream>()?;
-
         Ok(Self {
             attributes,
             docs,
-            remainder,
+            vis: input.parse()?,
+            signature: input.parse()?,
+            remainder: input.parse()?,
         })
     }
 
@@ -114,6 +116,8 @@ impl Module {
             attribute.to_tokens(&mut stream);
         }
 
+        self.vis.to_tokens(&mut stream);
+        self.signature.to_tokens(&mut stream);
         stream.extend(self.remainder);
         Ok(stream)
     }
