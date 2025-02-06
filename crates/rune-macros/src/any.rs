@@ -294,22 +294,7 @@ fn expand_struct_install_with(
             let constructor = attr
                 .constructor
                 .is_some()
-                .then(|| {
-                    let args = fields.named.iter().map(|f| {
-                        let ident = f.ident.as_ref().expect("named fields must have an Ident");
-                        let typ = &f.ty;
-                        quote!(#ident: #typ)
-                    });
-
-                    let field_names = fields.named.iter().map(|f| f.ident.as_ref());
-
-                    quote!(|#(#args),*| {
-                        #ident {
-                            #(#field_names),*
-                        }
-                    })
-                })
-                .map(|c| quote!(.constructor(#c)?));
+                .then(|| make_constructor(syn::parse_quote!(#ident), &fields.named));
 
             let fields = fields.named.iter().flat_map(|f| {
                 let ident = f.ident.as_ref()?;
@@ -317,7 +302,7 @@ fn expand_struct_install_with(
             });
 
             installers.push(quote! {
-                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?#constructor.static_docs(&#docs)?;
+                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?.static_docs(&#docs)?#constructor;
             });
         }
         syn::Fields::Unnamed(fields) => {
@@ -418,28 +403,12 @@ fn expand_enum_install_with(
                     }
                 }
 
-                let constructor = variant_attr
-                    .constructor
-                    .is_some()
-                    .then(|| {
-                        let args = fields.named.iter().map(|f| {
-                            let ident = f.ident.as_ref().expect("named fields must have an Ident");
-                            let typ = &f.ty;
-                            quote!(#ident: #typ)
-                        });
-
-                        let field_names = fields.named.iter().map(|f| f.ident.as_ref());
-
-                        quote!(|#(#args),*| {
-                            #ident::#variant_ident {
-                                #(#field_names),*
-                            }
-                        })
-                    })
-                    .map(|c| quote!(.constructor(#c)?));
+                let constructor = variant_attr.constructor.is_some().then(|| {
+                    make_constructor(syn::parse_quote!(#ident::#variant_ident), &fields.named)
+                });
 
                 variant_metas.push(quote! {
-                    enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?#constructor.static_docs(&#variant_docs)?
+                    enum_.variant_mut(#variant_index)?.make_named(&[#(#field_names),*])?.static_docs(&#variant_docs)?#constructor
                 });
 
                 variants.push((None, variant_attr));
@@ -569,8 +538,9 @@ fn expand_enum_install_with(
 
         let constructor = constructor.as_ref().map(|c| quote!(.constructor(#c)?));
 
-        installers
-            .push(quote!(module.variant_meta::<Self>(#index)?#constructor.static_docs(&#docs)?;))
+        installers.push(quote! {
+                module.variant_meta::<Self>(#index)?.static_docs(&#docs)?#constructor;
+        });
     }
 
     Ok(())
@@ -1085,5 +1055,23 @@ impl ToTokens for Params {
         self.lt_token.to_tokens(tokens);
         self.params.to_tokens(tokens);
         self.gt_token.to_tokens(tokens);
+    }
+}
+
+fn make_constructor(path: syn::Path, named: &Punctuated<syn::Field, Token![,]>) -> impl ToTokens {
+    let args = named.iter().flat_map(|f| {
+        let ident = f.ident.as_ref()?;
+        let typ = &f.ty;
+        Some(quote!(#ident: #typ))
+    });
+
+    let field_names = named.iter().flat_map(|f| f.ident.as_ref());
+
+    quote! {
+        .constructor(|#(#args),*| {
+            #path {
+                #(#field_names),*
+            }
+        })?
     }
 }
