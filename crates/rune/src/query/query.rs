@@ -1615,14 +1615,16 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     fields: variant.fields,
                     constructor: None,
                     parameters: Hash::EMPTY,
-                    variant: Some((enum_meta.hash, variant.index)),
+                    enum_hash: enum_meta.hash,
+                    variant_index: variant.index,
                 }
             }
             Indexed::Struct(st) => meta::Kind::Struct {
                 fields: st.fields,
                 constructor: None,
                 parameters: Hash::EMPTY,
-                variant: None,
+                enum_hash: Hash::EMPTY,
+                variant_index: 0,
             },
             Indexed::Function(f) => {
                 let kind = meta::Kind::Function {

@@ -1636,25 +1636,27 @@ fn struct_match_for(
     meta: &meta::Meta,
     open: bool,
 ) -> alloc::Result<Option<(HashSet<Box<str>>, hir::PatSequenceKind)>> {
-    let (fields, kind) = match &meta.kind {
+    let (fields, kind) = match meta.kind {
         meta::Kind::Struct {
-            fields,
-            variant: None,
-            ..
-        } => (fields, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Struct {
-            fields,
-            variant: Some((enum_hash, index)),
+            ref fields,
+            enum_hash,
+            variant_index,
             ..
         } => {
-            let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                hir::PatSequenceKind::BuiltInVariant { type_check }
-            } else {
-                hir::PatSequenceKind::Variant {
-                    variant_hash: meta.hash,
-                    enum_hash: *enum_hash,
-                    index: *index,
+            let kind = 'kind: {
+                if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
+                    break 'kind hir::PatSequenceKind::BuiltInVariant { type_check };
                 }
+
+                if enum_hash != Hash::EMPTY {
+                    break 'kind hir::PatSequenceKind::Variant {
+                        variant_hash: meta.hash,
+                        enum_hash,
+                        index: variant_index,
+                    };
+                }
+
+                hir::PatSequenceKind::Type { hash: meta.hash }
             };
 
             (fields, kind)
@@ -1682,42 +1684,39 @@ fn tuple_match_for(
     cx: &Ctxt<'_, '_, '_>,
     meta: &meta::Meta,
 ) -> Option<(usize, hir::PatSequenceKind)> {
-    Some(match &meta.kind {
+    match meta.kind {
         meta::Kind::Struct {
-            fields: meta::Fields::Empty,
-            variant: None,
-            ..
-        } => (0, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Struct {
-            fields: meta::Fields::Unnamed(args),
-            variant: None,
-            ..
-        } => (*args, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Struct {
-            fields,
-            variant: Some((enum_hash, index)),
+            ref fields,
+            enum_hash,
+            variant_index,
             ..
         } => {
-            let args = match fields {
-                meta::Fields::Unnamed(args) => *args,
+            let args = match *fields {
+                meta::Fields::Unnamed(args) => args,
                 meta::Fields::Empty => 0,
                 _ => return None,
             };
 
-            let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                hir::PatSequenceKind::BuiltInVariant { type_check }
-            } else {
-                hir::PatSequenceKind::Variant {
-                    variant_hash: meta.hash,
-                    enum_hash: *enum_hash,
-                    index: *index,
+            let kind = 'kind: {
+                if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
+                    break 'kind hir::PatSequenceKind::BuiltInVariant { type_check };
                 }
+
+                if enum_hash != Hash::EMPTY {
+                    break 'kind hir::PatSequenceKind::Variant {
+                        variant_hash: meta.hash,
+                        enum_hash,
+                        index: variant_index,
+                    };
+                }
+
+                hir::PatSequenceKind::Type { hash: meta.hash }
             };
 
-            (args, kind)
+            Some((args, kind))
         }
-        _ => return None,
-    })
+        _ => None,
+    }
 }
 
 fn generics_parameters(

@@ -22,7 +22,7 @@ use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::workspace::{self, WorkspaceError};
 use crate::{self as rune, Diagnostics};
-use crate::{BuildError, Context, Item, Options, Source, SourceId, Sources, Unit};
+use crate::{BuildError, Context, Hash, Item, Options, Source, SourceId, Sources, Unit};
 
 #[derive(Default)]
 struct Reporter {
@@ -1052,32 +1052,29 @@ impl CompileVisitor for Visitor {
         let kind = match &meta.kind {
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
-                variant: None,
+                enum_hash: Hash::EMPTY,
                 ..
             } => DefinitionKind::EmptyStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
-                variant: None,
+                enum_hash: Hash::EMPTY,
                 ..
             } => DefinitionKind::TupleStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Named(..),
-                variant: None,
+                enum_hash: Hash::EMPTY,
                 ..
             } => DefinitionKind::Struct,
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
-                variant: Some(..),
                 ..
             } => DefinitionKind::UnitVariant,
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
-                variant: Some(..),
                 ..
             } => DefinitionKind::TupleVariant,
             meta::Kind::Struct {
                 fields: meta::Fields::Named(..),
-                variant: Some(..),
                 ..
             } => DefinitionKind::StructVariant,
             meta::Kind::Enum { .. } => DefinitionKind::Enum,

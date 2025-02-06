@@ -759,7 +759,8 @@ impl Context {
                         },
                         constructor,
                         parameters,
-                        variant: None,
+                        enum_hash: Hash::EMPTY,
+                        variant_index: 0,
                     }
                 }
                 TypeSpecification::Enum(en) => {
@@ -832,7 +833,8 @@ impl Context {
                                 },
                                 constructor,
                                 parameters: Hash::EMPTY,
-                                variant: Some((ty.hash, index)),
+                                enum_hash: ty.hash,
+                                variant_index: index,
                             },
                             #[cfg(feature = "doc")]
                             deprecated: variant.deprecated.try_clone()?,

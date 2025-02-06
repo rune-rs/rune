@@ -118,7 +118,10 @@ impl Meta {
     pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
             Kind::Type { .. } => Some(self.hash),
-            Kind::Struct { variant: None, .. } => Some(self.hash),
+            Kind::Struct {
+                enum_hash: Hash::EMPTY,
+                ..
+            } => Some(self.hash),
             Kind::Struct { .. } => None,
             Kind::Enum { .. } => Some(self.hash),
             Kind::Function { .. } => Some(self.hash),
@@ -176,8 +179,14 @@ pub enum Kind {
         constructor: Option<Signature>,
         /// Hash of generic parameters.
         parameters: Hash,
-        /// If this struct is a variant, this will be the enum hash and index.
-        variant: Option<(Hash, usize)>,
+        /// If this is a variant, this is the type hash of the enum.
+        ///
+        /// If this is not a variant, this is [Hash::EMPTY].
+        enum_hash: Hash,
+        /// If this is a variant, this is the index of the variant in the enum.
+        ///
+        /// For non-variants, this is set to `0`.
+        variant_index: usize,
     },
     /// An enum item.
     Enum {
@@ -263,12 +272,9 @@ impl Kind {
     /// Get the associated container of the meta kind.
     #[cfg(feature = "doc")]
     pub(crate) fn associated_container(&self) -> Option<Hash> {
-        match self {
-            Kind::Struct {
-                variant: Some((enum_hash, _)),
-                ..
-            } => Some(*enum_hash),
-            Kind::Function { container, .. } => *container,
+        match *self {
+            Kind::Struct { enum_hash, .. } if enum_hash != Hash::EMPTY => Some(enum_hash),
+            Kind::Function { container, .. } => container,
             _ => None,
         }
     }
