@@ -101,6 +101,11 @@ pub fn to_value(value: impl ToValue) -> Result<Value, RuntimeError> {
 /// assert_eq!(foo, 43);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
+#[diagnostic::on_unimplemented(
+    message = "ToValue is not implemented for `{Self}`",
+    label = "ToValue is not implemented for `{Self}`",
+    note = "This probably means that `{Self}` hasn't derived rune::Any"
+)]
 pub trait ToValue: Sized {
     /// Convert into a value.
     fn to_value(self) -> Result<Value, RuntimeError>;
@@ -191,6 +196,7 @@ impl<T> ToValue for Option<T>
 where
     T: ToValue,
 {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let option = match self {
             Some(some) => Some(some.to_value()?),
@@ -204,6 +210,7 @@ where
 // String impls
 
 impl ToValue for alloc::Box<str> {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let this = alloc::String::from(self);
         Ok(Value::new(this)?)
@@ -211,6 +218,7 @@ impl ToValue for alloc::Box<str> {
 }
 
 impl ToValue for &str {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let this = alloc::String::try_from(self)?;
         Ok(Value::new(this)?)
@@ -219,6 +227,7 @@ impl ToValue for &str {
 
 #[cfg(feature = "alloc")]
 impl ToValue for ::rust_alloc::boxed::Box<str> {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let this = self.try_to_string()?;
         Ok(Value::new(this)?)
@@ -227,6 +236,7 @@ impl ToValue for ::rust_alloc::boxed::Box<str> {
 
 #[cfg(feature = "alloc")]
 impl ToValue for ::rust_alloc::string::String {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let string = alloc::String::try_from(self)?;
         Ok(Value::new(string)?)

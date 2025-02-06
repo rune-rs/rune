@@ -2347,18 +2347,6 @@ impl Vm {
         VmResult::Ok(())
     }
 
-    /// Operation to allocate an empty struct.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_empty_struct(&mut self, hash: Hash, out: Output) -> VmResult<()> {
-        let Some(rtti) = self.unit.lookup_rtti(&hash) else {
-            return err(VmErrorKind::MissingRtti { hash });
-        };
-
-        let value = vm_try!(Dynamic::<_, Value>::new(rtti.clone(), []));
-        vm_try!(out.store(&mut self.stack, value));
-        VmResult::Ok(())
-    }
-
     /// Operation to allocate an object struct.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_struct(&mut self, addr: InstAddress, hash: Hash, out: Output) -> VmResult<()> {
@@ -3210,9 +3198,6 @@ impl Vm {
                 }
                 Inst::Range { range, out } => {
                     vm_try!(self.op_range(range, out));
-                }
-                Inst::EmptyStruct { hash, out } => {
-                    vm_try!(self.op_empty_struct(hash, out));
                 }
                 Inst::Struct { addr, hash, out } => {
                     vm_try!(self.op_struct(addr, hash, out));

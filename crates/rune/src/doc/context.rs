@@ -230,8 +230,11 @@ impl<'a> Context<'a> {
 
         let kind = match &meta.kind {
             meta::Kind::Type { .. } => Kind::Type,
-            meta::Kind::Struct { .. } => Kind::Struct,
-            meta::Kind::Variant { .. } => Kind::Variant,
+            meta::Kind::Struct {
+                enum_hash: Hash::EMPTY,
+                ..
+            } => Kind::Struct,
+            meta::Kind::Struct { .. } => Kind::Variant,
             meta::Kind::Enum { .. } => Kind::Enum,
             meta::Kind::Function {
                 associated: None,
@@ -304,14 +307,14 @@ fn visitor_to_associated(visitor: &Visitor, hash: Hash) -> impl Iterator<Item = 
         a.iter().flat_map(move |hash| {
             let data = visitor.data.get(hash)?;
 
-            let (associated, trait_hash, signature) = match &data.kind {
-                Some(meta::Kind::Function {
+            let (associated, trait_hash, signature) = match data.kind.as_ref()? {
+                meta::Kind::Function {
                     associated,
                     trait_hash,
                     signature,
                     ..
-                }) => (associated, trait_hash, signature),
-                Some(meta::Kind::Variant { .. }) => {
+                } => (associated, trait_hash, signature),
+                meta::Kind::Struct { enum_hash, .. } if *enum_hash != Hash::EMPTY => {
                     return Some(Assoc::Variant(AssocVariant {
                         name: data.item.last()?.as_str()?,
                         docs: &data.docs,
@@ -349,19 +352,20 @@ fn visitor_to_associated(visitor: &Visitor, hash: Hash) -> impl Iterator<Item = 
 fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
     let meta = context.lookup_meta_by_hash(hash).next()?;
 
-    match &meta.kind {
-        meta::Kind::Variant { .. } => {
+    match meta.kind {
+        meta::Kind::Struct { enum_hash, .. } if enum_hash != Hash::EMPTY => {
             let name = meta.item.as_deref()?.last()?.as_str()?;
+
             Some(Assoc::Variant(AssocVariant {
                 name,
                 docs: meta.docs.lines(),
             }))
         }
         meta::Kind::Function {
-            associated: Some(associated),
+            associated: Some(ref associated),
             trait_hash,
-            parameter_types,
-            signature,
+            ref parameter_types,
+            ref signature,
             ..
         } => {
             let kind = match *associated {
@@ -379,7 +383,7 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
 
             Some(Assoc::Fn(AssocFn {
                 kind,
-                trait_hash: *trait_hash,
+                trait_hash,
                 is_async: signature.is_async,
                 arguments: signature.arguments.as_deref(),
                 return_type: &signature.return_type,
@@ -391,7 +395,7 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
         meta::Kind::Function {
             associated: None,
             trait_hash,
-            signature,
+            ref signature,
             ..
         } => {
             let item = meta.item.as_deref()?;
@@ -400,7 +404,7 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
 
             Some(Assoc::Fn(AssocFn {
                 kind,
-                trait_hash: *trait_hash,
+                trait_hash,
                 is_async: signature.is_async,
                 arguments: signature.arguments.as_deref(),
                 return_type: &signature.return_type,
@@ -409,7 +413,7 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
                 docs: meta.docs.lines(),
             }))
         }
-        _kind => {
+        ref _kind => {
             tracing::warn!(kind = ?_kind, "Unsupported associated type");
             None
         }
@@ -419,8 +423,11 @@ fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'
 fn visitor_meta_to_meta<'a>(base: &'a Item, data: &'a VisitorData) -> Meta<'a> {
     let kind = match &data.kind {
         Some(meta::Kind::Type { .. }) => Kind::Type,
-        Some(meta::Kind::Struct { .. }) => Kind::Struct,
-        Some(meta::Kind::Variant { .. }) => Kind::Variant,
+        Some(meta::Kind::Struct {
+            enum_hash: Hash::EMPTY,
+            ..
+        }) => Kind::Struct,
+        Some(meta::Kind::Struct { .. }) => Kind::Variant,
         Some(meta::Kind::Enum { .. }) => Kind::Enum,
         Some(meta::Kind::Function {
             associated,

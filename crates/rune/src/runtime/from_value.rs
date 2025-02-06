@@ -170,6 +170,11 @@ where
 /// assert_eq!(foo.field, 42);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
+#[diagnostic::on_unimplemented(
+    message = "FromValue is not implemented for `{Self}`",
+    label = "FromValue is not implemented for `{Self}`",
+    note = "This probably means that `{Self}` hasn't derived rune::Any"
+)]
 pub trait FromValue: 'static + Sized {
     /// Try to convert to the given type, from the given value.
     fn from_value(value: Value) -> Result<Self, RuntimeError>;

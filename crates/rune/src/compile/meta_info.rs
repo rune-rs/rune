@@ -123,8 +123,11 @@ impl MetaInfoKind {
     fn from_kind(value: &meta::Kind) -> Self {
         match value {
             meta::Kind::Type { .. } => MetaInfoKind::Type,
-            meta::Kind::Struct { .. } => MetaInfoKind::Struct,
-            meta::Kind::Variant { .. } => MetaInfoKind::Variant,
+            meta::Kind::Struct {
+                enum_hash: Hash::EMPTY,
+                ..
+            } => MetaInfoKind::Struct,
+            meta::Kind::Struct { .. } => MetaInfoKind::Variant,
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,
             meta::Kind::Macro { .. } => MetaInfoKind::Macro,
             meta::Kind::AttributeMacro { .. } => MetaInfoKind::AttributeMacro,

@@ -40,10 +40,11 @@ impl AnyObjError {
 impl core::error::Error for AnyObjError {}
 
 impl fmt::Display for AnyObjError {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             AnyObjErrorKind::Cast(expected, actual) => {
-                write!(f, "Expected type `{expected}` but found `{actual}`")
+                write!(f, "Failed to cast `{actual}` to `{expected}`")
             }
             AnyObjErrorKind::AccessError(error) => error.fmt(f),
         }

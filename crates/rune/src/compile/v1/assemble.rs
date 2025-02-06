@@ -2676,16 +2676,7 @@ fn expr_object<'a, 'hir>(
         exprs_with(cx, span, hir.assignments, |hir| &hir.assign)?.into_converging()
     {
         match hir.kind {
-            hir::ExprObjectKind::EmptyStruct { hash } => {
-                cx.asm.push(
-                    Inst::EmptyStruct {
-                        hash,
-                        out: needs.alloc_output()?,
-                    },
-                    span,
-                )?;
-            }
-            hir::ExprObjectKind::Struct { hash } | hir::ExprObjectKind::StructVariant { hash } => {
+            hir::ExprObjectKind::Struct { hash } => {
                 cx.asm.push(
                     Inst::Struct {
                         addr: linear.addr(),

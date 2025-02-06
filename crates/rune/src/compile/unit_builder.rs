@@ -321,13 +321,16 @@ impl UnitBuilder {
         pool: &Pool,
         query: &mut QueryInner,
     ) -> compile::Result<()> {
+        debug_assert_eq! {
+            pool.item_type_hash(meta.item_meta.item),
+            meta.hash,
+        };
+
         match meta.kind {
             meta::Kind::Type { .. } => {
-                let hash = pool.item_type_hash(meta.item_meta.item);
-
                 let rtti = Arc::new(Rtti {
                     kind: RttiKind::Empty,
-                    hash,
+                    hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
@@ -335,20 +338,26 @@ impl UnitBuilder {
 
                 self.constants
                     .try_insert(
-                        Hash::associated_function(hash, &Protocol::INTO_TYPE_NAME),
+                        Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
                         ConstValue::from(rtti.item.try_to_string()?),
                     )
                     .with_span(span)?;
 
-                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
                     return Err(compile::Error::new(
                         span,
-                        ErrorKind::TypeRttiConflict { hash },
+                        ErrorKind::TypeRttiConflict { hash: meta.hash },
                     ));
                 }
             }
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
+                enum_hash: Hash::EMPTY,
                 ..
             } => {
                 let info = UnitFn::EmptyStruct { hash: meta.hash };
@@ -404,7 +413,58 @@ impl UnitBuilder {
                     .try_insert(meta.hash, signature)?;
             }
             meta::Kind::Struct {
+                fields: meta::Fields::Empty,
+                enum_hash,
+                ..
+            } => {
+                let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Empty,
+                    hash: enum_hash,
+                    variant_hash: meta.hash,
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: HashMap::default(),
+                });
+
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::RttiConflict { hash: meta.hash },
+                    ));
+                }
+
+                let info = UnitFn::EmptyStruct { hash: meta.hash };
+
+                let signature = DebugSignature::new(
+                    pool.item(meta.item_meta.item).try_to_owned()?,
+                    DebugArgs::EmptyArgs,
+                );
+
+                if self
+                    .functions
+                    .try_insert(meta.hash, info)
+                    .with_span(span)?
+                    .is_some()
+                {
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::FunctionConflict {
+                            existing: signature,
+                        },
+                    ));
+                }
+
+                self.debug_mut()?
+                    .functions
+                    .try_insert(meta.hash, signature)?;
+            }
+            meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(args),
+                enum_hash: Hash::EMPTY,
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
@@ -463,86 +523,8 @@ impl UnitBuilder {
                     .try_insert(meta.hash, signature)?;
             }
             meta::Kind::Struct {
-                fields: meta::Fields::Named(ref named),
-                ..
-            } => {
-                let hash = pool.item_type_hash(meta.item_meta.item);
-
-                let rtti = Arc::new(Rtti {
-                    kind: RttiKind::Struct,
-                    hash,
-                    variant_hash: Hash::EMPTY,
-                    item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: named.to_fields()?,
-                });
-
-                self.constants
-                    .try_insert(
-                        Hash::associated_function(hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::from(rtti.item.try_to_string()?),
-                    )
-                    .with_span(span)?;
-
-                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
-                    return Err(compile::Error::new(
-                        span,
-                        ErrorKind::TypeRttiConflict { hash },
-                    ));
-                }
-            }
-            meta::Kind::Variant {
-                enum_hash,
-                fields: meta::Fields::Empty,
-                ..
-            } => {
-                let rtti = Arc::new(Rtti {
-                    kind: RttiKind::Empty,
-                    hash: enum_hash,
-                    variant_hash: meta.hash,
-                    item: pool.item(meta.item_meta.item).try_to_owned()?,
-                    fields: HashMap::default(),
-                });
-
-                if self
-                    .rtti
-                    .try_insert(meta.hash, rtti)
-                    .with_span(span)?
-                    .is_some()
-                {
-                    return Err(compile::Error::new(
-                        span,
-                        ErrorKind::RttiConflict { hash: meta.hash },
-                    ));
-                }
-
-                let info = UnitFn::EmptyStruct { hash: meta.hash };
-
-                let signature = DebugSignature::new(
-                    pool.item(meta.item_meta.item).try_to_owned()?,
-                    DebugArgs::EmptyArgs,
-                );
-
-                if self
-                    .functions
-                    .try_insert(meta.hash, info)
-                    .with_span(span)?
-                    .is_some()
-                {
-                    return Err(compile::Error::new(
-                        span,
-                        ErrorKind::FunctionConflict {
-                            existing: signature,
-                        },
-                    ));
-                }
-
-                self.debug_mut()?
-                    .functions
-                    .try_insert(meta.hash, signature)?;
-            }
-            meta::Kind::Variant {
-                enum_hash,
                 fields: meta::Fields::Unnamed(args),
+                enum_hash,
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
@@ -593,23 +575,61 @@ impl UnitBuilder {
                     .functions
                     .try_insert(meta.hash, signature)?;
             }
-            meta::Kind::Variant {
-                enum_hash,
+            meta::Kind::Struct {
                 fields: meta::Fields::Named(ref named),
+                enum_hash: Hash::EMPTY,
                 ..
             } => {
-                let hash = pool.item_type_hash(meta.item_meta.item);
-
                 let rtti = Arc::new(Rtti {
                     kind: RttiKind::Struct,
-                    hash: enum_hash,
-                    variant_hash: hash,
+                    hash: meta.hash,
+                    variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
                 });
 
-                if self.rtti.try_insert(hash, rtti).with_span(span)?.is_some() {
-                    return Err(compile::Error::new(span, ErrorKind::RttiConflict { hash }));
+                self.constants
+                    .try_insert(
+                        Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
+                        ConstValue::from(rtti.item.try_to_string()?),
+                    )
+                    .with_span(span)?;
+
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::TypeRttiConflict { hash: meta.hash },
+                    ));
+                }
+            }
+            meta::Kind::Struct {
+                fields: meta::Fields::Named(ref named),
+                enum_hash,
+                ..
+            } => {
+                let rtti = Arc::new(Rtti {
+                    kind: RttiKind::Struct,
+                    hash: enum_hash,
+                    variant_hash: meta.hash,
+                    item: pool.item(meta.item_meta.item).try_to_owned()?,
+                    fields: named.to_fields()?,
+                });
+
+                if self
+                    .rtti
+                    .try_insert(meta.hash, rtti)
+                    .with_span(span)?
+                    .is_some()
+                {
+                    return Err(compile::Error::new(
+                        span,
+                        ErrorKind::RttiConflict { hash: meta.hash },
+                    ));
                 }
             }
             meta::Kind::Enum { .. } => {

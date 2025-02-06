@@ -337,10 +337,18 @@ fn expr_object<'hir>(
             match &meta.kind {
                 meta::Kind::Struct {
                     fields: meta::Fields::Empty,
+                    constructor,
                     ..
                 } => {
                     check_object_fields(&[], item)?;
-                    hir::ExprObjectKind::EmptyStruct { hash: meta.hash }
+
+                    match constructor {
+                        Some(_) => hir::ExprObjectKind::ExternalType {
+                            hash: meta.hash,
+                            args: 0,
+                        },
+                        None => hir::ExprObjectKind::Struct { hash: meta.hash },
+                    }
                 }
                 meta::Kind::Struct {
                     fields: meta::Fields::Named(st),
@@ -356,13 +364,6 @@ fn expr_object<'hir>(
                         },
                         None => hir::ExprObjectKind::Struct { hash: meta.hash },
                     }
-                }
-                meta::Kind::Variant {
-                    fields: meta::Fields::Named(st),
-                    ..
-                } => {
-                    check_object_fields(&st.fields, item)?;
-                    hir::ExprObjectKind::StructVariant { hash: meta.hash }
                 }
                 _ => {
                     return Err(compile::Error::new(
@@ -1549,19 +1550,11 @@ fn expr_path_meta<'hir>(
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
                 ..
-            }
-            | meta::Kind::Variant {
-                fields: meta::Fields::Empty,
-                ..
             } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
                 call: hir::Call::Meta { hash: meta.hash },
                 args: &[],
             }))),
-            meta::Kind::Variant {
-                fields: meta::Fields::Unnamed(0),
-                ..
-            }
-            | meta::Kind::Struct {
+            meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(0),
                 ..
             } => Ok(hir::ExprKind::Call(alloc!(hir::ExprCall {
@@ -1569,10 +1562,6 @@ fn expr_path_meta<'hir>(
                 args: &[],
             }))),
             meta::Kind::Struct {
-                fields: meta::Fields::Unnamed(..),
-                ..
-            } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Variant {
                 fields: meta::Fields::Unnamed(..),
                 ..
             } => Ok(hir::ExprKind::Fn(meta.hash)),
@@ -1647,24 +1636,27 @@ fn struct_match_for(
     meta: &meta::Meta,
     open: bool,
 ) -> alloc::Result<Option<(HashSet<Box<str>>, hir::PatSequenceKind)>> {
-    let (fields, kind) = match &meta.kind {
-        meta::Kind::Struct { fields, .. } => {
-            (fields, hir::PatSequenceKind::Type { hash: meta.hash })
-        }
-        meta::Kind::Variant {
+    let (fields, kind) = match meta.kind {
+        meta::Kind::Struct {
+            ref fields,
             enum_hash,
-            index,
-            fields,
+            variant_index,
             ..
         } => {
-            let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                hir::PatSequenceKind::BuiltInVariant { type_check }
-            } else {
-                hir::PatSequenceKind::Variant {
-                    variant_hash: meta.hash,
-                    enum_hash: *enum_hash,
-                    index: *index,
+            let kind = 'kind: {
+                if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
+                    break 'kind hir::PatSequenceKind::BuiltInVariant { type_check };
                 }
+
+                if enum_hash != Hash::EMPTY {
+                    break 'kind hir::PatSequenceKind::Variant {
+                        variant_hash: meta.hash,
+                        enum_hash,
+                        index: variant_index,
+                    };
+                }
+
+                hir::PatSequenceKind::Type { hash: meta.hash }
             };
 
             (fields, kind)
@@ -1692,41 +1684,39 @@ fn tuple_match_for(
     cx: &Ctxt<'_, '_, '_>,
     meta: &meta::Meta,
 ) -> Option<(usize, hir::PatSequenceKind)> {
-    Some(match &meta.kind {
+    match meta.kind {
         meta::Kind::Struct {
-            fields: meta::Fields::Empty,
-            ..
-        } => (0, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Struct {
-            fields: meta::Fields::Unnamed(args),
-            ..
-        } => (*args, hir::PatSequenceKind::Type { hash: meta.hash }),
-        meta::Kind::Variant {
+            ref fields,
             enum_hash,
-            index,
-            fields,
+            variant_index,
             ..
         } => {
-            let args = match fields {
-                meta::Fields::Unnamed(args) => *args,
+            let args = match *fields {
+                meta::Fields::Unnamed(args) => args,
                 meta::Fields::Empty => 0,
                 _ => return None,
             };
 
-            let kind = if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                hir::PatSequenceKind::BuiltInVariant { type_check }
-            } else {
-                hir::PatSequenceKind::Variant {
-                    variant_hash: meta.hash,
-                    enum_hash: *enum_hash,
-                    index: *index,
+            let kind = 'kind: {
+                if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
+                    break 'kind hir::PatSequenceKind::BuiltInVariant { type_check };
                 }
+
+                if enum_hash != Hash::EMPTY {
+                    break 'kind hir::PatSequenceKind::Variant {
+                        variant_hash: meta.hash,
+                        enum_hash,
+                        index: variant_index,
+                    };
+                }
+
+                hir::PatSequenceKind::Type { hash: meta.hash }
             };
 
-            (args, kind)
+            Some((args, kind))
         }
-        _ => return None,
-    })
+        _ => None,
+    }
 }
 
 fn generics_parameters(
@@ -1808,10 +1798,6 @@ fn expr_call<'hir>(
                     meta::Kind::Struct {
                         fields: meta::Fields::Empty,
                         ..
-                    }
-                    | meta::Kind::Variant {
-                        fields: meta::Fields::Empty,
-                        ..
                     } => {
                         if !ast.args.is_empty() {
                             return Err(compile::Error::new(
@@ -1824,10 +1810,6 @@ fn expr_call<'hir>(
                         }
                     }
                     meta::Kind::Struct {
-                        fields: meta::Fields::Unnamed(args),
-                        ..
-                    }
-                    | meta::Kind::Variant {
                         fields: meta::Fields::Unnamed(args),
                         ..
                     } => {

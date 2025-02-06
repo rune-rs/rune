@@ -22,7 +22,7 @@ use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
 use crate::workspace::{self, WorkspaceError};
 use crate::{self as rune, Diagnostics};
-use crate::{BuildError, Context, Item, Options, Source, SourceId, Sources, Unit};
+use crate::{BuildError, Context, Hash, Item, Options, Source, SourceId, Sources, Unit};
 
 #[derive(Default)]
 struct Reporter {
@@ -1052,25 +1052,28 @@ impl CompileVisitor for Visitor {
         let kind = match &meta.kind {
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
+                enum_hash: Hash::EMPTY,
                 ..
             } => DefinitionKind::EmptyStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
+                enum_hash: Hash::EMPTY,
                 ..
             } => DefinitionKind::TupleStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Named(..),
+                enum_hash: Hash::EMPTY,
                 ..
             } => DefinitionKind::Struct,
-            meta::Kind::Variant {
+            meta::Kind::Struct {
                 fields: meta::Fields::Empty,
                 ..
             } => DefinitionKind::UnitVariant,
-            meta::Kind::Variant {
+            meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
                 ..
             } => DefinitionKind::TupleVariant,
-            meta::Kind::Variant {
+            meta::Kind::Struct {
                 fields: meta::Fields::Named(..),
                 ..
             } => DefinitionKind::StructVariant,

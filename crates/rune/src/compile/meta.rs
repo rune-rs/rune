@@ -118,12 +118,15 @@ impl Meta {
     pub(crate) fn type_hash_of(&self) -> Option<Hash> {
         match &self.kind {
             Kind::Type { .. } => Some(self.hash),
-            Kind::Struct { .. } => Some(self.hash),
+            Kind::Struct {
+                enum_hash: Hash::EMPTY,
+                ..
+            } => Some(self.hash),
+            Kind::Struct { .. } => None,
             Kind::Enum { .. } => Some(self.hash),
             Kind::Function { .. } => Some(self.hash),
             Kind::Closure { .. } => Some(self.hash),
             Kind::AsyncBlock { .. } => Some(self.hash),
-            Kind::Variant { .. } => None,
             Kind::Const { .. } => None,
             Kind::ConstFn { .. } => None,
             Kind::Macro => None,
@@ -147,6 +150,17 @@ pub enum Fields {
     Empty,
 }
 
+impl Fields {
+    /// Coerce into a tuple field count.
+    pub(crate) fn as_tuple(&self) -> Option<usize> {
+        match *self {
+            Fields::Unnamed(count) => Some(count),
+            Fields::Empty => Some(0),
+            _ => None,
+        }
+    }
+}
+
 /// Compile-time metadata kind about a unit.
 #[derive(Debug, TryClone)]
 #[non_exhaustive]
@@ -165,17 +179,14 @@ pub enum Kind {
         constructor: Option<Signature>,
         /// Hash of generic parameters.
         parameters: Hash,
-    },
-    /// Metadata about an empty variant.
-    Variant {
-        /// Type hash of the enum this unit variant belongs to.
+        /// If this is a variant, this is the type hash of the enum.
+        ///
+        /// If this is not a variant, this is [Hash::EMPTY].
         enum_hash: Hash,
-        /// The index of the variant.
-        index: usize,
-        /// Fields information.
-        fields: Fields,
-        /// Native constructor for this variant.
-        constructor: Option<Signature>,
+        /// If this is a variant, this is the index of the variant in the enum.
+        ///
+        /// For non-variants, this is set to `0`.
+        variant_index: usize,
     },
     /// An enum item.
     Enum {
@@ -242,7 +253,6 @@ impl Kind {
     pub(crate) fn as_signature(&self) -> Option<&Signature> {
         match self {
             Kind::Struct { constructor, .. } => constructor.as_ref(),
-            Kind::Variant { constructor, .. } => constructor.as_ref(),
             Kind::Function { signature, .. } => Some(signature),
             _ => None,
         }
@@ -262,9 +272,9 @@ impl Kind {
     /// Get the associated container of the meta kind.
     #[cfg(feature = "doc")]
     pub(crate) fn associated_container(&self) -> Option<Hash> {
-        match self {
-            Kind::Variant { enum_hash, .. } => Some(*enum_hash),
-            Kind::Function { container, .. } => *container,
+        match *self {
+            Kind::Struct { enum_hash, .. } if enum_hash != Hash::EMPTY => Some(enum_hash),
+            Kind::Function { container, .. } => container,
             _ => None,
         }
     }

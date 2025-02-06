@@ -602,9 +602,7 @@ pub(crate) struct ExprClosure<'hir> {
 #[derive(Debug, TryClone, Clone, Copy)]
 #[try_clone(copy)]
 pub(crate) enum ExprObjectKind {
-    EmptyStruct { hash: Hash },
     Struct { hash: Hash },
-    StructVariant { hash: Hash },
     ExternalType { hash: Hash, args: usize },
     Anonymous,
 }

@@ -1611,17 +1611,20 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     ));
                 };
 
-                meta::Kind::Variant {
-                    enum_hash: enum_meta.hash,
-                    index: variant.index,
+                meta::Kind::Struct {
                     fields: variant.fields,
                     constructor: None,
+                    parameters: Hash::EMPTY,
+                    enum_hash: enum_meta.hash,
+                    variant_index: variant.index,
                 }
             }
             Indexed::Struct(st) => meta::Kind::Struct {
                 fields: st.fields,
                 constructor: None,
                 parameters: Hash::EMPTY,
+                enum_hash: Hash::EMPTY,
+                variant_index: 0,
             },
             Indexed::Function(f) => {
                 let kind = meta::Kind::Function {

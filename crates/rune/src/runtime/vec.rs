@@ -534,6 +534,7 @@ impl<T> FromValue for ::rust_alloc::vec::Vec<T>
 where
     T: FromValue,
 {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let vec = value.downcast::<Vec>()?;
 
@@ -551,6 +552,7 @@ impl<T> FromValue for alloc::Vec<T>
 where
     T: FromValue,
 {
+    #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let vec = value.downcast::<Vec>()?;
 
@@ -579,6 +581,7 @@ impl<T, const N: usize> ToValue for [T; N]
 where
     T: ToValue,
 {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let mut inner = alloc::Vec::try_with_capacity(self.len())?;
 
@@ -595,6 +598,7 @@ impl<T> ToValue for alloc::Vec<T>
 where
     T: ToValue,
 {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let mut inner = alloc::Vec::try_with_capacity(self.len())?;
 
@@ -612,6 +616,7 @@ impl<T> ToValue for ::rust_alloc::vec::Vec<T>
 where
     T: ToValue,
 {
+    #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let mut inner = alloc::Vec::try_with_capacity(self.len())?;
 
