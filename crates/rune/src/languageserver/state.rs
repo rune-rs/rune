@@ -1052,26 +1052,32 @@ impl CompileVisitor for Visitor {
         let kind = match &meta.kind {
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
+                variant: None,
                 ..
             } => DefinitionKind::EmptyStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
+                variant: None,
                 ..
             } => DefinitionKind::TupleStruct,
             meta::Kind::Struct {
                 fields: meta::Fields::Named(..),
+                variant: None,
                 ..
             } => DefinitionKind::Struct,
-            meta::Kind::Variant {
+            meta::Kind::Struct {
                 fields: meta::Fields::Empty,
+                variant: Some(..),
                 ..
             } => DefinitionKind::UnitVariant,
-            meta::Kind::Variant {
+            meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(..),
+                variant: Some(..),
                 ..
             } => DefinitionKind::TupleVariant,
-            meta::Kind::Variant {
+            meta::Kind::Struct {
                 fields: meta::Fields::Named(..),
+                variant: Some(..),
                 ..
             } => DefinitionKind::StructVariant,
             meta::Kind::Enum { .. } => DefinitionKind::Enum,

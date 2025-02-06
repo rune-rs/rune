@@ -759,6 +759,7 @@ impl Context {
                         },
                         constructor,
                         parameters,
+                        variant: None,
                     }
                 }
                 TypeSpecification::Enum(en) => {
@@ -809,9 +810,7 @@ impl Context {
                         self.install_meta(ContextMeta {
                             hash,
                             item: Some(item),
-                            kind: meta::Kind::Variant {
-                                enum_hash: ty.hash,
-                                index,
+                            kind: meta::Kind::Struct {
                                 fields: match fields {
                                     Fields::Named(names) => {
                                         meta::Fields::Named(meta::FieldsNamed {
@@ -832,6 +831,8 @@ impl Context {
                                     Fields::Empty => meta::Fields::Empty,
                                 },
                                 constructor,
+                                parameters: Hash::EMPTY,
+                                variant: Some((ty.hash, index)),
                             },
                             #[cfg(feature = "doc")]
                             deprecated: variant.deprecated.try_clone()?,

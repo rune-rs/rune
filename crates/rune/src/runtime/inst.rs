@@ -614,21 +614,6 @@ pub enum Inst {
         /// Where to store the produced range.
         out: Output,
     },
-    /// Construct a push an object of the given type onto the stack. The type is
-    /// an empty struct.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// => <object>
-    /// ```
-    #[musli(packed)]
-    EmptyStruct {
-        /// The type of the object to construct.
-        hash: Hash,
-        /// Where to write the empty struct.
-        out: Output,
-    },
     /// Construct a struct of type `hash` at `out`, populating it with fields
     /// from `addr`. The number of fields and their names is determined by the
     /// `slot` being referenced.

@@ -357,6 +357,7 @@ impl UnitBuilder {
             }
             meta::Kind::Struct {
                 fields: meta::Fields::Empty,
+                variant: None,
                 ..
             } => {
                 let info = UnitFn::EmptyStruct { hash: meta.hash };
@@ -413,6 +414,7 @@ impl UnitBuilder {
             }
             meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(args),
+                variant: None,
                 ..
             } => {
                 let info = UnitFn::TupleStruct {
@@ -472,6 +474,7 @@ impl UnitBuilder {
             }
             meta::Kind::Struct {
                 fields: meta::Fields::Named(ref named),
+                variant: None,
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
@@ -501,9 +504,9 @@ impl UnitBuilder {
                     ));
                 }
             }
-            meta::Kind::Variant {
-                enum_hash,
+            meta::Kind::Struct {
                 fields: meta::Fields::Empty,
+                variant: Some((enum_hash, _)),
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
@@ -551,9 +554,9 @@ impl UnitBuilder {
                     .functions
                     .try_insert(meta.hash, signature)?;
             }
-            meta::Kind::Variant {
-                enum_hash,
+            meta::Kind::Struct {
                 fields: meta::Fields::Unnamed(args),
+                variant: Some((enum_hash, _)),
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
@@ -604,9 +607,9 @@ impl UnitBuilder {
                     .functions
                     .try_insert(meta.hash, signature)?;
             }
-            meta::Kind::Variant {
-                enum_hash,
+            meta::Kind::Struct {
                 fields: meta::Fields::Named(ref named),
+                variant: Some((enum_hash, _)),
                 ..
             } => {
                 let rtti = Arc::new(Rtti {
