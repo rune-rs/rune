@@ -214,3 +214,40 @@ fn match_extraction_struct() {
 
     assert_eq!(inner(v), 42);
 }
+
+/// This tests that matching against a built-in type with a value which is not
+/// the same type does not error due to a type mismatch.
+#[test]
+fn match_builtin_non_err() {
+    let outcome = match 42 {
+        Some(42) => false,
+        42 => true,
+        _ => false,
+    };
+
+    assert!(outcome, "built-in Option::Some should match");
+
+    let outcome = match 42 {
+        None => false,
+        42 => true,
+        _ => false,
+    };
+
+    assert!(outcome, "built-in Option::None should match");
+
+    let outcome = match 42 {
+        Ok(42) => false,
+        42 => true,
+        _ => false,
+    };
+
+    assert!(outcome, "built-in Result::Ok should match");
+
+    let outcome = match 42 {
+        Err(42) => false,
+        42 => true,
+        _ => false,
+    };
+
+    assert!(outcome, "built-in Result::Err should match");
+}
