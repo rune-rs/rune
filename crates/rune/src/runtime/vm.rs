@@ -2628,7 +2628,10 @@ impl Vm {
                 }
                 Repr::Any(any) => match enum_hash {
                     Result::<Value, Value>::HASH => {
-                        let result = vm_try!(any.borrow_ref::<Result<Value, Value>>());
+                        let Some(result) = vm_try!(any.try_borrow_ref::<Result<Value, Value>>())
+                        else {
+                            break 'out false;
+                        };
 
                         break 'out match (&*result, variant_hash) {
                             (Ok(..), hash!(::std::result::Result::Ok)) => true,
@@ -2637,7 +2640,9 @@ impl Vm {
                         };
                     }
                     Option::<Value>::HASH => {
-                        let option = vm_try!(any.borrow_ref::<Option<Value>>());
+                        let Some(option) = vm_try!(any.try_borrow_ref::<Option<Value>>()) else {
+                            break 'out false;
+                        };
 
                         break 'out match (&*option, variant_hash) {
                             (None, hash!(::std::option::Option::None)) => true,
