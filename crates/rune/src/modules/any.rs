@@ -4,7 +4,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{Formatter, Type, Value, VmResult};
-use crate::{docstring, ContextError, Module};
+use crate::{docstring, ContextError, Hash, Module};
 
 /// Dynamic typing and type reflection.
 ///
@@ -18,6 +18,10 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.ty::<Type>()?.docs(docstring! {
         /// Represents a type in the Rune type system.
+    })?;
+
+    m.ty::<Hash>()?.docs(docstring! {
+        /// Represents an opaque hash in the Rune type system.
     })?;
 
     m.function_meta(type_of_val)?;

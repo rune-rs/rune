@@ -23,6 +23,7 @@
 //! This is part of the [Rune Language](https://rune-rs.github.io).
 
 #![allow(clippy::manual_map)]
+#![allow(clippy::too_many_arguments)]
 
 mod any;
 mod const_value;

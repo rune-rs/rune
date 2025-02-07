@@ -6,7 +6,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{Formatter, Protocol, Value, VmResult};
 use crate::shared::Caller;
-use crate::{ContextError, Module};
+use crate::{hash, ContextError, Hash, Module};
 
 /// Comparison and ordering.
 #[rune::module(::std::cmp)]
@@ -57,15 +57,14 @@ pub fn module() -> Result<Module, ContextError> {
                 /// "An ordering where a compared value is greater than another.
             })?;
 
-        m.associated_function(
-            &Protocol::IS_VARIANT,
-            |this: Ordering, index: usize| match (this, index) {
-                (Ordering::Less, 0) => true,
-                (Ordering::Equal, 1) => true,
-                (Ordering::Greater, 2) => true,
+        m.associated_function(&Protocol::IS_VARIANT, |this: Ordering, hash: Hash| {
+            match (this, hash) {
+                (Ordering::Less, hash!(::std::cmp::Ordering::Less)) => true,
+                (Ordering::Equal, hash!(::std::cmp::Ordering::Equal)) => true,
+                (Ordering::Greater, hash!(::std::cmp::Ordering::Greater)) => true,
                 _ => false,
-            },
-        )?;
+            }
+        })?;
     }
 
     m.function_meta(ordering_partial_eq__meta)?;

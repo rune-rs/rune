@@ -852,12 +852,10 @@ pub enum Inst {
     /// ```
     #[musli(packed)]
     MatchVariant {
-        /// The exact type hash of the variant.
-        variant_hash: Hash,
-        /// The container type.
+        /// The type hash of the containing enum.
         enum_hash: Hash,
-        /// The index of the variant.
-        index: usize,
+        /// The type hash of the variant.
+        variant_hash: Hash,
         /// The address of the value to test.
         addr: InstAddress,
         /// Where to store the output.
@@ -1135,6 +1133,14 @@ impl Inst {
     pub fn ordering(ordering: Ordering, out: Output) -> Self {
         Self::Store {
             value: InstValue::Ordering(ordering),
+            out,
+        }
+    }
+
+    /// Construct an instruction to push a type hash.
+    pub fn hash(hash: Hash, out: Output) -> Self {
+        Self::Store {
+            value: InstValue::Hash(hash),
             out,
         }
     }
@@ -1670,6 +1676,9 @@ pub enum InstValue {
         #[serde(with = "crate::serde::ordering")]
         Ordering,
     ),
+    /// A hash.
+    #[musli(packed)]
+    Hash(Hash),
 }
 
 impl InstValue {
@@ -1684,6 +1693,7 @@ impl InstValue {
             Self::Float(v) => Value::from(v),
             Self::Type(v) => Value::from(v),
             Self::Ordering(v) => Value::from(v),
+            Self::Hash(v) => Value::from(v),
         }
     }
 }
@@ -1699,6 +1709,7 @@ impl fmt::Display for InstValue {
             Self::Float(v) => write!(f, "{v}")?,
             Self::Type(v) => write!(f, "{}", v.into_hash())?,
             Self::Ordering(v) => write!(f, "{v:?}")?,
+            Self::Hash(v) => write!(f, "{v:?}")?,
         }
 
         Ok(())

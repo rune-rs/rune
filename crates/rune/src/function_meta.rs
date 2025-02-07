@@ -81,8 +81,7 @@ impl FunctionData {
     #[inline]
     pub(crate) fn new<F, A, N, K>(name: N, f: F) -> alloc::Result<Self>
     where
-        F: Function<A, K>,
-        F::Return: MaybeTypeOf,
+        F: Function<A, K, Return: MaybeTypeOf>,
         N: IntoComponent,
         A: FunctionArgs,
         K: FunctionKind,
@@ -292,8 +291,7 @@ impl AssociatedFunctionData {
     #[inline]
     pub(crate) fn from_function<F, A, K>(associated: Associated, f: F) -> alloc::Result<Self>
     where
-        F: Function<A, K>,
-        F::Return: MaybeTypeOf,
+        F: Function<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -316,8 +314,7 @@ impl AssociatedFunctionData {
     #[inline]
     pub(crate) fn from_instance_function<F, A, K>(name: AssociatedName, f: F) -> alloc::Result<Self>
     where
-        F: InstanceFunction<A, K>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -355,8 +352,7 @@ impl FunctionMetaKind {
     #[inline]
     pub fn function<N, F, A, K>(name: N, f: F) -> alloc::Result<FunctionBuilder<N, F, A, K>>
     where
-        F: Function<A, K>,
-        F::Return: MaybeTypeOf,
+        F: Function<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -368,8 +364,7 @@ impl FunctionMetaKind {
     pub fn instance<N, F, A, K>(name: N, f: F) -> alloc::Result<Self>
     where
         N: ToInstance,
-        F: InstanceFunction<A, K>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -398,8 +393,7 @@ impl<N, F, A, K> FunctionBuilder<N, F, A, K> {
 
 impl<N, F, A, K> FunctionBuilder<N, F, A, K>
 where
-    F: Function<A, K>,
-    F::Return: MaybeTypeOf,
+    F: Function<A, K, Return: MaybeTypeOf>,
     A: FunctionArgs,
     K: FunctionKind,
 {

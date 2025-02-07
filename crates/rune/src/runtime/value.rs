@@ -638,6 +638,13 @@ impl Value {
     }
 
     inline_into! {
+        /// Coerce into [`Hash`][crate::Hash].
+        Hash(Hash),
+        as_hash,
+        as_hash_mut,
+    }
+
+    inline_into! {
         /// Coerce into [`bool`].
         Bool(bool),
         as_bool,
@@ -1558,6 +1565,7 @@ inline_from! {
     Float => f64,
     Type => Type,
     Ordering => Ordering,
+    Hash => Hash,
 }
 
 any_from! {

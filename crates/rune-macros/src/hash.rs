@@ -30,8 +30,17 @@ impl Arguments {
         }
     }
 
-    /// Construct a type hash from a Rust path.
+    /// Construct a type hash from a path.
     pub(crate) fn build_type_hash(&self, cx: &Context) -> Result<Hash, ()> {
+        self.build_type_hash_with_inner(cx, None)
+    }
+
+    /// Construct a type hash from a path with an extra string component at the end.
+    pub(crate) fn build_type_hash_with(&self, cx: &Context, extra: &str) -> Result<Hash, ()> {
+        self.build_type_hash_with_inner(cx, Some(extra))
+    }
+
+    fn build_type_hash_with_inner(&self, cx: &Context, extra: Option<&str>) -> Result<Hash, ()> {
         // Construct type hash.
         let mut buf = ItemBuf::new();
         let mut first = self.path.leading_colon.is_some();
@@ -64,6 +73,13 @@ impl Arguments {
                         "Generic arguments are not supported",
                     ));
                 }
+            }
+        }
+
+        if let Some(extra) = extra {
+            if let Err(error) = buf.push(ComponentRef::Str(extra)) {
+                cx.error(syn::Error::new_spanned(&self.path, error));
+                return Err(());
             }
         }
 

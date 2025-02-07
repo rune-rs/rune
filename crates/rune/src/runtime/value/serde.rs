@@ -37,6 +37,7 @@ impl ser::Serialize for Value {
                 Inline::Float(value) => serializer.serialize_f64(value),
                 Inline::Type(..) => Err(ser::Error::custom("cannot serialize types")),
                 Inline::Ordering(..) => Err(ser::Error::custom("cannot serialize orderings")),
+                Inline::Hash(..) => Err(ser::Error::custom("cannot serialize type hashes")),
             },
             Repr::Dynamic(value) => match value.rtti().kind {
                 RttiKind::Empty => Err(ser::Error::custom(format!(

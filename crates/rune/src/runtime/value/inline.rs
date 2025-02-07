@@ -7,11 +7,10 @@ use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
-use crate::hash::Hash;
 use crate::runtime::{
     Hasher, OwnedTuple, Protocol, RuntimeError, Type, TypeInfo, VmErrorKind, VmIntegerRepr,
 };
-use crate::TypeHash;
+use crate::{Hash, TypeHash};
 
 /// An inline value.
 #[derive(Clone, Copy, Encode, Decode, Deserialize, Serialize)]
@@ -44,6 +43,8 @@ pub enum Inline {
         #[serde(with = "crate::serde::ordering")]
         Ordering,
     ),
+    /// A type hash.
+    Hash(Hash),
 }
 
 impl Inline {
@@ -89,6 +90,7 @@ impl Inline {
             (Inline::Float(a), Inline::Float(b)) => Ok(*a == *b),
             (Inline::Type(a), Inline::Type(b)) => Ok(*a == *b),
             (Inline::Ordering(a), Inline::Ordering(b)) => Ok(*a == *b),
+            (Inline::Hash(a), Inline::Hash(b)) => Ok(*a == *b),
             (lhs, rhs) => Err(RuntimeError::from(
                 VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_EQ.name,
@@ -119,6 +121,7 @@ impl Inline {
             }
             (Inline::Type(a), Inline::Type(b)) => Ok(*a == *b),
             (Inline::Ordering(a), Inline::Ordering(b)) => Ok(*a == *b),
+            (Inline::Hash(a), Inline::Hash(b)) => Ok(*a == *b),
             (lhs, rhs) => Err(RuntimeError::new(VmErrorKind::UnsupportedBinaryOperation {
                 op: Protocol::EQ.name,
                 lhs: lhs.type_info(),
@@ -146,6 +149,7 @@ impl Inline {
             (Inline::Float(lhs), Inline::Float(rhs)) => Ok(lhs.partial_cmp(rhs)),
             (Inline::Type(lhs), Inline::Type(rhs)) => Ok(lhs.partial_cmp(rhs)),
             (Inline::Ordering(lhs), Inline::Ordering(rhs)) => Ok(lhs.partial_cmp(rhs)),
+            (Inline::Hash(lhs), Inline::Hash(rhs)) => Ok(lhs.partial_cmp(rhs)),
             (lhs, rhs) => Err(RuntimeError::from(
                 VmErrorKind::UnsupportedBinaryOperation {
                     op: Protocol::PARTIAL_CMP.name,
@@ -176,6 +180,7 @@ impl Inline {
             }
             (Inline::Type(a), Inline::Type(b)) => Ok(a.cmp(b)),
             (Inline::Ordering(a), Inline::Ordering(b)) => Ok(a.cmp(b)),
+            (Inline::Hash(a), Inline::Hash(b)) => Ok(a.cmp(b)),
             (lhs, rhs) => Err(RuntimeError::new(VmErrorKind::UnsupportedBinaryOperation {
                 op: Protocol::CMP.name,
                 lhs: lhs.type_info(),
@@ -231,6 +236,7 @@ impl fmt::Debug for Inline {
             Inline::Float(value) => value.fmt(f),
             Inline::Type(value) => value.fmt(f),
             Inline::Ordering(value) => value.fmt(f),
+            Inline::Hash(value) => value.fmt(f),
         }
     }
 }
@@ -247,6 +253,7 @@ impl Inline {
             Inline::Float(..) => TypeInfo::named::<f64>(),
             Inline::Type(..) => TypeInfo::named::<Type>(),
             Inline::Ordering(..) => TypeInfo::named::<Ordering>(),
+            Inline::Hash(..) => TypeInfo::named::<Hash>(),
         }
     }
 
@@ -265,6 +272,7 @@ impl Inline {
             Inline::Float(..) => f64::HASH,
             Inline::Type(..) => Type::HASH,
             Inline::Ordering(..) => Ordering::HASH,
+            Inline::Hash(..) => Hash::HASH,
         }
     }
 }

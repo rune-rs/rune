@@ -766,13 +766,11 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out:
             out,
         },
         hir::PatSequenceKind::Variant {
-            variant_hash,
             enum_hash,
-            index,
+            variant_hash,
         } => Inst::MatchVariant {
-            variant_hash,
             enum_hash,
-            index,
+            variant_hash,
             addr,
             out,
         },
@@ -827,13 +825,11 @@ fn pat_object<'a, 'hir>(
             out: cond.output(),
         },
         hir::PatSequenceKind::Variant {
-            variant_hash,
             enum_hash,
-            index,
+            variant_hash,
         } => Inst::MatchVariant {
-            variant_hash,
             enum_hash,
-            index,
+            variant_hash,
             addr: addr.addr(),
             out: cond.output(),
         },
@@ -1137,6 +1133,9 @@ fn const_<'a, 'hir>(
             }
             Inline::Ordering(v) => {
                 cx.asm.push(Inst::ordering(v, out), span)?;
+            }
+            Inline::Hash(v) => {
+                cx.asm.push(Inst::hash(v, out), span)?;
             }
         },
         ConstValueKind::String(ref s) => {

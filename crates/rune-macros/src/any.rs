@@ -154,7 +154,26 @@ impl Derive {
     ) -> Result<TypeBuilder<'a, syn::Ident>, ()> {
         let mut installers = Vec::new();
 
-        expand_install_with(cx, &self.input, tokens, attr, &mut installers)?;
+        let mut item = match &attr.item {
+            Some(item) => item.clone(),
+            None => syn::Path {
+                leading_colon: None,
+                segments: Punctuated::default(),
+            },
+        };
+
+        let name = match &attr.name {
+            Some(name) => name,
+            None => &self.input.ident,
+        };
+
+        item.segments.push(syn::PathSegment::from(name.clone()));
+
+        let args = crate::hash::Arguments::new(item);
+        let type_item = args.build_type_item(cx)?;
+        let type_hash = args.build_type_hash(cx)?;
+
+        expand_install_with(cx, &self.input, tokens, attr, &mut installers, &args)?;
 
         if matches!(&self.input.data, syn::Data::Enum(..)) {
             if let Some(span) = attr.constructor {
@@ -164,25 +183,6 @@ impl Derive {
                 ));
             }
         }
-
-        let name = match &attr.name {
-            Some(name) => name,
-            None => &self.input.ident,
-        };
-
-        let mut item = match &attr.item {
-            Some(item) => item.clone(),
-            None => syn::Path {
-                leading_colon: None,
-                segments: Punctuated::default(),
-            },
-        };
-
-        item.segments.push(syn::PathSegment::from(name.clone()));
-
-        let args = crate::hash::Arguments::new(item);
-        let type_item = args.build_type_item(cx)?;
-        let type_hash = args.build_type_hash(cx)?;
 
         Ok(TypeBuilder {
             attr,
@@ -206,6 +206,7 @@ pub(crate) fn expand_install_with(
     tokens: &Tokens,
     attr: &TypeAttr,
     installers: &mut Vec<TokenStream>,
+    args: &crate::hash::Arguments,
 ) -> Result<(), ()> {
     let ident = &input.ident;
 
@@ -214,7 +215,16 @@ pub(crate) fn expand_install_with(
             expand_struct_install_with(cx, installers, ident, st, tokens, attr)?;
         }
         syn::Data::Enum(en) => {
-            expand_enum_install_with(cx, installers, ident, en, tokens, attr, &input.generics)?;
+            expand_enum_install_with(
+                cx,
+                installers,
+                ident,
+                en,
+                tokens,
+                attr,
+                &input.generics,
+                args,
+            )?;
         }
         syn::Data::Union(..) => {
             cx.error(syn::Error::new_spanned(
@@ -330,6 +340,7 @@ fn expand_enum_install_with(
     tokens: &Tokens,
     attr: &TypeAttr,
     generics: &syn::Generics,
+    args: &crate::hash::Arguments,
 ) -> Result<(), ()> {
     let Tokens {
         protocol,
@@ -339,6 +350,7 @@ fn expand_enum_install_with(
         vm_try,
         any_t,
         try_clone,
+        hash,
         ..
     } = tokens;
 
@@ -370,9 +382,16 @@ fn expand_enum_install_with(
         }
 
         let variant_ident = &variant.ident;
-        variant_names.push(syn::LitStr::new(&variant_ident.to_string(), span));
+        let variant_name = variant_ident.to_string();
+        variant_names.push(syn::LitStr::new(&variant_name, span));
 
-        is_variant.push(quote!((#ident::#variant_ident { .. }, #variant_index) => true));
+        let Ok(variant_hash) = args.build_type_hash_with(cx, &variant_name) else {
+            continue;
+        };
+
+        let variant_hash = variant_hash.into_inner();
+
+        is_variant.push(quote!((#ident::#variant_ident { .. }, #hash(#variant_hash)) => true));
 
         match &variant.fields {
             syn::Fields::Named(fields) => {
@@ -467,8 +486,8 @@ fn expand_enum_install_with(
     }
 
     let is_variant = quote! {
-        module.associated_function(&#protocol::IS_VARIANT, |this: &Self, index: usize| {
-            match (this, index) {
+        module.associated_function(&#protocol::IS_VARIANT, |this: &Self, hash: #hash| {
+            match (this, hash) {
                 #(#is_variant,)*
                 _ => false,
             }

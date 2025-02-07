@@ -76,9 +76,8 @@ const PARAMETERS: [u64; 32] = [
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
 #[repr(transparent)]
-#[cfg_attr(feature = "musli", musli(transparent))]
 pub struct Hash(#[doc(hidden)] pub u64);
 
 impl Hash {

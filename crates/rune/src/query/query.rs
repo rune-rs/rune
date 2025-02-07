@@ -1616,7 +1616,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     constructor: None,
                     parameters: Hash::EMPTY,
                     enum_hash: enum_meta.hash,
-                    variant_index: variant.index,
                 }
             }
             Indexed::Struct(st) => meta::Kind::Struct {
@@ -1624,7 +1623,6 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 constructor: None,
                 parameters: Hash::EMPTY,
                 enum_hash: Hash::EMPTY,
-                variant_index: 0,
             },
             Indexed::Function(f) => {
                 let kind = meta::Kind::Function {

@@ -9,7 +9,7 @@ use crate::alloc::prelude::*;
 use crate::runtime::{
     ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, Value, VmResult,
 };
-use crate::{ContextError, Module};
+use crate::{hash_in, ContextError, Hash, Module};
 
 /// The [`Result`] type.
 ///
@@ -38,9 +38,9 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.associated_function(
         &Protocol::IS_VARIANT,
-        |this: &Result<Value, Value>, index: usize| match (this, index) {
-            (Result::Ok(_), 0) => true,
-            (Result::Err(_), 1) => true,
+        |this: &Result<Value, Value>, hash: Hash| match (this, hash) {
+            (Result::Ok(_), hash_in!(crate, ::std::result::Result::Ok)) => true,
+            (Result::Err(_), hash_in!(crate, ::std::result::Result::Err)) => true,
             _ => false,
         },
     )?;
