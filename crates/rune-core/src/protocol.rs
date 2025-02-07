@@ -454,7 +454,7 @@ define! {
 
     /// Function used to test if a value is a specific variant.
     ///
-    /// Signature: `fn(self, usize) -> bool`.
+    /// Signature: `fn(self, Hash) -> bool`.
     pub const IS_VARIANT: Protocol = Protocol {
         hash: 0xc030d82bbd4dabe8u64,
         /// Test if the provided argument is a variant.

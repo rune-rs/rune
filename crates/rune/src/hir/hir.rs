@@ -113,9 +113,8 @@ pub(crate) enum PatSequenceKind {
         type_check: TypeCheck,
     },
     Variant {
-        variant_hash: Hash,
         enum_hash: Hash,
-        index: usize,
+        variant_hash: Hash,
     },
     Anonymous {
         type_check: TypeCheck,

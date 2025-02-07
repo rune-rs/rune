@@ -2629,7 +2629,6 @@ fn struct_match_for(
         meta::Kind::Struct {
             ref fields,
             enum_hash,
-            variant_index,
             ..
         } => {
             let kind = 'kind: {
@@ -2639,9 +2638,8 @@ fn struct_match_for(
 
                 if enum_hash != Hash::EMPTY {
                     break 'kind hir::PatSequenceKind::Variant {
-                        variant_hash: meta.hash,
                         enum_hash,
-                        index: variant_index,
+                        variant_hash: meta.hash,
                     };
                 }
 
@@ -2677,7 +2675,6 @@ fn tuple_match_for(
         meta::Kind::Struct {
             ref fields,
             enum_hash,
-            variant_index,
             ..
         } => {
             let args = fields.as_tuple()?;
@@ -2689,9 +2686,8 @@ fn tuple_match_for(
 
                 if enum_hash != Hash::EMPTY {
                     break 'kind hir::PatSequenceKind::Variant {
-                        variant_hash: meta.hash,
                         enum_hash,
-                        index: variant_index,
+                        variant_hash: meta.hash,
                     };
                 }
 

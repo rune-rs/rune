@@ -183,10 +183,6 @@ pub enum Kind {
         ///
         /// If this is not a variant, this is [Hash::EMPTY].
         enum_hash: Hash,
-        /// If this is a variant, this is the index of the variant in the enum.
-        ///
-        /// For non-variants, this is set to `0`.
-        variant_index: usize,
     },
     /// An enum item.
     Enum {

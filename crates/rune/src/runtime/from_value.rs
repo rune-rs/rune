@@ -2,6 +2,7 @@ use core::cmp::Ordering;
 
 use crate::alloc::{self, String};
 use crate::any::AnyMarker;
+use crate::hash::Hash;
 
 use super::{
     AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult,
@@ -503,5 +504,12 @@ impl FromValue for Ordering {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         value.as_ordering()
+    }
+}
+
+impl FromValue for Hash {
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.as_hash()
     }
 }

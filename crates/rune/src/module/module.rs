@@ -324,7 +324,7 @@ impl Module {
         };
 
         Ok(VariantMut {
-            index,
+            name: variant.name,
             docs: &mut variant.docs,
             fields: &mut variant.fields,
             constructor: &mut variant.constructor,
@@ -340,8 +340,7 @@ impl Module {
         constructor: F,
     ) -> Result<(), ContextError>
     where
-        F: Function<A, Plain>,
-        F::Return: TypeOf + Named,
+        F: Function<A, Plain, Return: TypeOf + Named>,
     {
         self.variant_meta::<F::Return>(index)?
             .constructor(constructor)?;
@@ -869,8 +868,7 @@ impl Module {
     /// ```
     pub fn function<F, A, N, K>(&mut self, name: N, f: F) -> ModuleFunctionBuilder<'_, F, A, N, K>
     where
-        F: Function<A, K>,
-        F::Return: MaybeTypeOf,
+        F: Function<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -888,8 +886,7 @@ impl Module {
         f: F,
     ) -> Result<ModuleFunctionBuilder<'_, F, A, N, K>, ContextError>
     where
-        F: Function<A, K>,
-        F::Return: MaybeTypeOf,
+        F: Function<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -903,8 +900,7 @@ impl Module {
     #[deprecated = "Use Module::function() instead"]
     pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
-        F: Function<A, Async>,
-        F::Return: MaybeTypeOf,
+        F: Function<A, Async, Return: MaybeTypeOf>,
         N: IntoComponent,
         A: FunctionArgs,
     {
@@ -1095,8 +1091,7 @@ impl Module {
     ) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstanceFunction<A, K>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -1113,8 +1108,7 @@ impl Module {
     pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstanceFunction<A, K>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
@@ -1126,8 +1120,7 @@ impl Module {
     pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToInstance,
-        F: InstanceFunction<A, Async>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, Async, Return: MaybeTypeOf>,
         A: FunctionArgs,
     {
         self.associated_function(name, f)
@@ -1145,8 +1138,7 @@ impl Module {
     ) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        F: InstanceFunction<A, Plain>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, Plain, Return: MaybeTypeOf>,
         A: FunctionArgs,
     {
         self.insert_associated_function(
@@ -1167,8 +1159,7 @@ impl Module {
     ) -> Result<ItemFnMut<'_>, ContextError>
     where
         N: ToFieldFunction,
-        F: InstanceFunction<A, Plain>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, Plain, Return: MaybeTypeOf>,
         A: FunctionArgs,
     {
         self.field_function(protocol, name, f)
@@ -1185,8 +1176,7 @@ impl Module {
         f: F,
     ) -> Result<ItemFnMut<'_>, ContextError>
     where
-        F: InstanceFunction<A, Plain>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, Plain, Return: MaybeTypeOf>,
         A: FunctionArgs,
     {
         let name = AssociatedName::index(protocol, index);
@@ -1207,8 +1197,7 @@ impl Module {
         f: F,
     ) -> Result<ItemFnMut<'_>, ContextError>
     where
-        F: InstanceFunction<A, Plain>,
-        F::Return: MaybeTypeOf,
+        F: InstanceFunction<A, Plain, Return: MaybeTypeOf>,
         A: FunctionArgs,
     {
         self.index_function(protocol, index, f)

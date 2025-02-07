@@ -103,8 +103,8 @@ pub enum ContextError {
         type_info: TypeInfo,
     },
     ConflictingVariantMeta {
-        index: usize,
         type_info: TypeInfo,
+        name: &'static str,
     },
     ConflictingMetaHash {
         item: ItemBuf,
@@ -123,7 +123,7 @@ pub enum ContextError {
     },
     VariantConstructorConflict {
         type_info: TypeInfo,
-        index: usize,
+        name: &'static str,
     },
     ConflictingConstConstruct {
         type_info: TypeInfo,
@@ -306,10 +306,10 @@ impl fmt::Display for ContextError {
                     "Type `{item}` at `{type_info}` already has a specification"
                 )?;
             }
-            ContextError::ConflictingVariantMeta { index, type_info } => {
+            ContextError::ConflictingVariantMeta { type_info, name } => {
                 write!(
                     f,
-                    "Variant `{index}` for `{type_info}` already has a specification"
+                    "Variant `{name}` for `{type_info}` already has a specification"
                 )?;
             }
             ContextError::ConflictingMetaHash {
@@ -329,21 +329,18 @@ impl fmt::Display for ContextError {
                 write!(f, "Variant with `{item}` already exists")?;
             }
             ContextError::ConstructorConflict { type_info } => {
-                write!(
-                    f,
-                    "Constructor for type `{type_info}` has already been registered"
-                )?;
+                write!(f, "Constructor for `{type_info}` already exists")?;
             }
-            ContextError::VariantConstructorConflict { type_info, index } => {
+            ContextError::VariantConstructorConflict { type_info, name } => {
                 write!(
                     f,
-                    "Constructor for variant {index} in `{type_info}` has already been registered"
+                    "Constructor for variant `{name}` for `{type_info}` already exists"
                 )?;
             }
             ContextError::ConflictingConstConstruct { type_info, hash } => {
                 write!(
                     f,
-                    "Conflicting constant constructor with hash {hash} for type {type_info}"
+                    "Constant constructor with hash {hash} for `{type_info}` already exists"
                 )?;
             }
             ContextError::MissingType { item, type_info } => {

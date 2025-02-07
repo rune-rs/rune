@@ -760,11 +760,10 @@ impl Context {
                         constructor,
                         parameters,
                         enum_hash: Hash::EMPTY,
-                        variant_index: 0,
                     }
                 }
                 TypeSpecification::Enum(en) => {
-                    for (index, variant) in en.variants.iter().enumerate() {
+                    for variant in &en.variants {
                         let Some(fields) = &variant.fields else {
                             continue;
                         };
@@ -834,7 +833,6 @@ impl Context {
                                 constructor,
                                 parameters: Hash::EMPTY,
                                 enum_hash: ty.hash,
-                                variant_index: index,
                             },
                             #[cfg(feature = "doc")]
                             deprecated: variant.deprecated.try_clone()?,

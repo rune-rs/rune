@@ -14,7 +14,7 @@ pub struct VariantMut<'a, T>
 where
     T: ?Sized + TypeOf,
 {
-    pub(crate) index: usize,
+    pub(crate) name: &'static str,
     pub(crate) docs: &'a mut Docs,
     pub(crate) fields: &'a mut Option<Fields>,
     pub(crate) constructor: &'a mut Option<Arc<FunctionHandler>>,
@@ -68,7 +68,7 @@ where
         if self.constructor.is_some() {
             return Err(ContextError::VariantConstructorConflict {
                 type_info: T::type_info(),
-                index: self.index,
+                name: self.name,
             });
         }
 
@@ -84,8 +84,8 @@ where
 
         if old.is_some() {
             return Err(ContextError::ConflictingVariantMeta {
-                index: self.index,
                 type_info: T::type_info(),
+                name: self.name,
             });
         }
 

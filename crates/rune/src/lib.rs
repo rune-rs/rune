@@ -642,6 +642,9 @@ pub use rune_macros::module;
 #[doc(inline)]
 pub use rune_macros::hash;
 
+#[doc(inline)]
+pub(crate) use rune_macros::hash_in;
+
 pub use rune_macros::item;
 
 #[cfg(feature = "cli")]
@@ -775,4 +778,6 @@ rune_macros::binding! {
     impl<T> ::std::object::Object for std::collections::HashMap<alloc::String, T>;
     #[type_of]
     impl ::std::any::Type for crate::runtime::Type;
+    #[type_of]
+    impl ::std::any::Hash for crate::hash::Hash;
 }

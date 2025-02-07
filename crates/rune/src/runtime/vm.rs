@@ -2616,7 +2616,6 @@ impl Vm {
         &mut self,
         enum_hash: Hash,
         variant_hash: Hash,
-        index: usize,
         addr: InstAddress,
         out: Output,
     ) -> VmResult<()> {
@@ -2631,18 +2630,18 @@ impl Vm {
                     Result::<Value, Value>::HASH => {
                         let result = vm_try!(any.borrow_ref::<Result<Value, Value>>());
 
-                        break 'out match (variant_hash, &*result) {
-                            (hash!(::std::result::Result::Ok), Ok(..)) => true,
-                            (hash!(::std::result::Result::Err), Err(..)) => true,
+                        break 'out match (&*result, variant_hash) {
+                            (Ok(..), hash!(::std::result::Result::Ok)) => true,
+                            (Err(..), hash!(::std::result::Result::Err)) => true,
                             _ => false,
                         };
                     }
                     Option::<Value>::HASH => {
                         let option = vm_try!(any.borrow_ref::<Option<Value>>());
 
-                        break 'out match (variant_hash, &*option) {
-                            (hash!(::std::option::Option::None), None) => true,
-                            (hash!(::std::option::Option::Some), Some(..)) => true,
+                        break 'out match (&*option, variant_hash) {
+                            (None, hash!(::std::option::Option::None)) => true,
+                            (Some(..), hash!(::std::option::Option::Some)) => true,
                             _ => false,
                         };
                     }
@@ -2662,7 +2661,7 @@ impl Vm {
             match vm_try!(self.try_call_protocol_fn(
                 &Protocol::IS_VARIANT,
                 value,
-                &mut Some((index,))
+                &mut Some((variant_hash,))
             )) {
                 CallResultOnly::Ok(value) => vm_try!(bool::from_value(value)),
                 CallResultOnly::Unsupported(..) => false,
@@ -3272,11 +3271,10 @@ impl Vm {
                 Inst::MatchVariant {
                     enum_hash,
                     variant_hash,
-                    index,
                     addr,
                     out,
                 } => {
-                    vm_try!(self.op_match_variant(enum_hash, variant_hash, index, addr, out));
+                    vm_try!(self.op_match_variant(enum_hash, variant_hash, addr, out));
                 }
                 Inst::MatchBuiltIn {
                     type_check,

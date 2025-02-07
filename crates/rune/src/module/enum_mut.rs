@@ -49,7 +49,7 @@ where
         };
 
         Ok(VariantMut {
-            index,
+            name: variant.name,
             docs: &mut variant.docs,
             fields: &mut variant.fields,
             constructor: &mut variant.constructor,

@@ -936,7 +936,6 @@ fn item_enum(
 
     p.eat(K!['{']);
 
-    let mut index = 0;
     let mut comma = Remaining::default();
 
     while let MaybeNode::Some(node) = p.eat(Variant) {
@@ -957,14 +956,12 @@ fn item_enum(
 
         let variant = indexing::Variant {
             enum_id: enum_item_meta.item,
-            index,
             fields,
         };
 
         idx.q.index_variant(item_meta, variant)?;
 
         comma = p.remaining(idx, K![,])?;
-        index += 1;
     }
 
     comma.at_most_one(idx)?;

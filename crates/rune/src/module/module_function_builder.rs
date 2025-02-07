@@ -21,8 +21,7 @@ pub struct ModuleFunctionBuilder<'a, F, A, N, K> {
 
 impl<'a, F, A, N, K> ModuleFunctionBuilder<'a, F, A, N, K>
 where
-    F: Function<A, K>,
-    F::Return: MaybeTypeOf,
+    F: Function<A, K, Return: MaybeTypeOf>,
     A: FunctionArgs,
     K: FunctionKind,
 {

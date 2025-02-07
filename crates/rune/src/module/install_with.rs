@@ -1,4 +1,6 @@
-use crate::ContextError;
+use core::cmp::Ordering;
+
+use crate::{ContextError, Hash};
 
 use super::Module;
 
@@ -10,3 +12,11 @@ pub trait InstallWith {
         Ok(())
     }
 }
+
+impl InstallWith for i64 {}
+impl InstallWith for u64 {}
+impl InstallWith for f64 {}
+impl InstallWith for char {}
+impl InstallWith for bool {}
+impl InstallWith for Ordering {}
+impl InstallWith for Hash {}

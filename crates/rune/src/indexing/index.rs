@@ -858,7 +858,7 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
 
     idx.q.index_enum(enum_item)?;
 
-    for (index, (mut variant, _)) in ast.variants.drain().enumerate() {
+    for (mut variant, _) in ast.variants.drain() {
         let mut p = attrs::Parser::new(&variant.attributes)?;
 
         let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &variant.attributes)?;
@@ -914,7 +914,6 @@ fn item_enum(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemEnum) -> compile::Resu
             item_meta,
             indexing::Variant {
                 enum_id: enum_item.item,
-                index,
                 fields: convert_fields(resolve_context!(idx.q), variant.body)?,
             },
         )?;

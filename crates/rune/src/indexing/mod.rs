@@ -112,8 +112,6 @@ pub(crate) struct Struct {
 pub(crate) struct Variant {
     /// Id of of the enum type.
     pub(crate) enum_id: ItemId,
-    /// The index of the variant in its source.
-    pub(crate) index: usize,
     /// The fields of the variant.
     pub(crate) fields: meta::Fields,
 }

@@ -11,7 +11,7 @@ use crate::runtime::{
     Value, VmResult,
 };
 use crate::Any;
-use crate::{ContextError, Module};
+use crate::{hash_in, ContextError, Hash, Module};
 
 /// The [`Option`] type.
 ///
@@ -35,9 +35,9 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.associated_function(
         &Protocol::IS_VARIANT,
-        |this: &Option<Value>, index: usize| match (this, index) {
-            (Option::Some(_), 0) => true,
-            (Option::None, 1) => true,
+        |this: &Option<Value>, hash: Hash| match (this, hash) {
+            (Option::Some(_), hash_in!(crate, ::std::option::Option::Some)) => true,
+            (Option::None, hash_in!(crate, ::std::option::Option::None)) => true,
             _ => false,
         },
     )?;
