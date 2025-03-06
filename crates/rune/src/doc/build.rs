@@ -1062,7 +1062,7 @@ fn module<'m>(
                     })?;
                 }
                 Kind::Function(f) => {
-                    if matches!(f.signature, Signature::Instance { .. }) {
+                    if matches!(f.signature, Signature::Instance) {
                         continue;
                     }
 
@@ -1190,7 +1190,7 @@ fn build_function<'m>(cx: &mut Ctxt<'_, 'm>, meta: Meta<'m>) -> Result<Builder<'
     let f = match meta.kind {
         Kind::Function(
             f @ Function {
-                signature: Signature::Function { .. },
+                signature: Signature::Function,
                 ..
             },
         ) => f,

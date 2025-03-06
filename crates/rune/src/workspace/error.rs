@@ -162,12 +162,12 @@ impl fmt::Display for WorkspaceErrorKind {
             WorkspaceErrorKind::MissingField { field } => {
                 write!(f, "Missing required field `{field}`",)
             }
-            WorkspaceErrorKind::ExpectedArray {} => write!(f, "Expected array"),
-            WorkspaceErrorKind::MissingManifestPath {} => write!(
+            WorkspaceErrorKind::ExpectedArray => write!(f, "Expected array"),
+            WorkspaceErrorKind::MissingManifestPath => write!(
                 f,
                 "Element `[workspace]` can only be used in manifests with a valid path"
             ),
-            WorkspaceErrorKind::ExpectedTable {} => write!(f, "Expected table"),
+            WorkspaceErrorKind::ExpectedTable => write!(f, "Expected table"),
             WorkspaceErrorKind::UnsupportedKey { key } => write!(f, "Key `{key}` not supported",),
             WorkspaceErrorKind::AllocError { error } => error.fmt(f),
         }

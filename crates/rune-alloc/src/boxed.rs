@@ -491,7 +491,7 @@ impl<T: ?Sized, A: Allocator> Box<T, A> {
     /// ```
     ///
     /// [memory layout]: self#memory-layout
-    /// [`Layout`]: crate::Layout
+    /// [`Layout`]: core::alloc::Layout
     #[inline]
     pub unsafe fn from_raw_in(raw: *mut T, alloc: A) -> Self {
         Self {

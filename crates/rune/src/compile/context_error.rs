@@ -194,7 +194,7 @@ impl fmt::Display for ContextError {
                     "Error when building associated constant in {container}::{kind}: {error}"
                 )?;
             }
-            ContextError::UnitAlreadyPresent {} => {
+            ContextError::UnitAlreadyPresent => {
                 write!(f, "Unit `()` type is already present")?;
             }
             ContextError::InternalAlreadyPresent { name } => {
@@ -358,7 +358,7 @@ impl fmt::Display for ContextError {
             ContextError::MissingVariant { index, type_info } => {
                 write!(f, "Missing variant {index} for `{type_info}`")?;
             }
-            ContextError::ExpectedAssociated {} => {
+            ContextError::ExpectedAssociated => {
                 write!(f, "Expected associated function")?;
             }
             ContextError::TypeHashMismatch {

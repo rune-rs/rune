@@ -645,7 +645,7 @@ impl UnitBuilder {
                     )
                     .with_span(span)?;
             }
-            meta::Kind::Const { .. } => {
+            meta::Kind::Const => {
                 let Some(const_value) = query.get_const_value(meta.hash) else {
                     return Err(compile::Error::msg(
                         span,
@@ -659,16 +659,16 @@ impl UnitBuilder {
                     .try_insert(meta.hash, value)
                     .with_span(span)?;
             }
-            meta::Kind::Macro { .. } => (),
-            meta::Kind::AttributeMacro { .. } => (),
+            meta::Kind::Macro => (),
+            meta::Kind::AttributeMacro => (),
             meta::Kind::Function { .. } => (),
             meta::Kind::Closure { .. } => (),
             meta::Kind::AsyncBlock { .. } => (),
-            meta::Kind::ConstFn { .. } => (),
+            meta::Kind::ConstFn => (),
             meta::Kind::Import { .. } => (),
             meta::Kind::Alias { .. } => (),
-            meta::Kind::Module { .. } => (),
-            meta::Kind::Trait { .. } => (),
+            meta::Kind::Module => (),
+            meta::Kind::Trait => (),
         }
 
         Ok(())

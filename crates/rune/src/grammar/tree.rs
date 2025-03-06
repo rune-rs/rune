@@ -548,7 +548,7 @@ impl<'a> Stream<'a> {
         if let Some(node) = self.next_node() {
             let inside = self.kind();
 
-            let span = match self.iter.last() {
+            let span = match self.iter.next_back() {
                 Some(last) => node.span().join(last.span()),
                 None => *node.span(),
             };

@@ -888,11 +888,11 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::BadJump { error } => error.fmt(f),
             VmErrorKind::DynArgsUsed { error } => error.fmt(f),
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
-            VmErrorKind::NoRunningVm {} => write!(f, "No running virtual machines"),
+            VmErrorKind::NoRunningVm => write!(f, "No running virtual machines"),
             VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
-            VmErrorKind::Overflow {} => write!(f, "Numerical overflow"),
-            VmErrorKind::Underflow {} => write!(f, "Numerical underflow"),
-            VmErrorKind::DivideByZero {} => write!(f, "Division by zero"),
+            VmErrorKind::Overflow => write!(f, "Numerical overflow"),
+            VmErrorKind::Underflow => write!(f, "Numerical underflow"),
+            VmErrorKind::DivideByZero => write!(f, "Division by zero"),
             VmErrorKind::MissingEntry { item, hash } => {
                 write!(f, "Missing entry `{item}` with hash `{hash}`")
             }
@@ -1049,7 +1049,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ConstNotSupported { actual } => {
                 write!(f, "Type `{actual}` can't be converted to a constant value")
             }
-            VmErrorKind::MissingInterfaceEnvironment {} => {
+            VmErrorKind::MissingInterfaceEnvironment => {
                 write!(f, "Missing interface environment")
             }
             VmErrorKind::ExpectedExecutionState { actual } => {
@@ -1058,15 +1058,15 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ExpectedExitedExecutionState { actual } => {
                 write!(f, "Expected exited execution state, but was {actual}")
             }
-            VmErrorKind::GeneratorComplete {} => {
+            VmErrorKind::GeneratorComplete => {
                 write!(f, "Cannot resume a generator that has completed")
             }
-            VmErrorKind::FutureCompleted {} => write!(f, "Future already completed"),
+            VmErrorKind::FutureCompleted => write!(f, "Future already completed"),
             VmErrorKind::MissingVariant { name } => write!(f, "No variant matching `{name}`"),
             VmErrorKind::MissingField { target, field } => {
                 write!(f, "Missing field `{field}` on `{target}`")
             }
-            VmErrorKind::MissingVariantName {} => {
+            VmErrorKind::MissingVariantName => {
                 write!(f, "missing variant name in runtime information")
             }
             VmErrorKind::MissingStructField { target, name } => write!(

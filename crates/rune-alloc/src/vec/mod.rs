@@ -3038,7 +3038,7 @@ impl<T, A: Allocator> TryExtend<T> for Vec<T, A> {
 
 #[cfg(feature = "std")]
 fn io_err(error: Error) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, error)
+    std::io::Error::other(error)
 }
 
 #[cfg(feature = "std")]

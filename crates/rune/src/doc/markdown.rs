@@ -433,10 +433,10 @@ where
             TagEnd::Strikethrough => {
                 self.write("</del>")?;
             }
-            TagEnd::Link { .. } => {
+            TagEnd::Link => {
                 self.write("</a>")?;
             }
-            TagEnd::Image { .. } => (),
+            TagEnd::Image => (),
             TagEnd::FootnoteDefinition => {
                 self.write("</div>")?;
             }

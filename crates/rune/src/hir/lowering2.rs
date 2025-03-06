@@ -2092,7 +2092,7 @@ fn expr_path_meta<'hir>(
                 ..
             } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
+            meta::Kind::Const => Ok(hir::ExprKind::Const(meta.hash)),
             meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
                 Ok(hir::ExprKind::Type(Type::new(meta.hash)))
             }

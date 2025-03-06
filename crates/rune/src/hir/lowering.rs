@@ -1027,7 +1027,7 @@ fn expr_block<'hir>(
                 captures,
             })))
         }
-        (ExprBlockKind::Const, meta::Kind::Const { .. }) => Ok(hir::ExprKind::Const(meta.hash)),
+        (ExprBlockKind::Const, meta::Kind::Const) => Ok(hir::ExprKind::Const(meta.hash)),
         _ => Err(compile::Error::expected_meta(
             ast,
             meta.info(cx.q.pool)?,
@@ -1566,7 +1566,7 @@ fn expr_path_meta<'hir>(
                 ..
             } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
-            meta::Kind::Const { .. } => Ok(hir::ExprKind::Const(meta.hash)),
+            meta::Kind::Const => Ok(hir::ExprKind::Const(meta.hash)),
             meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
                 Ok(hir::ExprKind::Type(Type::new(meta.hash)))
             }

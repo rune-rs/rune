@@ -10,7 +10,7 @@ fn number_literals_oob() {
 
     assert_errors! {
         "-0aardvark",
-        span!(1, 10), BadNumberLiteral { .. }
+        span!(1, 10), BadNumberLiteral
     };
 
     assert_errors! {
