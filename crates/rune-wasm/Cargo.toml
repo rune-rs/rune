@@ -19,7 +19,7 @@ rune-macros = { version = "=0.14.0", path = "../rune-macros" }
 rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand"] }
 
 serde = { version = "1.0.163", features = ["derive"] }
-wasm-bindgen = { version = "0.2.85", features = ["serde-serialize"] }
+wasm-bindgen = { version = "0.2.100", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.35"
 js-sys = "0.3.62"
 anyhow = "1.0.71"

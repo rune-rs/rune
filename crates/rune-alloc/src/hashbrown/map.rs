@@ -6877,7 +6877,7 @@ where
         let reserve = if self.is_empty() {
             iter.size_hint().0
         } else {
-            (iter.size_hint().0 + 1) / 2
+            iter.size_hint().0.div_ceil(2)
         };
 
         self.try_reserve(reserve)?;

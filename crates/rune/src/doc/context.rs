@@ -264,13 +264,13 @@ impl<'a> Context<'a> {
                 arguments: f.arguments.as_deref(),
                 return_type: &f.return_type,
             }),
-            meta::Kind::Const { .. } => {
+            meta::Kind::Const => {
                 let const_value = self.context?.get_const_value(meta.hash)?;
                 Kind::Const(const_value)
             }
             meta::Kind::Macro => Kind::Macro,
-            meta::Kind::Module { .. } => Kind::Module,
-            meta::Kind::Trait { .. } => Kind::Trait,
+            meta::Kind::Module => Kind::Module,
+            meta::Kind::Trait => Kind::Trait,
             _ => Kind::Unsupported,
         };
 

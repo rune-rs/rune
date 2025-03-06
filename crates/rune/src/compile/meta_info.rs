@@ -129,8 +129,8 @@ impl MetaInfoKind {
             } => MetaInfoKind::Struct,
             meta::Kind::Struct { .. } => MetaInfoKind::Variant,
             meta::Kind::Enum { .. } => MetaInfoKind::Enum,
-            meta::Kind::Macro { .. } => MetaInfoKind::Macro,
-            meta::Kind::AttributeMacro { .. } => MetaInfoKind::AttributeMacro,
+            meta::Kind::Macro => MetaInfoKind::Macro,
+            meta::Kind::AttributeMacro => MetaInfoKind::AttributeMacro,
             meta::Kind::Function {
                 associated: None, ..
             } => MetaInfoKind::Function,
@@ -140,12 +140,12 @@ impl MetaInfoKind {
             } => MetaInfoKind::Associated,
             meta::Kind::Closure { .. } => MetaInfoKind::Closure,
             meta::Kind::AsyncBlock { .. } => MetaInfoKind::AsyncBlock,
-            meta::Kind::Const { .. } => MetaInfoKind::Const,
-            meta::Kind::ConstFn { .. } => MetaInfoKind::ConstFn,
+            meta::Kind::Const => MetaInfoKind::Const,
+            meta::Kind::ConstFn => MetaInfoKind::ConstFn,
             meta::Kind::Import { .. } => MetaInfoKind::Import,
             meta::Kind::Alias { .. } => MetaInfoKind::Alias,
-            meta::Kind::Module { .. } => MetaInfoKind::Module,
-            meta::Kind::Trait { .. } => MetaInfoKind::Trait,
+            meta::Kind::Module => MetaInfoKind::Module,
+            meta::Kind::Trait => MetaInfoKind::Trait,
         }
     }
 }

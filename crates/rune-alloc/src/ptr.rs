@@ -63,7 +63,7 @@ cfg_if! {
     if #[cfg(rune_nightly)] {
         #[inline(always)]
         pub(crate) unsafe fn sub_ptr<T>(from: *const T, to: *const T) -> usize {
-            from.sub_ptr(to)
+            from.offset_from_unsigned(to)
         }
     } else {
         #[inline(always)]

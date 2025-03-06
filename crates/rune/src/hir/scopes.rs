@@ -198,7 +198,7 @@ impl<'hir, 'a> Scopes<'hir, 'a> {
                     break 'ok (layer.scope, *id);
                 }
 
-                if let LayerKind::Captures { .. } = layer.kind {
+                if let LayerKind::Captures = layer.kind {
                     blocks.try_push(layer.scope)?;
                 }
 
