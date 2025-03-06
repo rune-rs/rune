@@ -64,6 +64,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(chars)?;
     m.function_meta(get)?;
     m.function_meta(parse_int)?;
+    m.function_meta(parse_float)?;
     m.function_meta(parse_char)?;
     m.function_meta(to_lowercase)?;
     m.function_meta(to_uppercase)?;
