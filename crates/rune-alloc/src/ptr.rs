@@ -62,8 +62,7 @@ pub const fn invalid_mut<T>(addr: usize) -> *mut T {
 cfg_if! {
     if #[cfg(rune_nightly)] {
         #[inline(always)]
-        pub(crate) unsafe fn sub_ptr<T>(from: *const T, to: *const T) -> usize
-        {
+        pub(crate) unsafe fn sub_ptr<T>(from: *const T, to: *const T) -> usize {
             from.offset_from_unsigned(to)
         }
     } else {
