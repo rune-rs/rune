@@ -43,7 +43,6 @@
 #![cfg_attr(rune_nightly, feature(core_intrinsics))]
 #![cfg_attr(rune_nightly, feature(dropck_eyepatch))]
 #![cfg_attr(rune_nightly, feature(min_specialization))]
-#![cfg_attr(rune_nightly, feature(ptr_sub_ptr))]
 #![cfg_attr(rune_nightly, feature(slice_range))]
 #![cfg_attr(rune_nightly, feature(rustc_attrs))]
 #![allow(clippy::comparison_chain)]

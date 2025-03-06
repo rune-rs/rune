@@ -60,7 +60,7 @@ pub(super) fn write_tag<A: Allocator>(
         return Err(alloc::Error::CapacityOverflow);
     }
 
-    let n = u16::try_from(n << TYPE_BITS | tag).expect("tag out of bounds");
+    let n = u16::try_from((n << TYPE_BITS) | tag).expect("tag out of bounds");
     let buf = n.to_ne_bytes();
     output.try_extend_from_slice(&buf[..])?;
     Ok(())
