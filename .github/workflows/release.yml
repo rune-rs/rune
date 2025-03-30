@@ -64,6 +64,6 @@ jobs:
       with: {name: dist-windows-latest, path: dist}
     - uses: actions/download-artifact@v4
       with: {name: dist-ubuntu-latest, path: dist}
-    - run: kick github-release --upload "dist/*" --github-action
+    - run: kick gh release --upload "dist/*" --github-action
       env:
         GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
