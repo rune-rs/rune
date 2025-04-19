@@ -1,6 +1,5 @@
 [package]
 name = "rune-wasm"
-version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.81"
@@ -12,6 +11,7 @@ repository = "https://github.com/rune-rs/rune"
 license = "MIT OR Apache-2.0"
 keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
+publish = false
 
 [dependencies]
 rune = { version = "0.14.0", path = "../rune", features = ["capture-io"] }
