@@ -202,6 +202,7 @@ pub mod fmt;
 pub use ::codespan_reporting::term::termcolor;
 
 pub(crate) mod any;
+#[doc(inline)]
 pub use self::any::Any;
 
 mod build;
@@ -254,8 +255,8 @@ pub mod query;
 pub mod runtime;
 #[doc(inline)]
 pub use self::runtime::{
-    from_const_value, from_value, to_const_value, to_value, FromValue, Mut, Ref, ToConstValue,
-    ToValue, TypeHash, Unit, Value, Vm,
+    from_const_value, from_value, to_const_value, to_value, FromConstValue, FromValue, Mut, Ref,
+    ToConstValue, ToValue, TypeHash, Unit, Value, Vm,
 };
 
 mod shared;
