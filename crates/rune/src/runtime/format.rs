@@ -380,6 +380,7 @@ impl FormatSpec {
 }
 
 impl fmt::Display for FormatSpec {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -400,6 +401,7 @@ impl<T> fmt::Display for OptionDebug<'_, T>
 where
     T: fmt::Display,
 {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             Some(value) => write!(f, "{}", value),
@@ -409,12 +411,13 @@ where
 }
 
 /// The type of formatting requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[non_exhaustive]
 pub enum Type {
     /// Display type (default).
+    #[default]
     Display,
     /// Debug type.
     Debug,
@@ -431,6 +434,7 @@ pub enum Type {
 impl str::FromStr for Type {
     type Err = TypeFromStrError;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "display" => Ok(Self::Display),
@@ -444,13 +448,8 @@ impl str::FromStr for Type {
     }
 }
 
-impl Default for Type {
-    fn default() -> Self {
-        Self::Display
-    }
-}
-
 impl fmt::Display for Type {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Display => {
@@ -501,6 +500,7 @@ impl Default for Alignment {
 impl str::FromStr for Alignment {
     type Err = AlignmentFromStrError;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "left" => Ok(Self::Left),
@@ -512,6 +512,7 @@ impl str::FromStr for Alignment {
 }
 
 impl fmt::Display for Alignment {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Left => {
@@ -554,12 +555,14 @@ pub struct Flags(u32);
 
 impl Flags {
     /// Check if the set of flags is empty.
+    #[inline]
     pub fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// Get the flags as a number. This representation is not guaranteed to be
     /// stable.
+    #[inline]
     pub fn into_u32(self) -> u32 {
         self.0
     }

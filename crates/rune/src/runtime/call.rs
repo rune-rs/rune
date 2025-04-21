@@ -2,6 +2,7 @@ use core::fmt;
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -9,7 +10,8 @@ use crate::alloc::prelude::*;
 use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
 
 /// The calling convention of a function.
-#[derive(Debug, TryClone, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Encode, Decode))]
 #[try_clone(copy)]
 #[non_exhaustive]

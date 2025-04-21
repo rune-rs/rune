@@ -624,36 +624,43 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Get the item for the given identifier.
-    pub(crate) fn item_for(&self, what: &'static str, id: ItemId) -> anyhow::Result<ItemMeta> {
+    pub(crate) fn item_for(
+        &self,
+        what: &'static str,
+        id: ItemId,
+    ) -> Result<ItemMeta, compile::ErrorKind> {
         let Some(item_meta) = self.inner.items.get(&id) else {
             let m = try_format!(
                 "missing item meta for `{what}` at {} with id {id}",
                 self.pool.item(id)
             );
-            return Err(anyhow::Error::msg(m));
+            return Err(compile::ErrorKind::msg(m));
         };
 
         Ok(*item_meta)
     }
 
     /// Get the built-in macro matching the given ast.
-    pub(crate) fn builtin_macro_for(&self, id: NonZeroId) -> anyhow::Result<Arc<BuiltInMacro>> {
+    pub(crate) fn builtin_macro_for(
+        &self,
+        id: NonZeroId,
+    ) -> Result<Arc<BuiltInMacro>, compile::ErrorKind> {
         let Some(internal_macro) = self.inner.internal_macros.get(&id) else {
             let m = try_format!("missing built-in macro for id {id}");
-            return Err(anyhow::Error::msg(m));
+            return Err(compile::ErrorKind::msg(m));
         };
 
         Ok(internal_macro.clone())
     }
 
     /// Get the constant function associated with the opaque.
-    pub(crate) fn const_fn_for(&self, id: ItemId) -> anyhow::Result<Rc<ConstFn<'a>>> {
+    pub(crate) fn const_fn_for(&self, id: ItemId) -> Result<Rc<ConstFn<'a>>, compile::ErrorKind> {
         let Some(const_fn) = self.inner.const_fns.get(&id) else {
             let m = try_format!(
                 "missing constant function {} for id {id}",
                 self.pool.item(id)
             );
-            return Err(anyhow::Error::msg(m));
+            return Err(compile::ErrorKind::msg(m));
         };
 
         Ok(const_fn.clone())

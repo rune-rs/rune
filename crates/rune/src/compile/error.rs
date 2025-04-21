@@ -145,6 +145,7 @@ impl From<ir::scopes::MissingLocal> for ErrorKind {
     }
 }
 
+#[cfg(feature = "anyhow")]
 impl From<anyhow::Error> for ErrorKind {
     #[inline]
     fn from(error: anyhow::Error) -> Self {
@@ -245,8 +246,13 @@ impl Error {
 #[derive(Debug)]
 #[non_exhaustive]
 pub(crate) enum ErrorKind {
+    #[cfg(feature = "anyhow")]
     Custom {
         error: anyhow::Error,
+    },
+    #[cfg(not(feature = "anyhow"))]
+    Custom {
+        error: String,
     },
     AllocError {
         error: alloc::Error,
@@ -611,6 +617,8 @@ pub(crate) enum ErrorKind {
 }
 
 impl ErrorKind {
+    #[inline]
+    #[cfg(feature = "anyhow")]
     pub(crate) fn msg<M>(message: M) -> Self
     where
         M: fmt::Display + fmt::Debug + Send + Sync + 'static,
@@ -619,11 +627,24 @@ impl ErrorKind {
             error: anyhow::Error::msg(message),
         }
     }
+
+    #[inline]
+    #[cfg(not(feature = "anyhow"))]
+    pub(crate) fn msg<M>(message: M) -> Self
+    where
+        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
+    {
+        match crate::alloc::fmt::try_format(format_args!("{message}")) {
+            Ok(string) => Self::Custom { error: string },
+            Err(error) => Self::AllocError { error },
+        }
+    }
 }
 
 impl core::error::Error for ErrorKind {
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "anyhow")]
             ErrorKind::Custom { error } => Some(error.as_ref()),
             ErrorKind::IrError(source) => Some(source),
             ErrorKind::MetaError(source) => Some(source),

@@ -157,7 +157,7 @@ macro_rules! cow {
             }
         }
 
-        impl<'de, M, A> $decode<'de, M, A> for Cow<'static, $ty>
+        impl<'de, M, A> $decode<'de, M, A> for Cow<'_, $ty>
         where
             A: Allocator,
         {

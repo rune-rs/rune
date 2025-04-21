@@ -152,6 +152,7 @@ macro_rules! impl_into_args {
 repeat_macro!(impl_into_args);
 
 impl Args for Vec<Value> {
+    #[inline]
     fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
         for value in self {
             vm_try!(stack.push(value));
@@ -171,8 +172,8 @@ impl Args for Vec<Value> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl Args for ::rust_alloc::vec::Vec<Value> {
+    #[inline]
     fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
         for value in self {
             vm_try!(stack.push(value));

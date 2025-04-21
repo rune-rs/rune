@@ -172,7 +172,9 @@ impl Span {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Span {
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -181,7 +183,9 @@ impl Serialize for Span {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Span {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,

@@ -36,9 +36,12 @@ impl Accessor<'_> {
 
 /// The kind of value stored.
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "kebab-case")
+)]
 #[cfg_attr(feature = "musli", derive(Encode, Decode))]
-#[serde(rename_all = "kebab-case")]
 pub(crate) enum RttiKind {
     /// The value stored is empty.
     Empty,

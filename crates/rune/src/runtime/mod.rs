@@ -204,9 +204,7 @@ pub use self::fmt::Formatter;
 mod control_flow;
 pub use self::control_flow::ControlFlow;
 
-#[cfg(feature = "alloc")]
 mod hasher;
-#[cfg(feature = "alloc")]
 pub use self::hasher::Hasher;
 
 pub(crate) type FieldMap<K, V> = crate::alloc::HashMap<K, V>;

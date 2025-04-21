@@ -2,6 +2,7 @@
 //! not intended for end-users and might change at any time.
 
 #[doc(inline)]
+#[cfg(feature = "anyhow")]
 pub use anyhow::Context;
 
 #[cfg(not(feature = "std"))]
@@ -37,6 +38,7 @@ pub(crate) mod no_std {
 
     impl Error {
         /// Create a new error object from a printable error message.
+        #[cfg(feature = "anyhow")]
         pub fn msg<M>(message: M) -> Self
         where
             M: fmt::Display + fmt::Debug + Send + Sync + 'static,
@@ -45,9 +47,26 @@ pub(crate) mod no_std {
                 kind: ErrorKind::Custom(anyhow::Error::msg(message)),
             }
         }
+
+        /// Create a new error object from a printable error message.
+        #[cfg(not(feature = "anyhow"))]
+        pub fn msg<M>(message: M) -> Self
+        where
+            M: fmt::Display + fmt::Debug + Send + Sync + 'static,
+        {
+            match crate::alloc::fmt::try_format(format_args!("{message}")) {
+                Ok(string) => Self {
+                    kind: ErrorKind::Custom(string),
+                },
+                Err(error) => Self {
+                    kind: ErrorKind::Alloc(error),
+                },
+            }
+        }
     }
 
     impl From<alloc::Error> for Error {
+        #[inline]
         fn from(error: alloc::Error) -> Self {
             Self {
                 kind: ErrorKind::Alloc(error),
@@ -56,6 +75,7 @@ pub(crate) mod no_std {
     }
 
     impl From<compile::ContextError> for Error {
+        #[inline]
         fn from(error: compile::ContextError) -> Self {
             Self {
                 kind: ErrorKind::Context(error),
@@ -64,6 +84,7 @@ pub(crate) mod no_std {
     }
 
     impl From<compile::Error> for Error {
+        #[inline]
         fn from(error: compile::Error) -> Self {
             Self {
                 kind: ErrorKind::Compile(error),
@@ -72,6 +93,7 @@ pub(crate) mod no_std {
     }
 
     impl From<build::BuildError> for Error {
+        #[inline]
         fn from(error: build::BuildError) -> Self {
             Self {
                 kind: ErrorKind::Build(error),
@@ -80,6 +102,7 @@ pub(crate) mod no_std {
     }
 
     impl From<runtime::VmError> for Error {
+        #[inline]
         fn from(error: runtime::VmError) -> Self {
             Self {
                 kind: ErrorKind::Vm(error),
@@ -88,6 +111,7 @@ pub(crate) mod no_std {
     }
 
     impl From<runtime::RuntimeError> for Error {
+        #[inline]
         fn from(error: runtime::RuntimeError) -> Self {
             Self {
                 kind: ErrorKind::Runtime(error),
@@ -95,7 +119,9 @@ pub(crate) mod no_std {
         }
     }
 
+    #[cfg(feature = "anyhow")]
     impl From<anyhow::Error> for Error {
+        #[inline]
         fn from(error: anyhow::Error) -> Self {
             Self {
                 kind: ErrorKind::Custom(error),
@@ -105,6 +131,7 @@ pub(crate) mod no_std {
 
     #[cfg(test)]
     impl From<tests::TestError> for Error {
+        #[inline]
         fn from(error: tests::TestError) -> Self {
             Self {
                 kind: ErrorKind::Test(error),
@@ -113,6 +140,7 @@ pub(crate) mod no_std {
     }
 
     impl fmt::Display for Error {
+        #[inline]
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match &self.kind {
                 ErrorKind::Alloc(error) => error.fmt(f),
@@ -136,7 +164,10 @@ pub(crate) mod no_std {
         Build(build::BuildError),
         Vm(runtime::VmError),
         Runtime(runtime::RuntimeError),
+        #[cfg(feature = "anyhow")]
         Custom(anyhow::Error),
+        #[cfg(not(feature = "anyhow"))]
+        Custom(alloc::String),
         #[cfg(test)]
         Test(tests::TestError),
     }
@@ -150,7 +181,10 @@ pub(crate) mod no_std {
                 ErrorKind::Build(error) => Some(error),
                 ErrorKind::Vm(error) => Some(error),
                 ErrorKind::Runtime(error) => Some(error),
+                #[cfg(feature = "anyhow")]
                 ErrorKind::Custom(error) => Some(error.as_ref()),
+                #[cfg(not(feature = "anyhow"))]
+                ErrorKind::Custom(..) => None,
                 #[cfg(test)]
                 ErrorKind::Test(error) => Some(error),
             }

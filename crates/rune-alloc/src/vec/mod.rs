@@ -1010,7 +1010,7 @@ impl<T, A: Allocator> Vec<T, A> {
     ///
     /// let mut vec = try_vec![1, 2, 3];
     /// vec.truncate(0);
-    /// assert_eq!(vec, []);
+    /// assert!(vec.is_empty());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     ///
@@ -1834,7 +1834,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// let mut vec2 = try_vec![4, 5, 6];
     /// vec.try_append(&mut vec2)?;
     /// assert_eq!(vec, [1, 2, 3, 4, 5, 6]);
-    /// assert_eq!(vec2, []);
+    /// assert!(vec2.is_empty());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
@@ -1915,7 +1915,7 @@ impl<T, A: Allocator> Vec<T, A> {
     ///
     /// // A full range clears the vector, like `clear()` does
     /// v.drain(..);
-    /// assert_eq!(v, &[]);
+    /// assert!(v.is_empty());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     pub fn drain<R>(&mut self, range: R) -> Drain<'_, T, A>

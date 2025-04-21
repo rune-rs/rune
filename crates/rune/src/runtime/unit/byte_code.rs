@@ -1,6 +1,10 @@
 use core::mem::size_of;
 
+#[cfg(feature = "byte-code")]
+use musli::storage;
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -12,10 +16,12 @@ use crate::runtime::Inst;
 /// Unit stored as byte code, which is a more compact representation than
 /// `ArrayUnit`, but takes more time to execute since it needs to be decoded as
 /// it's being executed.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 pub struct ByteCodeUnit {
     /// The instructions contained in the source file.
-    #[musli(bytes)]
+    #[cfg_attr(feature = "musli", musli(bytes))]
     bytes: Vec<u8>,
     /// Known jump offsets.
     offsets: Vec<usize>,
@@ -37,7 +43,7 @@ impl Iterator for ByteCodeUnitIter<'_> {
         }
 
         let ip = self.len.checked_sub(self.address.len())?;
-        let inst = musli::storage::decode(self.address).ok()?;
+        let inst = storage::decode(self.address).ok()?;
         Some((ip, inst))
     }
 }
@@ -50,7 +56,7 @@ impl UnitEncoder for ByteCodeUnit {
 
     #[inline]
     fn encode(&mut self, inst: Inst) -> Result<(), EncodeError> {
-        musli::storage::to_writer(&mut self.bytes, &inst)?;
+        storage::to_writer(&mut self.bytes, &inst)?;
         Ok(())
     }
 
@@ -103,7 +109,7 @@ impl UnitStorage for ByteCodeUnit {
         };
 
         let start = bytes.as_ptr();
-        let inst: Inst = musli::storage::decode(bytes).map_err(|_| BadInstruction { ip })?;
+        let inst: Inst = storage::decode(bytes).map_err(|_| BadInstruction { ip })?;
         let len = (bytes.as_ptr() as usize).wrapping_sub(start as usize);
         Ok(Some((inst, len)))
     }

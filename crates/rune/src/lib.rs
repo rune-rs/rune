@@ -232,7 +232,6 @@ pub mod hash;
 #[doc(inline)]
 pub use self::hash::{Hash, ToTypeHash};
 
-#[cfg(feature = "alloc")]
 mod hashbrown;
 
 mod params;
@@ -672,16 +671,14 @@ pub mod __private {
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
     pub use crate::runtime::{TypeHash, TypeOf};
-    #[cfg(feature = "alloc")]
+    pub use core::clone::Clone;
     pub use rust_alloc::boxed::Box;
-    #[cfg(feature = "alloc")]
     pub use rust_alloc::sync::Arc;
-    #[cfg(feature = "std")]
-    pub use std::clone::Clone;
 }
 
 #[cfg(feature = "musli")]
 mod musli;
+#[cfg(feature = "serde")]
 mod serde;
 
 #[cfg(test)]
@@ -692,9 +689,8 @@ rune_macros::binding! {
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     impl ::std::io::Error for std::io::Error;
-    #[cfg(feature = "alloc")]
-    #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
-    impl ::std::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
+    impl ::rust_alloc::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
+    #[cfg(feature = "anyhow")]
     impl ::std::error::Error for anyhow::Error;
     impl ::std::fmt::Error for core::fmt::Error;
     impl ::std::char::ParseCharError for core::char::ParseCharError;
@@ -748,9 +744,6 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::cmp::Ordering for core::cmp::Ordering;
     #[type_of]
-    #[cfg(feature = "alloc")]
-    #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
-    #[type_of]
     impl ::std::string::String for ::rust_alloc::string::String;
     #[type_of]
     impl ::std::string::String for crate::alloc::Box<str>;
@@ -759,8 +752,6 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::vec::Vec for [Value];
     #[type_of]
-    #[cfg(feature = "alloc")]
-    #[cfg_attr(rune_docsrs, doc(cfg(feature = "alloc")))]
     #[type_of]
     impl<T> ::std::vec::Vec for ::rust_alloc::vec::Vec<T>;
     #[type_of]

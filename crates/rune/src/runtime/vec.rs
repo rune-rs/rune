@@ -10,15 +10,12 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
-#[cfg(feature = "alloc")]
-use crate::runtime::Hasher;
 use crate::{Any, TypeHash};
 
-use super::EnvProtocolCaller;
 use super::{
-    Formatter, FromValue, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, RawAnyGuard, Ref, RuntimeError, ToValue, UnsafeToRef, Value, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, Formatter, FromValue, Hasher, ProtocolCaller, Range, RangeFrom, RangeFull,
+    RangeInclusive, RangeTo, RangeToInclusive, RawAnyGuard, Ref, RuntimeError, ToValue,
+    UnsafeToRef, Value, VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic vector.
@@ -422,7 +419,6 @@ impl Vec {
         VmResult::Ok(Some(vm_try!(Value::vec(vec))))
     }
 
-    #[cfg(feature = "alloc")]
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
@@ -496,7 +492,6 @@ impl<'a> IntoIterator for &'a mut Vec {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::vec::Vec<Value>> for Vec {
     type Error = alloc::Error;
 
@@ -512,7 +507,6 @@ impl TryFrom<::rust_alloc::vec::Vec<Value>> for Vec {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for Vec {
     type Error = alloc::Error;
 
@@ -529,7 +523,6 @@ impl From<alloc::Vec<Value>> for Vec {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T> FromValue for ::rust_alloc::vec::Vec<T>
 where
     T: FromValue,
@@ -611,7 +604,6 @@ where
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T> ToValue for ::rust_alloc::vec::Vec<T>
 where
     T: ToValue,
