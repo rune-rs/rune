@@ -11,6 +11,8 @@ use core::fmt;
 
 use ::rust_alloc::sync::Arc;
 
+use musli::mode::Binary;
+use musli::{Decode, Encode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -37,8 +39,9 @@ pub type DefaultStorage = ByteCodeUnit;
 /// Instructions and debug info from a single compilation.
 ///
 /// See [`rune::prepare`] for more.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(bound = "S: Serialize + DeserializeOwned")]
+#[musli(Binary, bound = {S: Encode<Binary>}, decode_bound<'de, A> = {S: Decode<'de, Binary, A>})]
 #[try_clone(bound = {S: TryClone})]
 pub struct Unit<S = DefaultStorage> {
     /// The information needed to execute the program.
@@ -51,7 +54,7 @@ pub struct Unit<S = DefaultStorage> {
 assert_impl!(Unit<DefaultStorage>: Send + Sync);
 
 /// Instructions from a single source file.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(rename = "Unit")]
 #[try_clone(bound = {S: TryClone})]
 pub struct Logic<S = DefaultStorage> {
@@ -253,7 +256,7 @@ where
 }
 
 /// The kind and necessary information on registered functions.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 #[non_exhaustive]
 pub(crate) enum UnitFn {
     /// Instruction offset of a function inside of the unit.

@@ -44,7 +44,98 @@
 
 use crate::error::Error;
 
-#[doc(inline)]
+/// Derive to implement the `TryClone` trait.
+///
+/// <br>
+///
+/// # Examples
+///
+/// Basic usage example:
+///
+/// ```
+/// use rune::alloc::String;
+/// use rune::alloc::clone::TryClone;
+///
+/// // String type implements TryClone
+/// let s = String::new();
+/// // ... so we can clone it
+/// let copy = s.try_clone()?;
+/// # Ok::<_, rune::alloc::Error>(())
+/// ```
+///
+/// To easily implement the TryClone trait, you can also use
+/// `#[derive(TryClone)]`. Example:
+///
+/// ```
+/// use rune::alloc::clone::TryClone;
+///
+/// // we add the TryClone trait to Morpheus struct
+/// #[derive(TryClone)]
+/// struct Morpheus {
+///    blue_pill: f32,
+///    red_pill: i64,
+/// }
+///
+/// let f = Morpheus { blue_pill: 0.0, red_pill: 0 };
+/// // and now we can clone it!
+/// let copy = f.try_clone()?;
+/// # Ok::<_, rune::alloc::Error>(())
+/// ```
+///
+/// <br>
+///
+/// ## Attributes
+///
+/// <br>
+///
+/// ### `try_clone(with = <path>)`
+///
+/// Specify a custom method when cloning a field.
+///
+/// ```
+/// use rune::alloc::clone::TryClone;
+///
+/// #[derive(Debug, TryClone)]
+/// #[non_exhaustive]
+/// pub struct Struct {
+///     #[try_clone(with = String::clone)]
+///     string: String,
+/// }
+/// ```
+///
+/// <br>
+///
+/// ### `try_clone(try_with = <path>)`
+///
+/// Specify a custom fallible method when cloning a field.
+///
+/// ```
+/// use rune::alloc::clone::TryClone;
+///
+/// #[derive(Debug, TryClone)]
+/// #[non_exhaustive]
+/// pub struct Struct {
+///     #[try_clone(try_with = rune::alloc::String::try_clone)]
+///     string: rune::alloc::String,
+/// }
+/// ```
+///
+/// <br>
+///
+/// ### `try_clone(copy)`
+///
+/// Specify that a field is `Copy`.
+///
+/// ```
+/// use rune::alloc::prelude::*;
+///
+/// #[derive(Debug, TryClone)]
+/// #[non_exhaustive]
+/// pub struct Struct {
+///     #[try_clone(copy)]
+///     number: u32,
+/// }
+/// ```
 pub use rune_alloc_macros::TryClone;
 
 /// Fallible `TryClone` trait.

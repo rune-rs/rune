@@ -2,6 +2,7 @@
 
 use core::fmt;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -12,7 +13,7 @@ use crate::runtime::DebugLabel;
 use crate::{Hash, ItemBuf, SourceId};
 
 /// Debug information about a unit.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
 #[non_exhaustive]
 pub struct DebugInfo {
     /// Debug information on each instruction.
@@ -45,7 +46,7 @@ impl DebugInfo {
 }
 
 /// Debug information for every instruction.
-#[derive(Debug, TryClone, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Serialize, Deserialize, Encode, Decode)]
 #[non_exhaustive]
 pub struct DebugInst {
     /// The file by id the instruction belongs to.
@@ -76,7 +77,8 @@ impl DebugInst {
 }
 
 /// Debug information on function arguments.
-#[derive(Debug, TryClone, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Serialize, Deserialize, Encode, Decode)]
+#[non_exhaustive]
 pub enum DebugArgs {
     /// An empty, with not arguments.
     EmptyArgs,
@@ -87,7 +89,7 @@ pub enum DebugArgs {
 }
 
 /// A description of a function signature.
-#[derive(Debug, TryClone, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Serialize, Deserialize, Encode, Decode)]
 #[non_exhaustive]
 pub struct DebugSignature {
     /// The path of the function.
@@ -98,6 +100,7 @@ pub struct DebugSignature {
 
 impl DebugSignature {
     /// Construct a new function signature.
+    #[inline]
     pub fn new(path: ItemBuf, args: DebugArgs) -> Self {
         Self { path, args }
     }
@@ -116,11 +119,11 @@ impl fmt::Display for DebugSignature {
                 let last = it.next_back();
 
                 for arg in it {
-                    write!(fmt, "{}, ", arg)?;
+                    write!(fmt, "{arg}, ")?;
                 }
 
                 if let Some(arg) = last {
-                    write!(fmt, "{}", arg)?;
+                    write!(fmt, "{arg}")?;
                 }
 
                 write!(fmt, ")")?;
@@ -132,11 +135,11 @@ impl fmt::Display for DebugSignature {
                 let last = it.next_back();
 
                 for arg in it {
-                    write!(fmt, "{}, ", arg)?;
+                    write!(fmt, "{arg}, ")?;
                 }
 
                 if let Some(arg) = last {
-                    write!(fmt, "{}", arg)?;
+                    write!(fmt, "{arg}")?;
                 }
 
                 write!(fmt, ")")?;

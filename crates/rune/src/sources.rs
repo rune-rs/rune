@@ -1,6 +1,8 @@
 use core::fmt;
 use core::num;
 
+use musli::{Decode, Encode};
+
 use crate as rune;
 use crate::alloc;
 use crate::alloc::path::Path;
@@ -165,9 +167,10 @@ impl<'a> files::Files<'a> for Sources {
 ///
 /// It can be used to reference the inserted source file in the future through
 /// methods such as [`Sources::get`].
-#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
 #[try_clone(copy)]
 #[repr(transparent)]
+#[musli(transparent)]
 pub struct SourceId {
     index: u32,
 }

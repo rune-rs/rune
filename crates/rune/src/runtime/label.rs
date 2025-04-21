@@ -9,6 +9,7 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use ::rust_alloc::rc::Rc;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 /// A label that can be jumped to.
@@ -22,6 +23,7 @@ pub(crate) struct Label {
 
 impl Label {
     /// Construct a new label.
+    #[inline]
     pub(crate) fn new(name: &'static str, index: usize) -> Self {
         Self {
             name,
@@ -31,11 +33,13 @@ impl Label {
     }
 
     /// Get jump.
+    #[inline]
     pub(crate) fn jump(&self) -> Option<usize> {
         Some(self.jump.get()?.get().wrapping_sub(1))
     }
 
     /// Set jump.
+    #[inline]
     pub(crate) fn set_jump(&self, jump: usize) -> bool {
         let Some(jump) = NonZeroUsize::new(jump.wrapping_add(1)) else {
             return false;
@@ -46,6 +50,7 @@ impl Label {
     }
 
     /// Convert into owned label.
+    #[inline]
     pub(crate) fn to_debug_label(&self) -> DebugLabel {
         DebugLabel {
             name: self.name.into(),
@@ -56,6 +61,7 @@ impl Label {
 }
 
 impl fmt::Display for Label {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(jump) = self.jump() {
             write!(f, "{}_{} ({jump})", self.name, self.index)
@@ -66,7 +72,7 @@ impl fmt::Display for Label {
 }
 
 /// A label that can be jumped to.
-#[derive(Debug, TryClone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
 pub struct DebugLabel {
     /// The name of the label.
     name: Cow<'static, str>,
@@ -78,12 +84,14 @@ pub struct DebugLabel {
 
 impl DebugLabel {
     /// Get jump.
+    #[inline]
     pub(crate) fn jump(&self) -> Option<usize> {
         Some(self.jump?.get().wrapping_sub(1))
     }
 }
 
 impl fmt::Display for DebugLabel {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}_{}", self.name, self.index)?;
 

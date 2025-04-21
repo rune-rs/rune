@@ -38,9 +38,9 @@ pub(super) fn load(
 
     // TODO: how do we deal with tests discovery for bytecode loading
     let maybe_unit = if use_cache {
-        let f = fs::File::open(&bytecode_path)?;
+        let f = fs::read(&bytecode_path)?;
 
-        match bincode::deserialize_from::<_, Unit>(f) {
+        match musli::storage::from_slice::<Unit>(&f[..]) {
             Ok(unit) => {
                 tracing::trace!("Using cache: {}", bytecode_path.display());
                 Some(Arc::new(unit))
@@ -86,7 +86,7 @@ pub(super) fn load(
             if options.bytecode {
                 tracing::trace!("serializing cache: {}", bytecode_path.display());
                 let f = fs::File::create(&bytecode_path)?;
-                bincode::serialize_into(f, &unit)?;
+                musli::storage::to_writer(f, &unit)?;
             }
 
             (Arc::new(unit), functions.into_functions())
