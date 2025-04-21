@@ -1842,7 +1842,7 @@ impl<T, A: Allocator> VecDeque<T, A> {
     /// let mut buf2: VecDeque<_> = [3, 4].try_into()?;
     /// buf.try_append(&mut buf2)?;
     /// assert_eq!(buf, [1, 2, 3, 4]);
-    /// assert_eq!(buf2, []);
+    /// assert!(buf2.is_empty());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]

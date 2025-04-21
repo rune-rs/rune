@@ -328,7 +328,6 @@ impl FromValue for alloc::Box<str> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl FromValue for ::rust_alloc::boxed::Box<str> {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -497,7 +496,6 @@ macro_rules! impl_try_map {
 }
 
 impl_try_map!(alloc::HashMap<String, T>, String);
-#[cfg(feature = "alloc")]
 impl_try_map!(alloc::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::string::String);
 
 impl FromValue for Ordering {

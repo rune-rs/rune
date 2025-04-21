@@ -7,6 +7,7 @@ mod tests;
 mod inline;
 pub use self::inline::Inline;
 
+#[cfg(feature = "serde")]
 mod serde;
 
 mod rtti;
@@ -36,12 +37,11 @@ use crate::{Any, Hash, TypeHash};
 
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
-    ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, IntoOutput,
-    Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref,
-    RuntimeError, Snapshot, Type, TypeInfo, Vec, VmErrorKind, VmIntegerRepr, VmResult,
+    ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
+    IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
+    RawAnyObjGuard, Ref, RuntimeError, Snapshot, Tuple, Type, TypeInfo, Vec, VmErrorKind,
+    VmIntegerRepr, VmResult,
 };
-#[cfg(feature = "alloc")]
-use super::{Hasher, Tuple};
 
 /// Defined guard for a reference value.
 ///
@@ -1192,7 +1192,6 @@ impl Value {
     }
 
     /// Hash the current value.
-    #[cfg(feature = "alloc")]
     pub fn hash(&self, hasher: &mut Hasher) -> VmResult<()> {
         self.hash_with(hasher, &mut EnvProtocolCaller)
     }

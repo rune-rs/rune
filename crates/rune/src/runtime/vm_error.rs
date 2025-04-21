@@ -771,7 +771,6 @@ pub(crate) enum VmErrorKind {
         target: TypeInfo,
         index: VmIntegerRepr,
     },
-    #[cfg(feature = "alloc")]
     MissingIndexKey {
         target: TypeInfo,
     },
@@ -869,7 +868,6 @@ pub(crate) enum VmErrorKind {
         lhs: f64,
         rhs: f64,
     },
-    #[cfg(feature = "alloc")]
     IllegalFloatOperation {
         value: f64,
     },
@@ -992,7 +990,6 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingIndexInteger { target, index } => {
                 write!(f, "Type `{target}` missing integer index `{index}`")
             }
-            #[cfg(feature = "alloc")]
             VmErrorKind::MissingIndexKey { target } => {
                 write!(f, "Type `{target}` missing index")
             }
@@ -1090,7 +1087,6 @@ impl fmt::Display for VmErrorKind {
                     "Cannot perform a comparison of the floats {lhs} and {rhs}",
                 )
             }
-            #[cfg(feature = "alloc")]
             VmErrorKind::IllegalFloatOperation { value } => {
                 write!(f, "Cannot perform operation on float `{value}`")
             }

@@ -9,9 +9,7 @@ use core::ptr;
 use crate::alloc;
 use crate::alloc::prelude::*;
 
-#[cfg(feature = "alloc")]
-use crate::runtime::Hasher;
-use crate::runtime::{ProtocolCaller, RawAnyGuard, Ref, Value, VmError, VmResult};
+use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError, VmResult};
 
 use crate::alloc::hashbrown::raw::{RawIter, RawTable};
 use crate::alloc::hashbrown::ErrorOrInsertSlot;

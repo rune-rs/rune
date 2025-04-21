@@ -3,6 +3,8 @@ use core::num;
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc;
@@ -27,8 +29,7 @@ use codespan_reporting::files;
 ///         }
 ///     }
 /// };
-///
-/// Ok::<_, rune::support::Error>(())
+/// # Ok::<_, rune::support::Error>(())
 /// ```
 #[macro_export]
 macro_rules! sources {
@@ -48,6 +49,7 @@ pub struct Sources {
 
 impl Sources {
     /// Construct a new collection of sources.
+    #[inline]
     pub fn new() -> Self {
         Self {
             sources: Vec::new(),
@@ -67,6 +69,7 @@ impl Sources {
     /// assert_ne!(id, id2);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn insert(&mut self, source: Source) -> alloc::Result<SourceId> {
         let id =
             SourceId::try_from(self.sources.len()).expect("could not build a source identifier");
@@ -90,35 +93,41 @@ impl Sources {
     /// assert_eq!(source.name(), "<memory>");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn get(&self, id: SourceId) -> Option<&Source> {
         self.sources.get(id.into_index())
     }
 
     /// Fetch name for the given source id.
+    #[inline]
     pub(crate) fn name(&self, id: SourceId) -> Option<&str> {
         let source = self.sources.get(id.into_index())?;
         Some(source.name())
     }
 
     /// Fetch source for the given span.
+    #[inline]
     pub(crate) fn source(&self, id: SourceId, span: Span) -> Option<&str> {
         let source = self.sources.get(id.into_index())?;
         source.get(span.range())
     }
 
     /// Access the optional path of the given source id.
+    #[inline]
     pub(crate) fn path(&self, id: SourceId) -> Option<&Path> {
         let source = self.sources.get(id.into_index())?;
         source.path()
     }
 
     /// Get all available source ids.
+    #[inline]
     pub(crate) fn source_ids(&self) -> impl Iterator<Item = SourceId> {
         (0..self.sources.len()).map(|index| SourceId::new(index as u32))
     }
 
     /// Iterate over all registered sources.
     #[cfg(feature = "cli")]
+    #[inline]
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Source> {
         self.sources.iter()
     }
@@ -130,23 +139,27 @@ impl<'a> files::Files<'a> for Sources {
     type Name = &'a str;
     type Source = &'a str;
 
+    #[inline]
     fn name(&'a self, file_id: SourceId) -> Result<Self::Name, files::Error> {
         let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.name())
     }
 
+    #[inline]
     fn source(&'a self, file_id: SourceId) -> Result<Self::Source, files::Error> {
         let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.as_str())
     }
 
     #[cfg(feature = "emit")]
+    #[inline]
     fn line_index(&self, file_id: SourceId, byte_index: usize) -> Result<usize, files::Error> {
         let source = self.get(file_id).ok_or(files::Error::FileMissing)?;
         Ok(source.line_index(byte_index))
     }
 
     #[cfg(feature = "emit")]
+    #[inline]
     fn line_range(
         &self,
         file_id: SourceId,
@@ -171,6 +184,7 @@ impl<'a> files::Files<'a> for Sources {
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[try_clone(copy)]
 #[repr(transparent)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
 pub struct SourceId {
     index: u32,
@@ -181,34 +195,40 @@ impl SourceId {
     pub const EMPTY: Self = Self::empty();
 
     /// Construct a source identifier from an index.
+    #[inline]
     pub const fn new(index: u32) -> Self {
         Self { index }
     }
 
     /// Define an empty source identifier that cannot reference a source.
+    #[inline]
     pub const fn empty() -> Self {
         Self { index: u32::MAX }
     }
 
     /// Access the source identifier as an index.
+    #[inline]
     pub fn into_index(self) -> usize {
         usize::try_from(self.index).expect("source id out of bounds")
     }
 }
 
 impl fmt::Debug for SourceId {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.index.fmt(f)
     }
 }
 
 impl fmt::Display for SourceId {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.index.fmt(f)
     }
 }
 
 impl Default for SourceId {
+    #[inline]
     fn default() -> Self {
         Self::empty()
     }
@@ -217,29 +237,10 @@ impl Default for SourceId {
 impl TryFrom<usize> for SourceId {
     type Error = num::TryFromIntError;
 
+    #[inline]
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         Ok(Self {
             index: u32::try_from(value)?,
-        })
-    }
-}
-
-impl serde::Serialize for SourceId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.index.serialize(serializer)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for SourceId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Self {
-            index: u32::deserialize(deserializer)?,
         })
     }
 }

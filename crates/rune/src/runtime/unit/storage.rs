@@ -7,10 +7,11 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 
-#[cfg(all(feature = "musli", feature = "byte-code"))]
+#[cfg(feature = "byte-code")]
 use musli::storage;
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::Inst;

@@ -3,9 +3,7 @@
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::modules::collections::VecDeque;
-#[cfg(feature = "alloc")]
-use crate::modules::collections::{HashMap, HashSet};
+use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
     FromValue, Function, Inline, InstAddress, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,

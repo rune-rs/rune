@@ -10,6 +10,6 @@ fn test_vec_macro() -> Result<(), Error> {
     assert_eq!(vec, [1, 1, 1]);
 
     let vec: Vec<u32> = try_vec![];
-    assert_eq!(vec, []);
+    assert!(vec.is_empty());
     Ok(())
 }

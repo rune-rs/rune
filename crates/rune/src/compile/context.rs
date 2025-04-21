@@ -349,11 +349,8 @@ impl Context {
         this.install(crate::modules::bytes::module()?)?;
 
         this.install(crate::modules::collections::module()?)?;
-        #[cfg(feature = "alloc")]
         this.install(crate::modules::collections::hash_map::module()?)?;
-        #[cfg(feature = "alloc")]
         this.install(crate::modules::collections::hash_set::module()?)?;
-        #[cfg(feature = "alloc")]
         this.install(crate::modules::collections::vec_deque::module()?)?;
 
         this.install(crate::modules::char::module()?)?;

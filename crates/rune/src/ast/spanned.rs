@@ -61,20 +61,11 @@ impl Spanned for Span {
     }
 }
 
-#[cfg(feature = "alloc")]
-impl<T> Spanned for ::rust_alloc::boxed::Box<T>
-where
-    T: Spanned,
-{
-    fn span(&self) -> Span {
-        Spanned::span(&**self)
-    }
-}
-
 impl<T> Spanned for alloc::Box<T>
 where
     T: Spanned,
 {
+    #[inline]
     fn span(&self) -> Span {
         Spanned::span(&**self)
     }
@@ -134,18 +125,9 @@ impl<T> OptionSpanned for Option<T>
 where
     T: Spanned,
 {
+    #[inline]
     fn option_span(&self) -> Option<Span> {
         Some(self.as_ref()?.span())
-    }
-}
-
-#[cfg(feature = "alloc")]
-impl<T> OptionSpanned for ::rust_alloc::boxed::Box<T>
-where
-    T: OptionSpanned,
-{
-    fn option_span(&self) -> Option<Span> {
-        OptionSpanned::option_span(&**self)
     }
 }
 
@@ -153,6 +135,7 @@ impl<T> OptionSpanned for alloc::Box<T>
 where
     T: OptionSpanned,
 {
+    #[inline]
     fn option_span(&self) -> Option<Span> {
         OptionSpanned::option_span(&**self)
     }

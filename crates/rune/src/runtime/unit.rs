@@ -15,7 +15,9 @@ use ::rust_alloc::sync::Arc;
 use musli::mode::Binary;
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::de::DeserializeOwned;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -49,7 +51,7 @@ pub type DefaultStorage = ByteCodeUnit;
 #[try_clone(bound = {S: TryClone})]
 pub struct Unit<S = DefaultStorage> {
     /// The information needed to execute the program.
-    #[serde(flatten)]
+    #[cfg_attr(feature = "serde", serde(flatten))]
     logic: Logic<S>,
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,

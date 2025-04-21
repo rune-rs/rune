@@ -30,4 +30,4 @@ serde = { version = "1.0.163", default-features = false, features = ["derive"] }
 musli = { version = "0.0.131", default-features = false, optional = true }
 
 [dev-dependencies]
-rune = { package = "rune-shim", path = "../rune-shim", features = ["core", "alloc"] }
+rune = { path = "../rune", features = ["alloc"] }

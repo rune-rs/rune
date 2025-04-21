@@ -89,7 +89,6 @@ impl GuardedArgs for Vec<Value> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl GuardedArgs for ::rust_alloc::vec::Vec<Value> {
     type Guard = ();
 

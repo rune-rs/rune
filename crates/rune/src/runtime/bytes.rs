@@ -7,7 +7,9 @@ use core::ops;
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::de;
+#[cfg(feature = "serde")]
 use serde::ser;
 
 use crate as rune;
@@ -379,7 +381,6 @@ impl From<Vec<u8>> for Bytes {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<&[u8]> for Bytes {
     type Error = alloc::Error;
 
@@ -391,7 +392,6 @@ impl TryFrom<&[u8]> for Bytes {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::vec::Vec<u8>> for Bytes {
     type Error = alloc::Error;
 
@@ -412,7 +412,6 @@ impl From<Box<[u8]>> for Bytes {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::boxed::Box<[u8]>> for Bytes {
     type Error = alloc::Error;
 
@@ -506,6 +505,7 @@ impl PartialEq<Bytes> for [u8] {
     }
 }
 
+#[cfg(feature = "serde")]
 impl ser::Serialize for Bytes {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -516,6 +516,7 @@ impl ser::Serialize for Bytes {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> de::Deserialize<'de> for Bytes {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

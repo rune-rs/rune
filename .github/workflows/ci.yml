@@ -99,6 +99,7 @@ jobs:
       matrix:
         feature:
         - alloc
+        - alloc,anyhow
         - cli
         - cli,doc
         - cli,fmt
@@ -106,9 +107,9 @@ jobs:
         - workspace
         - languageserver
         - byte-code
-        - serde
-        - musli
-        - serde,musli
+        - alloc,serde
+        - alloc,musli
+        - alloc,serde,musli
         - capture-io
         - emit
     env:

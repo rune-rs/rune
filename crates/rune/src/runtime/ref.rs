@@ -5,9 +5,7 @@ use core::pin::Pin;
 use core::ptr::NonNull;
 use core::task::{Context, Poll};
 
-#[cfg(feature = "alloc")]
 use ::rust_alloc::rc::Rc;
-#[cfg(feature = "alloc")]
 use ::rust_alloc::sync::Arc;
 
 pub(super) struct RefVtable {
@@ -32,7 +30,6 @@ pub struct Ref<T: ?Sized> {
     guard: RawAnyGuard,
 }
 
-#[cfg(feature = "alloc")]
 impl<T> From<Rc<T>> for Ref<T> {
     /// Construct from an atomically reference-counted value.
     ///
@@ -45,6 +42,7 @@ impl<T> From<Rc<T>> for Ref<T> {
     /// let value: Ref<String> = Ref::from(Rc::new(String::from("hello world")));
     /// assert_eq!(value.as_ref(), "hello world");
     /// ```
+    #[inline]
     fn from(value: Rc<T>) -> Ref<T> {
         unsafe fn drop_fn<T>(data: NonNull<()>) {
             let _ = Rc::from_raw(data.cast::<T>().as_ptr().cast_const());
@@ -59,7 +57,6 @@ impl<T> From<Rc<T>> for Ref<T> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl<T> From<Arc<T>> for Ref<T> {
     /// Construct from an atomically reference-counted value.
     ///
@@ -72,6 +69,7 @@ impl<T> From<Arc<T>> for Ref<T> {
     /// let value: Ref<String> = Ref::from(Arc::new(String::from("hello world")));
     /// assert_eq!(value.as_ref(), "hello world");
     /// ```
+    #[inline]
     fn from(value: Arc<T>) -> Ref<T> {
         unsafe fn drop_fn<T>(data: NonNull<()>) {
             let _ = Arc::from_raw(data.cast::<T>().as_ptr().cast_const());
@@ -87,6 +85,7 @@ impl<T> From<Arc<T>> for Ref<T> {
 }
 
 impl<T: ?Sized> Ref<T> {
+    #[inline]
     pub(super) const fn new(value: NonNull<T>, guard: RawAnyGuard) -> Self {
         Self { value, guard }
     }
@@ -101,6 +100,7 @@ impl<T: ?Sized> Ref<T> {
     /// let value: Ref<str> = Ref::from_static("Hello World");
     /// assert_eq!(value.as_ref(), "Hello World");
     /// ```
+    #[inline]
     pub const fn from_static(value: &'static T) -> Ref<T> {
         let value = unsafe { NonNull::new_unchecked((value as *const T).cast_mut()) };
         let guard = RawAnyGuard::new(NonNull::dangling(), &RefVtable { drop: |_| {} });
@@ -184,6 +184,7 @@ impl<T: ?Sized> Ref<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
+    #[inline]
     pub fn into_raw(this: Self) -> (NonNull<T>, RawAnyGuard) {
         (this.value, this.guard)
     }
@@ -194,6 +195,7 @@ impl<T: ?Sized> Ref<T> {
     ///
     /// The caller is responsible for ensuring that the raw reference is
     /// associated with the specific pointer.
+    #[inline]
     pub unsafe fn from_raw(value: NonNull<T>, guard: RawAnyGuard) -> Self {
         Self { value, guard }
     }
@@ -246,6 +248,7 @@ pub struct Mut<T: ?Sized> {
 }
 
 impl<T: ?Sized> Mut<T> {
+    #[inline]
     pub(super) const fn new(value: NonNull<T>, guard: RawAnyGuard) -> Self {
         Self { value, guard }
     }
@@ -260,6 +263,7 @@ impl<T: ?Sized> Mut<T> {
     /// let value: Mut<[u8]> = Mut::from_static(&mut [][..]);
     /// assert_eq!(&value[..], b"");
     /// ```
+    #[inline]
     pub fn from_static(value: &'static mut T) -> Mut<T> {
         let value = unsafe { NonNull::new_unchecked((value as *const T).cast_mut()) };
         let guard = RawAnyGuard::new(NonNull::dangling(), &RefVtable { drop: |_| {} });
@@ -282,6 +286,7 @@ impl<T: ?Sized> Mut<T> {
     /// assert_eq!(&*value, &mut [1, 2][..]);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[inline]
     pub fn map<U: ?Sized, F>(this: Self, f: F) -> Mut<U>
     where
         F: FnOnce(&mut T) -> &mut U,
@@ -345,6 +350,7 @@ impl<T: ?Sized> Mut<T> {
     /// The returned pointer must not outlive the associated guard, since this
     /// prevents other uses of the underlying data which is incompatible with
     /// the current.
+    #[inline]
     pub fn into_raw(this: Self) -> (NonNull<T>, RawAnyGuard) {
         (this.value, this.guard)
     }
@@ -356,6 +362,7 @@ impl<T: ?Sized> Mut<T> {
     ///
     /// The caller is responsible for ensuring that the raw mutable reference is
     /// associated with the specific pointer.
+    #[inline]
     pub unsafe fn from_raw(value: NonNull<T>, guard: RawAnyGuard) -> Self {
         Self { value, guard }
     }
@@ -378,6 +385,7 @@ impl<T: ?Sized> AsMut<T> for Mut<T> {
 impl<T: ?Sized> Deref for Mut<T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
@@ -386,6 +394,7 @@ impl<T: ?Sized> Deref for Mut<T> {
 }
 
 impl<T: ?Sized> DerefMut for Mut<T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: An owned mut holds onto a hard pointer to the data,
         // preventing it from being dropped for the duration of the owned mut.
@@ -397,6 +406,7 @@ impl<T: ?Sized> fmt::Debug for Mut<T>
 where
     T: fmt::Debug,
 {
+    #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, fmt)
     }
@@ -408,6 +418,7 @@ where
 {
     type Output = F::Output;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // NB: inner Future is Unpin.
         let this = self.get_mut();
@@ -423,12 +434,14 @@ pub struct RawAnyGuard {
 }
 
 impl RawAnyGuard {
+    #[inline]
     pub(super) const fn new(data: NonNull<()>, vtable: &'static RefVtable) -> Self {
         Self { data, vtable }
     }
 }
 
 impl Drop for RawAnyGuard {
+    #[inline]
     fn drop(&mut self) {
         // Safety: type and referential safety is guaranteed at construction
         // time, since all constructors are unsafe.

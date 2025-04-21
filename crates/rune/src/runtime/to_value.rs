@@ -225,7 +225,6 @@ impl ToValue for &str {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToValue for ::rust_alloc::boxed::Box<str> {
     #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
@@ -234,7 +233,6 @@ impl ToValue for ::rust_alloc::boxed::Box<str> {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl ToValue for ::rust_alloc::string::String {
     #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {

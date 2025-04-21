@@ -13,11 +13,10 @@ use crate::alloc::{self, Box};
 use crate::Any;
 
 use super::{
-    ConstValue, EmptyConstContext, Formatter, FromConstValue, FromValue, Mut, RawAnyGuard, Ref,
-    RuntimeError, ToConstValue, ToValue, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    ConstValue, EmptyConstContext, Formatter, FromConstValue, FromValue, Hasher, Mut,
+    ProtocolCaller, RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue, UnsafeToMut,
+    UnsafeToRef, Value, VmErrorKind, VmResult,
 };
-#[cfg(feature = "alloc")]
-use super::{Hasher, ProtocolCaller};
 
 /// The type of a tuple slice.
 #[repr(transparent)]
@@ -252,7 +251,6 @@ impl fmt::Debug for OwnedTuple {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::vec::Vec<Value>> for OwnedTuple {
     type Error = alloc::Error;
 
@@ -313,7 +311,6 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
     type Error = alloc::Error;
 
@@ -325,10 +322,10 @@ impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
     }
 }
 
-#[cfg(feature = "alloc")]
 impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
     type Error = RuntimeError;
 
+    #[inline]
     fn try_from(inner: ::rust_alloc::boxed::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
