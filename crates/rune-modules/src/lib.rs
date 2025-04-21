@@ -36,6 +36,7 @@
 //! * [process]
 //! * [rand]
 //! * [signal]
+//! * [thread]
 //! * [test]
 //! * [time]
 //! * [toml]
@@ -55,6 +56,7 @@
 //! * `process` for the [process module][process]
 //! * `rand` for the [rand module][rand]
 //! * `signal` for the [signal module][signal]
+//! * `thread` for the [thread module][thread]
 //! * `test` for the [test module][test]
 //! * `time` for the [time module][time]
 //! * `toml` for the [toml module][toml]
@@ -69,6 +71,7 @@
 //! [process]: https://docs.rs/rune-modules/0/rune_modules/process/
 //! [rand]: https://docs.rs/rune-modules/0/rune_modules/rand/
 //! [signal]: https://docs.rs/rune-modules/0/rune_modules/signal/
+//! [thread]: https://docs.rs/rune-modules/0/rune_modules/thread/
 //! [test]: https://docs.rs/rune-modules/0/rune_modules/test/
 //! [time]: https://docs.rs/rune-modules/0/rune_modules/time/
 //! [toml]: https://docs.rs/rune-modules/0/rune_modules/toml/
@@ -126,6 +129,9 @@ pub mod rand;
 #[cfg(feature = "signal")]
 pub mod signal;
 
+#[cfg(feature = "thread")]
+pub mod thread;
+
 #[cfg(feature = "test")]
 pub mod test;
 
@@ -143,6 +149,7 @@ entry! {
     {process, "process"},
     {rand, "rand"},
     {signal, "signal"},
+    {thread, "thread"},
     {test, "test"},
     {time, "time"},
     {toml, "toml", ser, de},

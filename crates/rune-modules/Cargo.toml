@@ -23,6 +23,7 @@ full = [
     "fs",
     "process",
     "signal",
+    "thread",
     "rand",
     "io",
     "fmt",
@@ -34,6 +35,7 @@ http = ["reqwest"]
 json = ["serde_json"]
 process = ["tokio/process", "rune/std"]
 signal = ["tokio/signal"]
+thread = []
 rand = ["nanorand"]
 test = []
 core = []
