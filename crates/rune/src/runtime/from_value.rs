@@ -4,9 +4,7 @@ use crate::alloc::{self, String};
 use crate::any::AnyMarker;
 use crate::hash::Hash;
 
-use super::{
-    AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value, VmResult,
-};
+use super::{AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value};
 
 /// Derive macro for the [`FromValue`] trait for converting types from the
 /// dynamic `Value` container.
@@ -209,46 +207,6 @@ pub trait UnsafeToRef {
     /// Caller must ensure that the returned reference does not outlive the
     /// guard.
     unsafe fn unsafe_to_ref<'a>(value: Value) -> Result<(&'a Self, Self::Guard), RuntimeError>;
-}
-
-/// A potentially unsafe conversion for value conversion.
-///
-/// This trait is used to convert values to references, which can be safely used
-/// while an external function call is used. That sort of use is safe because we
-/// hold onto the guard returned by the conversion during external function
-/// calls.
-#[deprecated = "Rune: Implementing this trait will no longer work. Use UnsafeToRef and UnsafeToMut instead."]
-pub trait UnsafeFromValue: Sized {
-    /// The output type from the unsafe coercion.
-    type Output: 'static;
-
-    /// The raw guard returned.
-    ///
-    /// Must only be dropped *after* the value returned from this function is
-    /// no longer live.
-    type Guard: 'static;
-
-    /// Convert the given reference using unsafe assumptions to a value.
-    ///
-    /// # Safety
-    ///
-    /// The return value of this function may only be used while a virtual
-    /// machine is not being modified.
-    ///
-    /// You must also make sure that the returned value does not outlive the
-    /// guard.
-    fn unsafe_from_value(value: Value) -> VmResult<(Self::Output, Self::Guard)>;
-
-    /// Coerce the output of an unsafe from value into the final output type.
-    ///
-    /// # Safety
-    ///
-    /// The return value of this function may only be used while a virtual
-    /// machine is not being modified.
-    ///
-    /// You must also make sure that the returned value does not outlive the
-    /// guard.
-    unsafe fn unsafe_coerce(output: Self::Output) -> Self;
 }
 
 impl<T> FromValue for T

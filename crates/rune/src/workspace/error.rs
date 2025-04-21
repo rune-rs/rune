@@ -18,7 +18,7 @@ pub struct WorkspaceError {
 
 impl WorkspaceError {
     /// Construct a new workspace error with the given span and kind.
-    #[allow(unused)]
+    #[inline]
     pub(crate) fn new<S, K>(spanned: S, kind: K) -> Self
     where
         S: Spanned,
@@ -31,6 +31,7 @@ impl WorkspaceError {
     }
 
     /// Construct a custom message as an error.
+    #[inline]
     pub fn msg<S, M>(spanned: S, message: M) -> Self
     where
         S: Spanned,
@@ -60,16 +61,19 @@ impl core::error::Error for WorkspaceError {
 }
 
 impl fmt::Display for WorkspaceError {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.kind, f)
     }
 }
 
 impl WorkspaceError {
+    #[inline]
     pub(crate) fn missing_field(span: Span, field: &'static str) -> Self {
         Self::new(span, WorkspaceErrorKind::MissingField { field })
     }
 
+    #[inline]
     pub(crate) fn expected_array(span: Span) -> Self {
         Self::new(span, WorkspaceErrorKind::ExpectedArray)
     }
@@ -80,6 +84,7 @@ where
     S: Spanned,
     WorkspaceErrorKind: From<E>,
 {
+    #[inline]
     fn from(spanned: HasSpan<S, E>) -> Self {
         Self::new(spanned.span(), spanned.into_inner())
     }
@@ -125,6 +130,7 @@ pub(crate) enum WorkspaceErrorKind {
 }
 
 impl core::error::Error for WorkspaceErrorKind {
+    #[inline]
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             WorkspaceErrorKind::GlobError { error, .. } => Some(error),
@@ -137,6 +143,7 @@ impl core::error::Error for WorkspaceErrorKind {
 }
 
 impl fmt::Display for WorkspaceErrorKind {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             WorkspaceErrorKind::Custom { error } => error.fmt(f),
@@ -175,32 +182,35 @@ impl fmt::Display for WorkspaceErrorKind {
 }
 
 impl From<anyhow::Error> for WorkspaceErrorKind {
+    #[inline]
     fn from(error: anyhow::Error) -> Self {
         WorkspaceErrorKind::Custom { error }
     }
 }
 
 impl From<toml::de::Error> for WorkspaceErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: toml::de::Error) -> Self {
         WorkspaceErrorKind::Toml { error }
     }
 }
 
 impl From<serde_hashkey::Error> for WorkspaceErrorKind {
-    #[allow(deprecated)]
+    #[inline]
     fn from(error: serde_hashkey::Error) -> Self {
         WorkspaceErrorKind::Key { error }
     }
 }
 
 impl From<alloc::Error> for WorkspaceError {
+    #[inline]
     fn from(error: alloc::Error) -> Self {
         WorkspaceError::new(Span::empty(), error)
     }
 }
 
 impl From<alloc::Error> for WorkspaceErrorKind {
+    #[inline]
     fn from(error: alloc::Error) -> Self {
         WorkspaceErrorKind::AllocError { error }
     }

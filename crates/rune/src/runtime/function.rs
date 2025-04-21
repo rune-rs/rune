@@ -126,25 +126,6 @@ impl Function {
         })
     }
 
-    /// See [`Function::new`].
-    #[deprecated = "Use Function::new() instead"]
-    pub fn function<F, A, K>(f: F) -> Self
-    where
-        F: function::Function<A, K>,
-        K: function::FunctionKind,
-    {
-        Self::new(f)
-    }
-
-    /// See [`Function::function`].
-    #[deprecated = "Use Function::new() instead"]
-    pub fn async_function<F, A>(f: F) -> Self
-    where
-        F: function::Function<A, function::Async>,
-    {
-        Self::new(f)
-    }
-
     /// Perform an asynchronous call over the function which also implements
     /// [Send].
     pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
