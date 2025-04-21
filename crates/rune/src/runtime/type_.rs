@@ -1,4 +1,6 @@
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -8,12 +10,10 @@ use crate::runtime::RuntimeError;
 use crate::{item, FromValue, Hash, Item, Value};
 
 /// A value representing a type in the virtual machine.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Decode, Encode,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-#[serde(transparent)]
-#[musli(transparent)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
 pub struct Type(Hash);
 
 impl Type {

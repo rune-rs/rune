@@ -9,7 +9,9 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use ::rust_alloc::rc::Rc;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A label that can be jumped to.
@@ -72,7 +74,9 @@ impl fmt::Display for Label {
 }
 
 /// A label that can be jumped to.
-#[derive(Debug, TryClone, PartialEq, Eq, Hash, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode))]
 pub struct DebugLabel {
     /// The name of the label.
     name: Cow<'static, str>,

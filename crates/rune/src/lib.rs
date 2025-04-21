@@ -680,6 +680,7 @@ pub mod __private {
     pub use std::clone::Clone;
 }
 
+#[cfg(feature = "musli")]
 mod musli;
 mod serde;
 

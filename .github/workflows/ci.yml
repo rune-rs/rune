@@ -106,6 +106,9 @@ jobs:
         - workspace
         - languageserver
         - byte-code
+        - serde
+        - musli
+        - serde,musli
         - capture-io
         - emit
     env:

@@ -2,13 +2,16 @@ use core::cmp;
 use core::fmt;
 use core::ops;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::ast::prelude::*;
 
 /// A span corresponding to a range in the source file being parsed.
-#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "musli", derive(Encode, Decode))]
 #[try_clone(copy)]
 pub struct Span {
     /// The start of the span in bytes.
@@ -201,24 +204,10 @@ impl fmt::Debug for Span {
 }
 
 /// A single index in a [Span], like the start or ending index.
-#[derive(
-    Default,
-    TryClone,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Serialize,
-    Deserialize,
-    Encode,
-    Decode,
-)]
+#[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-#[serde(transparent)]
-#[musli(transparent)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
 #[try_clone(copy)]
 pub struct ByteIndex(#[doc(hidden)] pub u32);
 

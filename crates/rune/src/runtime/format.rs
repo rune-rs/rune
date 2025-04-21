@@ -6,7 +6,9 @@ use core::mem::take;
 use core::num::NonZeroUsize;
 use core::str;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -51,7 +53,9 @@ pub struct Format {
 }
 
 /// A format specification.
-#[derive(Debug, Clone, Copy, TryClone, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub struct FormatSpec {
@@ -405,7 +409,9 @@ where
 }
 
 /// The type of formatting requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[non_exhaustive]
 pub enum Type {
     /// Display type (default).
@@ -472,7 +478,9 @@ impl fmt::Display for Type {
 }
 
 /// The alignment requested.
-#[derive(Debug, Clone, Copy, TryClone, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Debug, Clone, Copy, TryClone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub enum Alignment {
@@ -537,9 +545,10 @@ pub enum Flag {
 }
 
 /// Format specification flags.
-#[derive(Clone, Copy, TryClone, Default, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
+#[derive(Clone, Copy, TryClone, Default, PartialEq, Eq)]
 #[repr(transparent)]
-#[musli(transparent)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
 #[try_clone(copy)]
 pub struct Flags(u32);
 

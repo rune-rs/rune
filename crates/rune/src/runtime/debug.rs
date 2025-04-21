@@ -2,7 +2,9 @@
 
 use core::fmt;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -13,7 +15,9 @@ use crate::runtime::DebugLabel;
 use crate::{Hash, ItemBuf, SourceId};
 
 /// Debug information about a unit.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[non_exhaustive]
 pub struct DebugInfo {
     /// Debug information on each instruction.
@@ -46,7 +50,9 @@ impl DebugInfo {
 }
 
 /// Debug information for every instruction.
-#[derive(Debug, TryClone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[non_exhaustive]
 pub struct DebugInst {
     /// The file by id the instruction belongs to.
@@ -77,7 +83,9 @@ impl DebugInst {
 }
 
 /// Debug information on function arguments.
-#[derive(Debug, TryClone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[non_exhaustive]
 pub enum DebugArgs {
     /// An empty, with not arguments.
@@ -89,7 +97,9 @@ pub enum DebugArgs {
 }
 
 /// A description of a function signature.
-#[derive(Debug, TryClone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[non_exhaustive]
 pub struct DebugSignature {
     /// The path of the function.

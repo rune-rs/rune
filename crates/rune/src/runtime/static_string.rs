@@ -3,7 +3,9 @@ use core::fmt;
 use core::hash;
 use core::ops;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::alloc::prelude::*;
@@ -11,7 +13,8 @@ use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash};
 
 /// Struct representing a static string.
-#[derive(Serialize, Deserialize, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode))]
 pub struct StaticString {
     inner: String,
     hash: Hash,

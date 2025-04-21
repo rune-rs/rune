@@ -7,8 +7,9 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 
-#[cfg(feature = "byte-code")]
+#[cfg(all(feature = "musli", feature = "byte-code"))]
 use musli::storage;
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -77,7 +78,9 @@ pub trait UnitStorage: self::sealed::Sealed + fmt::Debug + Default {
 }
 
 /// Unit stored as array of instructions.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, TryClone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode))]
 pub struct ArrayUnit {
     instructions: Vec<Inst>,
 }

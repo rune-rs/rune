@@ -29,13 +29,15 @@ byte-code = ["alloc", "musli/storage", "musli/std", "rune-alloc/std"]
 capture-io = ["alloc", "parking_lot"]
 disable-io = ["alloc"]
 fmt = ["alloc"]
-std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli/std", "musli/std", "once_cell/std", "anyhow/std", "syntree/std"]
-alloc = ["anyhow", "rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde/alloc"]
+std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "once_cell/std", "anyhow/std", "syntree/std"]
+alloc = ["anyhow", "rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc"]
+musli = ["dep:musli", "rune-core/musli", "rune-alloc/musli"]
+serde = ["dep:serde", "rune-alloc/serde", "relative-path?/serde"]
 
 [dependencies]
 rune-macros = { version = "=0.14.0", path = "../rune-macros" }
-rune-core = { version = "=0.14.0", path = "../rune-core", features = ["musli"] }
-rune-alloc = { version = "0.14.0", path = "../rune-alloc", features = ["serde", "musli"], default-features = false }
+rune-core = { version = "=0.14.0", path = "../rune-core", features = [] }
+rune-alloc = { version = "0.14.0", path = "../rune-alloc", features = [], default-features = false }
 tracing = { package = "rune-tracing", version = "0.14.0", path = "../rune-tracing" }
 
 syntree = { version = "0.18.0", default-features = false, features = ["alloc"] }
@@ -45,8 +47,8 @@ itoa = "1.0.6"
 num = { version = "0.4.0", default-features = false, features = ["alloc"] }
 pin-project = "1.1.0"
 ryu = "1.0.13"
-serde = { version = "1.0.163", default-features = false, features = ["derive", "rc"] }
-musli = { version = "0.0.131", default-features = false, features = ["alloc"] }
+serde = { version = "1.0.163", default-features = false, optional = true, features = ["derive", "rc"] }
+musli = { version = "0.0.131", default-features = false, optional = true, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }

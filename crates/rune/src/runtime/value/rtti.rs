@@ -4,7 +4,9 @@ use core::hash;
 
 use rust_alloc::sync::Arc;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::alloc::prelude::*;
@@ -33,7 +35,9 @@ impl Accessor<'_> {
 }
 
 /// The kind of value stored.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode))]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum RttiKind {
     /// The value stored is empty.
@@ -45,7 +49,9 @@ pub(crate) enum RttiKind {
 }
 
 /// Runtime information on variant.
-#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode))]
 #[non_exhaustive]
 pub struct Rtti {
     /// The kind of value.

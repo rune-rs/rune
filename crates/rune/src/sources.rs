@@ -1,6 +1,7 @@
 use core::fmt;
 use core::num;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 
 use crate as rune;
@@ -167,10 +168,10 @@ impl<'a> files::Files<'a> for Sources {
 ///
 /// It can be used to reference the inserted source file in the future through
 /// methods such as [`Sources::get`].
-#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encode, Decode)]
+#[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[try_clone(copy)]
 #[repr(transparent)]
-#[musli(transparent)]
+#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
 pub struct SourceId {
     index: u32,
 }

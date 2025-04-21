@@ -5,6 +5,7 @@
 use core::fmt;
 use core::ops;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 use serde::de;
 use serde::ser;
@@ -22,11 +23,11 @@ use super::{
 };
 
 /// A vector of bytes.
-#[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
-#[musli(transparent)]
+#[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
 #[rune(item = ::std::bytes)]
 pub struct Bytes {
-    #[musli(bytes)]
+    #[cfg_attr(feature = "musli", musli(bytes))]
     bytes: Vec<u8>,
 }
 
