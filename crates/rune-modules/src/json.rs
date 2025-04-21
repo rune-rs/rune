@@ -45,15 +45,15 @@ use rune::{vm_write, Any, ContextError, Module};
 /// assert_eq!(object, #{"number": 42, "string": "Hello World"});
 /// ```
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
-    module.ty::<Error>()?;
-    module.function_meta(Error::display)?;
-    module.function_meta(Error::debug)?;
-    module.function_meta(from_bytes)?;
-    module.function_meta(from_string)?;
-    module.function_meta(to_string)?;
-    module.function_meta(to_bytes)?;
-    Ok(module)
+    let mut m = Module::from_meta(self::module__meta)?;
+    m.ty::<Error>()?;
+    m.function_meta(Error::display)?;
+    m.function_meta(Error::debug)?;
+    m.function_meta(from_bytes)?;
+    m.function_meta(from_string)?;
+    m.function_meta(to_string)?;
+    m.function_meta(to_bytes)?;
+    Ok(m)
 }
 
 #[derive(Any)]

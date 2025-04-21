@@ -8,7 +8,7 @@ use crate::{ContextError, Module, TypeHash};
 /// Asynchronous computations.
 #[rune::module(::std::future)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut module = Module::from_meta(self::module__meta)?;
     module.ty::<Future>()?;
     module.function_meta(join__meta)?;
     Ok(module)

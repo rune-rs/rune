@@ -24,7 +24,7 @@ use crate::{ContextError, Module};
 /// ```
 #[rune::module(::std::fmt)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?.with_unique("std::fmt");
+    let mut m = Module::from_meta(self::module__meta)?.with_unique("std::fmt");
 
     m.ty::<Formatter>()?;
     m.ty::<fmt::Error>()?;

@@ -10,7 +10,7 @@ use crate as rune;
 /// The character module for Rune.
 #[rune::module(::std::char)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut module = Module::from_meta(self::module__meta)?;
 
     module.ty::<ParseCharError>()?;
     module.function_meta(from_i64)?;

@@ -54,60 +54,60 @@ use tokio::process;
 /// [Tokio]: https://tokio.rs
 #[rune::module(::process)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
-    module.ty::<Command>()?;
-    module.function_meta(Command::new__meta)?;
-    module.function_meta(Command::arg__meta)?;
-    module.function_meta(Command::args__meta)?;
-    module.function_meta(Command::debug_fmt__meta)?;
+    m.ty::<Command>()?;
+    m.function_meta(Command::new__meta)?;
+    m.function_meta(Command::arg__meta)?;
+    m.function_meta(Command::args__meta)?;
+    m.function_meta(Command::debug_fmt__meta)?;
     #[cfg(unix)]
-    module.function_meta(Command::arg0__meta)?;
-    module.function_meta(Command::stdin__meta)?;
-    module.function_meta(Command::stdout__meta)?;
-    module.function_meta(Command::stderr__meta)?;
-    module.function_meta(Command::kill_on_drop__meta)?;
-    module.function_meta(Command::spawn__meta)?;
+    m.function_meta(Command::arg0__meta)?;
+    m.function_meta(Command::stdin__meta)?;
+    m.function_meta(Command::stdout__meta)?;
+    m.function_meta(Command::stderr__meta)?;
+    m.function_meta(Command::kill_on_drop__meta)?;
+    m.function_meta(Command::spawn__meta)?;
 
-    module.ty::<Child>()?;
-    module.function_meta(Child::debug_fmt__meta)?;
-    module.function_meta(Child::stdin__meta)?;
-    module.function_meta(Child::stdout__meta)?;
-    module.function_meta(Child::stderr__meta)?;
-    module.function_meta(Child::id__meta)?;
-    module.function_meta(Child::start_kill__meta)?;
-    module.function_meta(Child::kill__meta)?;
-    module.function_meta(Child::wait__meta)?;
-    module.function_meta(Child::wait_with_output__meta)?;
+    m.ty::<Child>()?;
+    m.function_meta(Child::debug_fmt__meta)?;
+    m.function_meta(Child::stdin__meta)?;
+    m.function_meta(Child::stdout__meta)?;
+    m.function_meta(Child::stderr__meta)?;
+    m.function_meta(Child::id__meta)?;
+    m.function_meta(Child::start_kill__meta)?;
+    m.function_meta(Child::kill__meta)?;
+    m.function_meta(Child::wait__meta)?;
+    m.function_meta(Child::wait_with_output__meta)?;
 
-    module.ty::<ExitStatus>()?;
-    module.function_meta(ExitStatus::code__meta)?;
-    module.function_meta(ExitStatus::success__meta)?;
-    module.function_meta(ExitStatus::display_fmt__meta)?;
-    module.function_meta(ExitStatus::debug_fmt__meta)?;
+    m.ty::<ExitStatus>()?;
+    m.function_meta(ExitStatus::code__meta)?;
+    m.function_meta(ExitStatus::success__meta)?;
+    m.function_meta(ExitStatus::display_fmt__meta)?;
+    m.function_meta(ExitStatus::debug_fmt__meta)?;
 
-    module.ty::<Output>()?;
-    module.function_meta(Output::debug_fmt__meta)?;
+    m.ty::<Output>()?;
+    m.function_meta(Output::debug_fmt__meta)?;
 
-    module.ty::<Stdio>()?;
-    module.function_meta(Stdio::null__meta)?;
-    module.function_meta(Stdio::inherit__meta)?;
-    module.function_meta(Stdio::piped__meta)?;
-    module.function_meta(Stdio::debug_fmt__meta)?;
+    m.ty::<Stdio>()?;
+    m.function_meta(Stdio::null__meta)?;
+    m.function_meta(Stdio::inherit__meta)?;
+    m.function_meta(Stdio::piped__meta)?;
+    m.function_meta(Stdio::debug_fmt__meta)?;
 
-    module.ty::<ChildStdin>()?;
-    module.function_meta(ChildStdin::debug_fmt__meta)?;
-    module.function_meta(ChildStdin::try_into_stdio__meta)?;
+    m.ty::<ChildStdin>()?;
+    m.function_meta(ChildStdin::debug_fmt__meta)?;
+    m.function_meta(ChildStdin::try_into_stdio__meta)?;
 
-    module.ty::<ChildStdout>()?;
-    module.function_meta(ChildStdout::debug_fmt__meta)?;
-    module.function_meta(ChildStdout::try_into_stdio__meta)?;
+    m.ty::<ChildStdout>()?;
+    m.function_meta(ChildStdout::debug_fmt__meta)?;
+    m.function_meta(ChildStdout::try_into_stdio__meta)?;
 
-    module.ty::<ChildStderr>()?;
-    module.function_meta(ChildStderr::debug_fmt__meta)?;
-    module.function_meta(ChildStderr::try_into_stdio__meta)?;
+    m.ty::<ChildStderr>()?;
+    m.function_meta(ChildStderr::debug_fmt__meta)?;
+    m.function_meta(ChildStderr::try_into_stdio__meta)?;
 
-    Ok(module)
+    Ok(m)
 }
 
 /// This structure mimics the API of [`std::process::Command`] found in the

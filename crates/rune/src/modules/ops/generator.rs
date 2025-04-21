@@ -10,7 +10,7 @@ use crate::{ContextError, Module};
 /// Types related to generators.
 #[rune::module(::std::ops::generator)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     {
         m.ty::<Generator>()?;

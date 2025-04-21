@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::parse::ParseStream;
 use syn::punctuated::Punctuated;
@@ -65,47 +65,26 @@ impl Module {
     pub(crate) fn expand(self, attrs: ModuleAttrs) -> syn::Result<TokenStream> {
         let docs = self.docs;
 
-        let item = match attrs.path.leading_colon {
-            Some(..) => {
-                let mut it = attrs.path.segments.iter();
-
-                let Some(krate) = it.next() else {
-                    return Err(syn::Error::new_spanned(
-                        &attrs.path,
-                        "missing leading segment",
-                    ));
-                };
-
-                let krate = syn::LitStr::new(&krate.ident.to_string(), krate.ident.span());
-                let item = build_item(it);
-
-                if item.elems.is_empty() {
-                    quote!(rune::__private::ItemBuf::with_crate(#krate)?)
-                } else {
-                    quote!(rune::__private::ItemBuf::with_crate_item(#krate, #item)?)
-                }
-            }
-            None => {
-                let item = build_item(attrs.path.segments.iter());
-
-                if item.elems.is_empty() {
-                    quote!(rune::__private::ItemBuf::new()?)
-                } else {
-                    quote!(rune::__private::ItemBuf::from_item(#item)?)
-                }
-            }
-        };
+        let item_buf = crate::item::build_buf(&attrs.path)?;
+        let item_bytes = crate::item::buf_as_bytes(&item_buf);
 
         let mut stream = TokenStream::new();
 
+        let name = quote::format_ident!("{}__meta", self.signature.ident);
+        let doc = syn::LitStr::new(
+            &format!(" Module metadata for `{item_buf}`."),
+            Span::call_site(),
+        );
+
         stream.extend(quote! {
-            /// Get module metadata.
+            #[doc = #doc]
             #[automatically_derived]
+            #[allow(non_snake_case)]
             #[doc(hidden)]
-            fn module_meta() -> rune::alloc::Result<rune::__private::ModuleMetaData> {
-                Ok(rune::__private::ModuleMetaData {
+            fn #name() -> rune::alloc::Result<rune::__priv::ModuleMetaData> {
+                Ok(rune::__priv::ModuleMetaData {
+                    item: unsafe { rune::__priv::Item::from_bytes(&#item_bytes) },
                     docs: &#docs[..],
-                    item: #item,
                 })
             }
         });
@@ -121,22 +100,4 @@ impl Module {
         stream.extend(self.remainder);
         Ok(stream)
     }
-}
-
-fn build_item(it: syn::punctuated::Iter<'_, syn::PathSegment>) -> syn::ExprArray {
-    let mut item = syn::ExprArray {
-        attrs: Vec::new(),
-        bracket_token: syn::token::Bracket::default(),
-        elems: Punctuated::default(),
-    };
-
-    for p in it {
-        let p = syn::LitStr::new(&p.ident.to_string(), p.ident.span());
-
-        item.elems.push(syn::Expr::Lit(syn::ExprLit {
-            attrs: Vec::new(),
-            lit: syn::Lit::Str(p),
-        }))
-    }
-    item
 }

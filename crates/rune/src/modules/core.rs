@@ -8,12 +8,12 @@ use crate::parse::Parser;
 use crate::runtime::{Panic, Value, VmResult};
 use crate::{docstring, ContextError, Module};
 
-#[rune::module(::std)]
 /// Core types and methods in Rune.
 ///
 /// These are types and methods for which Rune as a language would not work without.
+#[rune::module(::std)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?.with_unique("std");
+    let mut module = Module::from_meta(self::module__meta)?.with_unique("std");
 
     module.ty::<bool>()?.docs(docstring! {
         /// The primitive boolean type.

@@ -9,10 +9,10 @@ use crate::{ContextError, Module};
 /// Built-in macros.
 #[rune::module(::std::macros::builtin)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut builtins = Module::from_meta(self::module_meta)?.with_unique("std::macros::builtin");
-    builtins.macro_meta(file)?;
-    builtins.macro_meta(line)?;
-    Ok(builtins)
+    let mut m = Module::from_meta(self::module__meta)?.with_unique("std::macros::builtin");
+    m.macro_meta(file)?;
+    m.macro_meta(line)?;
+    Ok(m)
 }
 
 /// Return the line in the current file.

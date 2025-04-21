@@ -16,7 +16,7 @@ use crate::{hash_in, ContextError, Hash, Module};
 /// This module deals with the fundamental [`Result`] type in Rune.
 #[rune::module(::std::result)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     // Sorted for ease of finding
     let mut result = m

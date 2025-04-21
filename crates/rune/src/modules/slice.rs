@@ -17,7 +17,7 @@ use crate::{ContextError, Module};
 /// ```
 #[rune::module(::std::slice)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<Iter>()?;
     m.function_meta(Iter::next__meta)?;

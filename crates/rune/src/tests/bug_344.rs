@@ -159,7 +159,7 @@ impl GuardCheck {
 }
 
 impl Any for GuardCheck {}
-impl rune::__private::AnyMarker for GuardCheck {}
+impl rune::__priv::AnyMarker for GuardCheck {}
 
 impl Named for GuardCheck {
     const ITEM: &'static Item = rune_macros::item!(GuardCheck);

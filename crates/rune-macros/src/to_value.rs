@@ -56,25 +56,27 @@ impl Expander<'_> {
         let mut to_values = Vec::new();
 
         let Tokens {
-            to_value,
-            value,
+            alloc,
             owned_tuple,
             result,
+            to_value,
             try_from,
-            vec,
+            value,
             ..
         } = &self.tokens;
 
         for (index, f) in unnamed.unnamed.iter().enumerate() {
             _ = self.cx.field_attrs(&f.attrs);
             let index = syn::Index::from(index);
-            to_values.push(quote!(#vec::try_push(&mut tuple, #to_value::to_value(self.#index)?)?));
+            to_values.push(
+                quote!(#alloc::Vec::try_push(&mut tuple, #to_value::to_value(self.#index)?)?),
+            );
         }
 
         let cap = unnamed.unnamed.len();
 
         Ok(quote! {
-            let mut tuple = #vec::try_with_capacity(#cap)?;
+            let mut tuple = #alloc::Vec::try_with_capacity(#cap)?;
             #(#to_values;)*
             let tuple = <#owned_tuple as #try_from<_>>::try_from(tuple)?;
             #result::Ok(<#value as #try_from<_>>::try_from(tuple)?)
@@ -84,12 +86,12 @@ impl Expander<'_> {
     /// Expand named fields.
     fn expand_named(&mut self, named: &syn::FieldsNamed) -> Result<TokenStream, ()> {
         let Tokens {
-            to_value,
-            value,
+            alloc,
             object,
             result,
-            string,
+            to_value,
             try_from,
+            value,
             ..
         } = &self.tokens;
 
@@ -102,7 +104,7 @@ impl Expander<'_> {
             let name = syn::LitStr::new(&ident.to_string(), ident.span());
 
             to_values.push(quote! {
-                object.insert(<#string as #try_from<_>>::try_from(#name)?, #to_value::to_value(self.#ident)?)?
+                object.insert(<#alloc::String as #try_from<_>>::try_from(#name)?, #to_value::to_value(self.#ident)?)?
             });
         }
 

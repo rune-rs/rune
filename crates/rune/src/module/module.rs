@@ -116,7 +116,7 @@ impl Module {
     /// Construct a new module from the given module meta.
     pub fn from_meta(module_meta: ModuleMeta) -> Result<Self, ContextError> {
         let meta = module_meta()?;
-        let mut m = Self::inner_new(meta.item);
+        let mut m = Self::inner_new(meta.item.try_to_owned()?);
         m.item_mut().static_docs(meta.docs)?;
         Ok(m)
     }
@@ -524,8 +524,7 @@ impl Module {
     ///
     /// let mut m = Module::new();
     /// m.macro_meta(ident_to_string)?;
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn macro_meta(&mut self, meta: MacroMeta) -> Result<ItemMut<'_>, ContextError> {
@@ -616,8 +615,7 @@ impl Module {
     ///
     /// let mut m = Module::new();
     /// m.macro_(["ident_to_string"], ident_to_string)?;
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn macro_<N, M>(&mut self, name: N, f: M) -> Result<ItemMut<'_>, ContextError>
     where
@@ -677,8 +675,7 @@ impl Module {
     ///
     /// let mut m = Module::new();
     /// m.attribute_macro(["rename_fn"], rename_fn)?;
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn attribute_macro<N, M>(&mut self, name: N, f: M) -> Result<ItemMut<'_>, ContextError>
     where

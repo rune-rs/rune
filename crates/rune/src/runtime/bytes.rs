@@ -80,8 +80,7 @@ impl Bytes {
     ///
     /// let bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes.into_vec(), [b'a', b'b', b'c', b'd']);
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn into_vec(self) -> Vec<u8> {
@@ -98,8 +97,7 @@ impl Bytes {
     ///
     /// let bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// assert_eq!(bytes.as_slice(), &[b'a', b'b', b'c', b'd']);
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
@@ -158,8 +156,7 @@ impl Bytes {
     /// let mut bytes = Bytes::from_vec(try_vec![b'a', b'b', b'c', b'd']);
     /// bytes.extend(b"efgh");
     /// assert_eq!(bytes, b"abcdefgh");
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn extend<O>(&mut self, other: O) -> alloc::Result<()>
     where
@@ -235,7 +232,7 @@ impl Bytes {
     /// let mut bytes = Bytes::from_slice(b"abcd")?;
     /// assert_eq!(bytes.pop(), Some(b'd'));
     /// assert_eq!(bytes, b"abc");
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn pop(&mut self) -> Option<u8> {
         self.bytes.pop()
@@ -251,7 +248,7 @@ impl Bytes {
     /// let mut bytes = Bytes::from_slice(b"abcd")?;
     /// bytes.push(b'e');
     /// assert_eq!(bytes, b"abcde");
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn push(&mut self, value: u8) -> alloc::Result<()> {
         self.bytes.try_push(value)
@@ -271,7 +268,7 @@ impl Bytes {
     /// let mut bytes = Bytes::from_slice(b"abcd")?;
     /// bytes.remove(2);
     /// assert_eq!(bytes, b"abd");
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn remove(&mut self, index: usize) -> u8 {
         self.bytes.remove(index)
@@ -292,7 +289,7 @@ impl Bytes {
     /// let mut bytes = Bytes::from_slice(b"abcd")?;
     /// bytes.insert(2, b'e');
     /// assert_eq!(bytes, b"abecd");
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn insert(&mut self, index: usize, value: u8) -> alloc::Result<()> {
         self.bytes.try_insert(index, value)
@@ -318,7 +315,7 @@ impl Bytes {
     /// let mut bytes = Bytes::from_slice(b"abcd")?;
     /// bytes.set(0, b'A');
     /// assert_eq!(bytes, b"Abcd");
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn set(&mut self, index: usize, value: u8) -> VmResult<()> {
         let Some(v) = self.bytes.get_mut(index) else {
@@ -341,8 +338,7 @@ impl Bytes {
     ///
     /// let bytes = Bytes::from_slice(b"abcd")?;
     /// assert_eq!(bytes.first(), Some(b'a'));
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn first(&self) -> Option<u8> {
         self.bytes.first().copied()
@@ -357,8 +353,7 @@ impl Bytes {
     ///
     /// let bytes = Bytes::from_slice(b"abcd")?;
     /// assert_eq!(bytes.last(), Some(b'd'));
-    ///
-    /// Ok::<_, rune::support::Error>(())
+    /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn last(&self) -> Option<u8> {
         self.bytes.last().copied()

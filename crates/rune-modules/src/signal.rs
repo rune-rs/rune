@@ -44,9 +44,9 @@ use rune::{ContextError, Module};
 /// [Tokio]: https://tokio.rs
 #[rune::module(::signal)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
-    module.function_meta(ctrl_c)?;
-    Ok(module)
+    let mut m = Module::from_meta(self::module__meta)?;
+    m.function_meta(ctrl_c)?;
+    Ok(m)
 }
 
 /// Completes when a "ctrl-c" notification is sent to the process.

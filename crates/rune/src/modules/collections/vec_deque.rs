@@ -14,7 +14,7 @@ use crate::{Any, ContextError, Module};
 /// A dynamic vec deque.
 #[rune::module(::std::collections::vec_deque)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<VecDeque>()?;
 

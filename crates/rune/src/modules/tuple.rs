@@ -43,7 +43,7 @@ use crate::{docstring, ContextError, Module};
 /// ```
 #[rune::module(::std::tuple)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
     m.ty::<OwnedTuple>()?.docs(docstring! {
         /// The tuple type.
     })?;

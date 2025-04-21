@@ -13,7 +13,7 @@ use crate::{Any, ContextError, Module};
 /// A dynamic hash set.
 #[rune::module(::std::collections::hash_set)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<HashSet>()?;
     m.function_meta(HashSet::new__meta)?;

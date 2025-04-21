@@ -224,7 +224,7 @@ use crate::runtime::{AnyTypeInfo, TypeHash};
 /// [`Protocol::SHR_ASSIGN`]: crate::runtime::Protocol::SHR_ASSIGN
 /// [`Protocol::SUB_ASSIGN`]: crate::runtime::Protocol::SUB_ASSIGN
 /// [`rune::alloc`]: crate::alloc
-/// [`TryClone` trait]: crate::alloc::TryClone
+/// [`TryClone` trait]: crate::alloc::clone::TryClone
 pub use rune_macros::Any;
 
 /// Derive for types which can be used inside of Rune.

@@ -52,6 +52,7 @@ use syn::{Generics, Path};
 const RUNE: &str = "rune";
 
 #[proc_macro]
+#[doc(hidden)]
 pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = proc_macro2::TokenStream::from(input);
     let parser = crate::quote::Quote::new();
@@ -65,6 +66,7 @@ pub fn quote(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 #[proc_macro_attribute]
+#[doc(hidden)]
 pub fn function(
     attrs: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
@@ -81,6 +83,7 @@ pub fn function(
 }
 
 #[proc_macro_attribute]
+#[doc(hidden)]
 pub fn macro_(
     attrs: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
@@ -97,6 +100,7 @@ pub fn macro_(
 }
 
 #[proc_macro_attribute]
+#[doc(hidden)]
 pub fn module(
     attrs: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
@@ -113,6 +117,7 @@ pub fn module(
 }
 
 #[proc_macro_attribute]
+#[doc(hidden)]
 pub fn attribute_macro(
     attrs: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
@@ -142,8 +147,8 @@ pub fn parse(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     Context::build(|cx| derive.expand(cx)).into()
 }
 
+/// Helper derive to implement `Spanned`.
 #[proc_macro_derive(Spanned, attributes(rune))]
-#[doc(hidden)]
 pub fn spanned(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as spanned::Derive);
     Context::build(|cx| derive.expand(cx, false)).into()
@@ -164,18 +169,21 @@ pub fn opaque(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 #[proc_macro_derive(FromValue, attributes(rune))]
+#[doc(hidden)]
 pub fn from_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     Context::build(|cx| from_value::expand(cx, &input)).into()
 }
 
 #[proc_macro_derive(ToValue, attributes(rune))]
+#[doc(hidden)]
 pub fn to_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     Context::build(|cx| to_value::expand(cx, &input)).into()
 }
 
 #[proc_macro_derive(Any, attributes(rune))]
+#[doc(hidden)]
 pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as any::Derive);
 
@@ -189,21 +197,14 @@ pub fn any(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 #[proc_macro_derive(ToConstValue, attributes(const_value))]
+#[doc(hidden)]
 pub fn const_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let derive = syn::parse_macro_input!(input as const_value::Derive);
     Context::build(|cx| Ok(derive.into_builder(cx)?.expand())).into()
 }
 
-/// Calculate a type hash at compile time.
-///
-/// # Examples
-///
-/// ```
-/// use rune::Hash;
-///
-/// let hash: Hash = rune::hash!(::std::ops::generator::Generator);
-/// ```
 #[proc_macro]
+#[doc(hidden)]
 pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let args = syn::parse_macro_input!(input as self::hash::Arguments);
 
@@ -216,8 +217,8 @@ pub fn hash(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     stream.into()
 }
 
-#[doc(hidden)]
 #[proc_macro]
+#[doc(hidden)]
 pub fn hash_in(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let path_in::PathIn { in_crate, item, .. } =
         syn::parse_macro_input!(input as path_in::PathIn<self::hash::Arguments>);
@@ -230,24 +231,8 @@ pub fn hash_in(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     stream.into()
 }
 
-/// Calculate an item reference at compile time.
-///
-/// # Examples
-///
-/// ```
-/// use rune::{Item, ItemBuf};
-///
-/// static ITEM: &Item = rune::item!(::std::ops::generator::Generator);
-///
-/// let mut item = ItemBuf::with_crate("std")?;
-/// item.push("ops")?;
-/// item.push("generator")?;
-/// item.push("Generator")?;
-///
-/// assert_eq!(item, ITEM);
-/// # Ok::<_, rune::alloc::Error>(())
-/// ```
 #[proc_macro]
+#[doc(hidden)]
 pub fn item(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let path = syn::parse_macro_input!(input as syn::Path);
 
@@ -276,9 +261,6 @@ pub fn item_in(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     stream.into()
 }
 
-/// Helper to generate bindings for an external type.
-///
-/// This can *only* be used inside of the `rune` crate itself.
 #[proc_macro]
 #[doc(hidden)]
 pub fn binding(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -299,7 +281,6 @@ pub fn binding(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     stream.into()
 }
 
-/// Shim for an ignored `#[stable]` attribute.
 #[proc_macro_attribute]
 #[doc(hidden)]
 pub fn stable(
@@ -309,7 +290,6 @@ pub fn stable(
     item
 }
 
-/// Shim for an ignored `#[unstable]` attribute.
 #[proc_macro_attribute]
 #[doc(hidden)]
 pub fn unstable(

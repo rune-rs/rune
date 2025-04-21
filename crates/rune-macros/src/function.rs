@@ -281,11 +281,11 @@ impl Function {
 
             for argument in arguments {
                 array.elems.push(syn::Expr::Verbatim(quote! {
-                    <#argument as rune::__private::TypeHash>::HASH
+                    <#argument as rune::__priv::TypeHash>::HASH
                 }));
             }
 
-            quote!(rune::__private::Params::new(#name, #array))
+            quote!(rune::__priv::Params::new(#name, #array))
         } else {
             quote!(#name)
         };
@@ -374,12 +374,12 @@ impl Function {
             #[automatically_derived]
             #attributes
             #[doc(hidden)]
-            pub(crate) fn #meta_fn #impl_generics() -> rune::alloc::Result<rune::__private::FunctionMetaData>
+            pub(crate) fn #meta_fn #impl_generics() -> rune::alloc::Result<rune::__priv::FunctionMetaData>
             #where_clause
             {
-                Ok(rune::__private::FunctionMetaData {
-                    kind: rune::__private::FunctionMetaKind::#meta_kind(#name, #real_fn_path #type_generics)?#build_with,
-                    statics: rune::__private::FunctionMetaStatics {
+                Ok(rune::__priv::FunctionMetaData {
+                    kind: rune::__priv::FunctionMetaKind::#meta_kind(#name, #real_fn_path #type_generics)?#build_with,
+                    statics: rune::__priv::FunctionMetaStatics {
                         name: #name_string,
                         deprecated: #deprecated,
                         docs: &#docs[..],

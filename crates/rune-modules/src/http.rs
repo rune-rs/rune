@@ -67,1370 +67,1305 @@ use rune::{docstring, item, Any, ContextError, Module, ToConstValue, Value};
 /// ```
 #[rune::module(::http)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
-
-    module.function_meta(get)?;
-
-    module.ty::<Client>()?;
-    module.function_meta(Client::new__meta)?;
-    module.function_meta(Client::get__meta)?;
-    module.function_meta(Client::post__meta)?;
-    module.function_meta(Client::put__meta)?;
-    module.function_meta(Client::delete__meta)?;
-    module.function_meta(Client::head__meta)?;
-
-    module.ty::<Response>()?;
-    module.function_meta(Response::text__meta)?;
-    module.function_meta(Response::json__meta)?;
-    module.function_meta(Response::bytes__meta)?;
-    module.function_meta(Response::status__meta)?;
-    module.function_meta(Response::version__meta)?;
-    module.function_meta(Response::content_length__meta)?;
-
-    module.ty::<RequestBuilder>()?;
-    module.function_meta(RequestBuilder::send__meta)?;
-    module.function_meta(RequestBuilder::header__meta)?;
-    module.function_meta(RequestBuilder::basic_auth__meta)?;
-    module.function_meta(RequestBuilder::bearer_auth__meta)?;
-    module.function_meta(RequestBuilder::fetch_mode_no_cors__meta)?;
-    module.function_meta(RequestBuilder::body_bytes__meta)?;
-
-    module.ty::<StatusCode>()?;
-    module.function_meta(StatusCode::as_u16__meta)?;
-    module.function_meta(StatusCode::as_str__meta)?;
-    module.function_meta(StatusCode::canonical_reason__meta)?;
-    module.function_meta(StatusCode::is_informational__meta)?;
-    module.function_meta(StatusCode::is_success__meta)?;
-    module.function_meta(StatusCode::is_redirection__meta)?;
-    module.function_meta(StatusCode::is_client_error__meta)?;
-    module.function_meta(StatusCode::is_server_error__meta)?;
-    module.function_meta(StatusCode::partial_eq__meta)?;
-    module.implement_trait::<StatusCode>(item!(::std::cmp::PartialEq))?;
-    module.function_meta(StatusCode::eq__meta)?;
-    module.implement_trait::<StatusCode>(item!(::std::cmp::Eq))?;
-    module.function_meta(StatusCode::partial_cmp__meta)?;
-    module.implement_trait::<StatusCode>(item!(::std::cmp::PartialOrd))?;
-    module.function_meta(StatusCode::cmp__meta)?;
-    module.implement_trait::<StatusCode>(item!(::std::cmp::Ord))?;
-    module.function_meta(StatusCode::hash__meta)?;
-    module.function_meta(StatusCode::debug_fmt__meta)?;
-    module.function_meta(StatusCode::display_fmt__meta)?;
-
-    module
-        .constant(
-            "CONTINUE",
-            StatusCode {
-                inner: reqwest::StatusCode::CONTINUE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Continue
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::CONTINUE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "SWITCHING_PROTOCOLS",
-            StatusCode {
-                inner: reqwest::StatusCode::SWITCHING_PROTOCOLS,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Switching Protocols
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::SWITCHING_PROTOCOLS;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PROCESSING",
-            StatusCode {
-                inner: reqwest::StatusCode::PROCESSING,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Processing
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PROCESSING;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "OK",
-            StatusCode {
-                inner: reqwest::StatusCode::OK,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: OK
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::OK;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "CREATED",
-            StatusCode {
-                inner: reqwest::StatusCode::CREATED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Created
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::CREATED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "ACCEPTED",
-            StatusCode {
-                inner: reqwest::StatusCode::ACCEPTED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Accepted
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::ACCEPTED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NON_AUTHORITATIVE_INFORMATION",
-            StatusCode {
-                inner: reqwest::StatusCode::NON_AUTHORITATIVE_INFORMATION,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Non Authoritative Information
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NON_AUTHORITATIVE_INFORMATION;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NO_CONTENT",
-            StatusCode {
-                inner: reqwest::StatusCode::NO_CONTENT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: No Content
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NO_CONTENT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "RESET_CONTENT",
-            StatusCode {
-                inner: reqwest::StatusCode::RESET_CONTENT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Reset Content
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::RESET_CONTENT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PARTIAL_CONTENT",
-            StatusCode {
-                inner: reqwest::StatusCode::PARTIAL_CONTENT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Partial Content
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PARTIAL_CONTENT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "MULTI_STATUS",
-            StatusCode {
-                inner: reqwest::StatusCode::MULTI_STATUS,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Multi-Status
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::MULTI_STATUS;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "ALREADY_REPORTED",
-            StatusCode {
-                inner: reqwest::StatusCode::ALREADY_REPORTED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Already Reported
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::ALREADY_REPORTED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "IM_USED",
-            StatusCode {
-                inner: reqwest::StatusCode::IM_USED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: IM Used
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::IM_USED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "MULTIPLE_CHOICES",
-            StatusCode {
-                inner: reqwest::StatusCode::MULTIPLE_CHOICES,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Multiple Choices
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::MULTIPLE_CHOICES;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "MOVED_PERMANENTLY",
-            StatusCode {
-                inner: reqwest::StatusCode::MOVED_PERMANENTLY,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Moved Permanently
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::MOVED_PERMANENTLY;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "FOUND",
-            StatusCode {
-                inner: reqwest::StatusCode::FOUND,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Found
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::FOUND;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "SEE_OTHER",
-            StatusCode {
-                inner: reqwest::StatusCode::SEE_OTHER,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: See Other
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::SEE_OTHER;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NOT_MODIFIED",
-            StatusCode {
-                inner: reqwest::StatusCode::NOT_MODIFIED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Not Modified
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NOT_MODIFIED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "USE_PROXY",
-            StatusCode {
-                inner: reqwest::StatusCode::USE_PROXY,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Use Proxy
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::USE_PROXY;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "TEMPORARY_REDIRECT",
-            StatusCode {
-                inner: reqwest::StatusCode::TEMPORARY_REDIRECT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Temporary Redirect
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::TEMPORARY_REDIRECT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PERMANENT_REDIRECT",
-            StatusCode {
-                inner: reqwest::StatusCode::PERMANENT_REDIRECT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Permanent Redirect
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PERMANENT_REDIRECT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "BAD_REQUEST",
-            StatusCode {
-                inner: reqwest::StatusCode::BAD_REQUEST,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Bad Request
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::BAD_REQUEST;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "UNAUTHORIZED",
-            StatusCode {
-                inner: reqwest::StatusCode::UNAUTHORIZED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Unauthorized
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::UNAUTHORIZED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PAYMENT_REQUIRED",
-            StatusCode {
-                inner: reqwest::StatusCode::PAYMENT_REQUIRED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Payment Required
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PAYMENT_REQUIRED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "FORBIDDEN",
-            StatusCode {
-                inner: reqwest::StatusCode::FORBIDDEN,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Forbidden
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::FORBIDDEN;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NOT_FOUND",
-            StatusCode {
-                inner: reqwest::StatusCode::NOT_FOUND,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Not Found
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NOT_FOUND;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "METHOD_NOT_ALLOWED",
-            StatusCode {
-                inner: reqwest::StatusCode::METHOD_NOT_ALLOWED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Method Not Allowed
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::METHOD_NOT_ALLOWED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NOT_ACCEPTABLE",
-            StatusCode {
-                inner: reqwest::StatusCode::NOT_ACCEPTABLE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Not Acceptable
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NOT_ACCEPTABLE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PROXY_AUTHENTICATION_REQUIRED",
-            StatusCode {
-                inner: reqwest::StatusCode::PROXY_AUTHENTICATION_REQUIRED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Proxy Authentication Required
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PROXY_AUTHENTICATION_REQUIRED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "REQUEST_TIMEOUT",
-            StatusCode {
-                inner: reqwest::StatusCode::REQUEST_TIMEOUT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Request Timeout
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::REQUEST_TIMEOUT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "CONFLICT",
-            StatusCode {
-                inner: reqwest::StatusCode::CONFLICT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Conflict
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::CONFLICT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "GONE",
-            StatusCode {
-                inner: reqwest::StatusCode::GONE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Gone
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::GONE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "LENGTH_REQUIRED",
-            StatusCode {
-                inner: reqwest::StatusCode::LENGTH_REQUIRED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Length Required
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::LENGTH_REQUIRED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PRECONDITION_FAILED",
-            StatusCode {
-                inner: reqwest::StatusCode::PRECONDITION_FAILED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Precondition Failed
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PRECONDITION_FAILED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PAYLOAD_TOO_LARGE",
-            StatusCode {
-                inner: reqwest::StatusCode::PAYLOAD_TOO_LARGE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Payload Too Large
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PAYLOAD_TOO_LARGE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "URI_TOO_LONG",
-            StatusCode {
-                inner: reqwest::StatusCode::URI_TOO_LONG,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: URI Too Long
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::URI_TOO_LONG;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "UNSUPPORTED_MEDIA_TYPE",
-            StatusCode {
-                inner: reqwest::StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Unsupported Media Type
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::UNSUPPORTED_MEDIA_TYPE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "RANGE_NOT_SATISFIABLE",
-            StatusCode {
-                inner: reqwest::StatusCode::RANGE_NOT_SATISFIABLE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Range Not Satisfiable
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::RANGE_NOT_SATISFIABLE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "EXPECTATION_FAILED",
-            StatusCode {
-                inner: reqwest::StatusCode::EXPECTATION_FAILED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Expectation Failed
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::EXPECTATION_FAILED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "IM_A_TEAPOT",
-            StatusCode {
-                inner: reqwest::StatusCode::IM_A_TEAPOT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: I'm a teapot
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::IM_A_TEAPOT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "MISDIRECTED_REQUEST",
-            StatusCode {
-                inner: reqwest::StatusCode::MISDIRECTED_REQUEST,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Misdirected Request
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::MISDIRECTED_REQUEST;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "UNPROCESSABLE_ENTITY",
-            StatusCode {
-                inner: reqwest::StatusCode::UNPROCESSABLE_ENTITY,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Unprocessable Entity
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::UNPROCESSABLE_ENTITY;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "LOCKED",
-            StatusCode {
-                inner: reqwest::StatusCode::LOCKED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Locked
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::LOCKED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "FAILED_DEPENDENCY",
-            StatusCode {
-                inner: reqwest::StatusCode::FAILED_DEPENDENCY,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Failed Dependency
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::FAILED_DEPENDENCY;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "UPGRADE_REQUIRED",
-            StatusCode {
-                inner: reqwest::StatusCode::UPGRADE_REQUIRED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Upgrade Required
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::UPGRADE_REQUIRED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "PRECONDITION_REQUIRED",
-            StatusCode {
-                inner: reqwest::StatusCode::PRECONDITION_REQUIRED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Precondition Required
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::PRECONDITION_REQUIRED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "TOO_MANY_REQUESTS",
-            StatusCode {
-                inner: reqwest::StatusCode::TOO_MANY_REQUESTS,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Too Many Requests
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::TOO_MANY_REQUESTS;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "REQUEST_HEADER_FIELDS_TOO_LARGE",
-            StatusCode {
-                inner: reqwest::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Request Header Fields Too Large
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "UNAVAILABLE_FOR_LEGAL_REASONS",
-            StatusCode {
-                inner: reqwest::StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Unavailable For Legal Reasons
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "INTERNAL_SERVER_ERROR",
-            StatusCode {
-                inner: reqwest::StatusCode::INTERNAL_SERVER_ERROR,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Internal Server Error
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::INTERNAL_SERVER_ERROR;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NOT_IMPLEMENTED",
-            StatusCode {
-                inner: reqwest::StatusCode::NOT_IMPLEMENTED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Not Implemented
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NOT_IMPLEMENTED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "BAD_GATEWAY",
-            StatusCode {
-                inner: reqwest::StatusCode::BAD_GATEWAY,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Bad Gateway
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::BAD_GATEWAY;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "SERVICE_UNAVAILABLE",
-            StatusCode {
-                inner: reqwest::StatusCode::SERVICE_UNAVAILABLE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Service Unavailable
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::SERVICE_UNAVAILABLE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "GATEWAY_TIMEOUT",
-            StatusCode {
-                inner: reqwest::StatusCode::GATEWAY_TIMEOUT,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Gateway Timeout
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::GATEWAY_TIMEOUT;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "HTTP_VERSION_NOT_SUPPORTED",
-            StatusCode {
-                inner: reqwest::StatusCode::HTTP_VERSION_NOT_SUPPORTED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: HTTP Version Not Supported
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::HTTP_VERSION_NOT_SUPPORTED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "VARIANT_ALSO_NEGOTIATES",
-            StatusCode {
-                inner: reqwest::StatusCode::VARIANT_ALSO_NEGOTIATES,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Variant Also Negotiates
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::VARIANT_ALSO_NEGOTIATES;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "INSUFFICIENT_STORAGE",
-            StatusCode {
-                inner: reqwest::StatusCode::INSUFFICIENT_STORAGE,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Insufficient Storage
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::INSUFFICIENT_STORAGE;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "LOOP_DETECTED",
-            StatusCode {
-                inner: reqwest::StatusCode::LOOP_DETECTED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Loop Detected
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::LOOP_DETECTED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NOT_EXTENDED",
-            StatusCode {
-                inner: reqwest::StatusCode::NOT_EXTENDED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Not Extended
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NOT_EXTENDED;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "NETWORK_AUTHENTICATION_REQUIRED",
-            StatusCode {
-                inner: reqwest::StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
-            },
-        )
-        .build_associated::<StatusCode>()?
-        .docs(docstring! {
-            /// Status Code: Network Authentication Required
-            ///
-            /// # Examples
-            ///
-            /// ```rune
-            /// use http::StatusCode;
-            ///
-            /// let status_code = StatusCode::NETWORK_AUTHENTICATION_REQUIRED;
-            /// ```
-        })?;
-
-    module.ty::<Version>()?;
-    module.function_meta(Version::partial_eq__meta)?;
-    module.implement_trait::<Version>(item!(::std::cmp::PartialEq))?;
-    module.function_meta(Version::eq__meta)?;
-    module.implement_trait::<Version>(item!(::std::cmp::Eq))?;
-    module.function_meta(Version::partial_cmp__meta)?;
-    module.implement_trait::<Version>(item!(::std::cmp::PartialOrd))?;
-    module.function_meta(Version::cmp__meta)?;
-    module.implement_trait::<Version>(item!(::std::cmp::Ord))?;
-    module.function_meta(Version::hash__meta)?;
-    module.function_meta(Version::debug_fmt__meta)?;
-
-    module
-        .constant(
-            "HTTP_09",
-            Version {
-                inner: reqwest::Version::HTTP_09,
-            },
-        )
-        .build_associated::<Version>()?
-        .docs(docstring! {
-            /// The `HTTP/0.9` version.
-            ///
-            /// # Examples
-            ///
-            /// ```rune,no_run
-            /// use http::Version;
-            ///
-            /// let version = Version::HTTP_09;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "HTTP_10",
-            Version {
-                inner: reqwest::Version::HTTP_10,
-            },
-        )
-        .build_associated::<Version>()?
-        .docs(docstring! {
-            /// The `HTTP/1.0` version.
-            ///
-            /// # Examples
-            ///
-            /// ```rune,no_run
-            /// use http::Version;
-            ///
-            /// let version = Version::HTTP_10;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "HTTP_11",
-            Version {
-                inner: reqwest::Version::HTTP_11,
-            },
-        )
-        .build_associated::<Version>()?
-        .docs(docstring! {
-            /// The `HTTP/1.1` version.
-            ///
-            /// # Examples
-            ///
-            /// ```rune,no_run
-            /// use http::Version;
-            ///
-            /// let version = Version::HTTP_11;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "HTTP_2",
-            Version {
-                inner: reqwest::Version::HTTP_2,
-            },
-        )
-        .build_associated::<Version>()?
-        .docs(docstring! {
-            /// The `HTTP/2.0` version.
-            ///
-            /// # Examples
-            ///
-            /// ```rune,no_run
-            /// use http::Version;
-            ///
-            /// let version = Version::HTTP_2;
-            /// ```
-        })?;
-
-    module
-        .constant(
-            "HTTP_3",
-            Version {
-                inner: reqwest::Version::HTTP_3,
-            },
-        )
-        .build_associated::<Version>()?
-        .docs(docstring! {
-            /// The `HTTP/3.0` version.
-            ///
-            /// # Examples
-            ///
-            /// ```rune,no_run
-            /// use http::Version;
-            ///
-            /// let version = Version::HTTP_3;
-            /// ```
-        })?;
-
-    module.ty::<Error>()?;
-    module.function_meta(Error::display_fmt__meta)?;
-    Ok(module)
+    let mut m = Module::from_meta(self::module__meta)?;
+
+    m.function_meta(get)?;
+
+    m.ty::<Client>()?;
+    m.function_meta(Client::new__meta)?;
+    m.function_meta(Client::get__meta)?;
+    m.function_meta(Client::post__meta)?;
+    m.function_meta(Client::put__meta)?;
+    m.function_meta(Client::delete__meta)?;
+    m.function_meta(Client::head__meta)?;
+
+    m.ty::<Response>()?;
+    m.function_meta(Response::text__meta)?;
+    m.function_meta(Response::json__meta)?;
+    m.function_meta(Response::bytes__meta)?;
+    m.function_meta(Response::status__meta)?;
+    m.function_meta(Response::version__meta)?;
+    m.function_meta(Response::content_length__meta)?;
+
+    m.ty::<RequestBuilder>()?;
+    m.function_meta(RequestBuilder::send__meta)?;
+    m.function_meta(RequestBuilder::header__meta)?;
+    m.function_meta(RequestBuilder::basic_auth__meta)?;
+    m.function_meta(RequestBuilder::bearer_auth__meta)?;
+    m.function_meta(RequestBuilder::fetch_mode_no_cors__meta)?;
+    m.function_meta(RequestBuilder::body_bytes__meta)?;
+
+    m.ty::<StatusCode>()?;
+    m.function_meta(StatusCode::as_u16__meta)?;
+    m.function_meta(StatusCode::as_str__meta)?;
+    m.function_meta(StatusCode::canonical_reason__meta)?;
+    m.function_meta(StatusCode::is_informational__meta)?;
+    m.function_meta(StatusCode::is_success__meta)?;
+    m.function_meta(StatusCode::is_redirection__meta)?;
+    m.function_meta(StatusCode::is_client_error__meta)?;
+    m.function_meta(StatusCode::is_server_error__meta)?;
+    m.function_meta(StatusCode::partial_eq__meta)?;
+    m.implement_trait::<StatusCode>(item!(::std::cmp::PartialEq))?;
+    m.function_meta(StatusCode::eq__meta)?;
+    m.implement_trait::<StatusCode>(item!(::std::cmp::Eq))?;
+    m.function_meta(StatusCode::partial_cmp__meta)?;
+    m.implement_trait::<StatusCode>(item!(::std::cmp::PartialOrd))?;
+    m.function_meta(StatusCode::cmp__meta)?;
+    m.implement_trait::<StatusCode>(item!(::std::cmp::Ord))?;
+    m.function_meta(StatusCode::hash__meta)?;
+    m.function_meta(StatusCode::debug_fmt__meta)?;
+    m.function_meta(StatusCode::display_fmt__meta)?;
+
+    m.constant(
+        "CONTINUE",
+        StatusCode {
+            inner: reqwest::StatusCode::CONTINUE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Continue
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::CONTINUE;
+        /// ```
+    })?;
+
+    m.constant(
+        "SWITCHING_PROTOCOLS",
+        StatusCode {
+            inner: reqwest::StatusCode::SWITCHING_PROTOCOLS,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Switching Protocols
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::SWITCHING_PROTOCOLS;
+        /// ```
+    })?;
+
+    m.constant(
+        "PROCESSING",
+        StatusCode {
+            inner: reqwest::StatusCode::PROCESSING,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Processing
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PROCESSING;
+        /// ```
+    })?;
+
+    m.constant(
+        "OK",
+        StatusCode {
+            inner: reqwest::StatusCode::OK,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: OK
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::OK;
+        /// ```
+    })?;
+
+    m.constant(
+        "CREATED",
+        StatusCode {
+            inner: reqwest::StatusCode::CREATED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Created
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::CREATED;
+        /// ```
+    })?;
+
+    m.constant(
+        "ACCEPTED",
+        StatusCode {
+            inner: reqwest::StatusCode::ACCEPTED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Accepted
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::ACCEPTED;
+        /// ```
+    })?;
+
+    m.constant(
+        "NON_AUTHORITATIVE_INFORMATION",
+        StatusCode {
+            inner: reqwest::StatusCode::NON_AUTHORITATIVE_INFORMATION,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Non Authoritative Information
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NON_AUTHORITATIVE_INFORMATION;
+        /// ```
+    })?;
+
+    m.constant(
+        "NO_CONTENT",
+        StatusCode {
+            inner: reqwest::StatusCode::NO_CONTENT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: No Content
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NO_CONTENT;
+        /// ```
+    })?;
+
+    m.constant(
+        "RESET_CONTENT",
+        StatusCode {
+            inner: reqwest::StatusCode::RESET_CONTENT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Reset Content
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::RESET_CONTENT;
+        /// ```
+    })?;
+
+    m.constant(
+        "PARTIAL_CONTENT",
+        StatusCode {
+            inner: reqwest::StatusCode::PARTIAL_CONTENT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Partial Content
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PARTIAL_CONTENT;
+        /// ```
+    })?;
+
+    m.constant(
+        "MULTI_STATUS",
+        StatusCode {
+            inner: reqwest::StatusCode::MULTI_STATUS,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Multi-Status
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::MULTI_STATUS;
+        /// ```
+    })?;
+
+    m.constant(
+        "ALREADY_REPORTED",
+        StatusCode {
+            inner: reqwest::StatusCode::ALREADY_REPORTED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Already Reported
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::ALREADY_REPORTED;
+        /// ```
+    })?;
+
+    m.constant(
+        "IM_USED",
+        StatusCode {
+            inner: reqwest::StatusCode::IM_USED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: IM Used
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::IM_USED;
+        /// ```
+    })?;
+
+    m.constant(
+        "MULTIPLE_CHOICES",
+        StatusCode {
+            inner: reqwest::StatusCode::MULTIPLE_CHOICES,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Multiple Choices
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::MULTIPLE_CHOICES;
+        /// ```
+    })?;
+
+    m.constant(
+        "MOVED_PERMANENTLY",
+        StatusCode {
+            inner: reqwest::StatusCode::MOVED_PERMANENTLY,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Moved Permanently
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::MOVED_PERMANENTLY;
+        /// ```
+    })?;
+
+    m.constant(
+        "FOUND",
+        StatusCode {
+            inner: reqwest::StatusCode::FOUND,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Found
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::FOUND;
+        /// ```
+    })?;
+
+    m.constant(
+        "SEE_OTHER",
+        StatusCode {
+            inner: reqwest::StatusCode::SEE_OTHER,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: See Other
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::SEE_OTHER;
+        /// ```
+    })?;
+
+    m.constant(
+        "NOT_MODIFIED",
+        StatusCode {
+            inner: reqwest::StatusCode::NOT_MODIFIED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Not Modified
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NOT_MODIFIED;
+        /// ```
+    })?;
+
+    m.constant(
+        "USE_PROXY",
+        StatusCode {
+            inner: reqwest::StatusCode::USE_PROXY,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Use Proxy
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::USE_PROXY;
+        /// ```
+    })?;
+
+    m.constant(
+        "TEMPORARY_REDIRECT",
+        StatusCode {
+            inner: reqwest::StatusCode::TEMPORARY_REDIRECT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Temporary Redirect
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::TEMPORARY_REDIRECT;
+        /// ```
+    })?;
+
+    m.constant(
+        "PERMANENT_REDIRECT",
+        StatusCode {
+            inner: reqwest::StatusCode::PERMANENT_REDIRECT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Permanent Redirect
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PERMANENT_REDIRECT;
+        /// ```
+    })?;
+
+    m.constant(
+        "BAD_REQUEST",
+        StatusCode {
+            inner: reqwest::StatusCode::BAD_REQUEST,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Bad Request
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::BAD_REQUEST;
+        /// ```
+    })?;
+
+    m.constant(
+        "UNAUTHORIZED",
+        StatusCode {
+            inner: reqwest::StatusCode::UNAUTHORIZED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Unauthorized
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::UNAUTHORIZED;
+        /// ```
+    })?;
+
+    m.constant(
+        "PAYMENT_REQUIRED",
+        StatusCode {
+            inner: reqwest::StatusCode::PAYMENT_REQUIRED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Payment Required
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PAYMENT_REQUIRED;
+        /// ```
+    })?;
+
+    m.constant(
+        "FORBIDDEN",
+        StatusCode {
+            inner: reqwest::StatusCode::FORBIDDEN,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Forbidden
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::FORBIDDEN;
+        /// ```
+    })?;
+
+    m.constant(
+        "NOT_FOUND",
+        StatusCode {
+            inner: reqwest::StatusCode::NOT_FOUND,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Not Found
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NOT_FOUND;
+        /// ```
+    })?;
+
+    m.constant(
+        "METHOD_NOT_ALLOWED",
+        StatusCode {
+            inner: reqwest::StatusCode::METHOD_NOT_ALLOWED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Method Not Allowed
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::METHOD_NOT_ALLOWED;
+        /// ```
+    })?;
+
+    m.constant(
+        "NOT_ACCEPTABLE",
+        StatusCode {
+            inner: reqwest::StatusCode::NOT_ACCEPTABLE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Not Acceptable
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NOT_ACCEPTABLE;
+        /// ```
+    })?;
+
+    m.constant(
+        "PROXY_AUTHENTICATION_REQUIRED",
+        StatusCode {
+            inner: reqwest::StatusCode::PROXY_AUTHENTICATION_REQUIRED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Proxy Authentication Required
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PROXY_AUTHENTICATION_REQUIRED;
+        /// ```
+    })?;
+
+    m.constant(
+        "REQUEST_TIMEOUT",
+        StatusCode {
+            inner: reqwest::StatusCode::REQUEST_TIMEOUT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Request Timeout
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::REQUEST_TIMEOUT;
+        /// ```
+    })?;
+
+    m.constant(
+        "CONFLICT",
+        StatusCode {
+            inner: reqwest::StatusCode::CONFLICT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Conflict
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::CONFLICT;
+        /// ```
+    })?;
+
+    m.constant(
+        "GONE",
+        StatusCode {
+            inner: reqwest::StatusCode::GONE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Gone
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::GONE;
+        /// ```
+    })?;
+
+    m.constant(
+        "LENGTH_REQUIRED",
+        StatusCode {
+            inner: reqwest::StatusCode::LENGTH_REQUIRED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Length Required
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::LENGTH_REQUIRED;
+        /// ```
+    })?;
+
+    m.constant(
+        "PRECONDITION_FAILED",
+        StatusCode {
+            inner: reqwest::StatusCode::PRECONDITION_FAILED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Precondition Failed
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PRECONDITION_FAILED;
+        /// ```
+    })?;
+
+    m.constant(
+        "PAYLOAD_TOO_LARGE",
+        StatusCode {
+            inner: reqwest::StatusCode::PAYLOAD_TOO_LARGE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Payload Too Large
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PAYLOAD_TOO_LARGE;
+        /// ```
+    })?;
+
+    m.constant(
+        "URI_TOO_LONG",
+        StatusCode {
+            inner: reqwest::StatusCode::URI_TOO_LONG,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: URI Too Long
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::URI_TOO_LONG;
+        /// ```
+    })?;
+
+    m.constant(
+        "UNSUPPORTED_MEDIA_TYPE",
+        StatusCode {
+            inner: reqwest::StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Unsupported Media Type
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::UNSUPPORTED_MEDIA_TYPE;
+        /// ```
+    })?;
+
+    m.constant(
+        "RANGE_NOT_SATISFIABLE",
+        StatusCode {
+            inner: reqwest::StatusCode::RANGE_NOT_SATISFIABLE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Range Not Satisfiable
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::RANGE_NOT_SATISFIABLE;
+        /// ```
+    })?;
+
+    m.constant(
+        "EXPECTATION_FAILED",
+        StatusCode {
+            inner: reqwest::StatusCode::EXPECTATION_FAILED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Expectation Failed
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::EXPECTATION_FAILED;
+        /// ```
+    })?;
+
+    m.constant(
+        "IM_A_TEAPOT",
+        StatusCode {
+            inner: reqwest::StatusCode::IM_A_TEAPOT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: I'm a teapot
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::IM_A_TEAPOT;
+        /// ```
+    })?;
+
+    m.constant(
+        "MISDIRECTED_REQUEST",
+        StatusCode {
+            inner: reqwest::StatusCode::MISDIRECTED_REQUEST,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Misdirected Request
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::MISDIRECTED_REQUEST;
+        /// ```
+    })?;
+
+    m.constant(
+        "UNPROCESSABLE_ENTITY",
+        StatusCode {
+            inner: reqwest::StatusCode::UNPROCESSABLE_ENTITY,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Unprocessable Entity
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::UNPROCESSABLE_ENTITY;
+        /// ```
+    })?;
+
+    m.constant(
+        "LOCKED",
+        StatusCode {
+            inner: reqwest::StatusCode::LOCKED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Locked
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::LOCKED;
+        /// ```
+    })?;
+
+    m.constant(
+        "FAILED_DEPENDENCY",
+        StatusCode {
+            inner: reqwest::StatusCode::FAILED_DEPENDENCY,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Failed Dependency
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::FAILED_DEPENDENCY;
+        /// ```
+    })?;
+
+    m.constant(
+        "UPGRADE_REQUIRED",
+        StatusCode {
+            inner: reqwest::StatusCode::UPGRADE_REQUIRED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Upgrade Required
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::UPGRADE_REQUIRED;
+        /// ```
+    })?;
+
+    m.constant(
+        "PRECONDITION_REQUIRED",
+        StatusCode {
+            inner: reqwest::StatusCode::PRECONDITION_REQUIRED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Precondition Required
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::PRECONDITION_REQUIRED;
+        /// ```
+    })?;
+
+    m.constant(
+        "TOO_MANY_REQUESTS",
+        StatusCode {
+            inner: reqwest::StatusCode::TOO_MANY_REQUESTS,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Too Many Requests
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::TOO_MANY_REQUESTS;
+        /// ```
+    })?;
+
+    m.constant(
+        "REQUEST_HEADER_FIELDS_TOO_LARGE",
+        StatusCode {
+            inner: reqwest::StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Request Header Fields Too Large
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE;
+        /// ```
+    })?;
+
+    m.constant(
+        "UNAVAILABLE_FOR_LEGAL_REASONS",
+        StatusCode {
+            inner: reqwest::StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Unavailable For Legal Reasons
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS;
+        /// ```
+    })?;
+
+    m.constant(
+        "INTERNAL_SERVER_ERROR",
+        StatusCode {
+            inner: reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Internal Server Error
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::INTERNAL_SERVER_ERROR;
+        /// ```
+    })?;
+
+    m.constant(
+        "NOT_IMPLEMENTED",
+        StatusCode {
+            inner: reqwest::StatusCode::NOT_IMPLEMENTED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Not Implemented
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NOT_IMPLEMENTED;
+        /// ```
+    })?;
+
+    m.constant(
+        "BAD_GATEWAY",
+        StatusCode {
+            inner: reqwest::StatusCode::BAD_GATEWAY,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Bad Gateway
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::BAD_GATEWAY;
+        /// ```
+    })?;
+
+    m.constant(
+        "SERVICE_UNAVAILABLE",
+        StatusCode {
+            inner: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Service Unavailable
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::SERVICE_UNAVAILABLE;
+        /// ```
+    })?;
+
+    m.constant(
+        "GATEWAY_TIMEOUT",
+        StatusCode {
+            inner: reqwest::StatusCode::GATEWAY_TIMEOUT,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Gateway Timeout
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::GATEWAY_TIMEOUT;
+        /// ```
+    })?;
+
+    m.constant(
+        "HTTP_VERSION_NOT_SUPPORTED",
+        StatusCode {
+            inner: reqwest::StatusCode::HTTP_VERSION_NOT_SUPPORTED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: HTTP Version Not Supported
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::HTTP_VERSION_NOT_SUPPORTED;
+        /// ```
+    })?;
+
+    m.constant(
+        "VARIANT_ALSO_NEGOTIATES",
+        StatusCode {
+            inner: reqwest::StatusCode::VARIANT_ALSO_NEGOTIATES,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Variant Also Negotiates
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::VARIANT_ALSO_NEGOTIATES;
+        /// ```
+    })?;
+
+    m.constant(
+        "INSUFFICIENT_STORAGE",
+        StatusCode {
+            inner: reqwest::StatusCode::INSUFFICIENT_STORAGE,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Insufficient Storage
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::INSUFFICIENT_STORAGE;
+        /// ```
+    })?;
+
+    m.constant(
+        "LOOP_DETECTED",
+        StatusCode {
+            inner: reqwest::StatusCode::LOOP_DETECTED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Loop Detected
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::LOOP_DETECTED;
+        /// ```
+    })?;
+
+    m.constant(
+        "NOT_EXTENDED",
+        StatusCode {
+            inner: reqwest::StatusCode::NOT_EXTENDED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Not Extended
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NOT_EXTENDED;
+        /// ```
+    })?;
+
+    m.constant(
+        "NETWORK_AUTHENTICATION_REQUIRED",
+        StatusCode {
+            inner: reqwest::StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
+        },
+    )
+    .build_associated::<StatusCode>()?
+    .docs(docstring! {
+        /// Status Code: Network Authentication Required
+        ///
+        /// # Examples
+        ///
+        /// ```rune
+        /// use http::StatusCode;
+        ///
+        /// let status_code = StatusCode::NETWORK_AUTHENTICATION_REQUIRED;
+        /// ```
+    })?;
+
+    m.ty::<Version>()?;
+    m.function_meta(Version::partial_eq__meta)?;
+    m.implement_trait::<Version>(item!(::std::cmp::PartialEq))?;
+    m.function_meta(Version::eq__meta)?;
+    m.implement_trait::<Version>(item!(::std::cmp::Eq))?;
+    m.function_meta(Version::partial_cmp__meta)?;
+    m.implement_trait::<Version>(item!(::std::cmp::PartialOrd))?;
+    m.function_meta(Version::cmp__meta)?;
+    m.implement_trait::<Version>(item!(::std::cmp::Ord))?;
+    m.function_meta(Version::hash__meta)?;
+    m.function_meta(Version::debug_fmt__meta)?;
+
+    m.constant(
+        "HTTP_09",
+        Version {
+            inner: reqwest::Version::HTTP_09,
+        },
+    )
+    .build_associated::<Version>()?
+    .docs(docstring! {
+        /// The `HTTP/0.9` version.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use http::Version;
+        ///
+        /// let version = Version::HTTP_09;
+        /// ```
+    })?;
+
+    m.constant(
+        "HTTP_10",
+        Version {
+            inner: reqwest::Version::HTTP_10,
+        },
+    )
+    .build_associated::<Version>()?
+    .docs(docstring! {
+        /// The `HTTP/1.0` version.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use http::Version;
+        ///
+        /// let version = Version::HTTP_10;
+        /// ```
+    })?;
+
+    m.constant(
+        "HTTP_11",
+        Version {
+            inner: reqwest::Version::HTTP_11,
+        },
+    )
+    .build_associated::<Version>()?
+    .docs(docstring! {
+        /// The `HTTP/1.1` version.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use http::Version;
+        ///
+        /// let version = Version::HTTP_11;
+        /// ```
+    })?;
+
+    m.constant(
+        "HTTP_2",
+        Version {
+            inner: reqwest::Version::HTTP_2,
+        },
+    )
+    .build_associated::<Version>()?
+    .docs(docstring! {
+        /// The `HTTP/2.0` version.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use http::Version;
+        ///
+        /// let version = Version::HTTP_2;
+        /// ```
+    })?;
+
+    m.constant(
+        "HTTP_3",
+        Version {
+            inner: reqwest::Version::HTTP_3,
+        },
+    )
+    .build_associated::<Version>()?
+    .docs(docstring! {
+        /// The `HTTP/3.0` version.
+        ///
+        /// # Examples
+        ///
+        /// ```rune,no_run
+        /// use http::Version;
+        ///
+        /// let version = Version::HTTP_3;
+        /// ```
+    })?;
+
+    m.ty::<Error>()?;
+    m.function_meta(Error::display_fmt__meta)?;
+    Ok(m)
 }
 
 /// An error returned by methods in the `http` module.

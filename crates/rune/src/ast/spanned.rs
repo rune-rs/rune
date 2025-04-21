@@ -2,11 +2,11 @@ use crate::alloc;
 use crate::ast::Span;
 use crate::parse::NonZeroId;
 
-/// Helper derive to implement [`Spanned`].
-pub use rune_macros::Spanned;
-
 /// Helper derive to implement [`OptionSpanned`].
 pub use rune_macros::OptionSpanned;
+
+/// Helper derive to implement [`Spanned`].
+pub use rune_macros::Spanned;
 
 /// Defer building a span from a function.
 pub(crate) fn from_fn<F>(function: F) -> FromFn<F> {
