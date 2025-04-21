@@ -57,8 +57,6 @@ pub mod format;
 pub use self::format::{Format, FormatSpec};
 
 mod from_value;
-#[allow(deprecated)]
-pub use self::from_value::UnsafeFromValue;
 pub use self::from_value::{from_value, FromValue, UnsafeToMut, UnsafeToRef};
 
 mod function;

@@ -12,7 +12,7 @@ use crate::runtime::MaybeTypeOf;
 /// metadata.
 ///
 /// This is returned by methods which insert meta items, such as:
-/// * [`Module::raw_fn`].
+/// * [`Module::raw_function`].
 /// * [`Module::function`].
 /// * [`Module::associated_function`].
 ///
@@ -22,7 +22,7 @@ use crate::runtime::MaybeTypeOf;
 /// * [`Module::macro_meta`].
 /// * [`Module::function_meta`].
 ///
-/// [`Module::raw_fn`]: super::Module::raw_fn
+/// [`Module::raw_function`]: super::Module::raw_function
 /// [`Module::function`]: super::Module::function
 /// [`Module::associated_function`]: super::Module::associated_function
 /// [`Module::macro_meta`]: super::Module::macro_meta

@@ -7,7 +7,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, HashSet};
 use crate::compile::context::{AttributeMacroHandler, MacroHandler};
 use crate::compile::{self, meta, ContextError, Docs, Named};
-use crate::function::{Async, Function, FunctionKind, InstanceFunction, Plain};
+use crate::function::{Function, FunctionKind, InstanceFunction, Plain};
 use crate::function_meta::{
     Associated, AssociatedFunctionData, AssociatedName, FunctionArgs, FunctionBuilder,
     FunctionData, FunctionMeta, FunctionMetaKind, MacroMeta, MacroMetaKind, ToFieldFunction,
@@ -23,11 +23,11 @@ use crate::runtime::{
 use crate::{Hash, Item, ItemBuf};
 
 use super::{
-    AssociatedKey, EnumMut, InstallWith, ItemFnMut, ItemMut, ModuleAssociated,
-    ModuleAssociatedKind, ModuleAttributeMacro, ModuleConstantBuilder, ModuleFunction,
-    ModuleFunctionBuilder, ModuleItem, ModuleItemCommon, ModuleItemKind, ModuleMacro, ModuleMeta,
-    ModuleRawFunctionBuilder, ModuleReexport, ModuleTrait, ModuleTraitImpl, ModuleType, TraitMut,
-    TypeMut, TypeSpecification, VariantMut,
+    AssociatedKey, InstallWith, ItemFnMut, ItemMut, ModuleAssociated, ModuleAssociatedKind,
+    ModuleAttributeMacro, ModuleConstantBuilder, ModuleFunction, ModuleFunctionBuilder, ModuleItem,
+    ModuleItemCommon, ModuleItemKind, ModuleMacro, ModuleMeta, ModuleRawFunctionBuilder,
+    ModuleReexport, ModuleTrait, ModuleTraitImpl, ModuleType, TraitMut, TypeMut, TypeSpecification,
+    VariantMut,
 };
 
 #[derive(Debug, TryClone, PartialEq, Eq, Hash)]
@@ -44,7 +44,7 @@ enum Name {
     TraitImpl(Hash, Hash),
 }
 
-/// A [Module] that is a collection of native functions and types.
+/// A [`Module`] that is a collection of native functions and types.
 ///
 /// Needs to be installed into a [Context][crate::compile::Context] using
 /// [Context::install][crate::compile::Context::install].
@@ -262,35 +262,6 @@ impl Module {
         })
     }
 
-    /// Register that the given type is a struct, and that it has the given
-    /// compile-time metadata. This implies that each field has a
-    /// [Protocol::GET] field function.
-    ///
-    /// This is typically not used directly, but is used automatically with the
-    /// [Any][crate::Any] derive.
-    #[deprecated = "Use type_meta::<T>().make_struct(fields) instead"]
-    pub fn struct_meta<T>(&mut self, fields: &'static [&'static str]) -> Result<(), ContextError>
-    where
-        T: ?Sized + TypeOf + Named,
-    {
-        self.type_meta::<T>()?.make_named_struct(fields)?;
-        Ok(())
-    }
-
-    /// Register enum metadata for the given type `T`. This allows an enum to be
-    /// used in limited ways in Rune.
-    #[deprecated = "Use type_meta::<T>().make_enum(variants) instead"]
-    #[doc(hidden)]
-    pub fn enum_meta<T>(
-        &mut self,
-        variants: &'static [&'static str],
-    ) -> Result<EnumMut<'_, T>, ContextError>
-    where
-        T: ?Sized + TypeOf + Named,
-    {
-        self.type_meta::<T>()?.make_enum(variants)
-    }
-
     /// Access variant metadata for the given type and the index of its variant.
     pub fn variant_meta<T>(&mut self, index: usize) -> Result<VariantMut<'_, T>, ContextError>
     where
@@ -330,21 +301,6 @@ impl Module {
             constructor: &mut variant.constructor,
             _marker: PhantomData,
         })
-    }
-
-    /// Register a variant constructor for type `T`.
-    #[deprecated = "Use variant_meta() instead"]
-    pub fn variant_constructor<F, A>(
-        &mut self,
-        index: usize,
-        constructor: F,
-    ) -> Result<(), ContextError>
-    where
-        F: Function<A, Plain, Return: TypeOf + Named>,
-    {
-        self.variant_meta::<F::Return>(index)?
-            .constructor(constructor)?;
-        Ok(())
     }
 
     /// Register a constant value, at a crate, module or associated level.
@@ -875,35 +831,6 @@ impl Module {
         }
     }
 
-    /// See [`Module::function`].
-    #[deprecated = "Use `Module::function`"]
-    pub fn function2<F, A, N, K>(
-        &mut self,
-        name: N,
-        f: F,
-    ) -> Result<ModuleFunctionBuilder<'_, F, A, N, K>, ContextError>
-    where
-        F: Function<A, K, Return: MaybeTypeOf>,
-        A: FunctionArgs,
-        K: FunctionKind,
-    {
-        Ok(ModuleFunctionBuilder {
-            module: self,
-            inner: FunctionBuilder::new(name, f),
-        })
-    }
-
-    /// See [`Module::function`].
-    #[deprecated = "Use Module::function() instead"]
-    pub fn async_function<F, A, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
-    where
-        F: Function<A, Async, Return: MaybeTypeOf>,
-        N: IntoComponent,
-        A: FunctionArgs,
-    {
-        self.function_inner(FunctionData::new(name, f)?, Docs::EMPTY, None)
-    }
-
     /// Register an instance function.
     ///
     /// If possible, [`Module::function_meta`] should be used since it includes
@@ -1099,30 +1026,6 @@ impl Module {
         )
     }
 
-    /// See [`Module::associated_function`].
-    #[deprecated = "Use Module::associated_function() instead"]
-    #[inline]
-    pub fn inst_fn<N, F, A, K>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
-    where
-        N: ToInstance,
-        F: InstanceFunction<A, K, Return: MaybeTypeOf>,
-        A: FunctionArgs,
-        K: FunctionKind,
-    {
-        self.associated_function(name, f)
-    }
-
-    /// See [`Module::associated_function`].
-    #[deprecated = "Use Module::associated_function() instead"]
-    pub fn async_inst_fn<N, F, A>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
-    where
-        N: ToInstance,
-        F: InstanceFunction<A, Async, Return: MaybeTypeOf>,
-        A: FunctionArgs,
-    {
-        self.associated_function(name, f)
-    }
-
     /// Install a protocol function that interacts with the given field.
     ///
     /// This returns a [`ItemMut`], which is a handle that can be used to
@@ -1145,27 +1048,10 @@ impl Module {
         )
     }
 
-    /// See [`Module::field_function`].
-    #[deprecated = "Use Module::field_function() instead"]
-    #[inline]
-    pub fn field_fn<N, F, A>(
-        &mut self,
-        protocol: &'static Protocol,
-        name: N,
-        f: F,
-    ) -> Result<ItemFnMut<'_>, ContextError>
-    where
-        N: ToFieldFunction,
-        F: InstanceFunction<A, Plain, Return: MaybeTypeOf>,
-        A: FunctionArgs,
-    {
-        self.field_function(protocol, name, f)
-    }
-
     /// Install a protocol function that interacts with the given index.
     ///
-    /// An index can either be a field inside a tuple, or a variant inside of an
-    /// enum as configured with [Module::enum_meta].
+    /// An index can either be a field inside a tuple or the equivalent inside
+    /// of a variant.
     pub fn index_function<F, A>(
         &mut self,
         protocol: &'static Protocol,
@@ -1182,22 +1068,6 @@ impl Module {
             Docs::EMPTY,
             None,
         )
-    }
-
-    /// See [`Module::index_function`].
-    #[deprecated = "Use Module::index_function() instead"]
-    #[inline]
-    pub fn index_fn<F, A>(
-        &mut self,
-        protocol: &'static Protocol,
-        index: usize,
-        f: F,
-    ) -> Result<ItemFnMut<'_>, ContextError>
-    where
-        F: InstanceFunction<A, Plain, Return: MaybeTypeOf>,
-        A: FunctionArgs,
-    {
-        self.index_function(protocol, index, f)
     }
 
     /// Register a raw function which interacts directly with the virtual
@@ -1243,16 +1113,6 @@ impl Module {
             name,
             handler: Arc::new(move |stack, addr, args, output| f(stack, addr, args, output)),
         }
-    }
-
-    /// See [`Module::raw_function`].
-    #[deprecated = "Use `raw_function` builder instead"]
-    pub fn raw_fn<F, N>(&mut self, name: N, f: F) -> Result<ItemFnMut<'_>, ContextError>
-    where
-        F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
-        N: IntoComponent,
-    {
-        self.raw_function(name, f).build()
     }
 
     fn function_inner(

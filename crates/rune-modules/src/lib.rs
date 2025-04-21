@@ -87,7 +87,6 @@ macro_rules! entry {
             let mut context = rune::Context::with_config(stdio)?;
 
             $(
-                #[allow(deprecated)]
                 #[cfg(feature = $name)]
                 {
                     context.install(self::$ident::module(stdio)?)?;
@@ -126,9 +125,6 @@ pub mod rand;
 #[cfg(feature = "signal")]
 pub mod signal;
 
-#[cfg(feature = "test")]
-pub mod test;
-
 #[cfg(feature = "time")]
 pub mod time;
 
@@ -143,7 +139,6 @@ entry! {
     {process, "process"},
     {rand, "rand"},
     {signal, "signal"},
-    {test, "test"},
     {time, "time"},
     {toml, "toml", ser, de},
 }
