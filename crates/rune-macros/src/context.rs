@@ -13,6 +13,50 @@ use rune_core::protocol::Protocol;
 
 use super::RUNE;
 
+#[derive(Default, Clone)]
+pub(super) enum CloneWith {
+    /// Use `rune::alloc::clone::TryClone`.
+    #[default]
+    TryClone,
+    /// Use `::alloc::clone::Clone`.
+    Clone,
+    /// The field is `Copy`.
+    Copy,
+    /// The field can be cloned with the given function.
+    With(syn::Path),
+    /// The field can be fallibly cloned with the given function.
+    TryWith(syn::Path),
+}
+
+impl CloneWith {
+    pub(super) fn decorate(&self, tokens: &Tokens, access: TokenStream) -> TokenStream {
+        let Tokens {
+            try_clone,
+            clone,
+            vm_try,
+            ..
+        } = tokens;
+
+        match self {
+            Self::TryClone => {
+                quote!(#vm_try!(#try_clone::try_clone(#access)))
+            }
+            Self::Clone => {
+                quote!(#clone::clone(#access))
+            }
+            Self::Copy => {
+                quote!(*#access)
+            }
+            Self::With(path) => {
+                quote!(#path(#access))
+            }
+            Self::TryWith(path) => {
+                quote!(#vm_try!(#path(#access)))
+            }
+        }
+    }
+}
+
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
 #[must_use = "Attributes must be used or explicitly ignored"]
@@ -30,13 +74,12 @@ pub(crate) struct FieldAttrs {
     pub(crate) meta: Option<Span>,
     /// A single field marked with `#[rune(span)]`.
     pub(crate) span: Option<Span>,
-    /// Custom parser `#[rune(parse_with = "..")]`.
-    pub(crate) parse_with: Option<syn::Ident>,
+    /// Custom parser `#[rune(parse_with)]`.
+    pub(crate) parse_with: Option<syn::Path>,
     /// `#[rune(..)]` to generate a protocol function.
     pub(crate) protocols: Vec<FieldProtocol>,
-    /// `#[rune(copy)]` to indicate that a field is copy and does not need to be
-    /// cloned.
-    pub(crate) copy: bool,
+    /// The method to use when cloning the field.
+    pub(crate) clone_with: CloneWith,
     /// Whether this field should be known at compile time or not.
     pub(crate) field: bool,
 }
@@ -419,7 +462,24 @@ impl Context {
                 }
 
                 if meta.path.is_ident("copy") {
-                    attr.copy = true;
+                    attr.clone_with = CloneWith::Copy;
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("clone") {
+                    attr.clone_with = CloneWith::Clone;
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("clone_with") {
+                    meta.input.parse::<Token![=]>()?;
+                    attr.clone_with = CloneWith::With(meta.input.parse()?);
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("try_clone_with") {
+                    meta.input.parse::<Token![=]>()?;
+                    attr.clone_with = CloneWith::TryWith(meta.input.parse()?);
                     return Ok(());
                 }
 
@@ -427,7 +487,7 @@ impl Context {
                     if let Some(old) = &attr.parse_with {
                         let mut error = syn::Error::new_spanned(
                             &meta.path,
-                            "#[rune(parse_with = \"..\")] can only be used once",
+                            "#[rune(parse_with)] can only be used once",
                         );
 
                         error.combine(syn::Error::new_spanned(old, "previously defined here"));
@@ -435,8 +495,7 @@ impl Context {
                     }
 
                     meta.input.parse::<Token![=]>()?;
-                    let s = meta.input.parse::<syn::LitStr>()?;
-                    attr.parse_with = Some(syn::Ident::new(&s.value(), s.span()));
+                    attr.parse_with = Some(meta.input.parse()?);
                     return Ok(());
                 }
 
@@ -451,20 +510,13 @@ impl Context {
                             } = g;
 
                             let Tokens {
-                                try_clone,
-                                vm_try,
                                 vm_result,
                                 ..
                             } = g.tokens;
 
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
-                                    let access = if g.attrs.copy {
-                                        quote!(s.#field_ident)
-                                    } else {
-                                        quote!(#vm_try!(#try_clone::try_clone(&s.#field_ident)))
-                                    };
-
+                                    let access = g.attrs.clone_with.decorate(g.tokens, quote!(&s.#field_ident));
                                     let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
@@ -472,12 +524,7 @@ impl Context {
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
-                                    let access = if g.attrs.copy {
-                                        quote!(s.#field_index)
-                                    } else {
-                                        quote!(#vm_try!(#try_clone::try_clone(&s.#field_index)))
-                                    };
-
+                                    let access = g.attrs.clone_with.decorate(g.tokens, quote!(&s.#field_index));
                                     let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
@@ -783,6 +830,7 @@ impl Context {
             any_t: path(m, ["Any"]),
             any_type_info: path(m, ["runtime", "AnyTypeInfo"]),
             arc: path(m, ["__private", "Arc"]),
+            clone: path(m, ["__private", "Clone"]),
             compile_error: path(m, ["compile", "Error"]),
             const_construct_t: path(m, ["runtime", "ConstConstruct"]),
             const_value: path(m, ["runtime", "ConstValue"]),
@@ -877,6 +925,7 @@ pub(crate) struct Tokens {
     pub(crate) any_t: syn::Path,
     pub(crate) any_type_info: syn::Path,
     pub(crate) arc: syn::Path,
+    pub(crate) clone: syn::Path,
     pub(crate) compile_error: syn::Path,
     pub(crate) const_construct_t: syn::Path,
     pub(crate) const_value: syn::Path,

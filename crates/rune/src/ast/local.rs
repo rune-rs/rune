@@ -27,7 +27,7 @@ pub struct Local {
     /// The equality keyword.
     pub eq: T![=],
     /// The expression the binding is assigned to.
-    #[rune(parse_with = "parse_expr")]
+    #[rune(parse_with = parse_expr)]
     pub expr: ast::Expr,
     /// Trailing semicolon of the local.
     pub semi: T![;],

@@ -78,6 +78,60 @@ pub fn main(external) {
 }
 ```
 
+## Customizing how fields are cloned with `#[rune(get)]`
+
+In order to return a value through `#[rune(get)]`, the value has to be cloned.
+
+By default, this is done through the [`TryClone` trait], but its behavior can be
+customized through the following attributes:
+
+#### `#[rune(copy)]`
+
+This indicates that the field is `Copy`.
+
+#### `#[rune(clone)]`
+
+This indicates that the field should use `std::clone::Clone` to clone the value.
+Note that this effecitvely means that the memory the value uses during cloning
+is *not* tracked and should be avoided in favor of using [`rune::alloc`] and the
+[`TryClone` trait] without good reason.
+
+#### `#[rune(clone_with = <path>)]`
+
+This specified a custom method that should be used to clone the value.
+
+```rust,noplaypen
+use rune::Any;
+
+use std::sync::Arc;
+
+#[derive(Any)]
+struct External {
+    #[rune(get, clone_with = Thing::clone)]
+    field: Thing,
+}
+
+#[derive(Any, Clone)]
+struct Thing {
+    name: Arc<String>,
+}
+```
+
+#### `#[rune(try_clone_with = <path>)]`
+
+This specified a custom method that should be used to clone the value.
+
+```rust,noplaypen
+use rune::Any;
+use rune::prelude::*;
+
+#[derive(Any)]
+struct External {
+    #[rune(get, try_clone_with = String::try_clone)]
+    field: String,
+}
+```
+
 ## Custom field function
 
 Using the `Any` derive, you can specify a custom field function by using an
@@ -95,15 +149,17 @@ $> cargo run --example checked_add_assign
 Error: numerical overflow (at inst 2)
 ```
 
-[`Protocol::GET`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.GET
-[`Protocol::SET`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.SET
 [`Protocol::ADD_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.ADD_ASSIGN
-[`Protocol::SUB_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.SUB_ASSIGN
-[`Protocol::MUL_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.MUL_ASSIGN
-[`Protocol::DIV_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.DIV_ASSIGN
 [`Protocol::BIT_AND_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.BIT_AND_ASSIGN
 [`Protocol::BIT_OR_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.BIT_OR_ASSIGN
 [`Protocol::BIT_XOR_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.BIT_XOR_ASSIGN
+[`Protocol::DIV_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.DIV_ASSIGN
+[`Protocol::GET`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.GET
+[`Protocol::MUL_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.MUL_ASSIGN
+[`Protocol::REM_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.REM_ASSIGN
+[`Protocol::SET`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.SET
 [`Protocol::SHL_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.SHL_ASSIGN
 [`Protocol::SHR_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.SHR_ASSIGN
-[`Protocol::REM_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.REM_ASSIGN
+[`Protocol::SUB_ASSIGN`]: https://docs.rs/rune/0/rune/runtime/struct.Protocol.html#associatedconstant.SUB_ASSIGN
+[`rune::alloc`]: https://docs.rs/rune/0/rune/alloc/
+[`TryClone` trait]: https://docs.rs/rune/0/rune/alloc/clone/trait.TryClone.html

@@ -7,6 +7,7 @@ use core::fmt;
 
 use rust_alloc::sync::Arc;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -107,7 +108,7 @@ impl ToConstValue for Value {
     }
 }
 
-#[derive(Debug, TryClone, Deserialize, Serialize)]
+#[derive(Debug, TryClone, Deserialize, Serialize, Encode, Decode)]
 pub(crate) enum ConstValueKind {
     /// An inline constant value.
     Inline(#[try_clone(copy)] Inline),
@@ -149,8 +150,9 @@ impl ConstValueKind {
 }
 
 /// A constant value.
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Encode, Decode)]
 #[serde(transparent)]
+#[musli(transparent)]
 pub struct ConstValue {
     kind: ConstValueKind,
 }

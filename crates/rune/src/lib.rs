@@ -672,8 +672,12 @@ pub mod __private {
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
     pub use crate::runtime::{TypeHash, TypeOf};
+    #[cfg(feature = "alloc")]
     pub use rust_alloc::boxed::Box;
+    #[cfg(feature = "alloc")]
     pub use rust_alloc::sync::Arc;
+    #[cfg(feature = "std")]
+    pub use std::clone::Clone;
 }
 
 mod musli;

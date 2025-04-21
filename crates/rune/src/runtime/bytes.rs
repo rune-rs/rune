@@ -5,6 +5,7 @@
 use core::fmt;
 use core::ops;
 
+use musli::{Decode, Encode};
 use serde::de;
 use serde::ser;
 
@@ -21,9 +22,11 @@ use super::{
 };
 
 /// A vector of bytes.
-#[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Encode, Decode)]
+#[musli(transparent)]
 #[rune(item = ::std::bytes)]
 pub struct Bytes {
+    #[musli(bytes)]
     bytes: Vec<u8>,
 }
 
@@ -503,6 +506,7 @@ impl PartialEq<Bytes> for [u8] {
 }
 
 impl ser::Serialize for Bytes {
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: ser::Serializer,
@@ -512,6 +516,7 @@ impl ser::Serialize for Bytes {
 }
 
 impl<'de> de::Deserialize<'de> for Bytes {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,

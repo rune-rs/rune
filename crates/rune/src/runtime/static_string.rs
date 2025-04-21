@@ -3,6 +3,7 @@ use core::fmt;
 use core::hash;
 use core::ops;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::alloc::prelude::*;
@@ -10,7 +11,7 @@ use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash};
 
 /// Struct representing a static string.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Encode, Decode)]
 pub struct StaticString {
     inner: String,
     hash: Hash,

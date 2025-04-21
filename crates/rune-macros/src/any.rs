@@ -347,10 +347,9 @@ fn expand_enum_install_with(
         runtime_error,
         to_value,
         vm_result,
-        vm_try,
         any_t,
-        try_clone,
         hash,
+        vm_try,
         ..
     } = tokens;
 
@@ -412,13 +411,8 @@ fn expand_enum_install_with(
 
                         let fields = field_fns.entry(f_name).or_default();
 
-                        let to_value = if attrs.copy {
-                            quote!(#vm_try!(#to_value::to_value(*#f_ident)))
-                        } else {
-                            quote!(#vm_try!(#to_value::to_value(#vm_try!(#try_clone::try_clone(#f_ident)))))
-                        };
-
-                        fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #vm_result::Ok(#to_value)));
+                        let access = attrs.clone_with.decorate(tokens, quote!(#f_ident));
+                        fields.push(quote!(#ident::#variant_ident { #f_ident, .. } => #vm_result::Ok(#vm_try!(#to_value::to_value(#access)))));
                     }
                 }
 
@@ -444,13 +438,8 @@ fn expand_enum_install_with(
                         let fields = index_fns.entry(n).or_default();
                         let n = syn::LitInt::new(&n.to_string(), span);
 
-                        let to_value = if attrs.copy {
-                            quote!(#vm_try!(#to_value::to_value(*value)))
-                        } else {
-                            quote!(#vm_try!(#to_value::to_value(#vm_try!(#try_clone::try_clone(value)))))
-                        };
-
-                        fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #vm_result::Ok(#to_value)));
+                        let access = attrs.clone_with.decorate(tokens, quote!(value));
+                        fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #vm_result::Ok(#vm_try!(#to_value::to_value(#access)))));
                     }
                 }
 

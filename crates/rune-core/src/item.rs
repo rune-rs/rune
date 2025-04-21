@@ -22,6 +22,8 @@ pub use self::into_component::IntoComponent;
 
 mod internal;
 
+#[cfg(feature = "musli")]
+mod musli;
 mod serde;
 
 #[cfg(test)]

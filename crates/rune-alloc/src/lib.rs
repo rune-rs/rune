@@ -146,6 +146,9 @@ pub mod prelude {
     pub use crate::{try_format, try_vec};
 }
 
+#[cfg(feature = "musli")]
+mod musli;
+
 pub mod limit;
 
 #[cfg(test)]

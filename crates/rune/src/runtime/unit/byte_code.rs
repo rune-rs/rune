@@ -1,5 +1,6 @@
 use core::mem::size_of;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -11,11 +12,11 @@ use crate::runtime::Inst;
 /// Unit stored as byte code, which is a more compact representation than
 /// `ArrayUnit`, but takes more time to execute since it needs to be decoded as
 /// it's being executed.
-#[derive(Debug, TryClone, Default, Serialize, Deserialize)]
+#[derive(Debug, TryClone, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct ByteCodeUnit {
     /// The instructions contained in the source file.
-    #[try_clone(with = Clone::clone)]
-    bytes: rust_alloc::vec::Vec<u8>,
+    #[musli(bytes)]
+    bytes: Vec<u8>,
     /// Known jump offsets.
     offsets: Vec<usize>,
 }
@@ -49,7 +50,7 @@ impl UnitEncoder for ByteCodeUnit {
 
     #[inline]
     fn encode(&mut self, inst: Inst) -> Result<(), EncodeError> {
-        musli::storage::encode(&mut self.bytes, &inst)?;
+        musli::storage::to_writer(&mut self.bytes, &inst)?;
         Ok(())
     }
 

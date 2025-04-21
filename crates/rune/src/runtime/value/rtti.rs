@@ -4,6 +4,7 @@ use core::hash;
 
 use rust_alloc::sync::Arc;
 
+use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::alloc::prelude::*;
@@ -32,7 +33,7 @@ impl Accessor<'_> {
 }
 
 /// The kind of value stored.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum RttiKind {
     /// The value stored is empty.
@@ -44,7 +45,7 @@ pub(crate) enum RttiKind {
 }
 
 /// Runtime information on variant.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Encode, Decode)]
 #[non_exhaustive]
 pub struct Rtti {
     /// The kind of value.

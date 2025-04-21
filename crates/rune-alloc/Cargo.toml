@@ -27,6 +27,7 @@ raw = []
 rune-alloc-macros = { version = "=0.14.0", path = "../rune-alloc-macros" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
+musli = { version = "0.0.131", default-features = false, features = ["alloc"], optional = true }
 ahash = { version = "0.8.8", default-features = false }
 pin-project = "1.1.0"
 

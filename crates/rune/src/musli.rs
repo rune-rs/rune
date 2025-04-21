@@ -3,21 +3,23 @@ pub(crate) mod ordering {
 
     use musli::{Context, Decoder, Encoder};
 
-    pub(crate) fn encode<E>(ordering: &Ordering, _: &E::Cx, encoder: E) -> Result<E::Ok, E::Error>
+    pub(crate) fn encode<E>(value: &Ordering, encoder: E) -> Result<(), E::Error>
     where
         E: Encoder,
     {
-        match ordering {
+        match value {
             Ordering::Less => encoder.encode_i8(-1),
             Ordering::Equal => encoder.encode_i8(0),
             Ordering::Greater => encoder.encode_i8(1),
         }
     }
 
-    pub(crate) fn decode<'de, D>(cx: &D::Cx, decoder: D) -> Result<Ordering, D::Error>
+    pub(crate) fn decode<'de, D>(decoder: D) -> Result<Ordering, D::Error>
     where
         D: Decoder<'de>,
     {
+        let cx = decoder.cx();
+
         match decoder.decode_i8()? {
             -1 => Ok(Ordering::Less),
             0 => Ok(Ordering::Equal),
