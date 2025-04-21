@@ -17,7 +17,7 @@ use crate::{Any, ContextError, Module, Params};
 /// This module contains types and methods for working with iterators in Rune.
 #[rune::module(::std::iter)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<Rev>()?;
     m.function_meta(Rev::next__meta)?;

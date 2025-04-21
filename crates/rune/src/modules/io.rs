@@ -18,9 +18,9 @@ use crate::{ContextError, Module};
 pub fn module(
     #[cfg_attr(not(feature = "std"), allow(unused))] stdio: bool,
 ) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?.with_unique("std::io");
+    let mut m = Module::from_meta(self::module__meta)?.with_unique("std::io");
 
-    module.item_mut().docs(docstring! {
+    m.item_mut().docs(docstring! {
         /// The std::io module contains a number of common things
         /// you’ll need when doing input and output.
         /// The most core parts of this module are the [print()], [println()],
@@ -37,47 +37,44 @@ pub fn module(
     })?;
 
     #[cfg(feature = "std")]
-    module.ty::<io::Error>()?;
+    m.ty::<io::Error>()?;
     #[cfg(feature = "std")]
-    module.function_meta(io_error_display_fmt)?;
+    m.function_meta(io_error_display_fmt)?;
     #[cfg(feature = "std")]
-    module.function_meta(io_error_debug_fmt)?;
+    m.function_meta(io_error_debug_fmt)?;
 
     #[cfg(feature = "std")]
     if stdio {
-        module.function_meta(print_impl)?;
-        module.function_meta(println_impl)?;
+        m.function_meta(print_impl)?;
+        m.function_meta(println_impl)?;
 
-        module
-            .raw_function("dbg", dbg_impl)
-            .build()?
-            .docs(docstring! {
-                /// Debug to output.
-                ///
-                /// This is the actual output hook, and if you install rune modules without
-                /// `I/O` enabled this will not be defined. It is then up to someone else to
-                /// provide an implementation.
-                ///
-                /// # Examples
-                ///
-                /// ```rune
-                /// let number = 10;
-                /// let number = number * 4;
-                ///
-                /// let who = "World";
-                /// let string = format!("Hello {who}");
-                ///
-                /// dbg(number, string);
-                /// ```
-            })?;
+        m.raw_function("dbg", dbg_impl).build()?.docs(docstring! {
+            /// Debug to output.
+            ///
+            /// This is the actual output hook, and if you install rune modules without
+            /// `I/O` enabled this will not be defined. It is then up to someone else to
+            /// provide an implementation.
+            ///
+            /// # Examples
+            ///
+            /// ```rune
+            /// let number = 10;
+            /// let number = number * 4;
+            ///
+            /// let who = "World";
+            /// let string = format!("Hello {who}");
+            ///
+            /// dbg(number, string);
+            /// ```
+        })?;
     }
 
     // These are unconditionally included, but using them might cause a
     // compilation error unless `::std::io::*` functions are provided somehow.
-    module.macro_meta(dbg_macro)?;
-    module.macro_meta(print_macro)?;
-    module.macro_meta(println_macro)?;
-    Ok(module)
+    m.macro_meta(dbg_macro)?;
+    m.macro_meta(print_macro)?;
+    m.macro_meta(println_macro)?;
+    Ok(m)
 }
 
 #[rune::function(instance, protocol = DISPLAY_FMT)]

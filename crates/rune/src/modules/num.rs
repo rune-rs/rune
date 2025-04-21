@@ -11,7 +11,7 @@ use crate::{ContextError, Module};
 /// when a number cannot be parsed.
 #[rune::module(::std::num)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut module = Module::from_meta(self::module__meta)?;
     module.ty::<ParseFloatError>()?;
     module.ty::<ParseIntError>()?;
     Ok(module)

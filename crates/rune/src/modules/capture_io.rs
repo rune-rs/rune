@@ -29,7 +29,7 @@ use crate::{ContextError, Module, Value};
 /// I/O module capable of capturing what's been written to a buffer.
 #[rune::module(::std::io)]
 pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut module = Module::from_meta(self::module__meta)?;
 
     let o = io.clone();
 

@@ -14,7 +14,7 @@ use crate::{docstring, ContextError, Hash, Module};
 /// constructed through the [`Type::of_val`] function.
 #[rune::module(::std::any)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<Type>()?.docs(docstring! {
         /// Represents a type in the Rune type system.

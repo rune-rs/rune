@@ -11,7 +11,7 @@ use crate::{Any, ContextError, Module};
 /// A dynamic hash map.
 #[rune::module(::std::collections::hash_map)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<HashMap>()?;
     m.function_meta(HashMap::new__meta)?;

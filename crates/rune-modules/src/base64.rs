@@ -18,13 +18,13 @@ use rune::{vm_panic, ContextError, Module};
 /// assert_eq!(base64::decode(encoded), Ok(b"\xFF\xEC\x20\x55\0"));
 /// ```
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
-    module.ty::<DecodeError>()?;
+    m.ty::<DecodeError>()?;
 
-    module.function_meta(decode)?;
-    module.function_meta(encode)?;
-    Ok(module)
+    m.function_meta(decode)?;
+    m.function_meta(encode)?;
+    Ok(m)
 }
 
 /// Decode a base64 String into data

@@ -43,7 +43,7 @@ use crate::{ContextError, Module};
 /// ```
 #[rune::module(::std::vec)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<Vec>()?.docs(docstring! {
         /// A dynamic vector.

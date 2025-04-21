@@ -12,7 +12,7 @@ use crate::{Any, ContextError, Module, T};
 /// Testing and benchmarking.
 #[rune::module(::std::test)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?.with_unique("std::test");
+    let mut m = Module::from_meta(self::module__meta)?.with_unique("std::test");
 
     m.macro_meta(assert)?;
     m.macro_meta(assert_eq)?;

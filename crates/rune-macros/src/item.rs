@@ -1,10 +1,16 @@
 use core::mem::take;
 
 use proc_macro2::Span;
-use rune_core::item::{ComponentRef, ItemBuf};
+use rune_core::item::{ComponentRef, Item, ItemBuf};
 
 /// Construct a static item from a path.
 pub(crate) fn build_item(path: &syn::Path) -> syn::Result<syn::ExprArray> {
+    let buf = build_buf(path)?;
+    Ok(buf_as_bytes(&buf))
+}
+
+/// Construct a static item from a path.
+pub(crate) fn build_buf(path: &syn::Path) -> syn::Result<ItemBuf> {
     let mut buf = ItemBuf::new();
     let mut first = path.leading_colon.is_some();
 
@@ -37,6 +43,10 @@ pub(crate) fn build_item(path: &syn::Path) -> syn::Result<syn::ExprArray> {
         }
     }
 
+    Ok(buf)
+}
+
+pub(crate) fn buf_as_bytes(buf: &Item) -> syn::ExprArray {
     let mut elems = syn::punctuated::Punctuated::new();
 
     for &byte in buf.as_bytes() {
@@ -48,9 +58,9 @@ pub(crate) fn build_item(path: &syn::Path) -> syn::Result<syn::ExprArray> {
         }));
     }
 
-    Ok(syn::ExprArray {
+    syn::ExprArray {
         attrs: Vec::new(),
         bracket_token: syn::token::Bracket::default(),
         elems,
-    })
+    }
 }

@@ -18,7 +18,7 @@ use crate::{ContextError, Module};
 /// I/O methods which will cause any output to be ignored.
 #[rune::module(::std::io)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::from_meta(self::module_meta)?;
+    let mut module = Module::from_meta(self::module__meta)?;
 
     module.function("print", move |_: &str| {}).build()?;
     module.function("println", move |_: &str| {}).build()?;

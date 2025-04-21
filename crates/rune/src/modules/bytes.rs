@@ -13,7 +13,7 @@ use crate::{ContextError, Module, Value};
 /// The bytes module.
 #[rune::module(::std::bytes)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<Bytes>()?;
     m.function_meta(new)?;

@@ -278,6 +278,43 @@ pub mod support;
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "workspace")))]
 pub mod workspace;
 
+/// Macro used to annotate native functions which can be loaded as attribute
+/// macros in rune.
+///
+/// See [`Module::macro_meta`][crate::Module::macro_meta].
+///
+/// # Examples
+///
+/// ```
+/// use rune::Module;
+/// use rune::ast;
+/// use rune::compile;
+/// use rune::macros::{quote, MacroContext, TokenStream};
+/// use rune::parse::Parser;
+/// use rune::alloc::prelude::*;
+///
+/// /// Takes an identifier and converts it into a string.
+/// ///
+/// /// # Examples
+/// ///
+/// /// ```rune
+/// /// assert_eq!(ident_to_string!(Hello), "Hello");
+/// /// ```
+/// #[rune::macro_]
+/// fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+///     let mut p = Parser::from_token_stream(stream, cx.input_span());
+///     let ident = p.parse_all::<ast::Ident>()?;
+///     let ident = cx.resolve(ident)?.try_to_owned()?;
+///     let string = cx.lit(&ident)?;
+///     Ok(quote!(#string).into_token_stream(cx)?)
+/// }
+///
+/// let mut m = Module::new();
+/// m.macro_meta(ident_to_string)?;
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+pub use rune_macros::attribute_macro;
+
 /// Macro used to annotate native functions which can be loaded into rune.
 ///
 /// This macro automatically performs the following things:
@@ -612,39 +649,139 @@ pub mod workspace;
 /// }
 /// ```
 ///
+/// [`vm_try!`]: crate::vm_try
 /// [`VmResult`]: crate::runtime::VmResult
-/// [`vm_try!`]: crate::vm_try!
 pub use rune_macros::function;
+
+/// Calculate a type hash at compile time.
+///
+/// By default this uses the `rune` crate.
+///
+/// # Examples
+///
+/// ```
+/// use rune::Hash;
+///
+/// let hash: Hash = rune::hash!(::std::option::Option::Some);
+/// ```
+pub use rune_macros::hash;
+
+/// Calculate a type hash at compile time using a custom crate.
+///
+/// By default the [`hash!`] macro uses the `rune` crate.
+///
+/// # Examples
+///
+/// ```
+/// use rune_core::hash::Hash;
+///
+/// let hash: Hash = rune::hash_in!(rune_core::hash, ::std::option::Option::Some);
+/// ```
+pub use rune_macros::hash_in;
+
+/// Construct an [`Item`] reference at compile time.
+///
+/// # Examples
+///
+/// ```
+/// use rune::{Item, ItemBuf};
+///
+/// static ITEM: &Item = rune::item!(::std::ops::generator::Generator);
+///
+/// let mut item = ItemBuf::with_crate("std")?;
+/// item.push("ops")?;
+/// item.push("generator")?;
+/// item.push("Generator")?;
+///
+/// assert_eq!(item, ITEM);
+/// # Ok::<_, rune::alloc::Error>(())
+/// ```
+pub use rune_macros::item;
+
+/// Construct an [`Item`] reference at compile time.
+///
+/// This variant of the [`item!`] macro allows the module that's used to be
+/// specified as the first argument. By default this is `rune`.
+///
+/// # Examples
+///
+/// ```
+/// use rune_core::item::{Item, ItemBuf};
+/// use rune_macros::item_in;
+///
+/// static ITEM: &Item = rune::item_in!(rune_core::item, ::std::ops::generator::Generator);
+///
+/// let mut item = ItemBuf::with_crate("std")?;
+/// item.push("ops")?;
+/// item.push("generator")?;
+/// item.push("Generator")?;
+///
+/// assert_eq!(item, ITEM);
+/// # Ok::<_, rune_core::alloc::Error>(())
+/// ```
+pub use rune_macros::item_in;
 
 /// Macro used to annotate native functions which can be loaded as macros in
 /// rune.
 ///
-/// See [`Module::macro_meta`].
-#[doc(hidden)]
-pub use rune_macros::macro_;
-
-/// Macro used to annotate native functions which can be loaded as attribute
-/// macros in rune.
+/// See [`Module::macro_meta`][crate::Module::macro_meta].
 ///
-/// See [`Module::macro_meta`].
-#[doc(hidden)]
-pub use rune_macros::attribute_macro;
+/// # Examples
+///
+/// ```
+/// use rune::Module;
+/// use rune::ast;
+/// use rune::compile;
+/// use rune::macros::{quote, MacroContext, TokenStream};
+/// use rune::parse::Parser;
+/// use rune::alloc::prelude::*;
+///
+/// /// Takes an identifier and converts it into a string.
+/// ///
+/// /// # Examples
+/// ///
+/// /// ```rune
+/// /// assert_eq!(ident_to_string!(Hello), "Hello");
+/// /// ```
+/// #[rune::macro_]
+/// fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
+///     let mut p = Parser::from_token_stream(stream, cx.input_span());
+///     let ident = p.parse_all::<ast::Ident>()?;
+///     let ident = cx.resolve(ident)?.try_to_owned()?;
+///     let string = cx.lit(&ident)?;
+///     Ok(quote!(#string).into_token_stream(cx)?)
+/// }
+///
+/// let mut m = Module::new();
+/// m.macro_meta(ident_to_string)?;
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+pub use rune_macros::macro_;
 
 /// Macro used to annotate a module with metadata.
 ///
 /// ThIs defines a local function `module_meta` which can be used in conjunction
 /// with [`Module::from_meta`] to construct a module with a given item and
 /// captured documentation.
-#[doc(inline)]
+///
+/// [`Module::from_meta`]: crate::module::Module::from_meta
+///
+/// # Examples
+///
+/// ```
+/// use rune::{ContextError, Module};
+///
+/// /// Utilities for working with colors.
+/// #[rune::module(::color)]
+/// pub fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::from_meta(module__meta)?;
+///
+///     // Populate module.
+///
+///     Ok(m)
+/// }
+/// ```
 pub use rune_macros::module;
-
-#[doc(inline)]
-pub use rune_macros::hash;
-
-#[doc(inline)]
-pub(crate) use rune_macros::hash_in;
-
-pub use rune_macros::item;
 
 #[cfg(feature = "cli")]
 mod ace;
@@ -654,6 +791,7 @@ mod ace;
 pub mod cli;
 
 #[cfg(feature = "languageserver")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "languageserver")))]
 pub mod languageserver;
 
 #[cfg(feature = "doc")]
@@ -662,7 +800,7 @@ pub(crate) mod doc;
 
 /// Privately exported details.
 #[doc(hidden)]
-pub mod __private {
+pub mod __priv {
     pub use crate::any::AnyMarker;
     pub use crate::function_meta::{
         FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
@@ -670,7 +808,14 @@ pub mod __private {
     pub use crate::item::ItemBuf;
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
-    pub use crate::runtime::{TypeHash, TypeOf};
+    pub use crate::runtime::{
+        AnyTypeInfo, ConstConstruct, ConstValue, FromConstValue, FromValue, MaybeTypeOf, Object,
+        OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue, ToValue, Tuple, TypeHash,
+        TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue, Value, ValueMutGuard,
+        ValueRefGuard, VmResult,
+    };
+    pub use crate::Item;
+
     pub use core::clone::Clone;
     pub use rust_alloc::boxed::Box;
     pub use rust_alloc::sync::Arc;

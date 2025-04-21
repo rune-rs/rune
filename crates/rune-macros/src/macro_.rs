@@ -180,9 +180,9 @@ impl Macro {
         stream.extend(quote! {
             /// Get function metadata.
             #[automatically_derived]
-            #meta_vis fn #meta_fn() -> rune::alloc::Result<rune::__private::MacroMetaData> {
-                Ok(rune::__private::MacroMetaData {
-                    kind: rune::__private::MacroMetaKind::#macro_kind(#meta_name, #real_fn_path)?,
+            #meta_vis fn #meta_fn() -> rune::alloc::Result<rune::__priv::MacroMetaData> {
+                Ok(rune::__priv::MacroMetaData {
+                    kind: rune::__priv::MacroMetaKind::#macro_kind(#meta_name, #real_fn_path)?,
                     name: #name_string,
                     docs: &#docs[..],
                 })

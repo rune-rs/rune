@@ -35,7 +35,7 @@ use crate::{ContextError, Module};
 /// ```
 #[rune::module(::std::object)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<Object>()?;
 

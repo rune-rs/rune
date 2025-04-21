@@ -7,7 +7,7 @@ use crate::{ContextError, Module};
 /// Asynchronous streams.
 #[rune::module(::std::stream)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
     m.ty::<Stream>()?;
     m.function_meta(Stream::next_shared__meta)?;
     m.function_meta(Stream::resume_shared__meta)?;

@@ -31,7 +31,7 @@ use crate::{Any, ContextError, Module, TypeHash};
 /// ```
 #[rune::module(::std::string)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.ty::<String>()?;
 

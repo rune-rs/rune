@@ -105,22 +105,35 @@
 //! ```
 
 mod format_args;
-mod into_lit;
-mod macro_compiler;
-mod macro_context;
-mod quote_fn;
-mod storage;
-mod token_stream;
-
+#[doc(inline)]
 pub use self::format_args::FormatArgs;
+
+mod into_lit;
+#[doc(inline)]
 pub use self::into_lit::IntoLit;
+
+mod macro_compiler;
+#[doc(inline)]
 pub(crate) use self::macro_compiler::MacroCompiler;
+
+mod macro_context;
 #[cfg(feature = "std")]
+#[doc(inline)]
 pub use self::macro_context::test;
+#[doc(inline)]
 pub use self::macro_context::MacroContext;
+
+mod quote_fn;
+#[doc(inline)]
 pub use self::quote_fn::{quote_fn, Quote};
+
+mod storage;
 pub(crate) use self::storage::Storage;
+#[doc(inline)]
 pub use self::storage::{SyntheticId, SyntheticKind};
+
+mod token_stream;
+#[doc(inline)]
 pub use self::token_stream::{ToTokens, TokenStream, TokenStreamIter};
 
 /// Macro helper function for quoting the token stream as macro output.

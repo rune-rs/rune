@@ -9,12 +9,15 @@ use crate::compile::context::{AttributeMacroHandler, MacroHandler, TraitHandler}
 use crate::compile::{meta, Docs};
 use crate::function_meta::AssociatedName;
 use crate::runtime::{ConstValue, FieldMap, FunctionHandler, TypeInfo};
-use crate::{Hash, ItemBuf};
+use crate::{Hash, Item, ItemBuf};
 
+/// Static module metadata.
+///
+/// Note that this is not public API and should not be used directly.
 #[doc(hidden)]
 pub struct ModuleMetaData {
     #[doc(hidden)]
-    pub item: ItemBuf,
+    pub item: &'static Item,
     #[doc(hidden)]
     pub docs: &'static [&'static str],
 }

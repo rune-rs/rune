@@ -15,7 +15,7 @@ use crate::{ContextError, Module};
 /// Module defining collections.
 #[rune::module(::std::collections)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     m.reexport(
         ["HashMap"],

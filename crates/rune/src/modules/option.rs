@@ -18,7 +18,7 @@ use crate::{hash_in, ContextError, Hash, Module};
 /// This module deals with the fundamental [`Option`] type in rune.
 #[rune::module(::std::option)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
     let mut option = m.ty::<Option<Value>>()?.make_enum(&["Some", "None"])?;
 
     option

@@ -12,7 +12,7 @@ use crate::{ContextError, Module};
 /// unique instance of it you must clone it.
 #[rune::module(::std::clone)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
     m.function_meta(clone)?;
 
     let mut t = m.define_trait(["Clone"])?;

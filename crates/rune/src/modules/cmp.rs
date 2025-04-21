@@ -11,7 +11,7 @@ use crate::{hash, ContextError, Hash, Module};
 /// Comparison and ordering.
 #[rune::module(::std::cmp)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     {
         let ty = m.ty::<Ordering>()?.docs(docstring! {

@@ -23,7 +23,7 @@ static STATE: OnceCell<RandomState> = OnceCell::new();
 /// Overloadable operators and associated types.
 #[rune::module(::std::ops)]
 pub fn module() -> Result<Module, ContextError> {
-    let mut m = Module::from_meta(self::module_meta)?;
+    let mut m = Module::from_meta(self::module__meta)?;
 
     macro_rules! iter {
         ($ty:ident) => {
