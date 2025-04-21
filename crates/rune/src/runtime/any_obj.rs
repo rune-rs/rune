@@ -10,7 +10,7 @@ use crate::{Any, Hash};
 
 use super::{
     Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, Mut, RawAccessGuard, RawAnyGuard, Ref,
-    RefVtable, Snapshot, TypeInfo, VmErrorKind,
+    RefVtable, Shared, Snapshot, TypeInfo, VmErrorKind,
 };
 
 #[derive(Debug)]
@@ -27,7 +27,8 @@ pub struct AnyObjError {
 }
 
 impl AnyObjError {
-    fn new(kind: AnyObjErrorKind) -> Self {
+    #[inline]
+    pub(super) fn new(kind: AnyObjErrorKind) -> Self {
         Self { kind }
     }
 
@@ -66,15 +67,15 @@ impl From<AccessError> for AnyObjError {
 }
 
 /// Guard which decrements and releases shared storage for the guarded reference.
-struct AnyObjDecShared {
-    shared: NonNull<Shared>,
+pub(super) struct AnyObjDecShared {
+    pub(super) shared: NonNull<AnyObjData>,
 }
 
 impl Drop for AnyObjDecShared {
     fn drop(&mut self) {
         // Safety: We know that the inner value is live in this instance.
         unsafe {
-            Shared::dec(self.shared);
+            AnyObjData::dec(self.shared);
         }
     }
 }
@@ -82,7 +83,7 @@ impl Drop for AnyObjDecShared {
 /// Guard which decrements and releases shared storage for the guarded reference.
 pub(crate) struct AnyObjDrop {
     #[allow(unused)]
-    shared: NonNull<Shared>,
+    pub(super) shared: NonNull<AnyObjData>,
 }
 
 impl Drop for AnyObjDrop {
@@ -91,21 +92,21 @@ impl Drop for AnyObjDrop {
         unsafe {
             self.shared.as_ref().access.take();
 
-            Shared::dec(self.shared);
+            AnyObjData::dec(self.shared);
         }
     }
 }
 
 pub(crate) struct RawAnyObjGuard {
     #[allow(unused)]
-    guard: RawAccessGuard,
+    pub(super) guard: RawAccessGuard,
     #[allow(unused)]
-    dec_shared: AnyObjDecShared,
+    pub(super) dec_shared: AnyObjDecShared,
 }
 
-/// A type-erased wrapper for a reference, whether it is mutable or not.
+/// A type-erased wrapper for a reference.
 pub struct AnyObj {
-    shared: NonNull<Shared>,
+    shared: NonNull<AnyObjData>,
 }
 
 impl AnyObj {
@@ -131,7 +132,7 @@ impl AnyObj {
             clone: clone_own::<T>,
         };
 
-        let shared = Shared {
+        let shared = AnyObjData {
             access: Access::new(),
             count: Cell::new(1),
             vtable,
@@ -163,7 +164,7 @@ impl AnyObj {
             clone: clone_ref::<T>,
         };
 
-        let shared = Shared {
+        let shared = AnyObjData {
             access: Access::new(),
             count: Cell::new(1),
             vtable,
@@ -195,7 +196,7 @@ impl AnyObj {
             clone: clone_mut::<T>,
         };
 
-        let shared = Shared {
+        let shared = AnyObjData {
             access: Access::new(),
             count: Cell::new(1),
             vtable,
@@ -204,6 +205,38 @@ impl AnyObj {
 
         let shared = NonNull::from(Box::leak(Box::try_new(shared)?)).cast();
         Ok(Self { shared })
+    }
+
+    /// Coerce into a typed object.
+    pub(crate) fn into_shared<T>(self) -> Result<Shared<T>, AnyObjError>
+    where
+        T: Any,
+    {
+        let vtable = vtable(&self);
+
+        if (vtable.type_id)() != TypeId::of::<T>() {
+            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
+                T::ANY_TYPE_INFO,
+                vtable.type_info(),
+            )));
+        }
+
+        // SAFETY: We've typed checked for the appropriate type just above.
+        unsafe { Ok(self.unsafe_into_shared()) }
+    }
+
+    /// Coerce into a typed object.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the type being convert into is correct.
+    #[inline]
+    pub(crate) unsafe fn unsafe_into_shared<T>(self) -> Shared<T>
+    where
+        T: Any,
+    {
+        let this = ManuallyDrop::new(self);
+        Shared::new(this.shared.cast())
     }
 
     /// Downcast into an owned value of type `T`.
@@ -304,9 +337,9 @@ impl AnyObj {
 
             let vtable = &RefVtable {
                 drop: |shared: NonNull<()>| {
-                    let shared = shared.cast::<Shared>();
+                    let shared = shared.cast::<AnyObjData>();
                     shared.as_ref().access.release();
-                    Shared::dec(shared)
+                    AnyObjData::dec(shared)
                 },
             };
 
@@ -348,9 +381,9 @@ impl AnyObj {
 
             let vtable = &RefVtable {
                 drop: |shared: NonNull<()>| {
-                    let shared = shared.cast::<Shared>();
+                    let shared = shared.cast::<AnyObjData>();
                     shared.as_ref().access.release();
-                    Shared::dec(shared)
+                    AnyObjData::dec(shared)
                 },
             };
 
@@ -547,7 +580,7 @@ impl AnyObj {
     pub(crate) unsafe fn into_drop_guard(self) -> (Self, AnyObjDrop) {
         // Increment the reference count by one to account for the guard holding
         // onto it.
-        Shared::inc(self.shared);
+        AnyObjData::inc(self.shared);
 
         let guard = AnyObjDrop {
             shared: self.shared,
@@ -586,8 +619,8 @@ impl AnyObj {
         vtable(self).type_hash
     }
 
-    /// Access full type info for type.
-    pub(crate) fn type_info(&self) -> TypeInfo {
+    /// Access full type info for the underlying type.
+    pub fn type_info(&self) -> TypeInfo {
         TypeInfo::any_type_info(vtable(self).type_info)
     }
 }
@@ -597,7 +630,7 @@ impl Clone for AnyObj {
     fn clone(&self) -> Self {
         // SAFETY: We know that the inner value is live in this instance.
         unsafe {
-            Shared::inc(self.shared);
+            AnyObjData::inc(self.shared);
         }
 
         Self {
@@ -615,8 +648,8 @@ impl Clone for AnyObj {
 
         // SAFETY: We know that the inner value is live in both instances.
         unsafe {
-            Shared::dec(old);
-            Shared::inc(self.shared);
+            AnyObjData::dec(old);
+            AnyObjData::inc(self.shared);
         }
     }
 }
@@ -631,7 +664,7 @@ impl Drop for AnyObj {
     fn drop(&mut self) {
         // Safety: We know that the inner value is live in this instance.
         unsafe {
-            Shared::dec(self.shared);
+            AnyObjData::dec(self.shared);
         }
     }
 }
@@ -643,7 +676,7 @@ type TypeIdFn = fn() -> TypeId;
 type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
 
 /// The kind of the stored value in the `AnyObj`.
-enum Kind {
+pub(super) enum Kind {
     /// Underlying access is shared.
     Ref,
     /// Underlying access is exclusive.
@@ -652,38 +685,38 @@ enum Kind {
     Own,
 }
 
-struct Vtable {
+pub(super) struct Vtable {
     /// The statically known kind of reference being stored.
-    kind: Kind,
+    pub(super) kind: Kind,
     /// Punt the inner pointer to the type corresponding to the type hash.
-    type_id: TypeIdFn,
+    pub(super) type_id: TypeIdFn,
     /// Type information for diagnostics.
-    debug: DebugFn,
+    pub(super) debug: DebugFn,
     /// Type information.
-    type_info: AnyTypeInfo,
+    pub(super) type_info: AnyTypeInfo,
     /// Type hash of the interior type.
-    type_hash: Hash,
+    pub(super) type_hash: Hash,
     /// Value drop implementation. Set to `None` if the underlying value does
     /// not need to be dropped.
-    drop_value: Option<unsafe fn(NonNull<Shared>)>,
+    pub(super) drop_value: Option<unsafe fn(NonNull<AnyObjData>)>,
     /// Only drop the box implementation.
-    drop: unsafe fn(NonNull<Shared>),
+    pub(super) drop: unsafe fn(NonNull<AnyObjData>),
     /// Clone the literal content of the shared value.
-    clone: unsafe fn(NonNull<Shared>) -> alloc::Result<AnyObj>,
+    pub(super) clone: unsafe fn(NonNull<AnyObjData>) -> alloc::Result<AnyObj>,
 }
 
 impl Vtable {
     #[inline]
-    fn type_info(&self) -> TypeInfo {
+    pub(super) fn type_info(&self) -> TypeInfo {
         TypeInfo::any_type_info(self.type_info)
     }
 
-    fn as_ptr<T>(&self, base: NonNull<Shared>) -> NonNull<T> {
+    pub(super) fn as_ptr<T>(&self, base: NonNull<AnyObjData>) -> NonNull<T> {
         if matches!(self.kind, Kind::Own) {
-            unsafe { base.byte_add(offset_of!(Shared<T>, data)).cast() }
+            unsafe { base.byte_add(offset_of!(AnyObjData<T>, data)).cast() }
         } else {
             unsafe {
-                base.byte_add(offset_of!(Shared<NonNull<T>>, data))
+                base.byte_add(offset_of!(AnyObjData<NonNull<T>>, data))
                     .cast()
                     .read()
             }
@@ -692,21 +725,21 @@ impl Vtable {
 }
 
 #[repr(C)]
-struct Shared<T = ()> {
+pub(super) struct AnyObjData<T = ()> {
     /// The currently handed out access to the shared data.
-    access: Access,
+    pub(super) access: Access,
     /// The number of strong references to the shared data.
-    count: Cell<usize>,
+    pub(super) count: Cell<usize>,
     /// Vtable of the shared value.
-    vtable: &'static Vtable,
+    pub(super) vtable: &'static Vtable,
     /// Data of the shared reference.
-    data: T,
+    pub(super) data: T,
 }
 
-impl Shared {
+impl AnyObjData {
     /// Increment the reference count of the inner value.
     #[inline]
-    unsafe fn inc(this: NonNull<Self>) {
+    pub(super) unsafe fn inc(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();
 
@@ -729,7 +762,7 @@ impl Shared {
     ///
     /// ProtocolCaller needs to ensure that `this` is a valid pointer.
     #[inline]
-    unsafe fn dec(this: NonNull<Self>) {
+    pub(super) unsafe fn dec(this: NonNull<Self>) {
         let count_ref = &*addr_of!((*this.as_ptr()).count);
         let count = count_ref.get();
 
@@ -771,38 +804,41 @@ where
     write!(f, "&mut {}", T::ITEM)
 }
 
-unsafe fn drop_value<T>(this: NonNull<Shared>) {
-    let data = addr_of_mut!((*this.cast::<Shared<T>>().as_ptr()).data);
+unsafe fn drop_value<T>(this: NonNull<AnyObjData>) {
+    let data = addr_of_mut!((*this.cast::<AnyObjData<T>>().as_ptr()).data);
     drop_in_place(data);
 }
 
-unsafe fn drop_box<T>(this: NonNull<Shared>) {
-    drop(Box::from_raw_in(this.cast::<Shared<T>>().as_ptr(), Global))
+unsafe fn drop_box<T>(this: NonNull<AnyObjData>) {
+    drop(Box::from_raw_in(
+        this.cast::<AnyObjData<T>>().as_ptr(),
+        Global,
+    ))
 }
 
-unsafe fn clone_own<T>(this: NonNull<Shared>) -> alloc::Result<AnyObj>
+unsafe fn clone_own<T>(this: NonNull<AnyObjData>) -> alloc::Result<AnyObj>
 where
     T: Any,
 {
     // NB: We read the value without deallocating it from the previous location,
     // since that would cause the returned value to be invalid.
-    let value = addr_of_mut!((*this.cast::<Shared<T>>().as_ptr()).data).read();
+    let value = addr_of_mut!((*this.cast::<AnyObjData<T>>().as_ptr()).data).read();
     AnyObj::new(value)
 }
 
-unsafe fn clone_ref<T>(this: NonNull<Shared>) -> alloc::Result<AnyObj>
+unsafe fn clone_ref<T>(this: NonNull<AnyObjData>) -> alloc::Result<AnyObj>
 where
     T: Any,
 {
-    let value = addr_of_mut!((*this.cast::<Shared<NonNull<T>>>().as_ptr()).data).read();
+    let value = addr_of_mut!((*this.cast::<AnyObjData<NonNull<T>>>().as_ptr()).data).read();
     AnyObj::from_ref(value.as_ptr().cast_const())
 }
 
-unsafe fn clone_mut<T>(this: NonNull<Shared>) -> alloc::Result<AnyObj>
+unsafe fn clone_mut<T>(this: NonNull<AnyObjData>) -> alloc::Result<AnyObj>
 where
     T: Any,
 {
-    let value = addr_of_mut!((*this.cast::<Shared<NonNull<T>>>().as_ptr()).data).read();
+    let value = addr_of_mut!((*this.cast::<AnyObjData<NonNull<T>>>().as_ptr()).data).read();
     AnyObj::from_mut(value.as_ptr())
 }
 

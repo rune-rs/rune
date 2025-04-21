@@ -39,7 +39,7 @@ use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
     IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
-    RawAnyObjGuard, Ref, RuntimeError, Snapshot, Tuple, Type, TypeInfo, Vec, VmErrorKind,
+    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmErrorKind,
     VmIntegerRepr, VmResult,
 };
 
@@ -536,6 +536,9 @@ impl Value {
     }
 
     /// Drop the interior value.
+    ///
+    /// This consumes any live references of the value and accessing them in the
+    /// future will result in an error.
     pub(crate) fn drop(self) -> VmResult<()> {
         match self.repr {
             Repr::Dynamic(value) => {
@@ -773,14 +776,28 @@ impl Value {
     }
 
     /// Coerce into an [`AnyObj`].
-    ///
-    /// This consumes the underlying value.
     #[inline]
     pub fn into_any_obj(self) -> Result<AnyObj, RuntimeError> {
         match self.repr {
             Repr::Inline(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Any(value) => Ok(value),
+        }
+    }
+
+    /// Coerce into a [`Shared<T>`].
+    ///
+    /// This type checks and coerces the value into a type which statically
+    /// guarantees that the underlying type is of the given type.
+    #[inline]
+    pub fn into_shared<T>(self) -> Result<Shared<T>, RuntimeError>
+    where
+        T: Any,
+    {
+        match self.repr {
+            Repr::Inline(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
+            Repr::Dynamic(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
+            Repr::Any(value) => Ok(value.into_shared()?),
         }
     }
 
