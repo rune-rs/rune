@@ -7,7 +7,9 @@ use core::fmt;
 
 use rust_alloc::sync::Arc;
 
+#[cfg(feature = "musli")]
 use musli::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
@@ -108,7 +110,9 @@ impl ToConstValue for Value {
     }
 }
 
-#[derive(Debug, TryClone, Deserialize, Serialize, Encode, Decode)]
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
 pub(crate) enum ConstValueKind {
     /// An inline constant value.
     Inline(#[try_clone(copy)] Inline),
@@ -150,9 +154,8 @@ impl ConstValueKind {
 }
 
 /// A constant value.
-#[derive(Deserialize, Serialize, Encode, Decode)]
-#[serde(transparent)]
-#[musli(transparent)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
+#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
 pub struct ConstValue {
     kind: ConstValueKind,
 }
