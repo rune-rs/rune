@@ -23,7 +23,77 @@ use super::{
     VmErrorKind,
 };
 
-/// Derive for the [`ToConstValue`](trait@ToConstValue) trait.
+/// Derive for the [`ToConstValue`] trait.
+///
+/// This is principally used for associated constants in native modules, since
+/// Rune has to be provided a constant-compatible method for constructing values
+/// of the given type.
+///
+/// [`ToConstValue`]: trait@crate::ToConstValue
+///
+/// # Examples
+///
+/// ```
+/// use rune::{docstring, Any, ContextError, Module, ToConstValue};
+///
+/// #[derive(Any, ToConstValue)]
+/// pub struct Duration {
+///     #[const_value(with = const_duration)]
+///     inner: std::time::Duration,
+/// }
+///
+/// mod const_duration {
+///     use rune::runtime::{ConstValue, RuntimeError, Value};
+///     use std::time::Duration;
+///
+///     #[inline]
+///     pub(super) fn to_const_value(duration: Duration) -> Result<ConstValue, RuntimeError> {
+///         let secs = duration.as_secs();
+///         let nanos = duration.subsec_nanos();
+///         rune::to_const_value((secs, nanos))
+///     }
+///
+///     #[inline]
+///     pub(super) fn from_const_value(value: &ConstValue) -> Result<Duration, RuntimeError> {
+///         let (secs, nanos) = rune::from_const_value::<(u64, u32)>(value)?;
+///         Ok(Duration::new(secs, nanos))
+///     }
+///
+///     #[inline]
+///     pub(super) fn from_value(value: Value) -> Result<Duration, RuntimeError> {
+///         let (secs, nanos) = rune::from_value::<(u64, u32)>(value)?;
+///         Ok(Duration::new(secs, nanos))
+///     }
+/// }
+///
+/// #[rune::module(::time)]
+/// pub fn module() -> Result<Module, ContextError> {
+///     let mut m = Module::from_meta(module__meta)?;
+///     m.ty::<Duration>()?;
+///
+///     m
+///         .constant(
+///             "SECOND",
+///             Duration {
+///                 inner: std::time::Duration::from_secs(1),
+///             },
+///         )
+///         .build_associated::<Duration>()?
+///         .docs(docstring! {
+///             /// The duration of one second.
+///             ///
+///             /// # Examples
+///             ///
+///             /// ```rune
+///             /// use time::Duration;
+///             ///
+///             /// let duration = Duration::SECOND;
+///             /// ```
+///         })?;
+///
+///     Ok(m)
+/// }
+/// ```
 pub use rune_macros::ToConstValue;
 
 use super::{AnyTypeInfo, RuntimeError, VmIntegerRepr};
@@ -84,13 +154,14 @@ pub fn to_const_value(value: impl ToConstValue) -> Result<ConstValue, RuntimeErr
     value.to_const_value()
 }
 
-/// Convert a value into a constant value.
+/// Trait to perform a conversion to a [`ConstValue`].
 pub trait ToConstValue: Sized {
     /// Convert into a constant value.
     fn to_const_value(self) -> Result<ConstValue, RuntimeError>;
 
     /// Return the constant constructor for the given type.
     #[inline]
+    #[doc(hidden)]
     fn construct() -> Option<Arc<dyn ConstConstruct>> {
         None
     }
@@ -460,7 +531,7 @@ impl fmt::Debug for ConstValue {
     }
 }
 
-/// Convert a value from a constant value.
+/// Trait to perform a conversion from a [`ConstValue`].
 pub trait FromConstValue: Sized {
     /// Convert from a constant value.
     fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError>;
@@ -475,8 +546,9 @@ impl FromConstValue for ConstValue {
 
 /// Implementation of a constant constructor.
 ///
-/// Do not implement manually, this is provided when deriving
-/// [`ToConstValue`](derive@ToConstValue).
+/// Do not implement manually, this is provided when deriving [`ToConstValue`].
+///
+/// [`ToConstValue`]: derive@ToConstValue
 pub trait ConstConstruct: 'static + Send + Sync {
     /// Construct from values.
     #[doc(hidden)]
