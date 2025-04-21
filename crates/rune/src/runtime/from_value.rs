@@ -4,7 +4,9 @@ use crate::alloc::{self, String};
 use crate::any::AnyMarker;
 use crate::hash::Hash;
 
-use super::{AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Value};
+use super::{
+    AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Shared, Value,
+};
 
 /// Derive macro for the [`FromValue`] trait for converting types from the
 /// dynamic `Value` container.
@@ -243,6 +245,16 @@ impl FromValue for AnyObj {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         value.into_any_obj()
+    }
+}
+
+impl<T> FromValue for Shared<T>
+where
+    T: AnyMarker,
+{
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_shared()
     }
 }
 

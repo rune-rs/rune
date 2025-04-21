@@ -27,6 +27,9 @@ use self::any_obj::AnyObjErrorKind;
 pub use self::any_obj::{AnyObj, AnyObjError};
 pub(crate) use self::any_obj::{AnyObjDrop, RawAnyObjGuard};
 
+mod shared;
+pub use self::shared::Shared;
+
 mod args;
 pub use self::args::{Args, FixedArgs};
 pub(crate) use self::args::{DynArgs, DynArgsUsed, DynGuardedArgs};
