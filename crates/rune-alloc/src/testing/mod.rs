@@ -49,7 +49,7 @@ impl<T> TestExt<T> for Result<T, AllocError> {
     fn abort(self) -> T {
         match self {
             Ok(value) => value,
-            Err(error) => ::rust_alloc::alloc::handle_alloc_error(error.layout),
+            Err(error) => rust_alloc::alloc::handle_alloc_error(error.layout),
         }
     }
 }
@@ -73,7 +73,7 @@ where
 
 fn handle_error(error: Error) -> ! {
     match error {
-        Error::AllocError { error } => ::rust_alloc::alloc::handle_alloc_error(error.layout),
+        Error::AllocError { error } => rust_alloc::alloc::handle_alloc_error(error.layout),
         error => {
             panic!("{}", error)
         }

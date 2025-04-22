@@ -2,7 +2,7 @@ use core::fmt;
 use core::future::Future;
 use core::mem::{replace, take};
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
 use crate::runtime::budget;

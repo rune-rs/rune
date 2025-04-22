@@ -251,7 +251,7 @@ impl<T: ?Sized> Box<T> {
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[cfg(feature = "alloc")]
-    pub fn from_std(b: ::rust_alloc::boxed::Box<T>) -> Result<Self, Error> {
+    pub fn from_std(b: rust_alloc::boxed::Box<T>) -> Result<Self, Error> {
         // SAFETY: We've ensured that standard allocations only happen in an
         // allocator which is compatible with our `Global`.
         unsafe {
@@ -259,7 +259,7 @@ impl<T: ?Sized> Box<T> {
             // value by the box, which for unsized types is the size of the
             // metadata. For sized types the value inside of the box.
             Global.take(Layout::for_value(b.as_ref()))?;
-            let raw = ::rust_alloc::boxed::Box::into_raw(b);
+            let raw = rust_alloc::boxed::Box::into_raw(b);
             Ok(Box::from_raw_in(raw, Global))
         }
     }
@@ -847,14 +847,14 @@ impl<A: Allocator> From<Box<str, A>> for Box<[u8], A> {
 }
 
 #[cfg(feature = "alloc")]
-impl<T> TryFrom<::rust_alloc::boxed::Box<[T]>> for Box<[T]> {
+impl<T> TryFrom<rust_alloc::boxed::Box<[T]>> for Box<[T]> {
     type Error = Error;
 
     #[inline]
-    fn try_from(values: ::rust_alloc::boxed::Box<[T]>) -> Result<Self, Error> {
+    fn try_from(values: rust_alloc::boxed::Box<[T]>) -> Result<Self, Error> {
         let mut vec = Vec::try_with_capacity(values.len())?;
 
-        for value in ::rust_alloc::vec::Vec::from(values) {
+        for value in rust_alloc::vec::Vec::from(values) {
             vec.try_push(value)?;
         }
 
@@ -988,7 +988,7 @@ impl TryFrom<&str> for Box<str> {
 }
 
 #[cfg(feature = "alloc")]
-impl TryFrom<::rust_alloc::string::String> for Box<str> {
+impl TryFrom<rust_alloc::string::String> for Box<str> {
     type Error = Error;
 
     /// Converts a std `String` into a `Box<str>`.
@@ -1004,7 +1004,7 @@ impl TryFrom<::rust_alloc::string::String> for Box<str> {
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
-    fn try_from(string: ::rust_alloc::string::String) -> Result<Self, Error> {
+    fn try_from(string: rust_alloc::string::String) -> Result<Self, Error> {
         Box::from_std(string.into_boxed_str())
     }
 }

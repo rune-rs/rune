@@ -3,10 +3,14 @@ use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 use core::ptr::{addr_of, NonNull};
 
+use crate::any::AnyMarker;
 use crate::{Any, Hash};
 
 use super::any_obj::{AnyObjData, AnyObjError, AnyObjErrorKind, Kind, Vtable};
-use super::{AccessError, BorrowMut, BorrowRef, Mut, RawAnyGuard, Ref, RefVtable, TypeInfo};
+use super::{
+    AccessError, BorrowMut, BorrowRef, FromValue, Mut, RawAnyGuard, Ref, RefVtable, RuntimeError,
+    TypeInfo, Value,
+};
 
 /// A typed wrapper for a reference.
 ///
@@ -277,4 +281,14 @@ impl<T> Drop for Shared<T> {
 #[inline]
 pub(super) fn vtable<T>(any: &Shared<T>) -> &'static Vtable {
     unsafe { addr_of!((*any.shared.as_ptr()).vtable).read() }
+}
+
+impl<T> FromValue for Shared<T>
+where
+    T: AnyMarker,
+{
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_shared()
+    }
 }

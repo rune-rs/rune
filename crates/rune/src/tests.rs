@@ -29,17 +29,17 @@ pub(crate) mod prelude {
     };
     pub(crate) use futures_executor::block_on;
 
-    pub(crate) use ::rust_alloc::string::{String, ToString};
-    pub(crate) use ::rust_alloc::sync::Arc;
-    pub(crate) use ::rust_alloc::vec::Vec;
+    pub(crate) use rust_alloc::string::{String, ToString};
+    pub(crate) use rust_alloc::sync::Arc;
+    pub(crate) use rust_alloc::vec::Vec;
 
     pub(crate) use anyhow::Context as AnyhowContext;
 }
 
 use core::fmt;
 
-use ::rust_alloc::string::String;
-use ::rust_alloc::sync::Arc;
+use rust_alloc::string::String;
+use rust_alloc::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
 

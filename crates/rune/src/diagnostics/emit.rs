@@ -196,8 +196,8 @@ impl VmError {
             }
         }
 
-        let mut labels = ::rust_alloc::vec::Vec::new();
-        let mut notes = ::rust_alloc::vec::Vec::new();
+        let mut labels = rust_alloc::vec::Vec::new();
+        let mut notes = rust_alloc::vec::Vec::new();
 
         let get = |at: &VmErrorAt| -> Option<&DebugInst> {
             let l = self.inner.stacktrace.get(at.index())?;
@@ -531,8 +531,8 @@ fn warning_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut notes = ::rust_alloc::vec::Vec::new();
-    let mut labels = ::rust_alloc::vec::Vec::new();
+    let mut notes = rust_alloc::vec::Vec::new();
+    let mut labels = rust_alloc::vec::Vec::new();
 
     labels.push(
         d::Label::primary(this.source_id(), this.span().range())
@@ -593,8 +593,8 @@ fn runtime_warning_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut notes = ::rust_alloc::vec::Vec::new();
-    let mut labels = ::rust_alloc::vec::Vec::new();
+    let mut notes = rust_alloc::vec::Vec::new();
+    let mut labels = rust_alloc::vec::Vec::new();
     let mut message = String::new();
 
     match this.kind {
@@ -648,8 +648,8 @@ fn fatal_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut labels = ::rust_alloc::vec::Vec::new();
-    let mut notes = ::rust_alloc::vec::Vec::new();
+    let mut labels = rust_alloc::vec::Vec::new();
+    let mut notes = rust_alloc::vec::Vec::new();
 
     if let Some(span) = this.span() {
         labels.push(
@@ -666,7 +666,7 @@ where
         FatalDiagnosticKind::LinkError(error) => {
             match error {
                 LinkerError::MissingFunction { hash, spans } => {
-                    let mut labels = ::rust_alloc::vec::Vec::new();
+                    let mut labels = rust_alloc::vec::Vec::new();
 
                     for (span, source_id) in spans {
                         labels.push(
@@ -713,8 +713,8 @@ where
         sources: &Sources,
         span: Span,
         kind: &ErrorKind,
-        labels: &mut ::rust_alloc::vec::Vec<d::Label<SourceId>>,
-        notes: &mut ::rust_alloc::vec::Vec<rust_alloc::string::String>,
+        labels: &mut rust_alloc::vec::Vec<d::Label<SourceId>>,
+        notes: &mut rust_alloc::vec::Vec<rust_alloc::string::String>,
     ) -> Result<(), EmitError> {
         match kind {
             ErrorKind::ImportCycle { path } => {

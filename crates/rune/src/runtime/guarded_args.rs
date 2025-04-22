@@ -89,7 +89,7 @@ impl GuardedArgs for Vec<Value> {
     }
 }
 
-impl GuardedArgs for ::rust_alloc::vec::Vec<Value> {
+impl GuardedArgs for rust_alloc::vec::Vec<Value> {
     type Guard = ();
 
     #[inline]

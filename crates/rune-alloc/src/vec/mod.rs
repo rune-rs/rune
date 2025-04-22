@@ -487,7 +487,7 @@ impl<T> Vec<T> {
     ///
     /// The memory previously occupied by this vector will be released.
     #[cfg(feature = "alloc")]
-    pub fn into_std(self) -> ::rust_alloc::vec::Vec<T> {
+    pub fn into_std(self) -> rust_alloc::vec::Vec<T> {
         let (ptr, len, cap, alloc) = self.into_raw_parts_with_alloc();
 
         if let Ok(layout) = Layout::array::<T>(cap) {
@@ -497,7 +497,7 @@ impl<T> Vec<T> {
         // SAFETY: All the internal invariants of this vector matches what is
         // needed to construct a rust vector, and the memory has been allocated
         // using the std `Global` allocator.
-        unsafe { ::rust_alloc::vec::Vec::from_raw_parts(ptr, len, cap) }
+        unsafe { rust_alloc::vec::Vec::from_raw_parts(ptr, len, cap) }
     }
 }
 
@@ -2898,13 +2898,13 @@ impl<T, const N: usize> TryFrom<[T; N]> for Vec<T> {
 }
 
 #[cfg(feature = "alloc")]
-impl<T> TryFrom<::rust_alloc::vec::Vec<T>> for Vec<T, Global> {
+impl<T> TryFrom<rust_alloc::vec::Vec<T>> for Vec<T, Global> {
     type Error = Error;
 
     /// Converts a std `Vec<T>` into a [`Vec<T>`].
     ///
     /// The result is allocated on the heap.
-    fn try_from(vec: ::rust_alloc::vec::Vec<T>) -> Result<Self, Error> {
+    fn try_from(vec: rust_alloc::vec::Vec<T>) -> Result<Self, Error> {
         let mut vec = ManuallyDrop::new(vec);
 
         let ptr = vec.as_mut_ptr();

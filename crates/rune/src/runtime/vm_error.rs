@@ -1,8 +1,8 @@
 use core::convert::Infallible;
 use core::fmt;
 
-use ::rust_alloc::boxed::Box;
-use ::rust_alloc::sync::Arc;
+use rust_alloc::boxed::Box;
+use rust_alloc::sync::Arc;
 
 use crate::alloc::error::CustomError;
 use crate::alloc::prelude::*;
@@ -34,8 +34,8 @@ impl VmError {
                     index: 0,
                     kind: VmErrorKind::from(error),
                 },
-                chain: ::rust_alloc::vec::Vec::new(),
-                stacktrace: ::rust_alloc::vec::Vec::new(),
+                chain: rust_alloc::vec::Vec::new(),
+                stacktrace: rust_alloc::vec::Vec::new(),
             }),
         }
     }
@@ -165,7 +165,7 @@ pub struct VmErrorLocation {
     /// Frozen instruction pointer.
     pub ip: usize,
     /// All lower call frames before the unwind trigger point
-    pub frames: ::rust_alloc::vec::Vec<CallFrame>,
+    pub frames: rust_alloc::vec::Vec<CallFrame>,
 }
 
 #[derive(Debug)]
@@ -201,8 +201,8 @@ impl fmt::Display for VmErrorAt {
 #[non_exhaustive]
 pub(crate) struct VmErrorInner {
     pub(crate) error: VmErrorAt,
-    pub(crate) chain: ::rust_alloc::vec::Vec<VmErrorAt>,
-    pub(crate) stacktrace: ::rust_alloc::vec::Vec<VmErrorLocation>,
+    pub(crate) chain: rust_alloc::vec::Vec<VmErrorAt>,
+    pub(crate) stacktrace: rust_alloc::vec::Vec<VmErrorLocation>,
 }
 
 /// A result produced by the virtual machine.
@@ -374,7 +374,7 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
             Some(first) => first,
         };
 
-        let mut chain = ::rust_alloc::vec::Vec::with_capacity(it.len());
+        let mut chain = rust_alloc::vec::Vec::with_capacity(it.len());
 
         for kind in it {
             chain.push(VmErrorAt {
@@ -392,7 +392,7 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
                     kind: first,
                 },
                 chain,
-                stacktrace: ::rust_alloc::vec::Vec::new(),
+                stacktrace: rust_alloc::vec::Vec::new(),
             }),
         }
     }

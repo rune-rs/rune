@@ -172,7 +172,7 @@ impl Args for Vec<Value> {
     }
 }
 
-impl Args for ::rust_alloc::vec::Vec<Value> {
+impl Args for rust_alloc::vec::Vec<Value> {
     #[inline]
     fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
         for value in self {

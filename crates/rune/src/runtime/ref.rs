@@ -5,8 +5,12 @@ use core::pin::Pin;
 use core::ptr::NonNull;
 use core::task::{Context, Poll};
 
-use ::rust_alloc::rc::Rc;
-use ::rust_alloc::sync::Arc;
+use rust_alloc::rc::Rc;
+use rust_alloc::sync::Arc;
+
+use crate::any::AnyMarker;
+
+use super::{FromValue, RuntimeError, Value};
 
 pub(super) struct RefVtable {
     pub(super) drop: DropFn,
@@ -229,6 +233,16 @@ where
     }
 }
 
+impl<T> FromValue for Ref<T>
+where
+    T: AnyMarker,
+{
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_ref()
+    }
+}
+
 /// A strong owned mutable reference to the given type that can be safely
 /// dereferenced.
 ///
@@ -409,6 +423,16 @@ where
     #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, fmt)
+    }
+}
+
+impl<T> FromValue for Mut<T>
+where
+    T: AnyMarker,
+{
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_mut()
     }
 }
 

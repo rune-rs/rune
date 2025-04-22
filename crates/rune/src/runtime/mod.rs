@@ -87,8 +87,8 @@ pub use self::inst::{
 mod iterator;
 pub use self::iterator::Iterator;
 
-mod type_;
-pub use self::type_::Type;
+mod r#type;
+pub use self::r#type::Type;
 
 mod label;
 pub use self::label::DebugLabel;

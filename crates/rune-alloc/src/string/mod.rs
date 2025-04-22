@@ -466,9 +466,9 @@ impl String {
     ///
     /// The memory previously occupied by this vector will be released.
     #[cfg(feature = "alloc")]
-    pub fn into_std(self) -> ::rust_alloc::string::String {
+    pub fn into_std(self) -> rust_alloc::string::String {
         // SAFETY: The interior vector is valid UTF-8.
-        unsafe { ::rust_alloc::string::String::from_utf8_unchecked(self.vec.into_std()) }
+        unsafe { rust_alloc::string::String::from_utf8_unchecked(self.vec.into_std()) }
     }
 
     #[cfg(test)]
@@ -2032,19 +2032,19 @@ impl<A: Allocator> From<Box<str, A>> for String<A> {
 }
 
 #[cfg(feature = "alloc")]
-impl TryFrom<::rust_alloc::boxed::Box<str>> for String<Global> {
+impl TryFrom<rust_alloc::boxed::Box<str>> for String<Global> {
     type Error = Error;
 
     /// Try to convert a std `Box<str>` into a [`String`].
     ///
     /// The result is fallibly allocated on the heap.
-    fn try_from(s: ::rust_alloc::boxed::Box<str>) -> Result<Self, Error> {
+    fn try_from(s: rust_alloc::boxed::Box<str>) -> Result<Self, Error> {
         Self::try_from(s.as_ref())
     }
 }
 
 #[cfg(feature = "alloc")]
-impl TryFrom<::rust_alloc::string::String> for String<Global> {
+impl TryFrom<rust_alloc::string::String> for String<Global> {
     type Error = Error;
 
     /// Try to convert a std `String` into a [`String`].
@@ -2062,7 +2062,7 @@ impl TryFrom<::rust_alloc::string::String> for String<Global> {
     /// assert_eq!("Hello World", s2);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    fn try_from(string: ::rust_alloc::string::String) -> Result<Self, Error> {
+    fn try_from(string: rust_alloc::string::String) -> Result<Self, Error> {
         let mut string = ManuallyDrop::new(string.into_bytes());
 
         let buf = string.as_mut_ptr();
@@ -2080,7 +2080,7 @@ impl TryFrom<::rust_alloc::string::String> for String<Global> {
 }
 
 #[cfg(feature = "alloc")]
-impl<A: Allocator> From<String<A>> for ::rust_alloc::string::String {
+impl<A: Allocator> From<String<A>> for rust_alloc::string::String {
     /// Try to convert a [`String`] into a std `String`.
     ///
     /// The result is allocated on the heap.
@@ -2090,7 +2090,7 @@ impl<A: Allocator> From<String<A>> for ::rust_alloc::string::String {
 }
 
 #[cfg(feature = "alloc")]
-impl<A: Allocator> From<&String<A>> for ::rust_alloc::string::String {
+impl<A: Allocator> From<&String<A>> for rust_alloc::string::String {
     /// Try to convert a [`String`] reference into a std `String`.
     ///
     /// The result is allocated on the heap.

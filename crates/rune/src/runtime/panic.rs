@@ -1,6 +1,6 @@
 use core::fmt;
 
-use ::rust_alloc::boxed::Box;
+use rust_alloc::boxed::Box;
 
 use crate::runtime::PanicReason;
 

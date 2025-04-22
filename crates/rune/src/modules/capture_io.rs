@@ -15,7 +15,7 @@
 
 use core::mem::take;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use parking_lot::Mutex;
 

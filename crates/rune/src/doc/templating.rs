@@ -1,8 +1,9 @@
+use rust_alloc::sync::Arc;
+
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, String};
 use crate::std::sync::Mutex;
-use ::rust_alloc::sync::Arc;
 
 use handlebars::{
     Context, Handlebars, Helper, HelperDef, HelperResult, Output, RenderContext, Renderable,
@@ -61,8 +62,8 @@ impl Templating {
         I: IntoIterator<Item = (&'a str, Cow<'a, str>)>,
     {
         let mut handlebars = Handlebars::new();
-        handlebars.register_helper("literal", ::rust_alloc::boxed::Box::new(literal));
-        handlebars.register_helper("path", ::rust_alloc::boxed::Box::new(path(paths)));
+        handlebars.register_helper("literal", rust_alloc::boxed::Box::new(literal));
+        handlebars.register_helper("path", rust_alloc::boxed::Box::new(path(paths)));
 
         for (name, source) in partials {
             handlebars.register_partial(name, source.as_ref())?;

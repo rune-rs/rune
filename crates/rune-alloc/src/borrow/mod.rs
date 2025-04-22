@@ -7,7 +7,7 @@ use core::hash::{Hash, Hasher};
 use core::ops::Deref;
 
 #[cfg(feature = "alloc")]
-use ::rust_alloc::borrow::ToOwned;
+use rust_alloc::borrow::ToOwned;
 
 use crate::clone::TryClone;
 use crate::error::Error;

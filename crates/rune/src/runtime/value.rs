@@ -27,7 +27,7 @@ use core::fmt;
 use core::mem::replace;
 use core::ptr::NonNull;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;

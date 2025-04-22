@@ -2,8 +2,8 @@
 use core::mem::take;
 use core::ops::{Deref, DerefMut};
 
-use ::rust_alloc::rc::Rc;
-use ::rust_alloc::sync::Arc;
+use rust_alloc::rc::Rc;
+use rust_alloc::sync::Arc;
 
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;

@@ -7078,8 +7078,8 @@ mod test_map {
     use std::vec::Vec;
     use std::{format, println};
 
-    use ::rust_alloc::string::{String, ToString};
-    use ::rust_alloc::sync::Arc;
+    use rust_alloc::string::{String, ToString};
+    use rust_alloc::sync::Arc;
 
     use rand::{rngs::SmallRng, Rng, SeedableRng};
 
@@ -7212,7 +7212,7 @@ mod test_map {
     #[test]
     fn test_drops() {
         DROP_VECTOR.with(|slot| {
-            *slot.borrow_mut() = ::rust_alloc::vec![0; 200];
+            *slot.borrow_mut() = rust_alloc::vec![0; 200];
         });
 
         {
@@ -7271,7 +7271,7 @@ mod test_map {
     #[test]
     fn test_into_iter_drops() {
         DROP_VECTOR.with(|v| {
-            *v.borrow_mut() = ::rust_alloc::vec![0; 200];
+            *v.borrow_mut() = rust_alloc::vec![0; 200];
         });
 
         let hm = {
@@ -7542,7 +7542,7 @@ mod test_map {
 
     #[test]
     fn test_keys() {
-        let vec = ::rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
+        let vec = rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
         let map: HashMap<_, _> = vec.into_iter().collect();
         let keys: Vec<_> = map.keys().copied().collect();
         assert_eq!(keys.len(), 3);
@@ -7553,7 +7553,7 @@ mod test_map {
 
     #[test]
     fn test_values() {
-        let vec = ::rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
+        let vec = rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
         let map: HashMap<_, _> = vec.into_iter().collect();
         let values: Vec<_> = map.values().copied().collect();
         assert_eq!(values.len(), 3);
@@ -7564,7 +7564,7 @@ mod test_map {
 
     #[test]
     fn test_values_mut() {
-        let vec = ::rust_alloc::vec![(1, 1), (2, 2), (3, 3)];
+        let vec = rust_alloc::vec![(1, 1), (2, 2), (3, 3)];
         let mut map: HashMap<_, _> = vec.into_iter().collect();
         for value in map.values_mut() {
             *value *= 2;
@@ -7578,7 +7578,7 @@ mod test_map {
 
     #[test]
     fn test_into_keys() {
-        let vec = ::rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
+        let vec = rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
         let map: HashMap<_, _> = vec.into_iter().collect();
         let keys: Vec<_> = map.into_keys().collect();
 
@@ -7590,7 +7590,7 @@ mod test_map {
 
     #[test]
     fn test_into_values() {
-        let vec = ::rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
+        let vec = rust_alloc::vec![(1, 'a'), (2, 'b'), (3, 'c')];
         let map: HashMap<_, _> = vec.into_iter().collect();
         let values: Vec<_> = map.into_values().collect();
 
@@ -8537,7 +8537,7 @@ mod test_map {
             let drained = map.extract_if(|&k, _| k % 2 == 0);
             let mut out = drained.collect::<Vec<_>>();
             out.sort_unstable();
-            assert_eq!(::rust_alloc::vec![(0, 0), (2, 20), (4, 40), (6, 60)], out);
+            assert_eq!(rust_alloc::vec![(0, 0), (2, 20), (4, 40), (6, 60)], out);
             assert_eq!(map.len(), 4);
         }
         {
@@ -8904,7 +8904,7 @@ mod test_map {
     #[test]
     #[should_panic = "panic in clone"]
     fn test_clone_from_memory_leaks() {
-        use ::rust_alloc::vec::Vec;
+        use rust_alloc::vec::Vec;
 
         struct CheckedClone {
             panic_in_clone: bool,
@@ -8926,7 +8926,7 @@ mod test_map {
             1,
             CheckedClone {
                 panic_in_clone: false,
-                need_drop: ::rust_alloc::vec![0, 1, 2],
+                need_drop: rust_alloc::vec![0, 1, 2],
             },
         )
         .unwrap();
@@ -8934,7 +8934,7 @@ mod test_map {
             2,
             CheckedClone {
                 panic_in_clone: false,
-                need_drop: ::rust_alloc::vec![3, 4, 5],
+                need_drop: rust_alloc::vec![3, 4, 5],
             },
         )
         .unwrap();
@@ -8942,7 +8942,7 @@ mod test_map {
             3,
             CheckedClone {
                 panic_in_clone: true,
-                need_drop: ::rust_alloc::vec![6, 7, 8],
+                need_drop: rust_alloc::vec![6, 7, 8],
             },
         )
         .unwrap();
@@ -9165,7 +9165,7 @@ mod test_map {
             let map: HashMap<u64, CheckedCloneDrop<Vec<u64>>, DefaultHashBuilder, MyAlloc> =
                 match get_test_map(
                     ARMED_FLAGS.into_iter().zip(DISARMED_FLAGS),
-                    |n| ::rust_alloc::vec![n],
+                    |n| rust_alloc::vec![n],
                     MyAlloc::new(dropped.clone()),
                 ) {
                     Ok(map) => map,
@@ -9224,7 +9224,7 @@ mod test_map {
 
             let mut map = match get_test_map(
                 DISARMED_FLAGS.into_iter().zip(DISARMED_FLAGS),
-                |n| ::rust_alloc::vec![n],
+                |n| rust_alloc::vec![n],
                 MyAlloc::new(dropped.clone()),
             ) {
                 Ok(map) => map,
@@ -9234,7 +9234,7 @@ mod test_map {
             thread::scope(|s| {
                 let result: thread::ScopedJoinHandle<'_, String> = s.spawn(|| {
                     let scope_map =
-                        match get_test_map(ARMED_FLAGS.into_iter().zip(DISARMED_FLAGS), |n| ::rust_alloc::vec![n * 2], MyAlloc::new(dropped.clone())) {
+                        match get_test_map(ARMED_FLAGS.into_iter().zip(DISARMED_FLAGS), |n| rust_alloc::vec![n * 2], MyAlloc::new(dropped.clone())) {
                             Ok(map) => map,
                             Err(msg) => return msg,
                         };
@@ -9291,7 +9291,7 @@ mod test_map {
 
             let mut map = match get_test_map(
                 [DISARMED].into_iter().zip([DISARMED]),
-                |n| ::rust_alloc::vec![n],
+                |n| rust_alloc::vec![n],
                 MyAlloc::new(dropped.clone()),
             ) {
                 Ok(map) => map,
@@ -9302,7 +9302,7 @@ mod test_map {
                 let result: thread::ScopedJoinHandle<'_, String> = s.spawn(|| {
                     let scope_map = match get_test_map(
                         ARMED_FLAGS.into_iter().zip(DISARMED_FLAGS),
-                        |n| ::rust_alloc::vec![n * 2],
+                        |n| rust_alloc::vec![n * 2],
                         MyAlloc::new(dropped.clone()),
                     ) {
                         Ok(map) => map,

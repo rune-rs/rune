@@ -267,7 +267,7 @@ async fn completion(
 async fn formatting(
     state: &mut State<'_>,
     params: lsp::DocumentFormattingParams,
-) -> Result<Option<::rust_alloc::vec::Vec<lsp::TextEdit>>> {
+) -> Result<Option<rust_alloc::vec::Vec<lsp::TextEdit>>> {
     state
         .format(&params.text_document.uri)
         .map(|option| option.map(|formatted| vec![formatted]))
@@ -277,7 +277,7 @@ async fn formatting(
 async fn range_formatting(
     state: &mut State<'_>,
     params: lsp::DocumentRangeFormattingParams,
-) -> Result<Option<::rust_alloc::vec::Vec<lsp::TextEdit>>> {
+) -> Result<Option<rust_alloc::vec::Vec<lsp::TextEdit>>> {
     state
         .range_format(&params.text_document.uri, &params.range)
         .map(|option| option.map(|formatted| vec![formatted]))

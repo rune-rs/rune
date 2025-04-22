@@ -253,37 +253,37 @@ where
 }
 
 #[cfg(feature = "alloc")]
-impl<T: ?Sized> TryClone for ::rust_alloc::sync::Arc<T> {
+impl<T: ?Sized> TryClone for rust_alloc::sync::Arc<T> {
     fn try_clone(&self) -> Result<Self, Error> {
         Ok(self.clone())
     }
 }
 
 #[cfg(feature = "alloc")]
-impl<T: ?Sized> TryClone for ::rust_alloc::rc::Rc<T> {
+impl<T: ?Sized> TryClone for rust_alloc::rc::Rc<T> {
     fn try_clone(&self) -> Result<Self, Error> {
         Ok(self.clone())
     }
 }
 
 #[cfg(feature = "alloc")]
-impl<T> TryClone for ::rust_alloc::boxed::Box<T>
+impl<T> TryClone for rust_alloc::boxed::Box<T>
 where
     T: TryClone,
 {
     fn try_clone(&self) -> Result<Self, Error> {
-        Ok(::rust_alloc::boxed::Box::new(self.as_ref().try_clone()?))
+        Ok(rust_alloc::boxed::Box::new(self.as_ref().try_clone()?))
     }
 }
 
 #[cfg(feature = "alloc")]
-impl<T> TryClone for ::rust_alloc::boxed::Box<[T]>
+impl<T> TryClone for rust_alloc::boxed::Box<[T]>
 where
     T: TryClone,
 {
     fn try_clone(&self) -> Result<Self, Error> {
         // TODO: use a fallible box allocation.
-        let mut out = ::rust_alloc::vec::Vec::with_capacity(self.len());
+        let mut out = rust_alloc::vec::Vec::with_capacity(self.len());
 
         for value in self.iter() {
             out.push(value.try_clone()?);
@@ -294,7 +294,7 @@ where
 }
 
 #[cfg(feature = "alloc")]
-impl TryClone for ::rust_alloc::string::String {
+impl TryClone for rust_alloc::string::String {
     #[inline]
     fn try_clone(&self) -> Result<Self, Error> {
         // TODO: use fallible allocations for component.
@@ -303,13 +303,13 @@ impl TryClone for ::rust_alloc::string::String {
 }
 
 #[cfg(all(test, feature = "alloc"))]
-impl<T> TryClone for ::rust_alloc::vec::Vec<T>
+impl<T> TryClone for rust_alloc::vec::Vec<T>
 where
     T: TryClone,
 {
     #[inline]
     fn try_clone(&self) -> Result<Self, Error> {
-        let mut out = ::rust_alloc::vec::Vec::with_capacity(self.len());
+        let mut out = rust_alloc::vec::Vec::with_capacity(self.len());
 
         for value in self {
             out.push(value.try_clone()?);

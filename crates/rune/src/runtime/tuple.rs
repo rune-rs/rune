@@ -251,11 +251,11 @@ impl fmt::Debug for OwnedTuple {
     }
 }
 
-impl TryFrom<::rust_alloc::vec::Vec<Value>> for OwnedTuple {
+impl TryFrom<rust_alloc::vec::Vec<Value>> for OwnedTuple {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(vec: ::rust_alloc::vec::Vec<Value>) -> Result<Self, Self::Error> {
+    fn try_from(vec: rust_alloc::vec::Vec<Value>) -> Result<Self, Self::Error> {
         Ok(Self {
             inner: alloc::Box::try_from(vec.into_boxed_slice())?,
         })
@@ -311,22 +311,22 @@ impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
     }
 }
 
-impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
+impl TryFrom<rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(inner: ::rust_alloc::boxed::Box<[Value]>) -> alloc::Result<Self> {
+    fn try_from(inner: rust_alloc::boxed::Box<[Value]>) -> alloc::Result<Self> {
         Ok(Self {
             inner: alloc::Box::try_from(inner)?,
         })
     }
 }
 
-impl TryFrom<::rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
+impl TryFrom<rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
     type Error = RuntimeError;
 
     #[inline]
-    fn try_from(inner: ::rust_alloc::boxed::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
+    fn try_from(inner: rust_alloc::boxed::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }

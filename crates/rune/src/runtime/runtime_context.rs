@@ -1,6 +1,6 @@
 use core::fmt;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;

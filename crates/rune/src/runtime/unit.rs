@@ -9,7 +9,7 @@ mod storage;
 
 use core::fmt;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 #[cfg(feature = "musli")]
 use musli::mode::Binary;

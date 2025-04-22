@@ -7,7 +7,7 @@ use crate::compile::Named;
 use crate::hash::Hash;
 use crate::{Any, TypeHash};
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use super::Rtti;
 

@@ -835,7 +835,7 @@ rune_macros::binding! {
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     impl ::std::io::Error for std::io::Error;
-    impl ::rust_alloc::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
+    impl ::std::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
     #[cfg(feature = "anyhow")]
     impl ::std::error::Error for anyhow::Error;
     impl ::std::fmt::Error for core::fmt::Error;
@@ -890,7 +890,7 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::cmp::Ordering for core::cmp::Ordering;
     #[type_of]
-    impl ::std::string::String for ::rust_alloc::string::String;
+    impl ::std::string::String for rust_alloc::string::String;
     #[type_of]
     impl ::std::string::String for crate::alloc::Box<str>;
     #[type_of]
@@ -898,8 +898,7 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::vec::Vec for [Value];
     #[type_of]
-    #[type_of]
-    impl<T> ::std::vec::Vec for ::rust_alloc::vec::Vec<T>;
+    impl<T> ::std::vec::Vec for rust_alloc::vec::Vec<T>;
     #[type_of]
     impl<T> ::std::vec::Vec for crate::alloc::Vec<T>;
     #[type_of]
@@ -907,13 +906,13 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::tuple::Tuple for crate::runtime::Tuple;
     #[type_of]
-    impl<T> ::std::object::Object for crate::alloc::HashMap<::rust_alloc::string::String, T>;
+    impl<T> ::std::object::Object for crate::alloc::HashMap<rust_alloc::string::String, T>;
     #[type_of]
     impl<T> ::std::object::Object for crate::alloc::HashMap<alloc::String, T>;
     #[type_of]
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
-    impl<T> ::std::object::Object for std::collections::HashMap<::rust_alloc::string::String, T>;
+    impl<T> ::std::object::Object for std::collections::HashMap<rust_alloc::string::String, T>;
     #[type_of]
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]

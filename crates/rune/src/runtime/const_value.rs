@@ -544,6 +544,35 @@ impl FromConstValue for ConstValue {
     }
 }
 
+impl FromConstValue for bool {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+        value.as_bool()
+    }
+}
+
+impl FromConstValue for char {
+    #[inline]
+    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+        value.as_char()
+    }
+}
+
+macro_rules! impl_integer {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl FromConstValue for $ty {
+                #[inline]
+                fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+                    value.as_integer()
+                }
+            }
+        )*
+    };
+}
+
+impl_integer!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
+
 /// Implementation of a constant constructor.
 ///
 /// Do not implement manually, this is provided when deriving [`ToConstValue`].
