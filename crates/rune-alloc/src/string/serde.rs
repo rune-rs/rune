@@ -72,7 +72,7 @@ impl de::Visitor<'_> for StringVisitor {
         v.try_to_owned().map_err(E::custom)
     }
 
-    fn visit_string<E>(self, v: ::rust_alloc::string::String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, v: rust_alloc::string::String) -> Result<Self::Value, E>
     where
         E: Error,
     {
@@ -89,7 +89,7 @@ impl de::Visitor<'_> for StringVisitor {
         }
     }
 
-    fn visit_byte_buf<E>(self, v: ::rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
+    fn visit_byte_buf<E>(self, v: rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
     where
         E: Error,
     {
@@ -121,7 +121,7 @@ impl de::Visitor<'_> for StringInPlaceVisitor<'_> {
         Ok(())
     }
 
-    fn visit_string<E>(self, v: ::rust_alloc::string::String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, v: rust_alloc::string::String) -> Result<Self::Value, E>
     where
         E: Error,
     {
@@ -143,7 +143,7 @@ impl de::Visitor<'_> for StringInPlaceVisitor<'_> {
         }
     }
 
-    fn visit_byte_buf<E>(self, v: ::rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
+    fn visit_byte_buf<E>(self, v: rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
     where
         E: Error,
     {

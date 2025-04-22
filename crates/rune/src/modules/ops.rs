@@ -16,7 +16,7 @@ use crate::runtime::{
     ControlFlow, EnvProtocolCaller, Function, Hasher, Range, RangeFrom, RangeFull, RangeInclusive,
     RangeTo, RangeToInclusive, Value, VmResult,
 };
-use crate::{ContextError, Module};
+use crate::{vm_try, ContextError, Module};
 
 static STATE: OnceCell<RandomState> = OnceCell::new();
 

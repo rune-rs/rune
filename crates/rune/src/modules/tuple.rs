@@ -7,7 +7,7 @@ use crate::runtime::slice::Iter;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Hasher, OwnedTuple, Ref, Tuple, Value, Vec, VmResult,
 };
-use crate::{docstring, ContextError, Module};
+use crate::{docstring, vm_try, ContextError, Module};
 
 /// The [`Tuple`] fixed collection.
 ///

@@ -10,7 +10,7 @@ use crate::runtime::{
     Value, Vec, VmErrorKind, VmResult,
 };
 use crate::shared::Caller;
-use crate::{Any, ContextError, Module, Params};
+use crate::{docstring, vm_try, Any, ContextError, Module, Params};
 
 /// Rune support for iterators.
 ///

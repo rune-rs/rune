@@ -6,7 +6,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::runtime::{
     Formatter, GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmResult,
 };
-use crate::Any;
+use crate::{vm_try, vm_write, Any};
 
 /// A stream produced by an async generator function.
 ///

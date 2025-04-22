@@ -21,6 +21,7 @@ struct InternalItem {
 }
 
 impl syn::parse::Parse for InternalItem {
+    #[inline]
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         Ok(Self {
             attrs: syn::Attribute::parse_outer(input)?,

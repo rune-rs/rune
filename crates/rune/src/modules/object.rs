@@ -5,7 +5,7 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::object::{RuneIter, RuneIterKeys, RuneValues};
 use crate::runtime::{EnvProtocolCaller, Formatter, Object, Protocol, Value, VmResult};
-use crate::{ContextError, Module};
+use crate::{vm_try, vm_write, ContextError, Module};
 
 /// The dynamic [`Object`] container.
 ///

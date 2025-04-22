@@ -172,7 +172,7 @@ impl_into_component_for_str!(&Box<str>, self, self.try_clone()?);
 impl_into_component_for_str!(Cow<'_, str>, self, self.as_ref().try_into()?);
 #[cfg(feature = "alloc")]
 impl_into_component_for_str!(
-    ::rust_alloc::borrow::Cow<'_, str>,
+    rust_alloc::borrow::Cow<'_, str>,
     self,
     self.as_ref().try_into()?
 );

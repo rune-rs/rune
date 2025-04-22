@@ -1,4 +1,5 @@
 use crate::runtime::{Future, Output, Select, Vm, VmResult};
+use crate::vm_try;
 
 /// A stored await task.
 #[derive(Debug)]

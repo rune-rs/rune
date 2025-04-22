@@ -1478,7 +1478,7 @@ pub struct ImportStep {
 /// A meta error.
 #[derive(Debug)]
 pub struct MetaError {
-    kind: ::rust_alloc::boxed::Box<MetaErrorKind>,
+    kind: rust_alloc::boxed::Box<MetaErrorKind>,
 }
 
 impl MetaError {
@@ -1488,7 +1488,7 @@ impl MetaError {
         MetaErrorKind: From<E>,
     {
         Self {
-            kind: ::rust_alloc::boxed::Box::new(kind.into()),
+            kind: rust_alloc::boxed::Box::new(kind.into()),
         }
     }
 }

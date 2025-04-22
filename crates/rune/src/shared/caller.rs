@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use rust_alloc::sync::Arc;
 
 use crate::runtime::{FixedArgs, FunctionHandler, InstAddress, Output, VmResult};
-use crate::FromValue;
+use crate::{vm_try, FromValue};
 
 /// Helper struct to conveniently call native functions.
 ///

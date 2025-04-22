@@ -2,7 +2,7 @@ use crate::runtime::vm::{CallResult, CallResultOnly, Isolated};
 use crate::runtime::{
     DynArgs, Protocol, Stack, UnitFn, Value, Vm, VmError, VmErrorKind, VmExecution, VmResult,
 };
-use crate::Hash;
+use crate::{vm_try, Hash};
 
 /// Trait used for integrating an instance function call.
 pub(crate) trait ProtocolCaller: 'static {

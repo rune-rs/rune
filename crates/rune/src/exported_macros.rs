@@ -6,7 +6,8 @@
 /// [`rune::function`]: macro@crate::function
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
-macro_rules! vm_try {
+#[doc(hidden)]
+macro_rules! __vm_try {
     ($expr:expr) => {
         match $crate::runtime::try_result($expr) {
             $crate::runtime::VmResult::Ok(value) => value,
@@ -39,7 +40,8 @@ macro_rules! vm_try {
 /// }
 /// ```
 #[macro_export]
-macro_rules! vm_panic {
+#[doc(hidden)]
+macro_rules! __vm_panic {
     ($expr:expr) => {{
         return $crate::runtime::VmResult::panic($expr);
     }};
@@ -50,7 +52,8 @@ macro_rules! vm_panic {
 ///
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
-macro_rules! vm_write {
+#[doc(hidden)]
+macro_rules! __vm_write {
     ($($tt:tt)*) => {
         match core::write!($($tt)*) {
             Ok(()) => $crate::runtime::VmResult::Ok(()),
@@ -72,8 +75,18 @@ macro_rules! vm_write {
 /// };
 /// ```
 #[macro_export]
-macro_rules! docstring {
+#[doc(hidden)]
+macro_rules! __docstring {
     ($(#[doc = $doc:expr])*) => {
         [$($doc),*]
     };
 }
+
+#[doc(inline)]
+pub use __docstring as docstring;
+#[doc(inline)]
+pub use __vm_panic as vm_panic;
+#[doc(inline)]
+pub use __vm_try as vm_try;
+#[doc(inline)]
+pub use __vm_write as vm_write;

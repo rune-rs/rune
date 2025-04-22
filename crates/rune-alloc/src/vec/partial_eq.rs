@@ -19,9 +19,9 @@ macro_rules! __impl_slice_eq1 {
 }
 
 #[cfg(feature = "alloc")]
-__impl_slice_eq1! { [A: Allocator] Vec<T, A>, ::rust_alloc::vec::Vec<U> }
+__impl_slice_eq1! { [A: Allocator] Vec<T, A>, rust_alloc::vec::Vec<U> }
 #[cfg(feature = "alloc")]
-__impl_slice_eq1! { [A: Allocator] ::rust_alloc::vec::Vec<T>, Vec<U, A> }
+__impl_slice_eq1! { [A: Allocator] rust_alloc::vec::Vec<T>, Vec<U, A> }
 __impl_slice_eq1! { [A1: Allocator, A2: Allocator] Vec<T, A1>, Vec<U, A2> }
 __impl_slice_eq1! { [A: Allocator] Vec<T, A>, &[U] }
 __impl_slice_eq1! { [A: Allocator] Vec<T, A>, &mut [U] }

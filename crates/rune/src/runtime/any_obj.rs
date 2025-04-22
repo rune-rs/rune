@@ -9,8 +9,8 @@ use crate::alloc::{self, Box};
 use crate::{Any, Hash};
 
 use super::{
-    Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, Mut, RawAccessGuard, RawAnyGuard, Ref,
-    RefVtable, Shared, Snapshot, TypeInfo, VmErrorKind,
+    Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, Mut, RawAccessGuard,
+    RawAnyGuard, Ref, RefVtable, RuntimeError, Shared, Snapshot, TypeInfo, Value, VmErrorKind,
 };
 
 #[derive(Debug)]
@@ -666,6 +666,13 @@ impl Drop for AnyObj {
         unsafe {
             AnyObjData::dec(self.shared);
         }
+    }
+}
+
+impl FromValue for AnyObj {
+    #[inline]
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        value.into_any_obj()
     }
 }
 

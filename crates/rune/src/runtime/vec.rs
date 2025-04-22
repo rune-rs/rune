@@ -10,7 +10,7 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
-use crate::{Any, TypeHash};
+use crate::{vm_try, Any, TypeHash};
 
 use super::{
     EnvProtocolCaller, Formatter, FromValue, Hasher, ProtocolCaller, Range, RangeFrom, RangeFull,
@@ -254,17 +254,17 @@ impl Vec {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = this.iter().peekable();
-        vm_try!(vm_write!(f, "["));
+        vm_try!(write!(f, "["));
 
         while let Some(value) = it.next() {
             vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
-                vm_try!(vm_write!(f, ", "));
+                vm_try!(write!(f, ", "));
             }
         }
 
-        vm_try!(vm_write!(f, "]"));
+        vm_try!(write!(f, "]"));
         VmResult::Ok(())
     }
 
@@ -492,11 +492,11 @@ impl<'a> IntoIterator for &'a mut Vec {
     }
 }
 
-impl TryFrom<::rust_alloc::vec::Vec<Value>> for Vec {
+impl TryFrom<rust_alloc::vec::Vec<Value>> for Vec {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(values: ::rust_alloc::vec::Vec<Value>) -> Result<Self, Self::Error> {
+    fn try_from(values: rust_alloc::vec::Vec<Value>) -> Result<Self, Self::Error> {
         let mut inner = alloc::Vec::try_with_capacity(values.len())?;
 
         for value in values {
@@ -507,11 +507,11 @@ impl TryFrom<::rust_alloc::vec::Vec<Value>> for Vec {
     }
 }
 
-impl TryFrom<::rust_alloc::boxed::Box<[Value]>> for Vec {
+impl TryFrom<rust_alloc::boxed::Box<[Value]>> for Vec {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(inner: ::rust_alloc::boxed::Box<[Value]>) -> Result<Self, Self::Error> {
+    fn try_from(inner: rust_alloc::boxed::Box<[Value]>) -> Result<Self, Self::Error> {
         Vec::try_from(inner.into_vec())
     }
 }
@@ -523,7 +523,7 @@ impl From<alloc::Vec<Value>> for Vec {
     }
 }
 
-impl<T> FromValue for ::rust_alloc::vec::Vec<T>
+impl<T> FromValue for rust_alloc::vec::Vec<T>
 where
     T: FromValue,
 {
@@ -531,7 +531,7 @@ where
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let vec = value.downcast::<Vec>()?;
 
-        let mut output = ::rust_alloc::vec::Vec::with_capacity(vec.len());
+        let mut output = rust_alloc::vec::Vec::with_capacity(vec.len());
 
         for value in vec {
             output.push(T::from_value(value)?);
@@ -604,7 +604,7 @@ where
     }
 }
 
-impl<T> ToValue for ::rust_alloc::vec::Vec<T>
+impl<T> ToValue for rust_alloc::vec::Vec<T>
 where
     T: ToValue,
 {

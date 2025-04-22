@@ -4064,7 +4064,7 @@ mod test_map {
     /// AN UNINITIALIZED TABLE DURING THE DROP
     #[test]
     fn test_drop_uninitialized() {
-        use ::rust_alloc::vec::Vec;
+        use rust_alloc::vec::Vec;
 
         let table = unsafe {
             // SAFETY: The `buckets` is power of two and we're not
@@ -4078,7 +4078,7 @@ mod test_map {
     /// ARE ZERO, EVEN IF WE HAVE `FULL` CONTROL BYTES.
     #[test]
     fn test_drop_zero_items() {
-        use ::rust_alloc::vec::Vec;
+        use rust_alloc::vec::Vec;
         unsafe {
             // SAFETY: The `buckets` is power of two and we're not
             // trying to actually use the returned RawTable.
@@ -4125,9 +4125,9 @@ mod test_map {
     #[test]
     fn test_catch_panic_clone_from() {
         use crate::alloc::{AllocError, Allocator};
-        use ::rust_alloc::sync::Arc;
-        use ::rust_alloc::vec::Vec;
         use core::sync::atomic::{AtomicI8, Ordering};
+        use rust_alloc::sync::Arc;
+        use rust_alloc::vec::Vec;
         use std::thread;
 
         struct MyAllocInner {
@@ -4208,7 +4208,7 @@ mod test_map {
                         CheckedCloneDrop {
                             panic_in_clone,
                             dropped: false,
-                            need_drop: ::rust_alloc::vec![idx],
+                            need_drop: rust_alloc::vec![idx],
                         },
                     ),
                     |_: &mut (), (k, _): &(u64, _)| Ok::<_, Infallible>(*k),
@@ -4239,7 +4239,7 @@ mod test_map {
                                 CheckedCloneDrop {
                                     panic_in_clone,
                                     dropped: false,
-                                    need_drop: ::rust_alloc::vec![idx + 100],
+                                    need_drop: rust_alloc::vec![idx + 100],
                                 },
                             ),
                             |_: &mut (), (k, _): &(u64, _)| Ok::<_, Infallible>(*k),

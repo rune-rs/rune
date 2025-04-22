@@ -4,7 +4,7 @@ use crate::alloc::{AllocError, Allocator};
 use crate::ptr::{invalid_mut, NonNull};
 
 #[cfg(feature = "alloc")]
-use ::rust_alloc::alloc::{alloc, alloc_zeroed, dealloc};
+use rust_alloc::alloc::{alloc, alloc_zeroed, dealloc};
 
 /// Creates a `NonNull` that is dangling, but well-aligned for this Layout.
 ///

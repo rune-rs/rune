@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate::alloc::Vec;
 use crate::runtime::{GuardedArgs, Stack, ToValue, Value, VmResult};
+use crate::vm_try;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -117,7 +118,7 @@ macro_rules! impl_into_args {
             #[allow(unused)]
             fn into_array(self) -> VmResult<[Value; $count]> {
                 let ($($value,)*) = self;
-                $(let $value = vm_try!($value.to_value());)*
+                $(let $value = $crate::vm_try!($value.to_value());)*
                 VmResult::Ok([$($value),*])
             }
         }
@@ -129,15 +130,15 @@ macro_rules! impl_into_args {
             #[allow(unused)]
             fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
                 let ($($value,)*) = self;
-                $(vm_try!(stack.push(vm_try!($value.to_value())));)*
+                $($crate::vm_try!(stack.push($crate::vm_try!($value.to_value())));)*
                 VmResult::Ok(())
             }
 
             #[allow(unused)]
             fn try_into_vec(self) -> VmResult<Vec<Value>> {
                 let ($($value,)*) = self;
-                let mut vec = vm_try!(Vec::try_with_capacity($count));
-                $(vm_try!(vec.try_push(vm_try!(<$ty>::to_value($value))));)*
+                let mut vec = $crate::vm_try!(Vec::try_with_capacity($count));
+                $($crate::vm_try!(vec.try_push($crate::vm_try!(<$ty>::to_value($value))));)*
                 VmResult::Ok(vec)
             }
 
@@ -172,7 +173,7 @@ impl Args for Vec<Value> {
     }
 }
 
-impl Args for ::rust_alloc::vec::Vec<Value> {
+impl Args for rust_alloc::vec::Vec<Value> {
     #[inline]
     fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
         for value in self {

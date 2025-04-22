@@ -1,7 +1,7 @@
 use core::fmt;
 use core::future::Future;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
@@ -11,8 +11,7 @@ use crate::function;
 use crate::runtime;
 use crate::runtime::vm::Isolated;
 use crate::shared::AssertSend;
-use crate::Any;
-use crate::Hash;
+use crate::{vm_try, vm_write, Any, Hash};
 
 use super::{
     Args, Call, ConstValue, Dynamic, Formatter, FromValue, FunctionHandler, GuardedArgs,

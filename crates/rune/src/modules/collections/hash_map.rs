@@ -6,7 +6,7 @@ use crate::runtime::{
     EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmErrorKind,
     VmResult,
 };
-use crate::{Any, ContextError, Module};
+use crate::{vm_try, Any, ContextError, Module};
 
 /// A dynamic hash map.
 #[rune::module(::std::collections::hash_map)]
@@ -588,21 +588,21 @@ impl HashMap {
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
-        vm_try!(vm_write!(f, "{{"));
+        vm_try!(write!(f, "{{"));
 
         let mut it = self.table.iter().peekable();
 
         while let Some((key, value)) = it.next() {
             vm_try!(key.debug_fmt_with(f, caller));
-            vm_try!(vm_write!(f, ": "));
+            vm_try!(write!(f, ": "));
             vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
-                vm_try!(vm_write!(f, ", "));
+                vm_try!(write!(f, ", "));
             }
         }
 
-        vm_try!(vm_write!(f, "}}"));
+        vm_try!(write!(f, "}}"));
         VmResult::Ok(())
     }
 

@@ -9,7 +9,7 @@ use crate::alloc::prelude::*;
 use crate::runtime::{
     ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, Value, VmResult,
 };
-use crate::{hash_in, ContextError, Hash, Module};
+use crate::{hash_in, vm_try, ContextError, Hash, Module};
 
 /// The [`Result`] type.
 ///
@@ -168,10 +168,7 @@ fn unwrap(result: &Result<Value, Value>) -> VmResult<Value> {
         Ok(value) => VmResult::Ok(value.clone()),
         Err(err) => {
             let mut m = String::new();
-            vm_try!(vm_write!(
-                m,
-                "Called `Result::unwrap()` on an `Err` value: "
-            ));
+            vm_try!(write!(m, "Called `Result::unwrap()` on an `Err` value: "));
             vm_try!(Formatter::format_with(&mut m, |f| err.debug_fmt(f)));
             VmResult::err(Panic::custom(m))
         }

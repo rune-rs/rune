@@ -7,7 +7,7 @@ use crate::alloc::clone::TryClone;
 use crate::runtime::{
     EnvProtocolCaller, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmResult,
 };
-use crate::Any;
+use crate::{vm_try, Any};
 
 /// Type for an inclusive range expression `..end`.
 ///

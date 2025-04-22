@@ -17,7 +17,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::runtime::VmResult;
 use crate::TypeHash as _;
-use crate::{Any, FromValue};
+use crate::{vm_try, Any, FromValue};
 
 use super::{
     IntoOutput, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
@@ -387,11 +387,11 @@ impl TryFrom<&[u8]> for Bytes {
     }
 }
 
-impl TryFrom<::rust_alloc::vec::Vec<u8>> for Bytes {
+impl TryFrom<rust_alloc::vec::Vec<u8>> for Bytes {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(bytes: ::rust_alloc::vec::Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(bytes: rust_alloc::vec::Vec<u8>) -> Result<Self, Self::Error> {
         Ok(Self {
             bytes: Vec::try_from(bytes)?,
         })
@@ -407,11 +407,11 @@ impl From<Box<[u8]>> for Bytes {
     }
 }
 
-impl TryFrom<::rust_alloc::boxed::Box<[u8]>> for Bytes {
+impl TryFrom<rust_alloc::boxed::Box<[u8]>> for Bytes {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(bytes: ::rust_alloc::boxed::Box<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from(bytes: rust_alloc::boxed::Box<[u8]>) -> Result<Self, Self::Error> {
         Ok(Self {
             bytes: Vec::try_from(bytes.as_ref())?,
         })

@@ -1,7 +1,7 @@
 use core::fmt;
 use core::marker::PhantomData;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
 use crate::compile::{ContextError, Docs};

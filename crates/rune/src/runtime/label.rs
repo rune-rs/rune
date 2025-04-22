@@ -7,7 +7,7 @@ use core::num::NonZeroUsize;
 use crate as rune;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-use ::rust_alloc::rc::Rc;
+use rust_alloc::rc::Rc;
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};

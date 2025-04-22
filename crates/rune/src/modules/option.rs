@@ -11,7 +11,7 @@ use crate::runtime::{
     Value, VmResult,
 };
 use crate::Any;
-use crate::{hash_in, ContextError, Hash, Module};
+use crate::{hash_in, vm_try, ContextError, Hash, Module};
 
 /// The [`Option`] type.
 ///

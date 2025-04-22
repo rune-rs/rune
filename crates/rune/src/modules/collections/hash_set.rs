@@ -8,7 +8,7 @@ use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawAnyGuard, Ref, Value, VmResult,
 };
-use crate::{Any, ContextError, Module};
+use crate::{vm_try, Any, ContextError, Module};
 
 /// A dynamic hash set.
 #[rune::module(::std::collections::hash_set)]
@@ -471,19 +471,19 @@ impl HashSet {
     }
 
     fn debug_fmt_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> VmResult<()> {
-        vm_try!(vm_write!(f, "{{"));
+        vm_try!(write!(f, "{{"));
 
         let mut it = self.table.iter().peekable();
 
         while let Some(value) = it.next() {
-            vm_try!(vm_write!(f, "{:?}", value));
+            vm_try!(write!(f, "{:?}", value));
 
             if it.peek().is_some() {
-                vm_try!(vm_write!(f, ", "));
+                vm_try!(write!(f, ", "));
             }
         }
 
-        vm_try!(vm_write!(f, "}}"));
+        vm_try!(write!(f, "}}"));
         VmResult::Ok(())
     }
 

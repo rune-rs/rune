@@ -2,7 +2,7 @@ use core::ptr::NonNull;
 
 use crate::hash::Hash;
 use crate::runtime::VmResult;
-use crate::Diagnostics;
+use crate::{vm_try, Diagnostics};
 
 pub trait VmDiagnostics {
     fn function_used(&mut self, hash: Hash, at: usize) -> VmResult<()>;
@@ -11,11 +11,13 @@ pub trait VmDiagnostics {
 }
 
 impl VmDiagnostics for Diagnostics {
+    #[inline]
     fn function_used(&mut self, hash: Hash, at: usize) -> VmResult<()> {
         vm_try!(self.runtime_used_deprecated(at, hash));
         VmResult::Ok(())
     }
 
+    #[inline]
     fn vtable(&self) -> &'static VmDiagnosticsObjVtable {
         fn function_used_impl<T>(ptr: NonNull<()>, hash: Hash, at: usize) -> VmResult<()>
         where
@@ -43,6 +45,7 @@ pub(crate) struct VmDiagnosticsObj {
 }
 
 impl VmDiagnosticsObj {
+    #[inline]
     pub(crate) fn new(trait_obj: &mut dyn VmDiagnostics) -> Self {
         let vtable = trait_obj.vtable();
 
@@ -52,6 +55,7 @@ impl VmDiagnosticsObj {
         }
     }
 
+    #[inline]
     pub(crate) fn function_used(&mut self, hash: Hash, at: usize) -> VmResult<()> {
         unsafe { (self.vtable.function_used)(self.ptr, hash, at) }
     }

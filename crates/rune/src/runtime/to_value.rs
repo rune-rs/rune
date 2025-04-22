@@ -1,6 +1,7 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
 use crate::any::AnyMarker;
+use crate::vm_try;
 
 use super::{AnyObj, Object, RuntimeError, Value, VmResult};
 
@@ -225,7 +226,7 @@ impl ToValue for &str {
     }
 }
 
-impl ToValue for ::rust_alloc::boxed::Box<str> {
+impl ToValue for rust_alloc::boxed::Box<str> {
     #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let this = self.try_to_string()?;
@@ -233,7 +234,7 @@ impl ToValue for ::rust_alloc::boxed::Box<str> {
     }
 }
 
-impl ToValue for ::rust_alloc::string::String {
+impl ToValue for rust_alloc::string::String {
     #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         let string = alloc::String::try_from(self)?;
@@ -279,10 +280,10 @@ macro_rules! impl_map {
     };
 }
 
-impl_map!(HashMap<::rust_alloc::string::String, T>);
+impl_map!(HashMap<rust_alloc::string::String, T>);
 impl_map!(HashMap<alloc::String, T>);
 
 cfg_std! {
-    impl_map!(::std::collections::HashMap<::rust_alloc::string::String, T>);
+    impl_map!(::std::collections::HashMap<rust_alloc::string::String, T>);
     impl_map!(::std::collections::HashMap<alloc::String, T>);
 }

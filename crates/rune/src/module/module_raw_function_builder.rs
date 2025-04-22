@@ -1,4 +1,4 @@
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate::compile::ContextError;
 use crate::function_meta::{

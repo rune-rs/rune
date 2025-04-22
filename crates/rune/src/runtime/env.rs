@@ -13,7 +13,7 @@ use core::ptr::NonNull;
 #[cfg_attr(feature = "std", path = "env/std.rs")]
 mod no_std;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate::runtime::vm_diagnostics::VmDiagnosticsObj;
 use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};

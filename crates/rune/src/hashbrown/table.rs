@@ -7,12 +7,11 @@ use core::mem;
 use core::ptr;
 
 use crate::alloc;
-use crate::alloc::prelude::*;
-
-use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError, VmResult};
-
 use crate::alloc::hashbrown::raw::{RawIter, RawTable};
 use crate::alloc::hashbrown::ErrorOrInsertSlot;
+use crate::alloc::prelude::*;
+use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError, VmResult};
+use crate::vm_try;
 
 pub(crate) struct Table<V> {
     table: RawTable<(Value, V)>,

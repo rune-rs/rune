@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc;
@@ -335,7 +335,7 @@ impl AssociatedFunctionData {
     }
 }
 
-/// The kind of a [`FunctionMeta`].
+/// The kind of a `FunctionMeta`.
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
@@ -441,7 +441,7 @@ where
     }
 }
 
-/// The kind of a [`FunctionMeta`].
+/// The kind of a `FunctionMeta`.
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
@@ -487,7 +487,7 @@ impl MacroMetaKind {
     }
 }
 
-/// The data of a [`MacroMeta`].
+/// The data of a `MacroMeta`.
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.
@@ -514,7 +514,7 @@ pub struct FunctionMetaStatics {
     pub arguments: &'static [&'static str],
 }
 
-/// The data of a [`FunctionMeta`].
+/// The data of a `FunctionMeta`.
 ///
 /// Even though this is marked as `pub`, this is private API. If you use this it
 /// might cause breakage.

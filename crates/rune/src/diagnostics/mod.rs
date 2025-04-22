@@ -41,8 +41,8 @@ pub use self::runtime_warning::RuntimeWarningDiagnostic;
 pub(crate) use self::runtime_warning::RuntimeWarningDiagnosticKind;
 mod runtime_warning;
 
-use ::rust_alloc::boxed::Box;
 use rune_alloc::String;
+use rust_alloc::boxed::Box;
 
 use crate::alloc::{self, Vec};
 use crate::ast::Spanned;

@@ -14,6 +14,7 @@ use crate::runtime::{
     Access, AccessError, BorrowMut, BorrowRef, Formatter, IntoOutput, ProtocolCaller, Rtti,
     RttiKind, RuntimeError, Snapshot, TypeInfo, Value, VmResult,
 };
+use crate::vm_try;
 
 #[derive(Debug)]
 pub(crate) enum DynamicTakeError {

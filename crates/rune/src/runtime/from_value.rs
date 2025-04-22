@@ -4,9 +4,7 @@ use crate::alloc::{self, String};
 use crate::any::AnyMarker;
 use crate::hash::Hash;
 
-use super::{
-    AnyObj, ConstValue, FromConstValue, Mut, RawAnyGuard, Ref, RuntimeError, Shared, Value,
-};
+use super::{Mut, RawAnyGuard, Ref, RuntimeError, Value};
 
 /// Derive macro for the [`FromValue`] trait for converting types from the
 /// dynamic `Value` container.
@@ -221,43 +219,6 @@ where
     }
 }
 
-impl<T> FromValue for Mut<T>
-where
-    T: AnyMarker,
-{
-    #[inline]
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_mut()
-    }
-}
-
-impl<T> FromValue for Ref<T>
-where
-    T: AnyMarker,
-{
-    #[inline]
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_ref()
-    }
-}
-
-impl FromValue for AnyObj {
-    #[inline]
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_any_obj()
-    }
-}
-
-impl<T> FromValue for Shared<T>
-where
-    T: AnyMarker,
-{
-    #[inline]
-    fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.into_shared()
-    }
-}
-
 impl FromValue for Value {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
@@ -280,11 +241,11 @@ where
     }
 }
 
-impl FromValue for ::rust_alloc::string::String {
+impl FromValue for rust_alloc::string::String {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let string = String::from_value(value)?;
-        let string = ::rust_alloc::string::String::from(string);
+        let string = rust_alloc::string::String::from(string);
         Ok(string)
     }
 }
@@ -298,11 +259,11 @@ impl FromValue for alloc::Box<str> {
     }
 }
 
-impl FromValue for ::rust_alloc::boxed::Box<str> {
+impl FromValue for rust_alloc::boxed::Box<str> {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         let string = value.borrow_string_ref()?;
-        let string = ::rust_alloc::boxed::Box::<str>::from(string.as_ref());
+        let string = rust_alloc::boxed::Box::<str>::from(string.as_ref());
         Ok(string)
     }
 }
@@ -357,23 +318,9 @@ impl FromValue for bool {
     }
 }
 
-impl FromConstValue for bool {
-    #[inline]
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
-        value.as_bool()
-    }
-}
-
 impl FromValue for char {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        value.as_char()
-    }
-}
-
-impl FromConstValue for char {
-    #[inline]
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
         value.as_char()
     }
 }
@@ -384,13 +331,6 @@ macro_rules! impl_integer {
             impl FromValue for $ty {
                 #[inline]
                 fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                    value.as_integer()
-                }
-            }
-
-            impl FromConstValue for $ty {
-                #[inline]
-                fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
                     value.as_integer()
                 }
             }
@@ -439,7 +379,7 @@ cfg_std! {
     }
 
     impl_map!(::std::collections::HashMap<String, T>, String);
-    impl_map!(::std::collections::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::string::String);
+    impl_map!(::std::collections::HashMap<rust_alloc::string::String, T>, rust_alloc::string::String);
 }
 
 macro_rules! impl_try_map {
@@ -466,7 +406,7 @@ macro_rules! impl_try_map {
 }
 
 impl_try_map!(alloc::HashMap<String, T>, String);
-impl_try_map!(alloc::HashMap<::rust_alloc::string::String, T>, ::rust_alloc::string::String);
+impl_try_map!(alloc::HashMap<rust_alloc::string::String, T>, rust_alloc::string::String);
 
 impl FromValue for Ordering {
     #[inline]

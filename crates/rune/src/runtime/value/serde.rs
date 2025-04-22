@@ -124,7 +124,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
-    fn visit_string<E>(self, v: ::rust_alloc::string::String) -> Result<Self::Value, E>
+    fn visit_string<E>(self, v: rust_alloc::string::String) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
@@ -143,7 +143,7 @@ impl<'de> de::Visitor<'de> for VmVisitor {
     }
 
     #[inline]
-    fn visit_byte_buf<E>(self, v: ::rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
+    fn visit_byte_buf<E>(self, v: rust_alloc::vec::Vec<u8>) -> Result<Self::Value, E>
     where
         E: de::Error,
     {

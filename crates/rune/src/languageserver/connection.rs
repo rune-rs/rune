@@ -1,6 +1,6 @@
 use core::fmt;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
 use tokio::io;
@@ -20,7 +20,7 @@ pub(super) struct Frame<'a> {
 
 /// Input connection.
 pub(super) struct Input {
-    buf: ::rust_alloc::vec::Vec<u8>,
+    buf: rust_alloc::vec::Vec<u8>,
     stdin: BufReader<io::Stdin>,
 }
 
@@ -139,10 +139,10 @@ impl Output {
     }
 
     /// Write the given response body.
-    async fn write_response(&self, bytes: &mut ::rust_alloc::vec::Vec<u8>) -> Result<()> {
+    async fn write_response(&self, bytes: &mut rust_alloc::vec::Vec<u8>) -> Result<()> {
         use std::io::Write as _;
 
-        let mut m = ::rust_alloc::vec::Vec::new();
+        let mut m = rust_alloc::vec::Vec::new();
 
         write!(m, "Content-Length: {}\r\n", bytes.len())?;
         write!(m, "\r\n")?;
@@ -161,7 +161,7 @@ pub(super) fn stdio() -> Result<(Input, Output)> {
     let stdout = io::stdout();
 
     let input = Input {
-        buf: ::rust_alloc::vec::Vec::new(),
+        buf: rust_alloc::vec::Vec::new(),
         stdin: BufReader::new(stdin),
     };
 
@@ -186,7 +186,7 @@ pub(super) struct Headers {
 impl Headers {
     /// Read headers from the given line stream.
     pub(super) async fn read<S>(
-        buf: &mut ::rust_alloc::vec::Vec<u8>,
+        buf: &mut rust_alloc::vec::Vec<u8>,
         reader: &mut S,
     ) -> anyhow::Result<Option<Self>>
     where

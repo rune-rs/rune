@@ -6,7 +6,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Panic, Value, VmResult};
-use crate::{docstring, ContextError, Module};
+use crate::{docstring, vm_try, ContextError, Module};
 
 /// Core types and methods in Rune.
 ///

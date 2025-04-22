@@ -5,7 +5,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::generator::Iter;
 use crate::runtime::{EnvProtocolCaller, Formatter, Generator, GeneratorState, Value, VmResult};
-use crate::{ContextError, Module};
+use crate::{docstring, vm_try, vm_write, ContextError, Module};
 
 /// Types related to generators.
 #[rune::module(::std::ops::generator)]
@@ -278,14 +278,14 @@ fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult
 fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> VmResult<()> {
     match this {
         GeneratorState::Yielded(value) => {
-            vm_try!(vm_write!(f, "Yielded("));
+            vm_try!(write!(f, "Yielded("));
             vm_try!(value.debug_fmt_with(f, &mut EnvProtocolCaller));
-            vm_try!(vm_write!(f, ")"));
+            vm_try!(write!(f, ")"));
         }
         GeneratorState::Complete(value) => {
-            vm_try!(vm_write!(f, "Complete("));
+            vm_try!(write!(f, "Complete("));
             vm_try!(value.debug_fmt_with(f, &mut EnvProtocolCaller));
-            vm_try!(vm_write!(f, ")"));
+            vm_try!(write!(f, ")"));
         }
     }
 

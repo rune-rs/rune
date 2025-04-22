@@ -16,7 +16,7 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{Formatter, Inline, ProtocolCaller, Repr, Value, VmErrorKind, VmResult};
-use crate::{Any, TypeHash};
+use crate::{vm_try, Any, TypeHash};
 
 /// Error raised when trying to parse a type string and it fails.
 #[derive(Debug, Clone, Copy)]
@@ -133,7 +133,7 @@ impl FormatSpec {
     /// Format the given float.
     fn format_float(&self, buf: &mut String, n: f64) -> VmResult<()> {
         if let Some(precision) = self.precision {
-            vm_try!(vm_write!(buf, "{:.*}", precision.get(), n));
+            vm_try!(write!(buf, "{:.*}", precision.get(), n));
         } else {
             let mut buffer = ryu::Buffer::new();
             vm_try!(buf.try_push_str(buffer.format(n)));
@@ -282,7 +282,7 @@ impl FormatSpec {
                 Repr::Any(value) => match value.type_hash() {
                     String::HASH => {
                         let s = vm_try!(value.borrow_ref::<String>());
-                        vm_try!(vm_write!(f, "{s:?}"));
+                        vm_try!(write!(f, "{s:?}"));
                     }
                     _ => {
                         break 'fallback;
@@ -300,7 +300,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(vm_write!(f.buf_mut(), "{:X}", n));
+                vm_try!(write!(f.buf_mut(), "{:X}", n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
@@ -315,7 +315,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(vm_write!(f.buf_mut(), "{:x}", n));
+                vm_try!(write!(f.buf_mut(), "{:x}", n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
@@ -330,7 +330,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(vm_write!(f.buf_mut(), "{:b}", n));
+                vm_try!(write!(f.buf_mut(), "{:b}", n));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
@@ -345,7 +345,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(vm_write!(f.buf_mut(), "{:p}", n as *const ()));
+                vm_try!(write!(f.buf_mut(), "{:p}", n as *const ()));
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {

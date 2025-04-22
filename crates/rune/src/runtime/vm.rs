@@ -3,7 +3,7 @@ use core::fmt;
 use core::mem::replace;
 use core::ptr::NonNull;
 
-use ::rust_alloc::sync::Arc;
+use rust_alloc::sync::Arc;
 
 use crate as rune;
 use crate::alloc::prelude::*;
@@ -12,6 +12,7 @@ use crate::hash;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime;
+use crate::vm_try;
 
 mod ops;
 use self::ops::*;

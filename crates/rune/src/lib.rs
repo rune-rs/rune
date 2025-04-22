@@ -187,13 +187,15 @@ pub mod no_std;
 #[macro_use]
 mod internal_macros;
 
-#[macro_use]
 mod exported_macros;
+#[doc(inline)]
+pub use self::exported_macros::{docstring, vm_panic, vm_try, vm_write};
 
 #[macro_use]
 pub mod ast;
 
 #[cfg(feature = "fmt")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "fmt")))]
 pub mod fmt;
 
 #[cfg(feature = "emit")]
@@ -314,6 +316,7 @@ pub mod workspace;
 /// m.macro_meta(ident_to_string)?;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
+#[doc(inline)]
 pub use rune_macros::attribute_macro;
 
 /// Macro used to annotate native functions which can be loaded into rune.
@@ -652,6 +655,7 @@ pub use rune_macros::attribute_macro;
 ///
 /// [`vm_try!`]: crate::vm_try
 /// [`VmResult`]: crate::runtime::VmResult
+#[doc(inline)]
 pub use rune_macros::function;
 
 /// Calculate a type hash at compile time.
@@ -665,6 +669,7 @@ pub use rune_macros::function;
 ///
 /// let hash: Hash = rune::hash!(::std::option::Option::Some);
 /// ```
+#[doc(inline)]
 pub use rune_macros::hash;
 
 /// Calculate a type hash at compile time using a custom crate.
@@ -678,6 +683,7 @@ pub use rune_macros::hash;
 ///
 /// let hash: Hash = rune::hash_in!(rune_core::hash, ::std::option::Option::Some);
 /// ```
+#[doc(inline)]
 pub use rune_macros::hash_in;
 
 /// Construct an [`Item`] reference at compile time.
@@ -697,6 +703,7 @@ pub use rune_macros::hash_in;
 /// assert_eq!(item, ITEM);
 /// # Ok::<_, rune::alloc::Error>(())
 /// ```
+#[doc(inline)]
 pub use rune_macros::item;
 
 /// Construct an [`Item`] reference at compile time.
@@ -720,6 +727,7 @@ pub use rune_macros::item;
 /// assert_eq!(item, ITEM);
 /// # Ok::<_, rune_core::alloc::Error>(())
 /// ```
+#[doc(inline)]
 pub use rune_macros::item_in;
 
 /// Macro used to annotate native functions which can be loaded as macros in
@@ -757,6 +765,7 @@ pub use rune_macros::item_in;
 /// m.macro_meta(ident_to_string)?;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
+#[doc(inline)]
 pub use rune_macros::macro_;
 
 /// Macro used to annotate a module with metadata.
@@ -782,6 +791,7 @@ pub use rune_macros::macro_;
 ///     Ok(m)
 /// }
 /// ```
+#[doc(inline)]
 pub use rune_macros::module;
 
 #[cfg(feature = "cli")]
@@ -802,23 +812,30 @@ pub(crate) mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __priv {
+    #[doc(inline)]
     pub use crate::any::AnyMarker;
+    #[doc(inline)]
     pub use crate::function_meta::{
         FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
-    pub use crate::item::ItemBuf;
+    #[doc(inline)]
+    pub use crate::item::{Item, ItemBuf};
+    #[doc(inline)]
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
+    #[doc(inline)]
     pub use crate::params::Params;
+    #[doc(inline)]
     pub use crate::runtime::{
         AnyTypeInfo, ConstConstruct, ConstValue, FromConstValue, FromValue, MaybeTypeOf, Object,
         OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue, ToValue, Tuple, TypeHash,
         TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue, Value, ValueMutGuard,
         ValueRefGuard, VmResult,
     };
-    pub use crate::Item;
-
+    #[doc(inline)]
     pub use core::clone::Clone;
+    #[doc(inline)]
     pub use rust_alloc::boxed::Box;
+    #[doc(inline)]
     pub use rust_alloc::sync::Arc;
 }
 
@@ -835,7 +852,7 @@ rune_macros::binding! {
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     impl ::std::io::Error for std::io::Error;
-    impl ::rust_alloc::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
+    impl ::std::string::FromUtf8Error for crate::alloc::string::FromUtf8Error;
     #[cfg(feature = "anyhow")]
     impl ::std::error::Error for anyhow::Error;
     impl ::std::fmt::Error for core::fmt::Error;
@@ -890,7 +907,7 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::cmp::Ordering for core::cmp::Ordering;
     #[type_of]
-    impl ::std::string::String for ::rust_alloc::string::String;
+    impl ::std::string::String for rust_alloc::string::String;
     #[type_of]
     impl ::std::string::String for crate::alloc::Box<str>;
     #[type_of]
@@ -898,8 +915,7 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::vec::Vec for [Value];
     #[type_of]
-    #[type_of]
-    impl<T> ::std::vec::Vec for ::rust_alloc::vec::Vec<T>;
+    impl<T> ::std::vec::Vec for rust_alloc::vec::Vec<T>;
     #[type_of]
     impl<T> ::std::vec::Vec for crate::alloc::Vec<T>;
     #[type_of]
@@ -907,13 +923,13 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::tuple::Tuple for crate::runtime::Tuple;
     #[type_of]
-    impl<T> ::std::object::Object for crate::alloc::HashMap<::rust_alloc::string::String, T>;
+    impl<T> ::std::object::Object for crate::alloc::HashMap<rust_alloc::string::String, T>;
     #[type_of]
     impl<T> ::std::object::Object for crate::alloc::HashMap<alloc::String, T>;
     #[type_of]
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
-    impl<T> ::std::object::Object for std::collections::HashMap<::rust_alloc::string::String, T>;
+    impl<T> ::std::object::Object for std::collections::HashMap<rust_alloc::string::String, T>;
     #[type_of]
     #[cfg(feature = "std")]
     #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
