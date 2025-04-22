@@ -35,7 +35,16 @@ impl Wake for NoopWaker {
 #[test]
 fn test_take() -> Result<()> {
     let thing = Value::from(AnyObj::new(Thing(0))?);
-    let _ = thing.into_any_obj()?;
+    let _ = thing.into_any_obj()?.take()?;
+    Ok(())
+}
+
+#[test]
+fn test_take_shared() -> Result<()> {
+    let thing = Value::from(AnyObj::new(Thing(0))?);
+    let shared = thing.into_shared::<Thing>()?;
+    let inner = shared.take()?;
+    assert_eq!(inner, Thing(0));
     Ok(())
 }
 
@@ -46,6 +55,18 @@ fn test_clone_take() -> Result<()> {
     let v3 = v.clone();
     assert_eq!(Thing(0), v2.downcast::<Thing>()?);
     assert!(v3.downcast::<Thing>().is_err());
+    let any = v.into_any_obj()?;
+    assert_eq!(any.type_hash(), Thing::HASH);
+    Ok(())
+}
+
+#[test]
+fn test_clone_take_shared() -> Result<()> {
+    let v = Value::from(AnyObj::new(Thing(0))?);
+    let v2 = v.clone();
+    let v3 = v.clone().into_shared::<Thing>()?;
+    assert_eq!(Thing(0), v2.downcast::<Thing>()?);
+    assert!(v3.take().is_err());
     let any = v.into_any_obj()?;
     assert_eq!(any.type_hash(), Thing::HASH);
     Ok(())

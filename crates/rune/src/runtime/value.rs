@@ -45,7 +45,7 @@ use super::{
 
 /// Defined guard for a reference value.
 ///
-/// See [Value::from_ref].
+/// See [`Value::from_ref`].
 pub struct ValueRefGuard {
     #[allow(unused)]
     guard: AnyObjDrop,
@@ -53,19 +53,20 @@ pub struct ValueRefGuard {
 
 /// Defined guard for a reference value.
 ///
-/// See [Value::from_mut].
+/// See [`Value::from_mut`].
 pub struct ValueMutGuard {
     #[allow(unused)]
     guard: AnyObjDrop,
 }
 
-/// The guard returned by [Value::into_any_mut_ptr].
+/// The guard returned by [`Value::into_any_mut_ptr`].
 pub struct RawValueGuard {
     #[allow(unused)]
     guard: RawAnyObjGuard,
 }
 
 // Small helper function to build errors.
+#[inline]
 fn err<T, E>(error: E) -> VmResult<T>
 where
     VmErrorKind: From<E>,

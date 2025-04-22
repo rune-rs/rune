@@ -1,15 +1,18 @@
 use core::fmt;
 use core::marker::PhantomData;
-use core::mem::ManuallyDrop;
-use core::ptr::{addr_of, NonNull};
+use core::mem::{replace, ManuallyDrop};
+use core::ptr::{self, addr_of, NonNull};
 
+use crate::alloc;
+use crate::alloc::clone::TryClone;
 use crate::any::AnyMarker;
+use crate::compile::meta;
 use crate::{Any, Hash};
 
 use super::any_obj::{AnyObjData, AnyObjError, AnyObjErrorKind, Kind, Vtable};
 use super::{
-    AccessError, BorrowMut, BorrowRef, FromValue, Mut, RawAnyGuard, Ref, RefVtable, RuntimeError,
-    TypeInfo, Value,
+    AccessError, AnyObj, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, MaybeTypeOf, Mut,
+    RawAnyGuard, Ref, RefVtable, RuntimeError, ToValue, TypeHash, TypeInfo, TypeOf, Value,
 };
 
 /// A typed wrapper for a reference.
@@ -29,16 +32,32 @@ impl<T> Shared<T>
 where
     T: Any,
 {
+    /// Construct a new typed shared value.
+    pub fn new(value: T) -> alloc::Result<Self> {
+        let any = AnyObj::new(value)?;
+
+        // SAFETY: We know that the value is valid.
+        unsafe { Ok(any.unsafe_into_shared()) }
+    }
+
     /// Construct a new typed object.
     ///
     /// # Safety
     ///
     /// Caller must ensure that the type is of the value `T`.
-    pub(super) unsafe fn new(shared: NonNull<AnyObjData<T>>) -> Self {
+    pub(super) unsafe fn from_raw(shared: NonNull<AnyObjData<T>>) -> Self {
         Self {
             shared: shared.cast(),
             _marker: PhantomData,
         }
+    }
+
+    /// Coerce into a type-erased [`AnyObj`].
+    fn into_any_obj(self) -> AnyObj {
+        let this = ManuallyDrop::new(self);
+
+        // SAFETY: We know that the shared value is valid.
+        unsafe { AnyObj::from_raw(this.shared.cast()) }
     }
 
     /// Take the owned value of type `T`.
@@ -290,5 +309,89 @@ where
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         value.into_shared()
+    }
+}
+
+impl<T> ToValue for Shared<T>
+where
+    T: AnyMarker,
+{
+    #[inline]
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        Ok(Value::from(self.into_any_obj()))
+    }
+}
+
+impl<T> MaybeTypeOf for Shared<T>
+where
+    T: MaybeTypeOf,
+{
+    #[inline]
+    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+        T::maybe_type_of()
+    }
+}
+
+impl<T> TypeHash for Shared<T>
+where
+    T: TypeHash,
+{
+    const HASH: Hash = T::HASH;
+}
+
+impl<T> TypeOf for Shared<T>
+where
+    T: TypeOf,
+{
+    const PARAMETERS: Hash = T::PARAMETERS;
+    const STATIC_TYPE_INFO: AnyTypeInfo = T::STATIC_TYPE_INFO;
+}
+
+impl<T> Clone for Shared<T>
+where
+    T: Any,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        // SAFETY: We know that the inner value is live in this instance.
+        unsafe {
+            AnyObjData::inc(self.shared);
+        }
+
+        Self {
+            shared: self.shared,
+            _marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        if ptr::eq(self.shared.as_ptr(), source.shared.as_ptr()) {
+            return;
+        }
+
+        let old = replace(&mut self.shared, source.shared);
+
+        // SAFETY: We know that the inner value is live in both instances.
+        unsafe {
+            AnyObjData::dec(old);
+            AnyObjData::inc(self.shared);
+        }
+    }
+}
+
+impl<T> TryClone for Shared<T>
+where
+    T: Any,
+{
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(self.clone())
+    }
+
+    #[inline]
+    fn try_clone_from(&mut self, source: &Self) -> alloc::Result<()> {
+        self.clone_from(source);
+        Ok(())
     }
 }
