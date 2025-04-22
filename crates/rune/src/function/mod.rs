@@ -22,7 +22,7 @@ macro_rules! access_memory {
             });
         }
 
-        let [$($var,)*] = vm_try!($memory.slice_at_mut($addr, $args)) else {
+        let [$($var,)*] = $crate::vm_try!($memory.slice_at_mut($addr, $args)) else {
             unreachable!();
         };
 
@@ -249,8 +249,8 @@ macro_rules! impl_function_traits {
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let value = vm_try!(ToReturn::to_return(ret));
-                vm_try!(out.store(memory, value));
+                let value = $crate::vm_try!(ToReturn::to_return(ret));
+                $crate::vm_try!(out.store(memory, value));
                 VmResult::Ok(())
             }
         }
@@ -277,13 +277,13 @@ macro_rules! impl_function_traits {
                 // used.
                 $(drop($var.1);)*
 
-                let ret = vm_try!(runtime::Future::new(async move {
+                let ret = $crate::vm_try!(runtime::Future::new(async move {
                     let output = fut.await;
-                    VmResult::Ok(vm_try!(ToReturn::to_return(output)))
+                    VmResult::Ok($crate::vm_try!(ToReturn::to_return(output)))
                 }));
 
-                let value = vm_try!(Value::try_from(ret));
-                vm_try!(out.store(memory, value));
+                let value = $crate::vm_try!(Value::try_from(ret));
+                $crate::vm_try!(out.store(memory, value));
                 VmResult::Ok(())
             }
         }

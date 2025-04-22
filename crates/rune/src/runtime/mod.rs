@@ -46,8 +46,10 @@ mod call;
 pub use self::call::Call;
 
 mod const_value;
+#[doc(hidden)]
+pub use self::const_value::ToConstValue;
 pub use self::const_value::{
-    from_const_value, to_const_value, ConstConstruct, ConstValue, FromConstValue, ToConstValue,
+    from_const_value, to_const_value, ConstConstruct, ConstValue, FromConstValue,
 };
 pub(crate) use self::const_value::{ConstContext, ConstValueKind, EmptyConstContext};
 
@@ -146,7 +148,9 @@ mod stream;
 pub use self::stream::Stream;
 
 mod to_value;
-pub use self::to_value::{to_value, ToReturn, ToValue, UnsafeToValue};
+#[doc(hidden)]
+pub use self::to_value::ToValue;
+pub use self::to_value::{to_value, ToReturn, UnsafeToValue};
 
 mod tuple;
 pub use self::tuple::{OwnedTuple, Tuple};

@@ -3,7 +3,7 @@
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{self, Formatter, Value, VmResult};
-use crate::{Any, ContextError, Module};
+use crate::{vm_try, vm_write, Any, ContextError, Module};
 
 /// Working with memory.
 #[rune::module(::std::mem)]

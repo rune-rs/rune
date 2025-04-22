@@ -4,7 +4,7 @@ use core::iter;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmResult};
-use crate::Any;
+use crate::{vm_try, Any};
 
 /// A generator produced by a generator function.
 ///

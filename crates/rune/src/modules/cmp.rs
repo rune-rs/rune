@@ -4,9 +4,11 @@ use core::cmp::Ordering;
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
+use crate::hash;
 use crate::runtime::{Formatter, Protocol, Value, VmResult};
 use crate::shared::Caller;
-use crate::{hash, ContextError, Hash, Module};
+use crate::{docstring, vm_try, vm_write};
+use crate::{ContextError, Hash, Module};
 
 /// Comparison and ordering.
 #[rune::module(::std::cmp)]
@@ -761,5 +763,5 @@ fn ordering_eq(this: Ordering, other: Ordering) -> bool {
 /// ```
 #[rune::function(instance, protocol = DEBUG_FMT)]
 fn ordering_debug_fmt(this: Ordering, s: &mut Formatter) -> VmResult<()> {
-    vm_write!(s, "{:?}", this)
+    vm_write!(s, "{this:?}")
 }

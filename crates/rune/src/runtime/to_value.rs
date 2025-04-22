@@ -1,6 +1,7 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
 use crate::any::AnyMarker;
+use crate::vm_try;
 
 use super::{AnyObj, Object, RuntimeError, Value, VmResult};
 

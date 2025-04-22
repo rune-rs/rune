@@ -4,7 +4,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{Formatter, Type, Value, VmResult};
-use crate::{docstring, ContextError, Hash, Module};
+use crate::{docstring, vm_write, ContextError, Hash, Module};
 
 /// Dynamic typing and type reflection.
 ///
@@ -58,7 +58,7 @@ fn type_of_val(value: Value) -> Type {
 /// ```
 #[rune::function(instance, protocol = DISPLAY_FMT)]
 fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{:?}", ty)
+    vm_write!(f, "{ty:?}")
 }
 
 /// Get the type name of a value.

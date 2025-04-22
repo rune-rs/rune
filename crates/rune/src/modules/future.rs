@@ -3,7 +3,7 @@
 use crate as rune;
 use crate::alloc::Vec;
 use crate::runtime::{self, Future, Inline, Repr, SelectFuture, Value, VmErrorKind, VmResult};
-use crate::{ContextError, Module, TypeHash};
+use crate::{vm_try, ContextError, Module, TypeHash};
 
 /// Asynchronous computations.
 #[rune::module(::std::future)]

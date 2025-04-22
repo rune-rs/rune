@@ -11,7 +11,7 @@ use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 #[cfg(feature = "std")]
 use crate::runtime::{Formatter, InstAddress, Memory, Output, Panic, VmResult};
-use crate::{ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 /// I/O functions.
 #[rune::module(::std::io)]
@@ -80,13 +80,13 @@ pub fn module(
 #[rune::function(instance, protocol = DISPLAY_FMT)]
 #[cfg(feature = "std")]
 fn io_error_display_fmt(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{error}")
+    crate::vm_write!(f, "{error}")
 }
 
 #[rune::function(instance, protocol = DEBUG_FMT)]
 #[cfg(feature = "std")]
 fn io_error_debug_fmt(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{error:?}")
+    crate::vm_write!(f, "{error:?}")
 }
 
 #[cfg(feature = "std")]
@@ -94,11 +94,11 @@ fn dbg_impl(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output)
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    for value in vm_try!(stack.slice_at(addr, args)) {
-        vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
+    for value in crate::vm_try!(stack.slice_at(addr, args)) {
+        crate::vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
     }
 
-    vm_try!(out.store(stack, ()));
+    crate::vm_try!(out.store(stack, ()));
     VmResult::Ok(())
 }
 

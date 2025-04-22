@@ -45,31 +45,35 @@ macro_rules! unsigned {
         $m.function_meta(cmp__meta)?;
         $m.implement_trait::<$ty>(rune::item!(::std::cmp::Ord))?;
 
-        $m.constant("MIN", <$ty>::MIN).build()?.docs(docstring! {
-            /// The smallest value that can be represented by this integer type
-            /// (&minus;2<sup>63</sup>).
-            ///
-            /// # Examples
-            ///
-            /// Basic usage:
-            ///
-            /// ```rune
-            #[doc = concat!(" assert_eq!(", $n, "::MIN, -9223372036854775808);")]
-            /// ```
-        })?;
+        $m.constant("MIN", <$ty>::MIN)
+            .build()?
+            .docs($crate::docstring! {
+                /// The smallest value that can be represented by this integer type
+                /// (&minus;2<sup>63</sup>).
+                ///
+                /// # Examples
+                ///
+                /// Basic usage:
+                ///
+                /// ```rune
+                #[doc = concat!(" assert_eq!(", $n, "::MIN, -9223372036854775808);")]
+                /// ```
+            })?;
 
-        $m.constant("MAX", <$ty>::MAX).build()?.docs(docstring! {
-            /// The largest value that can be represented by this integer type
-            /// (2<sup>63</sup> &minus; 1).
-            ///
-            /// # Examples
-            ///
-            /// Basic usage:
-            ///
-            /// ```rune
-            #[doc = concat!(" assert_eq!(", $n, "::MAX, 9223372036854775807);")]
-            /// ```
-        })?;
+        $m.constant("MAX", <$ty>::MAX)
+            .build()?
+            .docs($crate::docstring! {
+                /// The largest value that can be represented by this integer type
+                /// (2<sup>63</sup> &minus; 1).
+                ///
+                /// # Examples
+                ///
+                /// Basic usage:
+                ///
+                /// ```rune
+                #[doc = concat!(" assert_eq!(", $n, "::MAX, 9223372036854775807);")]
+                /// ```
+            })?;
     };
 }
 
@@ -558,7 +562,7 @@ macro_rules! unsigned_fns {
         #[rune::function(instance)]
         #[inline]
         fn to_string(this: $ty) -> VmResult<alloc::String> {
-            VmResult::Ok(vm_try!(this.try_to_string()))
+            VmResult::Ok($crate::vm_try!(this.try_to_string()))
         }
     };
 }

@@ -6,13 +6,13 @@ use rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
 use crate::runtime::budget;
-use crate::runtime::{
-    Generator, GeneratorState, InstAddress, Output, RuntimeContext, Stream, Unit, Value, Vm,
-    VmErrorKind, VmHalt, VmHaltInfo, VmResult,
-};
 use crate::shared::AssertSend;
+use crate::vm_try;
 
-use super::VmDiagnostics;
+use super::{
+    Generator, GeneratorState, InstAddress, Output, RuntimeContext, Stream, Unit, Value, Vm,
+    VmDiagnostics, VmErrorKind, VmHalt, VmHaltInfo, VmResult,
+};
 
 /// The state of an execution. We keep track of this because it's important to
 /// correctly interact with functions that yield (like generators and streams)

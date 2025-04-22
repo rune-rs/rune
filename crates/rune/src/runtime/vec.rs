@@ -10,7 +10,7 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
-use crate::{Any, TypeHash};
+use crate::{vm_try, Any, TypeHash};
 
 use super::{
     EnvProtocolCaller, Formatter, FromValue, Hasher, ProtocolCaller, Range, RangeFrom, RangeFull,
@@ -254,17 +254,17 @@ impl Vec {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = this.iter().peekable();
-        vm_try!(vm_write!(f, "["));
+        vm_try!(write!(f, "["));
 
         while let Some(value) = it.next() {
             vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
-                vm_try!(vm_write!(f, ", "));
+                vm_try!(write!(f, ", "));
             }
         }
 
-        vm_try!(vm_write!(f, "]"));
+        vm_try!(write!(f, "]"));
         VmResult::Ok(())
     }
 

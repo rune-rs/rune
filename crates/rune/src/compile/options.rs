@@ -2,6 +2,8 @@ use core::fmt;
 
 use rust_alloc::boxed::Box;
 
+use crate::docstring;
+
 /// Error raised when trying to parse an invalid option.
 #[derive(Debug, Clone)]
 pub struct ParseOptionError {

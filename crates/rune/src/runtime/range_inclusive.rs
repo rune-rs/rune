@@ -8,7 +8,7 @@ use crate::runtime::{
     EnvProtocolCaller, FromValue, Inline, ProtocolCaller, Repr, RuntimeError, ToValue, Value,
     VmErrorKind, VmResult,
 };
-use crate::Any;
+use crate::{vm_try, Any};
 
 use super::StepsBetween;
 

@@ -9,7 +9,7 @@ use crate::runtime::{
     EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawAnyGuard, Ref, Value, Vec,
     VmErrorKind, VmResult,
 };
-use crate::{Any, ContextError, Module};
+use crate::{vm_try, Any, ContextError, Module};
 
 /// A dynamic vec deque.
 #[rune::module(::std::collections::vec_deque)]
@@ -582,17 +582,17 @@ impl VecDeque {
     fn debug_fmt_with(&self, f: &mut Formatter, caller: &mut dyn ProtocolCaller) -> VmResult<()> {
         let mut it = self.inner.iter().peekable();
 
-        vm_try!(vm_write!(f, "["));
+        vm_try!(write!(f, "["));
 
         while let Some(value) = it.next() {
             vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
-                vm_try!(vm_write!(f, ", "));
+                vm_try!(write!(f, ", "));
             }
         }
 
-        vm_try!(vm_write!(f, "]"));
+        vm_try!(write!(f, "]"));
         VmResult::Ok(())
     }
 

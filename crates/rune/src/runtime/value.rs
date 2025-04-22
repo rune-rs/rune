@@ -33,7 +33,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
-use crate::{Any, Hash, TypeHash};
+use crate::{vm_try, Any, Hash, TypeHash};
 
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
@@ -328,7 +328,7 @@ impl Value {
                         vm_try!(f.try_write_str(buffer.format(*float)));
                     }
                     Inline::Bool(bool) => {
-                        vm_try!(vm_write!(f, "{bool}"));
+                        vm_try!(write!(f, "{bool}"));
                     }
                     _ => {
                         break 'fallback;
@@ -414,7 +414,7 @@ impl Value {
     ) -> VmResult<()> {
         match &self.repr {
             Repr::Inline(value) => {
-                vm_try!(vm_write!(f, "{value:?}"));
+                vm_try!(write!(f, "{value:?}"));
             }
             Repr::Dynamic(ref value) => {
                 vm_try!(value.debug_fmt_with(f, caller));
@@ -433,15 +433,15 @@ impl Value {
                     }
                     CallResultOnly::Unsupported(value) => match &value.repr {
                         Repr::Inline(value) => {
-                            vm_try!(vm_write!(f, "{value:?}"));
+                            vm_try!(write!(f, "{value:?}"));
                         }
                         Repr::Dynamic(value) => {
                             let ty = value.type_info();
-                            vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
+                            vm_try!(write!(f, "<{ty} object at {value:p}>"));
                         }
                         Repr::Any(value) => {
                             let ty = value.type_info();
-                            vm_try!(vm_write!(f, "<{ty} object at {value:p}>"));
+                            vm_try!(write!(f, "<{ty} object at {value:p}>"));
                         }
                     },
                 }

@@ -9,7 +9,7 @@ use crate::compile;
 use crate::macros::{FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{EnvProtocolCaller, Format, Formatter, VmResult};
-use crate::{ContextError, Module};
+use crate::{vm_try, vm_write, ContextError, Module};
 
 /// Formatting text.
 ///

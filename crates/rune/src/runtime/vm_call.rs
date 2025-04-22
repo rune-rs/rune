@@ -6,6 +6,7 @@ use crate::runtime::{
     Call, Future, Generator, Output, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmErrorKind,
     VmExecution, VmResult,
 };
+use crate::vm_try;
 
 /// An instruction to push a virtual machine to the execution.
 #[derive(Debug)]

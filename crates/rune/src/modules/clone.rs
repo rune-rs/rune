@@ -2,7 +2,7 @@
 
 use crate as rune;
 use crate::runtime::{Protocol, Value, VmResult};
-use crate::{ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 /// Cloning for Rune.
 ///

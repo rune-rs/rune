@@ -15,7 +15,7 @@ use crate::runtime::{
     RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Repr, ToValue, TypeOf, Value,
     VmErrorKind, VmResult,
 };
-use crate::{Any, ContextError, Module, TypeHash};
+use crate::{vm_try, vm_write, Any, ContextError, Module, TypeHash};
 
 /// Strings.
 ///
@@ -744,7 +744,7 @@ fn hash(this: &str, hasher: &mut Hasher) {
 #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
 #[inline]
 fn display_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
-    rune::vm_write!(f, "{this}")
+    vm_write!(f, "{this}")
 }
 
 /// Write a debug representation of a string.
@@ -757,7 +757,7 @@ fn display_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
 fn debug_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
-    rune::vm_write!(f, "{this:?}")
+    vm_write!(f, "{this:?}")
 }
 
 /// Shrinks the capacity of this `String` to match its length.

@@ -12,7 +12,7 @@ use crate::alloc::{self, String};
 use crate::runtime::{
     FieldMap, FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError, VmResult,
 };
-use crate::Any;
+use crate::{vm_try, Any};
 
 /// An owning iterator over the entries of a `Object`.
 ///

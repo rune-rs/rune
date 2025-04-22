@@ -10,7 +10,7 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::iter::{IteratorExt, TryFromIteratorIn};
 use crate::alloc::{self, Box};
-use crate::Any;
+use crate::{vm_try, Any};
 
 use super::{
     ConstValue, EmptyConstContext, Formatter, FromConstValue, FromValue, Hasher, Mut,
@@ -75,17 +75,17 @@ impl Tuple {
         caller: &mut dyn ProtocolCaller,
     ) -> VmResult<()> {
         let mut it = self.iter().peekable();
-        vm_try!(vm_write!(f, "("));
+        vm_try!(write!(f, "("));
 
         while let Some(value) = it.next() {
             vm_try!(value.debug_fmt_with(f, caller));
 
             if it.peek().is_some() {
-                vm_try!(vm_write!(f, ", "));
+                vm_try!(write!(f, ", "));
             }
         }
 
-        vm_try!(vm_write!(f, ")"));
+        vm_try!(write!(f, ")"));
         VmResult::Ok(())
     }
 

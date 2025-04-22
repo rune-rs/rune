@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
+use crate::vm_try;
 
 /// The calling convention of a function.
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -45,22 +46,21 @@ impl Call {
 }
 
 impl fmt::Display for Call {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Immediate => {
-                write!(fmt, "immediate")?;
+                write!(f, "immediate")
             }
             Self::Async => {
-                write!(fmt, "async")?;
+                write!(f, "async")
             }
             Self::Stream => {
-                write!(fmt, "stream")?;
+                write!(f, "stream")
             }
             Self::Generator => {
-                write!(fmt, "generator")?;
+                write!(f, "generator")
             }
         }
-
-        Ok(())
     }
 }

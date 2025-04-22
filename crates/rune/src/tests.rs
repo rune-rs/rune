@@ -24,8 +24,8 @@ pub(crate) mod prelude {
     pub(crate) use crate::support::Result;
     pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
-        from_value, prepare, sources, span, vm_try, Any, Context, ContextError, Diagnostics,
-        FromValue, Hash, Item, ItemBuf, Module, Options, Source, Sources, Value, Vm,
+        from_value, prepare, sources, span, vm_try, vm_write, Any, Context, ContextError,
+        Diagnostics, FromValue, Hash, Item, ItemBuf, Module, Options, Source, Sources, Value, Vm,
     };
     pub(crate) use futures_executor::block_on;
 

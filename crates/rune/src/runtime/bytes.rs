@@ -17,7 +17,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::runtime::VmResult;
 use crate::TypeHash as _;
-use crate::{Any, FromValue};
+use crate::{vm_try, Any, FromValue};
 
 use super::{
     IntoOutput, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,

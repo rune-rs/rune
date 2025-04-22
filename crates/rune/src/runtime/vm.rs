@@ -12,6 +12,7 @@ use crate::hash;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime;
+use crate::vm_try;
 
 mod ops;
 use self::ops::*;

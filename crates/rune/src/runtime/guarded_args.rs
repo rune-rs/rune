@@ -1,6 +1,7 @@
 use crate::alloc::Vec;
 use crate::runtime::Args;
 use crate::runtime::{Stack, UnsafeToValue, Value, VmResult};
+use crate::vm_try;
 
 /// Trait for converting arguments onto the stack.
 ///
@@ -45,8 +46,8 @@ macro_rules! impl_into_args {
             #[inline]
             unsafe fn guarded_into_stack(self, stack: &mut Stack) -> VmResult<Self::Guard> {
                 let ($($value,)*) = self;
-                $(let $value = vm_try!($value.unsafe_to_value());)*
-                $(vm_try!(stack.push($value.0));)*
+                $(let $value = $crate::vm_try!($value.unsafe_to_value());)*
+                $($crate::vm_try!(stack.push($value.0));)*
                 VmResult::Ok(($($value.1,)*))
             }
 
@@ -54,9 +55,9 @@ macro_rules! impl_into_args {
             #[inline]
             unsafe fn guarded_into_vec(self) -> VmResult<(Vec<Value>, Self::Guard)> {
                 let ($($value,)*) = self;
-                $(let $value = vm_try!($value.unsafe_to_value());)*
-                let mut out = vm_try!(Vec::try_with_capacity($count));
-                $(vm_try!(out.try_push($value.0));)*
+                $(let $value = $crate::vm_try!($value.unsafe_to_value());)*
+                let mut out = $crate::vm_try!(Vec::try_with_capacity($count));
+                $($crate::vm_try!(out.try_push($value.0));)*
                 VmResult::Ok((out, ($($value.1,)*)))
             }
 

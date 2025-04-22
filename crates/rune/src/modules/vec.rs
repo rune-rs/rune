@@ -8,7 +8,7 @@ use crate::runtime::slice::Iter;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmErrorKind, VmResult,
 };
-use crate::{ContextError, Module};
+use crate::{docstring, vm_try, ContextError, Module};
 
 /// The [`Vec`] dynamic vector.
 ///
