@@ -5,104 +5,14 @@ use core::mem::{needs_drop, offset_of, replace, ManuallyDrop};
 use core::ptr::{self, addr_of, addr_of_mut, drop_in_place, NonNull};
 
 use crate::alloc::alloc::Global;
+use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::{Any, Hash};
 
 use super::{
     Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, Mut, RawAccessGuard,
-    RawAnyGuard, Ref, RefVtable, RuntimeError, Shared, Snapshot, TypeInfo, Value, VmErrorKind,
+    RawAnyGuard, Ref, RefVtable, RuntimeError, Shared, Snapshot, ToValue, TypeInfo, Value,
 };
-
-#[derive(Debug)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(super) enum AnyObjErrorKind {
-    Cast(AnyTypeInfo, TypeInfo),
-    AccessError(AccessError),
-}
-
-/// Errors caused when accessing or coercing an [`AnyObj`].
-#[cfg_attr(test, derive(PartialEq))]
-pub struct AnyObjError {
-    kind: AnyObjErrorKind,
-}
-
-impl AnyObjError {
-    #[inline]
-    pub(super) fn new(kind: AnyObjErrorKind) -> Self {
-        Self { kind }
-    }
-
-    #[inline]
-    pub(super) fn into_kind(self) -> AnyObjErrorKind {
-        self.kind
-    }
-}
-
-impl core::error::Error for AnyObjError {}
-
-impl fmt::Display for AnyObjError {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            AnyObjErrorKind::Cast(expected, actual) => {
-                write!(f, "Failed to cast `{actual}` to `{expected}`")
-            }
-            AnyObjErrorKind::AccessError(error) => error.fmt(f),
-        }
-    }
-}
-
-impl fmt::Debug for AnyObjError {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
-    }
-}
-
-impl From<AccessError> for AnyObjError {
-    #[inline]
-    fn from(error: AccessError) -> Self {
-        Self::new(AnyObjErrorKind::AccessError(error))
-    }
-}
-
-/// Guard which decrements and releases shared storage for the guarded reference.
-pub(super) struct AnyObjDecShared {
-    pub(super) shared: NonNull<AnyObjData>,
-}
-
-impl Drop for AnyObjDecShared {
-    fn drop(&mut self) {
-        // Safety: We know that the inner value is live in this instance.
-        unsafe {
-            AnyObjData::dec(self.shared);
-        }
-    }
-}
-
-/// Guard which decrements and releases shared storage for the guarded reference.
-pub(crate) struct AnyObjDrop {
-    #[allow(unused)]
-    pub(super) shared: NonNull<AnyObjData>,
-}
-
-impl Drop for AnyObjDrop {
-    fn drop(&mut self) {
-        // Safety: We know that the inner value is live in this instance.
-        unsafe {
-            self.shared.as_ref().access.take();
-
-            AnyObjData::dec(self.shared);
-        }
-    }
-}
-
-pub(crate) struct RawAnyObjGuard {
-    #[allow(unused)]
-    pub(super) guard: RawAccessGuard,
-    #[allow(unused)]
-    pub(super) dec_shared: AnyObjDecShared,
-}
 
 /// A type-erased wrapper for a reference.
 pub struct AnyObj {
@@ -110,7 +20,18 @@ pub struct AnyObj {
 }
 
 impl AnyObj {
+    /// Construct a new typed object.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the type is of the value `T`.
+    #[inline]
+    pub(super) unsafe fn from_raw(shared: NonNull<AnyObjData>) -> Self {
+        Self { shared }
+    }
+
     /// Construct an Any that wraps an owned object.
+    #[inline]
     pub(crate) fn new<T>(data: T) -> alloc::Result<Self>
     where
         T: Any,
@@ -149,6 +70,7 @@ impl AnyObj {
     ///
     /// Caller must ensure that the returned `AnyObj` doesn't outlive the
     /// reference it is wrapping.
+    #[inline]
     pub(crate) unsafe fn from_ref<T>(data: *const T) -> alloc::Result<Self>
     where
         T: Any,
@@ -181,6 +103,7 @@ impl AnyObj {
     ///
     /// Caller must ensure that the returned `AnyObj` doesn't outlive the
     /// reference it is wrapping.
+    #[inline]
     pub(crate) unsafe fn from_mut<T>(data: *mut T) -> alloc::Result<Self>
     where
         T: Any,
@@ -236,7 +159,7 @@ impl AnyObj {
         T: Any,
     {
         let this = ManuallyDrop::new(self);
-        Shared::new(this.shared.cast())
+        Shared::from_raw(this.shared.cast())
     }
 
     /// Downcast into an owned value of type `T`.
@@ -288,11 +211,11 @@ impl AnyObj {
     }
 
     /// Take the interior value and return a handle to the taken value.
-    pub(crate) fn take(self) -> Result<Self, VmErrorKind> {
+    pub fn take(self) -> Result<Self, AnyObjError> {
         let vtable = vtable(&self);
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(VmErrorKind::from(AccessError::not_owned(
+            return Err(AnyObjError::from(AccessError::not_owned(
                 vtable.type_info(),
             )));
         }
@@ -654,6 +577,19 @@ impl Clone for AnyObj {
     }
 }
 
+impl TryClone for AnyObj {
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(self.clone())
+    }
+
+    #[inline]
+    fn try_clone_from(&mut self, source: &Self) -> alloc::Result<()> {
+        self.clone_from(source);
+        Ok(())
+    }
+}
+
 impl fmt::Debug for AnyObj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.debug(f)
@@ -673,6 +609,13 @@ impl FromValue for AnyObj {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
         value.into_any_obj()
+    }
+}
+
+impl ToValue for AnyObj {
+    #[inline]
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        Ok(Value::from(self))
     }
 }
 
@@ -795,6 +738,107 @@ impl AnyObjData {
             (vtable.drop)(this);
         }
     }
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(super) enum AnyObjErrorKind {
+    Alloc(alloc::Error),
+    Cast(AnyTypeInfo, TypeInfo),
+    AccessError(AccessError),
+}
+
+/// Errors caused when accessing or coercing an [`AnyObj`].
+#[cfg_attr(test, derive(PartialEq))]
+pub struct AnyObjError {
+    kind: AnyObjErrorKind,
+}
+
+impl AnyObjError {
+    #[inline]
+    pub(super) fn new(kind: AnyObjErrorKind) -> Self {
+        Self { kind }
+    }
+
+    #[inline]
+    pub(super) fn into_kind(self) -> AnyObjErrorKind {
+        self.kind
+    }
+}
+
+impl core::error::Error for AnyObjError {}
+
+impl fmt::Display for AnyObjError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            AnyObjErrorKind::Alloc(error) => error.fmt(f),
+            AnyObjErrorKind::Cast(expected, actual) => {
+                write!(f, "Failed to cast `{actual}` to `{expected}`")
+            }
+            AnyObjErrorKind::AccessError(error) => error.fmt(f),
+        }
+    }
+}
+
+impl fmt::Debug for AnyObjError {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+impl From<alloc::Error> for AnyObjError {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
+        Self::new(AnyObjErrorKind::Alloc(error))
+    }
+}
+
+impl From<AccessError> for AnyObjError {
+    #[inline]
+    fn from(error: AccessError) -> Self {
+        Self::new(AnyObjErrorKind::AccessError(error))
+    }
+}
+
+/// Guard which decrements and releases shared storage for the guarded reference.
+pub(super) struct AnyObjDecShared {
+    pub(super) shared: NonNull<AnyObjData>,
+}
+
+impl Drop for AnyObjDecShared {
+    fn drop(&mut self) {
+        // Safety: We know that the inner value is live in this instance.
+        unsafe {
+            AnyObjData::dec(self.shared);
+        }
+    }
+}
+
+/// Guard which decrements and releases shared storage for the guarded reference.
+pub(crate) struct AnyObjDrop {
+    #[allow(unused)]
+    pub(super) shared: NonNull<AnyObjData>,
+}
+
+impl Drop for AnyObjDrop {
+    #[inline]
+    fn drop(&mut self) {
+        // Safety: We know that the inner value is live in this instance.
+        unsafe {
+            self.shared.as_ref().access.take();
+            AnyObjData::dec(self.shared);
+        }
+    }
+}
+
+/// The guard returned when dealing with raw pointers.
+pub(crate) struct RawAnyObjGuard {
+    #[allow(unused)]
+    pub(super) guard: RawAccessGuard,
+    #[allow(unused)]
+    pub(super) dec_shared: AnyObjDecShared,
 }
 
 fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result

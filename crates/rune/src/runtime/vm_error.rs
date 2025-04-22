@@ -578,6 +578,7 @@ impl From<alloc::alloc::AllocError> for RuntimeError {
 impl From<AnyObjError> for RuntimeError {
     fn from(value: AnyObjError) -> Self {
         match value.into_kind() {
+            AnyObjErrorKind::Alloc(error) => Self::from(error),
             AnyObjErrorKind::Cast(expected, actual) => Self::new(VmErrorKind::Expected {
                 expected: TypeInfo::any_type_info(expected),
                 actual,

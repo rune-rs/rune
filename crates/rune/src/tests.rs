@@ -18,7 +18,7 @@ pub(crate) mod prelude {
     pub(crate) use crate::parse;
     pub(crate) use crate::runtime::{
         self, Bytes, DynamicTuple, Formatter, Function, InstAddress, MaybeTypeOf, Object, Output,
-        OwnedTuple, Protocol, RawAnyGuard, Ref, Stack, Tuple, TypeHash, TypeInfo, TypeOf,
+        OwnedTuple, Protocol, RawAnyGuard, Ref, Shared, Stack, Tuple, TypeHash, TypeInfo, TypeOf,
         UnsafeToRef, VecTuple, VmErrorKind, VmResult,
     };
     pub(crate) use crate::support::Result;
