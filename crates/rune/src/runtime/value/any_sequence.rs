@@ -17,45 +17,47 @@ use crate::runtime::{
 use crate::vm_try;
 
 #[derive(Debug)]
-pub(crate) enum DynamicTakeError {
-    Access(AccessError),
+pub(crate) enum AnySequenceTakeError {
     Alloc(alloc::Error),
+    Access(AccessError),
 }
 
-impl fmt::Display for DynamicTakeError {
+impl fmt::Display for AnySequenceTakeError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DynamicTakeError::Access(error) => error.fmt(f),
-            DynamicTakeError::Alloc(error) => error.fmt(f),
+            AnySequenceTakeError::Access(error) => error.fmt(f),
+            AnySequenceTakeError::Alloc(error) => error.fmt(f),
         }
     }
 }
 
-impl core::error::Error for DynamicTakeError {}
+impl core::error::Error for AnySequenceTakeError {}
 
-impl From<AccessError> for DynamicTakeError {
+impl From<AccessError> for AnySequenceTakeError {
+    #[inline]
     fn from(error: AccessError) -> Self {
         Self::Access(error)
     }
 }
 
-impl From<alloc::Error> for DynamicTakeError {
+impl From<alloc::Error> for AnySequenceTakeError {
+    #[inline]
     fn from(error: alloc::Error) -> Self {
         Self::Alloc(error)
     }
 }
 
-/// A dynamic value defined at runtime.
+/// A sequence of dynamic value defined at runtime.
 ///
 /// This is an allocation-optimized container which allows an interior slice of
 /// data `T` to be checked for access and `H` to be immutably accessed inside of
 /// a single reference-counted container.
-pub struct Dynamic<H, T> {
-    shared: NonNull<Shared<H, T>>,
+pub struct AnySequence<H, T> {
+    shared: NonNull<AnySequenceData<H, T>>,
 }
 
-impl<H, T> Dynamic<H, T> {
+impl<H, T> AnySequence<H, T> {
     /// A dynamic value inside of the virtual machine.
     pub(crate) fn new(
         rtti: H,
@@ -66,7 +68,7 @@ impl<H, T> Dynamic<H, T> {
 
         // Fill out the newly allocated container.
         unsafe {
-            let data = Shared::as_data_ptr(this.shared);
+            let data = AnySequenceData::as_data_ptr(this.shared);
 
             for (i, value) in it.enumerate() {
                 data.add(i).write(value);
@@ -78,14 +80,14 @@ impl<H, T> Dynamic<H, T> {
 
     /// A dynamic value inside of the virtual machine.
     fn alloc(rtti: H, len: usize) -> alloc::Result<Self> {
-        let layout = Shared::<H, T>::layout(len)?;
+        let layout = AnySequenceData::<H, T>::layout(len)?;
 
-        let shared = Global.allocate(layout)?.cast::<Shared<H, T>>();
+        let shared = Global.allocate(layout)?.cast::<AnySequenceData<H, T>>();
 
         // SAFETY: We've allocated space for both the shared header and the
         // trailing data.
         unsafe {
-            shared.write(Shared {
+            shared.write(AnySequenceData {
                 rtti,
                 count: Cell::new(1),
                 access: Access::new(),
@@ -138,7 +140,7 @@ impl<H, T> Dynamic<H, T> {
         // SAFETY: We know the layout is valid since it is reference counted.
         unsafe {
             let guard = self.shared.as_ref().access.shared()?;
-            let data = Shared::as_data_ptr(self.shared);
+            let data = AnySequenceData::as_data_ptr(self.shared);
             let data = NonNull::slice_from_raw_parts(data, self.shared.as_ref().len);
             Ok(BorrowRef::new(data, guard.into_raw()))
         }
@@ -150,7 +152,7 @@ impl<H, T> Dynamic<H, T> {
         // SAFETY: We know the layout is valid since it is reference counted.
         unsafe {
             let guard = self.shared.as_ref().access.exclusive()?;
-            let data = Shared::as_data_ptr(self.shared);
+            let data = AnySequenceData::as_data_ptr(self.shared);
             let data = NonNull::slice_from_raw_parts(data, self.shared.as_ref().len);
             Ok(BorrowMut::new(data, guard.into_raw()))
         }
@@ -163,47 +165,47 @@ impl<H, T> Dynamic<H, T> {
         unsafe {
             self.shared.as_ref().access.try_take()?;
             let len = self.shared.as_ref().len;
-            Shared::drop_values(self.shared, len);
+            AnySequenceData::drop_values(self.shared, len);
             Ok(())
         }
     }
 }
 
-impl<H, T> Dynamic<H, T>
+impl<H, T> AnySequence<H, T>
 where
     H: Clone,
 {
     /// Take the interior value and return a handle to the taken value.
-    pub(crate) fn take(self) -> Result<Self, DynamicTakeError> {
+    pub(crate) fn take(self) -> Result<Self, AnySequenceTakeError> {
         // SAFETY: We are checking the interior value for access before taking
         // it.
         unsafe {
             self.shared.as_ref().access.try_take()?;
             let len = self.shared.as_ref().len;
             let new = Self::alloc(self.rtti().clone(), len)?;
-            let from = Shared::as_data_ptr(self.shared);
-            let to = Shared::as_data_ptr(new.shared);
+            let from = AnySequenceData::as_data_ptr(self.shared);
+            let to = AnySequenceData::as_data_ptr(new.shared);
             to.copy_from_nonoverlapping(from, len);
             Ok(new)
         }
     }
 }
 
-impl<H, T> Drop for Dynamic<H, T> {
+impl<H, T> Drop for AnySequence<H, T> {
     fn drop(&mut self) {
         // Decrement a shared value.
         unsafe {
-            Shared::dec(self.shared);
+            AnySequenceData::dec(self.shared);
         }
     }
 }
 
-impl<H, T> Clone for Dynamic<H, T> {
+impl<H, T> Clone for AnySequence<H, T> {
     #[inline]
     fn clone(&self) -> Self {
         // SAFETY: We know that the inner value is live in this instance.
         unsafe {
-            Shared::inc(self.shared);
+            AnySequenceData::inc(self.shared);
         }
 
         Self {
@@ -221,14 +223,14 @@ impl<H, T> Clone for Dynamic<H, T> {
 
         // SAFETY: We know that the inner value is live in both instances.
         unsafe {
-            Shared::dec(old);
-            Shared::inc(self.shared);
+            AnySequenceData::dec(old);
+            AnySequenceData::inc(self.shared);
         }
     }
 }
 
 #[repr(C)]
-struct Shared<H, T> {
+struct AnySequenceData<H, T> {
     /// Run time type information of the shared value.
     rtti: H,
     /// Reference count.
@@ -241,13 +243,13 @@ struct Shared<H, T> {
     data: [T; 0],
 }
 
-impl<H, T> Shared<H, T> {
+impl<H, T> AnySequenceData<H, T> {
     #[inline]
     fn layout(len: usize) -> Result<Layout, LayoutError> {
         let array = Layout::array::<T>(len)?;
         Layout::from_size_align(
-            size_of::<Shared<H, T>>() + array.size(),
-            align_of::<Shared<H, T>>(),
+            size_of::<AnySequenceData<H, T>>() + array.size(),
+            align_of::<AnySequenceData<H, T>>(),
         )
     }
 
@@ -331,7 +333,7 @@ impl<H, T> Shared<H, T> {
     }
 }
 
-impl<T> Dynamic<Arc<Rtti>, T> {
+impl<T> AnySequence<Arc<Rtti>, T> {
     /// Access type hash on the dynamic value.
     #[inline]
     pub(crate) fn type_hash(&self) -> Hash {
@@ -376,7 +378,7 @@ impl<T> Dynamic<Arc<Rtti>, T> {
             }
 
             let guard = shared.access.shared()?;
-            let data = Shared::as_data_ptr(self.shared).add(index);
+            let data = AnySequenceData::as_data_ptr(self.shared).add(index);
             Ok(Some(BorrowRef::new(data, guard.into_raw())))
         }
     }
@@ -393,13 +395,13 @@ impl<T> Dynamic<Arc<Rtti>, T> {
             }
 
             let guard = shared.access.exclusive()?;
-            let data = Shared::as_data_ptr(self.shared).add(index);
+            let data = AnySequenceData::as_data_ptr(self.shared).add(index);
             Ok(Some(BorrowMut::new(data, guard.into_raw())))
         }
     }
 }
 
-impl Dynamic<Arc<Rtti>, Value> {
+impl AnySequence<Arc<Rtti>, Value> {
     /// Debug print the dynamic value.
     pub(crate) fn debug_fmt_with(
         &self,
@@ -471,7 +473,7 @@ fn debug_struct(
     VmResult::Ok(())
 }
 
-impl IntoOutput for Dynamic<Arc<Rtti>, Value> {
+impl IntoOutput for AnySequence<Arc<Rtti>, Value> {
     #[inline]
     fn into_output(self) -> Result<Value, RuntimeError> {
         Ok(Value::from(self))

@@ -20,19 +20,25 @@ pub struct AnyObj {
 }
 
 impl AnyObj {
-    /// Construct a new typed object.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure that the type is of the value `T`.
-    #[inline]
-    pub(super) unsafe fn from_raw(shared: NonNull<AnyObjData>) -> Self {
-        Self { shared }
-    }
-
     /// Construct an Any that wraps an owned object.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Value;
+    /// use rune::runtime::AnyObj;
+    /// use rune::alloc::String;
+    ///
+    /// let string = String::try_from("Hello World")?;
+    /// let string = AnyObj::new(string)?;
+    /// let string = Value::from(string);
+    ///
+    /// let string = string.into_shared::<String>()?;
+    /// assert_eq!(string.borrow_ref()?.as_str(), "Hello World");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     #[inline]
-    pub(crate) fn new<T>(data: T) -> alloc::Result<Self>
+    pub fn new<T>(data: T) -> alloc::Result<Self>
     where
         T: Any,
     {
@@ -62,6 +68,16 @@ impl AnyObj {
 
         let shared = NonNull::from(Box::leak(Box::try_new(shared)?)).cast();
         Ok(Self { shared })
+    }
+
+    /// Construct a new typed object.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the type is of the value `T`.
+    #[inline]
+    pub(super) unsafe fn from_raw(shared: NonNull<AnyObjData>) -> Self {
+        Self { shared }
     }
 
     /// Construct an Any that wraps a pointer.
@@ -177,7 +193,7 @@ impl AnyObj {
         }
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
@@ -191,11 +207,13 @@ impl AnyObj {
     }
 
     /// Take the interior value and drop it if necessary.
-    pub(crate) fn drop(self) -> Result<(), AccessError> {
+    pub(crate) fn drop(self) -> Result<(), AnyObjError> {
         let vtable = vtable(&self);
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AccessError::not_owned(vtable.type_info()));
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
+                vtable.type_info(),
+            )));
         }
 
         // SAFETY: We've checked for the appropriate type just above.
@@ -215,7 +233,7 @@ impl AnyObj {
         let vtable = vtable(&self);
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
@@ -247,7 +265,7 @@ impl AnyObj {
         }
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
@@ -291,7 +309,7 @@ impl AnyObj {
         }
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
@@ -746,6 +764,7 @@ pub(super) enum AnyObjErrorKind {
     Alloc(alloc::Error),
     Cast(AnyTypeInfo, TypeInfo),
     AccessError(AccessError),
+    NotOwned(TypeInfo),
 }
 
 /// Errors caused when accessing or coercing an [`AnyObj`].
@@ -777,6 +796,9 @@ impl fmt::Display for AnyObjError {
                 write!(f, "Failed to cast `{actual}` to `{expected}`")
             }
             AnyObjErrorKind::AccessError(error) => error.fmt(f),
+            AnyObjErrorKind::NotOwned(type_info) => {
+                write!(f, "Cannot use owned operations for {type_info}")
+            }
         }
     }
 }

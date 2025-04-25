@@ -97,7 +97,7 @@ where
         let mut options = options.clone();
 
         if e.is_argument() {
-            options.function_body = true;
+            options.script = true;
         }
 
         let item = naming.item(&e)?;

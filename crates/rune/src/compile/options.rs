@@ -109,11 +109,11 @@ pub struct Options {
     pub(crate) macros: bool,
     /// Support bytecode caching.
     pub(crate) bytecode: bool,
-    /// Build sources as function bodies.
+    /// Build sources as scripts.
     ///
     /// The function to run will be named 0, which can be constructed with
     /// `Hash::EMPTY`.
-    pub(crate) function_body: bool,
+    pub(crate) script: bool,
     /// When running tests, include std tests.
     pub(crate) test_std: bool,
     /// Enable lowering optimizations.
@@ -136,7 +136,7 @@ impl Options {
         debug_info: true,
         macros: true,
         bytecode: false,
-        function_body: false,
+        script: false,
         test_std: false,
         lowering: 0,
         print_tree: false,
@@ -351,7 +351,7 @@ impl Options {
                     self.bytecode = tail.map_or(true, |s| s == "true");
                 }
                 "function-body" => {
-                    self.function_body = tail.map_or(true, |s| s == "true");
+                    self.script = tail.map_or(true, |s| s == "true");
                 }
                 "test-std" => {
                     self.test_std = tail.map_or(true, |s| s == "true");
@@ -414,11 +414,13 @@ impl Options {
     }
 
     /// Enable the test configuration flag.
+    #[inline]
     pub fn test(&mut self, _enabled: bool) {
         // ignored
     }
 
     /// Set if debug info is enabled or not. Defaults to `true`.
+    #[inline]
     pub fn debug_info(&mut self, enabled: bool) {
         self.debug_info = enabled;
     }
@@ -426,29 +428,34 @@ impl Options {
     /// Set if link checks are enabled or not. Defaults to `true`. This will
     /// cause compilation to fail if an instruction references a function which
     /// does not exist.
+    #[inline]
     pub fn link_checks(&mut self, enabled: bool) {
         self.link_checks = enabled;
     }
 
     /// Set if macros are enabled or not. Defaults to `false`.
+    #[inline]
     pub fn macros(&mut self, enabled: bool) {
         self.macros = enabled;
     }
 
     /// Set if bytecode caching is enabled or not. Defaults to `false`.
+    #[inline]
     pub fn bytecode(&mut self, enabled: bool) {
         self.bytecode = enabled;
     }
 
     /// Memoize the instance function in a loop. Defaults to `false`.
+    #[inline]
     pub fn memoize_instance_fn(&mut self, enabled: bool) {
         self.memoize_instance_fn = enabled;
     }
 
     /// Whether to build sources as scripts where the source is executed like a
     /// function body.
+    #[inline]
     pub fn script(&mut self, enabled: bool) {
-        self.function_body = enabled;
+        self.script = enabled;
     }
 }
 

@@ -12,8 +12,8 @@ use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::{Any, Hash, ItemBuf};
 
 use super::{
-    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnyTypeInfo, BoxedPanic, CallFrame,
-    DynArgsUsed, DynamicTakeError, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
+    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, AnyTypeInfo,
+    BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
     StackError, StaticString, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
@@ -544,12 +544,12 @@ impl From<Infallible> for RuntimeError {
     }
 }
 
-impl From<DynamicTakeError> for RuntimeError {
+impl From<AnySequenceTakeError> for RuntimeError {
     #[inline]
-    fn from(value: DynamicTakeError) -> Self {
+    fn from(value: AnySequenceTakeError) -> Self {
         match value {
-            DynamicTakeError::Access(error) => Self::from(error),
-            DynamicTakeError::Alloc(error) => Self::from(error),
+            AnySequenceTakeError::Access(error) => Self::from(error),
+            AnySequenceTakeError::Alloc(error) => Self::from(error),
         }
     }
 }
@@ -576,6 +576,7 @@ impl From<alloc::alloc::AllocError> for RuntimeError {
 }
 
 impl From<AnyObjError> for RuntimeError {
+    #[inline]
     fn from(value: AnyObjError) -> Self {
         match value.into_kind() {
             AnyObjErrorKind::Alloc(error) => Self::from(error),
@@ -584,6 +585,7 @@ impl From<AnyObjError> for RuntimeError {
                 actual,
             }),
             AnyObjErrorKind::AccessError(error) => Self::from(error),
+            AnyObjErrorKind::NotOwned(type_info) => Self::new(VmErrorKind::NotOwned { type_info }),
         }
     }
 }
@@ -679,6 +681,9 @@ pub(crate) enum VmErrorKind {
     },
     MissingContextFunction {
         hash: Hash,
+    },
+    NotOwned {
+        type_info: TypeInfo,
     },
     MissingProtocolFunction {
         protocol: &'static Protocol,
@@ -904,6 +909,9 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::MissingContextFunction { hash } => {
                 write!(f, "Missing context function with hash `{hash}`")
             }
+            VmErrorKind::NotOwned { type_info } => {
+                write!(f, "Cannot use owned operations for {type_info}")
+            }
             VmErrorKind::MissingProtocolFunction { protocol, instance } => {
                 write!(f, "Missing protocol function `{protocol}` for `{instance}`")
             }
@@ -1108,12 +1116,12 @@ impl From<RuntimeError> for VmErrorKind {
     }
 }
 
-impl From<DynamicTakeError> for VmErrorKind {
+impl From<AnySequenceTakeError> for VmErrorKind {
     #[inline]
-    fn from(value: DynamicTakeError) -> Self {
+    fn from(value: AnySequenceTakeError) -> Self {
         match value {
-            DynamicTakeError::Access(error) => Self::from(error),
-            DynamicTakeError::Alloc(error) => Self::from(error),
+            AnySequenceTakeError::Access(error) => Self::from(error),
+            AnySequenceTakeError::Alloc(error) => Self::from(error),
         }
     }
 }

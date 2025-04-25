@@ -18,7 +18,7 @@ use super::{
 /// A typed wrapper for a reference.
 ///
 /// This is identical in layout to [`AnyObj`], but provides a statically
-/// type-checked value.
+/// type-checked container.
 ///
 /// [`AnyObj`]: super::AnyObj
 pub struct Shared<T> {
@@ -33,9 +33,25 @@ where
     T: Any,
 {
     /// Construct a new typed shared value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Value;
+    /// use rune::runtime::Shared;
+    /// use rune::alloc::String;
+    ///
+    /// let string = String::try_from("Hello World")?;
+    /// let string = Shared::new(string)?;
+    /// let string = Value::from(string);
+    ///
+    /// let string = string.into_any_obj()?;
+    /// assert_eq!(string.borrow_ref::<String>()?.as_str(), "Hello World");
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    #[inline]
     pub fn new(value: T) -> alloc::Result<Self> {
         let any = AnyObj::new(value)?;
-
         // SAFETY: We know that the value is valid.
         unsafe { Ok(any.unsafe_into_shared()) }
     }
@@ -45,6 +61,7 @@ where
     /// # Safety
     ///
     /// Caller must ensure that the type is of the value `T`.
+    #[inline]
     pub(super) unsafe fn from_raw(shared: NonNull<AnyObjData<T>>) -> Self {
         Self {
             shared: shared.cast(),
@@ -53,9 +70,9 @@ where
     }
 
     /// Coerce into a type-erased [`AnyObj`].
-    fn into_any_obj(self) -> AnyObj {
+    #[inline]
+    pub(crate) fn into_any_obj(self) -> AnyObj {
         let this = ManuallyDrop::new(self);
-
         // SAFETY: We know that the shared value is valid.
         unsafe { AnyObj::from_raw(this.shared.cast()) }
     }
@@ -72,7 +89,7 @@ where
         let vtable = vtable(&self);
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
@@ -82,29 +99,6 @@ where
             self.shared.as_ref().access.try_take()?;
             let data = vtable.as_ptr::<T>(self.shared);
             Ok(data.read())
-        }
-    }
-
-    /// Drop the value.
-    ///
-    /// This consumes any live references of the value and accessing them in the
-    /// future will result in an error.
-    pub fn drop(self) -> Result<(), AccessError> {
-        let vtable = vtable(&self);
-
-        if !matches!(vtable.kind, Kind::Own) {
-            return Err(AccessError::not_owned(vtable.type_info()));
-        }
-
-        // SAFETY: We've checked for the appropriate type just above.
-        unsafe {
-            self.shared.as_ref().access.try_take()?;
-
-            if let Some(drop_value) = vtable.drop_value {
-                drop_value(self.shared);
-            }
-
-            Ok(())
         }
     }
 
@@ -118,7 +112,7 @@ where
         let vtable = vtable(&self);
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
@@ -152,7 +146,7 @@ where
         let vtable = vtable(&self);
 
         if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::from(AccessError::not_owned(
+            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }

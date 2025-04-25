@@ -18,11 +18,11 @@ mod ops;
 use self::ops::*;
 
 use super::{
-    budget, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs, DynGuardedArgs, Dynamic,
-    Format, FormatSpec, Formatter, FromValue, Function, Future, Generator, GeneratorState,
-    GuardedArgs, Inline, Inst, InstAddress, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
-    InstShiftOp, InstTarget, InstValue, InstVariant, Object, Output, OwnedTuple, Pair, Panic,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    budget, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs,
+    DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
+    GeneratorState, GuardedArgs, Inline, Inst, InstAddress, InstArithmeticOp, InstBitwiseOp,
+    InstOp, InstRange, InstShiftOp, InstTarget, InstValue, InstVariant, Object, Output, OwnedTuple,
+    Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type,
     TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
     VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
@@ -2356,7 +2356,7 @@ impl Vm {
         };
 
         let values = vm_try!(self.stack.slice_at_mut(addr, rtti.fields.len()));
-        let value = vm_try!(Dynamic::new(rtti.clone(), values.iter_mut().map(take)));
+        let value = vm_try!(AnySequence::new(rtti.clone(), values.iter_mut().map(take)));
         vm_try!(out.store(&mut self.stack, value));
         VmResult::Ok(())
     }
@@ -2869,7 +2869,7 @@ impl Vm {
 
                 let tuple = vm_try!(self.stack.slice_at_mut(addr, args));
                 let data = tuple.iter_mut().map(take);
-                let value = vm_try!(Dynamic::new(rtti.clone(), data));
+                let value = vm_try!(AnySequence::new(rtti.clone(), data));
                 vm_try!(out.store(&mut self.stack, value));
             }
         }

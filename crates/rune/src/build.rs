@@ -25,6 +25,7 @@ pub struct BuildError {
 }
 
 impl From<ParseOptionError> for BuildError {
+    #[inline]
     fn from(error: ParseOptionError) -> Self {
         Self {
             kind: BuildErrorKind::ParseOptionError(error),
@@ -33,6 +34,7 @@ impl From<ParseOptionError> for BuildError {
 }
 
 impl From<alloc::Error> for BuildError {
+    #[inline]
     fn from(error: alloc::Error) -> Self {
         Self {
             kind: BuildErrorKind::Alloc(error),

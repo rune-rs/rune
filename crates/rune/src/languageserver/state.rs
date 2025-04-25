@@ -618,7 +618,7 @@ impl<'a> State<'a> {
         let mut options = self.options.clone();
 
         if !build.workspace {
-            options.function_body = true;
+            options.script = true;
         }
 
         let unit = crate::prepare(&mut build.sources)

@@ -3,8 +3,6 @@ use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ptr::NonNull;
 
-use super::TypeInfo;
-
 /// Test if exclusively held.
 const EXCLUSIVE: usize = 1usize.rotate_right(2);
 /// Sentinel value to indicate that access is taken.
@@ -28,27 +26,18 @@ pub struct AccessError {
 
 impl AccessError {
     #[inline]
-    pub(crate) const fn not_owned(type_info: TypeInfo) -> Self {
-        Self {
-            kind: AccessErrorKind::NotAccessibleOwned(type_info),
-        }
-    }
-
-    #[inline]
     pub(crate) const fn new(kind: AccessErrorKind) -> Self {
         Self { kind }
     }
 }
 
 impl fmt::Display for AccessError {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             AccessErrorKind::NotAccessibleRef(s) => write!(f, "Cannot read, value is {s}"),
             AccessErrorKind::NotAccessibleMut(s) => write!(f, "Cannot write, value is {s}"),
             AccessErrorKind::NotAccessibleTake(s) => write!(f, "Cannot take, value is {s}"),
-            AccessErrorKind::NotAccessibleOwned(type_info) => {
-                write!(f, "Cannot use owned operations for {type_info}")
-            }
         }
     }
 }
@@ -68,7 +57,6 @@ pub(crate) enum AccessErrorKind {
     NotAccessibleRef(Snapshot),
     NotAccessibleMut(Snapshot),
     NotAccessibleTake(Snapshot),
-    NotAccessibleOwned(TypeInfo),
 }
 
 /// Snapshot that can be used to indicate how the value was being accessed at
