@@ -1,6 +1,6 @@
 use rust_alloc::boxed::Box;
 
-use super::Dynamic;
+use super::AnySequence;
 
 #[derive(Debug, PartialEq, Eq)]
 struct Count(isize);
@@ -9,14 +9,14 @@ struct Count(isize);
 fn dynamic_drop() {
     let header = Box::new(42u32);
     let v1 = crate::to_value([1u32, 2, 3, 4]).unwrap();
-    let _dynamic = Dynamic::new(header, [v1]).unwrap();
+    let _dynamic = AnySequence::new(header, [v1]).unwrap();
 }
 
 #[test]
 fn dynamic_borrow_ref() {
     let header = Box::new(42u32);
     let v1 = crate::to_value([1u32, 2, 3, 4]).unwrap();
-    let dynamic = Dynamic::new(header, [v1]).unwrap();
+    let dynamic = AnySequence::new(header, [v1]).unwrap();
 
     let values = dynamic.borrow_ref().unwrap();
     let values2 = dynamic.borrow_ref().unwrap();
@@ -30,7 +30,7 @@ fn dynamic_borrow_ref() {
 
 #[test]
 fn dynamic_borrow_ref_err() -> crate::support::Result<()> {
-    let a = Dynamic::new((), [Count(0)])?;
+    let a = AnySequence::new((), [Count(0)])?;
 
     a.borrow_mut()?[0].0 += 1;
 
@@ -51,7 +51,7 @@ fn dynamic_borrow_ref_err() -> crate::support::Result<()> {
 fn dynamic_borrow_mut() {
     let header = Box::new(42u32);
     let v1 = crate::to_value([1u32, 2, 3, 4]).unwrap();
-    let dynamic = Dynamic::new(header, [v1]).unwrap();
+    let dynamic = AnySequence::new(header, [v1]).unwrap();
 
     let values = dynamic.borrow_mut().unwrap();
 
@@ -62,7 +62,7 @@ fn dynamic_borrow_mut() {
 
 #[test]
 fn dynamic_borrow_mut_err() -> crate::support::Result<()> {
-    let a = Dynamic::new((), [Count(0)])?;
+    let a = AnySequence::new((), [Count(0)])?;
 
     {
         let mut a_mut = a.borrow_mut()?;
@@ -78,7 +78,7 @@ fn dynamic_borrow_mut_err() -> crate::support::Result<()> {
 
 #[test]
 fn dynamic_take() -> crate::support::Result<()> {
-    let a = Dynamic::new((), [Count(0)])?;
+    let a = AnySequence::new((), [Count(0)])?;
     let b = a.clone();
 
     {
@@ -95,7 +95,7 @@ fn dynamic_take() -> crate::support::Result<()> {
 
 #[test]
 fn dynamic_is_readable() -> crate::support::Result<()> {
-    let dynamic = Dynamic::new((), [1u32])?;
+    let dynamic = AnySequence::new((), [1u32])?;
     assert!(dynamic.is_readable());
 
     {
@@ -114,7 +114,7 @@ fn dynamic_is_readable() -> crate::support::Result<()> {
 
 #[test]
 fn dynamic_is_writable_take() -> crate::support::Result<()> {
-    let shared = Dynamic::new((), [1u32])?;
+    let shared = AnySequence::new((), [1u32])?;
     let shared2 = shared.clone();
     assert!(shared.is_readable());
     shared.take()?;
@@ -125,7 +125,7 @@ fn dynamic_is_writable_take() -> crate::support::Result<()> {
 
 #[test]
 fn dynamic_is_writable() -> crate::support::Result<()> {
-    let shared = Dynamic::new((), [1u32])?;
+    let shared = AnySequence::new((), [1u32])?;
     assert!(shared.is_writable());
 
     {

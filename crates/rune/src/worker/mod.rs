@@ -186,7 +186,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             }};
         }
 
-        let as_function_body = self.q.options.function_body && !is_module;
+        let as_function_body = self.q.options.script && !is_module;
 
         #[allow(clippy::collapsible_else_if)]
         if self.q.options.v2 {

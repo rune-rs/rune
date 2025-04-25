@@ -17,9 +17,9 @@ pub use self::rtti::{Accessor, Rtti};
 mod data;
 pub use self::data::{EmptyStruct, Struct, TupleStruct};
 
-mod dynamic;
-pub use self::dynamic::Dynamic;
-pub(crate) use self::dynamic::DynamicTakeError;
+mod any_sequence;
+pub use self::any_sequence::AnySequence;
+pub(crate) use self::any_sequence::AnySequenceTakeError;
 
 use core::any;
 use core::cmp::Ordering;
@@ -77,7 +77,7 @@ where
 #[derive(Clone)]
 pub(crate) enum Repr {
     Inline(Inline),
-    Dynamic(Dynamic<Arc<Rtti>, Value>),
+    Dynamic(AnySequence<Arc<Rtti>, Value>),
     Any(AnyObj),
 }
 
@@ -525,7 +525,7 @@ impl Value {
 
     /// Construct an empty.
     pub fn empty_struct(rtti: Arc<Rtti>) -> alloc::Result<Self> {
-        Ok(Value::from(Dynamic::new(rtti, [])?))
+        Ok(Value::from(AnySequence::new(rtti, [])?))
     }
 
     /// Construct a typed tuple.
@@ -533,7 +533,7 @@ impl Value {
         rtti: Arc<Rtti>,
         data: impl IntoIterator<IntoIter: ExactSizeIterator, Item = Value>,
     ) -> alloc::Result<Self> {
-        Ok(Value::from(Dynamic::new(rtti, data)?))
+        Ok(Value::from(AnySequence::new(rtti, data)?))
     }
 
     /// Drop the interior value.
@@ -1540,11 +1540,57 @@ impl From<Inline> for Value {
     }
 }
 
+/// Conversion from a [`AnyObj`] into a [`Value`].
+///
+/// # Examples
+///
+/// ```
+/// use rune::Value;
+/// use rune::runtime::AnyObj;
+/// use rune::alloc::String;
+///
+/// let string = String::try_from("Hello World")?;
+/// let string = AnyObj::new(string)?;
+/// let string = Value::from(string);
+///
+/// let string = string.into_shared::<String>()?;
+/// assert_eq!(string.borrow_ref()?.as_str(), "Hello World");
+/// # Ok::<_, rune::support::Error>(())
+/// ```
 impl From<AnyObj> for Value {
     #[inline]
     fn from(value: AnyObj) -> Self {
         Self {
             repr: Repr::Any(value),
+        }
+    }
+}
+
+/// Conversion from a [`Shared<T>`] into a [`Value`].
+///
+/// # Examples
+///
+/// ```
+/// use rune::Value;
+/// use rune::runtime::Shared;
+/// use rune::alloc::String;
+///
+/// let string = String::try_from("Hello World")?;
+/// let string = Shared::new(string)?;
+/// let string = Value::from(string);
+///
+/// let string = string.into_any_obj()?;
+/// assert_eq!(string.borrow_ref::<String>()?.as_str(), "Hello World");
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+impl<T> From<Shared<T>> for Value
+where
+    T: Any,
+{
+    #[inline]
+    fn from(value: Shared<T>) -> Self {
+        Self {
+            repr: Repr::Any(value.into_any_obj()),
         }
     }
 }
@@ -1556,9 +1602,9 @@ impl IntoOutput for Inline {
     }
 }
 
-impl From<Dynamic<Arc<Rtti>, Value>> for Value {
+impl From<AnySequence<Arc<Rtti>, Value>> for Value {
     #[inline]
-    fn from(value: Dynamic<Arc<Rtti>, Value>) -> Self {
+    fn from(value: AnySequence<Arc<Rtti>, Value>) -> Self {
         Self {
             repr: Repr::Dynamic(value),
         }

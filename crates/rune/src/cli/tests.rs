@@ -146,7 +146,7 @@ where
         let mut options = options.clone();
 
         if e.is_argument() {
-            options.function_body = true;
+            options.script = true;
         }
 
         let item = naming.item(&e)?;
@@ -439,7 +439,7 @@ fn populate_doc_tests(
         let mut source_loader = FileSourceLoader::new();
 
         let mut options = options.clone();
-        options.function_body = true;
+        options.script = true;
 
         let unit = crate::prepare(&mut sources)
             .with_context(context)

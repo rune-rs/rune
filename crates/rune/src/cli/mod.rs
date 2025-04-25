@@ -921,7 +921,7 @@ where
                 let mut options = options.clone();
 
                 if e.is_argument() {
-                    options.function_body = true;
+                    options.script = true;
                 }
 
                 match check::run(io, entry, c, &f.command, &f.shared, &options, e.path())? {
@@ -957,7 +957,7 @@ where
                 let mut options = options.clone();
 
                 if e.is_argument() {
-                    options.function_body = true;
+                    options.script = true;
                 }
 
                 let capture_io = crate::modules::capture_io::CaptureIo::new();
@@ -996,7 +996,7 @@ where
                 let mut options = options.clone();
 
                 if e.is_argument() {
-                    options.function_body = true;
+                    options.script = true;
                 }
 
                 let load = loader::load(

@@ -14,7 +14,7 @@ use crate::shared::AssertSend;
 use crate::{vm_try, vm_write, Any, Hash};
 
 use super::{
-    Args, Call, ConstValue, Dynamic, Formatter, FromValue, FunctionHandler, GuardedArgs,
+    AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs,
     InstAddress, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
     VmCall, VmErrorKind, VmHalt, VmResult,
 };
@@ -630,7 +630,7 @@ where
 
                 let seq = vm_try!(vm.stack().slice_at(addr, args));
                 let data = seq.iter().cloned();
-                let value = vm_try!(Dynamic::new(tuple.rtti.clone(), data));
+                let value = vm_try!(AnySequence::new(tuple.rtti.clone(), data));
                 vm_try!(out.store(vm.stack_mut(), value));
                 None
             }
