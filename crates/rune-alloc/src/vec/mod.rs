@@ -1850,7 +1850,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// Appends elements to `self` from other buffer.
     #[inline]
     unsafe fn try_append_elements(&mut self, other: *const [T]) -> Result<(), Error> {
-        let count = unsafe { (*other).len() };
+        let count = other.len();
         self.try_reserve(count)?;
         let len = self.len();
         unsafe { ptr::copy_nonoverlapping(other as *const T, self.as_mut_ptr().add(len), count) };
