@@ -35,9 +35,18 @@ impl fmt::Display for AccessError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            AccessErrorKind::NotAccessibleRef(s) => write!(f, "Cannot read, value is {s}"),
-            AccessErrorKind::NotAccessibleMut(s) => write!(f, "Cannot write, value is {s}"),
-            AccessErrorKind::NotAccessibleTake(s) => write!(f, "Cannot take, value is {s}"),
+            AccessErrorKind::NotAccessibleRef(s) => write!(
+                f,
+                "Cannot read, value has snapshot {s} and is not available for reading"
+            ),
+            AccessErrorKind::NotAccessibleMut(s) => write!(
+                f,
+                "Cannot write, value has snapshot {s} and is not available for writing"
+            ),
+            AccessErrorKind::NotAccessibleTake(s) => write!(
+                f,
+                "Cannot take, value has snapshot {s} and is not available for taking"
+            ),
         }
     }
 }
