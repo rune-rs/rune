@@ -9,10 +9,10 @@ use crate::any::AnyMarker;
 use crate::compile::meta;
 use crate::{Any, Hash};
 
-use super::any_obj::{AnyObjData, AnyObjError, AnyObjErrorKind, Kind, Vtable};
 use super::{
-    AccessError, AnyObj, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, MaybeTypeOf, Mut,
-    RawAnyGuard, Ref, RefVtable, RuntimeError, ToValue, TypeHash, TypeInfo, TypeOf, Value,
+    AnyObj, AnyObjData, AnyObjError, AnyObjErrorKind, AnyObjVtable, AnyTypeInfo, BorrowMut,
+    BorrowRef, FromValue, MaybeTypeOf, Mut, RawAnyGuard, Ref, RefVtable, RuntimeError, ToValue,
+    TypeHash, TypeInfo, TypeOf, Value,
 };
 
 /// A typed wrapper for a reference.
@@ -88,13 +88,14 @@ where
     pub fn take(self) -> Result<T, AnyObjError> {
         let vtable = vtable(&self);
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
 
-        // SAFETY: We've checked for the appropriate type just above.
+        // SAFETY: The appropriate type has been type checked for when the
+        // container was constructed.
         unsafe {
             self.shared.as_ref().access.try_take()?;
             let data = vtable.as_ptr::<T>(self.shared);
@@ -108,16 +109,34 @@ where
     ///
     /// This errors in case the underlying value is not owned, non-owned
     /// references cannot be coerced into [`Ref<T>`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    /// let value = value.into_shared::<Struct>()?;
+    ///
+    /// let reference = value.clone().into_ref()?;
+    /// assert!(value.borrow_ref().is_ok());
+    /// assert_eq!(reference.0, 42);
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn into_ref(self) -> Result<Ref<T>, AnyObjError> {
         let vtable = vtable(&self);
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
 
-        // SAFETY: We've checked for the appropriate type just above.
+        // SAFETY: The appropriate type has been type checked for when the
+        // container was constructed.
         unsafe {
             self.shared.as_ref().access.try_shared()?;
             let this = ManuallyDrop::new(self);
@@ -142,16 +161,37 @@ where
     ///
     /// This errors in case the underlying value is not owned, non-owned
     /// references cannot be coerced into [`Mut<T>`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    /// let value = value.into_shared::<Struct>()?;
+    ///
+    /// let mut mutable = value.clone().into_mut()?;
+    /// assert!(value.borrow_ref().is_err());
+    /// mutable.0 += 1;
+    /// drop(mutable);
+    ///
+    /// assert_eq!(value.borrow_ref()?.0, 43);
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn into_mut(self) -> Result<Mut<T>, AnyObjError> {
         let vtable = vtable(&self);
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
         }
 
-        // SAFETY: We've checked for the appropriate type just above.
+        // SAFETY: The appropriate type has been type checked for when the
+        // container was constructed.
         unsafe {
             self.shared.as_ref().access.try_exclusive()?;
             let this = ManuallyDrop::new(self);
@@ -174,10 +214,29 @@ where
     ///
     /// This prevents other exclusive accesses from being performed while the
     /// guard returned from this function is live.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    /// let value = value.into_shared::<Struct>()?;
+    ///
+    /// let borrowed = value.borrow_ref()?;
+    /// assert!(value.borrow_ref().is_ok());
+    /// drop(borrowed);
+    /// assert!(value.borrow_ref().is_ok());
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn borrow_ref(&self) -> Result<BorrowRef<'_, T>, AnyObjError> {
         let vtable = vtable(self);
 
-        // SAFETY: We've checked for the appropriate type just above.
+        // SAFETY: The appropriate type has been type checked for when the
+        // container was constructed.
         unsafe {
             let guard = self.shared.as_ref().access.shared()?;
             let data = vtable.as_ptr(self.shared);
@@ -185,38 +244,40 @@ where
         }
     }
 
-    /// Try to borrow an shared reference to the value.
-    ///
-    /// Returns `None` if the value is not `T`.
-    ///
-    /// This prevents other exclusive accesses from being performed while the
-    /// guard returned from this function is live.
-    pub fn try_borrow_ref(&self) -> Result<Option<BorrowRef<'_, T>>, AccessError> {
-        let vtable = vtable(self);
-
-        // SAFETY: We've checked for the appropriate type just above.
-        unsafe {
-            let guard = self.shared.as_ref().access.shared()?;
-            let data = vtable.as_ptr(self.shared);
-            Ok(Some(BorrowRef::new(data, guard.into_raw())))
-        }
-    }
-
     /// Borrow an exclusive reference to the value.
     ///
     /// This prevents other accesses from being performed while the guard
     /// returned from this function is live.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    /// let value = value.into_shared::<Struct>()?;
+    ///
+    /// let borrowed = value.borrow_mut()?;
+    /// assert!(value.borrow_ref().is_err());
+    /// drop(borrowed);
+    /// assert!(value.borrow_ref().is_ok());
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn borrow_mut(&self) -> Result<BorrowMut<'_, T>, AnyObjError> {
         let vtable = vtable(self);
 
-        if matches!(vtable.kind, Kind::Ref) {
+        if !vtable.is_mutable() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
 
-        // SAFETY: We've checked for the appropriate type just above.
+        // SAFETY: The appropriate type has been type checked for when the
+        // container was constructed.
         unsafe {
             let guard = self.shared.as_ref().access.exclusive()?;
             let data = vtable.as_ptr(self.shared);
@@ -224,51 +285,114 @@ where
         }
     }
 
-    /// Try to borrow an exlucisve reference to the value.
-    ///
-    /// Returns `None` if the value is not `T`.
-    ///
-    /// This prevents other exclusive accesses from being performed while the
-    /// guard returned from this function is live.
-    pub fn try_borrow_mut(&self) -> Result<Option<BorrowMut<'_, T>>, AccessError> {
-        let vtable = vtable(self);
-
-        // SAFETY: We've checked for the appropriate type just above.
-        unsafe {
-            let guard = self.shared.as_ref().access.exclusive()?;
-            let data = vtable.as_ptr(self.shared);
-            Ok(Some(BorrowMut::new(data, guard.into_raw())))
-        }
-    }
-
     /// Test if the value is sharable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    /// let value = value.into_shared::<Struct>()?;
+    ///
+    /// {
+    ///     assert!(value.is_writable());
+    ///
+    ///     let borrowed = value.borrow_mut()?;
+    ///     assert!(!value.is_writable());
+    ///     drop(borrowed);
+    ///     assert!(value.is_writable());
+    /// }
+    ///
+    /// let foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_ref(&foo)? };
+    ///     let value = value.into_shared::<Struct>()?;
+    ///     assert!(value.is_readable());
+    ///     assert!(!value.is_writable());
+    /// }
+    ///
+    /// let mut foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_mut(&mut foo)? };
+    ///     let value = value.into_shared::<Struct>()?;
+    ///     assert!(value.is_readable());
+    ///     assert!(value.is_writable());
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn is_readable(&self) -> bool {
         // Safety: Since we have a reference to this shared, we know that the
         // inner is available.
         unsafe { self.shared.as_ref().access.is_shared() }
     }
 
-    /// Test if the value is exclusively accessible.
+    /// Test if a value is writable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    /// let value = value.into_shared::<Struct>()?;
+    ///
+    /// {
+    ///     assert!(value.is_writable());
+    ///
+    ///     let borrowed = value.borrow_mut()?;
+    ///     assert!(!value.is_writable());
+    ///     drop(borrowed);
+    ///     assert!(value.is_writable());
+    /// }
+    ///
+    /// let foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_ref(&foo)? };
+    ///     let value = value.into_shared::<Struct>()?;
+    ///     assert!(value.is_readable());
+    ///     assert!(!value.is_writable());
+    /// }
+    ///
+    /// let mut foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_mut(&mut foo)? };
+    ///     let value = value.into_shared::<Struct>()?;
+    ///     assert!(value.is_readable());
+    ///     assert!(value.is_writable());
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn is_writable(&self) -> bool {
         unsafe {
             let shared = self.shared.as_ref();
-            !matches!(shared.vtable.kind, Kind::Ref) && shared.access.is_exclusive()
+            shared.vtable.is_mutable() && shared.access.is_exclusive()
         }
     }
 
     /// Debug format the current any type.
     pub(crate) fn debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (vtable(self).debug)(f)
+        vtable(self).debug(f)
     }
 
     /// Access the underlying type id for the data.
     pub fn type_hash(&self) -> Hash {
-        vtable(self).type_hash
+        vtable(self).type_hash()
     }
 
     /// Access full type info for the underlying type.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::any_type_info(vtable(self).type_info)
+        vtable(self).type_info()
     }
 }
 
@@ -292,7 +416,7 @@ impl<T> Drop for Shared<T> {
 }
 
 #[inline]
-pub(super) fn vtable<T>(any: &Shared<T>) -> &'static Vtable {
+pub(super) fn vtable<T>(any: &Shared<T>) -> &'static AnyObjVtable {
     unsafe { addr_of!((*any.shared.as_ptr()).vtable).read() }
 }
 
