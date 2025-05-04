@@ -124,7 +124,7 @@ pub(super) fn complete_native_instance_data(
                 .return_type
                 .base
                 .as_non_empty()
-                .and_then(|hash| context.lookup_meta_by_hash(hash).next())
+                .and_then(|hash| context.lookup_meta_by_hash(hash.get()).next())
                 .and_then(|r| r.item.as_deref());
 
             let docs = meta.docs.lines().join("\n");
@@ -189,7 +189,7 @@ pub(super) fn complete_native_loose_data(
                 .return_type
                 .base
                 .as_non_empty()
-                .and_then(|hash| context.lookup_meta_by_hash(hash).next())
+                .and_then(|hash| context.lookup_meta_by_hash(hash.get()).next())
                 .and_then(|r| r.item.as_deref());
 
             let docs = meta.docs.lines().join("\n");

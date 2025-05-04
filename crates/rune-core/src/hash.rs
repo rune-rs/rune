@@ -6,12 +6,37 @@ mod to_type_hash;
 
 use core::fmt;
 use core::hash::{BuildHasher, BuildHasherDefault, Hash as _, Hasher};
+use core::num::NonZero;
 
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use twox_hash::XxHash64;
 
+/// Error raised when too many parameters are added to a [`ParametersBuilder`].
+///
+/// # Examples
+///
+/// ```
+/// use rune::TypeHash;
+/// use rune::hash::ParametersBuilder;
+///
+/// let mut params = ParametersBuilder::new();
+///
+/// let err = 'outer: {
+///     for _ in 0.. {
+///         params = match params.add(i64::HASH) {
+///             Ok(params) => params,
+///             Err(err) => break 'outer err,
+///         };
+///     };
+///
+///     panic!("expected error");
+/// };
+///
+/// let err = err.to_string();
+/// # Ok::<_, rune::hash::TooManyParameters>(())
+/// ```
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct TooManyParameters;
@@ -75,6 +100,74 @@ const PARAMETERS: [u64; 32] = [
 
 /// The primitive hash that among other things is used to reference items,
 /// types, and native functions.
+///
+/// # Examples
+///
+/// ```
+/// use rune::Hash;
+///
+/// assert!(Hash::index(0).as_non_empty().is_some());
+/// ```
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+#[repr(transparent)]
+pub struct NonZeroHash(#[doc(hidden)] pub NonZero<u64>);
+
+impl NonZeroHash {
+    /// Get the value as a hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    ///
+    /// let hash = Hash::index(0).as_non_empty().ok_or("expected non-empty")?;
+    /// assert_eq!(hash.get(), Hash::index(0));
+    /// # Ok::<_, &'static str>(())
+    /// ```
+    pub const fn get(self) -> Hash {
+        Hash(self.0.get())
+    }
+}
+
+impl TryClone for NonZeroHash {
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(*self)
+    }
+}
+
+impl fmt::Display for NonZeroHash {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:x}", self.0.get())
+    }
+}
+
+impl fmt::Debug for NonZeroHash {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x{:x}", self.0.get())
+    }
+}
+
+impl PartialEq<Hash> for NonZeroHash {
+    #[inline]
+    fn eq(&self, other: &Hash) -> bool {
+        self.0.get() == other.0
+    }
+}
+
+/// The primitive hash that among other things is used to reference items,
+/// types, and native functions.
+///
+/// # Examples
+///
+/// ```
+/// use rune::Hash;
+///
+/// assert_ne!(Hash::index(0), Hash::index(1));
+/// ```
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
 #[repr(transparent)]
@@ -82,6 +175,15 @@ pub struct Hash(#[doc(hidden)] pub u64);
 
 impl Hash {
     /// The empty hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    ///
+    /// assert_ne!(Hash::index(0), Hash::EMPTY);
+    /// assert!(Hash::EMPTY.as_non_empty().is_none());
+    /// ```
     pub const EMPTY: Self = Self(0);
 
     /// Construct a new raw hash.
@@ -97,13 +199,18 @@ impl Hash {
     }
 
     /// Return the current hash if it is non-empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    ///
+    /// assert!(Hash::index(0).as_non_empty().is_some());
+    /// assert!(Hash::EMPTY.as_non_empty().is_none());
+    /// ```
     #[inline]
-    pub fn as_non_empty(&self) -> Option<Self> {
-        if self.is_empty() {
-            None
-        } else {
-            Some(*self)
-        }
+    pub fn as_non_empty(&self) -> Option<NonZeroHash> {
+        Some(NonZeroHash(NonZero::new(self.0)?))
     }
 
     /// Coerce a hash into its inner numerical value.
@@ -119,6 +226,14 @@ impl Hash {
     }
 
     /// Construct a hash from an index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    ///
+    /// assert_ne!(Hash::index(0), Hash::index(1));
+    /// ```
     #[inline]
     pub fn index(index: usize) -> Self {
         Self(INDEX ^ (index as u64))
@@ -126,6 +241,14 @@ impl Hash {
 
     /// Get the hash corresponding to a string identifier like `function` or
     /// `hello_world`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    ///
+    /// assert_ne!(Hash::ident("foo"), Hash::index(0));
+    /// ```
     pub fn ident(name: &str) -> Hash {
         let mut hasher = Self::new_hasher();
         name.hash(&mut hasher);
@@ -133,12 +256,30 @@ impl Hash {
     }
 
     /// Get the hash of a type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    ///
+    /// assert!(!Hash::type_hash(["main"]).is_empty());
+    /// assert!(!Hash::type_hash(["main", "other"]).is_empty());
+    /// ```
     pub fn type_hash(path: impl ToTypeHash) -> Self {
         path.to_type_hash()
     }
 
     /// Construct a hash to an instance function, where the instance is a
     /// pre-determined type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Hash;
+    /// use rune::runtime::Protocol;
+    ///
+    /// assert!(!Hash::associated_function("main", &Protocol::INTO_TYPE_NAME).is_empty());
+    /// ```
     #[inline]
     pub fn associated_function(type_hash: impl IntoHash, name: impl IntoHash) -> Self {
         let type_hash = type_hash.into_hash();
@@ -147,6 +288,15 @@ impl Hash {
     }
 
     /// Construct a hash corresponding to a field function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, TypeHash};
+    /// use rune::runtime::Protocol;
+    ///
+    /// assert!(!Hash::field_function(&Protocol::ADD, i64::HASH, "field").is_empty());
+    /// ```
     #[inline]
     pub fn field_function(protocol: impl IntoHash, type_hash: Hash, name: impl IntoHash) -> Self {
         let protocol = protocol.into_hash();
@@ -154,6 +304,15 @@ impl Hash {
     }
 
     /// Construct an index function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, TypeHash};
+    /// use rune::runtime::Protocol;
+    ///
+    /// assert!(!Hash::index_function(&Protocol::ADD, i64::HASH, Hash::index(1)).is_empty());
+    /// ```
     #[inline]
     pub fn index_function(protocol: impl IntoHash, type_hash: Hash, index: Hash) -> Self {
         let protocol = protocol.into_hash();
@@ -170,8 +329,7 @@ impl Hash {
     /// Hash the given iterator of object keys.
     pub fn object_keys<I>(keys: I) -> Self
     where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
+        I: IntoIterator<Item: AsRef<str>>,
     {
         let mut hasher = Self::new_hasher();
         OBJECT_KEYS.hash(&mut hasher);
@@ -226,18 +384,21 @@ impl Hash {
 }
 
 impl TryClone for Hash {
+    #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(*self)
     }
 }
 
 impl fmt::Display for Hash {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{:x}", self.0)
     }
 }
 
 impl fmt::Debug for Hash {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{:x}", self.0)
     }
@@ -273,6 +434,19 @@ pub struct ParametersBuilder {
 
 impl ParametersBuilder {
     /// Construct a new collection of parameters.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Hash, TypeHash};
+    /// use rune::hash::ParametersBuilder;
+    ///
+    /// let mut params = ParametersBuilder::new();
+    ///
+    /// let hash = params.finish();
+    /// assert_eq!(hash, Hash::EMPTY);
+    /// # Ok::<_, rune::hash::TooManyParameters>(())
+    /// ```
     pub const fn new() -> Self {
         Self {
             base: 0,
@@ -286,6 +460,21 @@ impl ParametersBuilder {
     /// # Errors
     ///
     /// Errors if too many parameters are added.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::TypeHash;
+    /// use rune::hash::ParametersBuilder;
+    ///
+    /// let mut params = ParametersBuilder::new();
+    ///
+    /// let params = params.add(String::HASH)?;
+    /// let params = params.add(i64::HASH)?;
+    ///
+    /// let hash = params.finish();
+    /// # Ok::<_, rune::hash::TooManyParameters>(())
+    /// ```
     pub const fn add(mut self, Hash(hash): Hash) -> Result<Self, TooManyParameters> {
         if self.index >= PARAMETERS.len() {
             self.shift += 8;
@@ -302,7 +491,29 @@ impl ParametersBuilder {
     }
 
     /// Finish building the parameters hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::TypeHash;
+    /// use rune::hash::ParametersBuilder;
+    ///
+    /// let mut params = ParametersBuilder::new();
+    ///
+    /// let params = params.add(String::HASH)?;
+    /// let params = params.add(i64::HASH)?;
+    ///
+    /// let hash = params.finish();
+    /// # Ok::<_, rune::hash::TooManyParameters>(())
+    /// ```
     pub const fn finish(self) -> Hash {
         Hash::new(self.base)
+    }
+}
+
+impl PartialEq<NonZeroHash> for Hash {
+    #[inline]
+    fn eq(&self, other: &NonZeroHash) -> bool {
+        self.0 == other.0.get()
     }
 }
