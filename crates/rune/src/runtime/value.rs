@@ -254,6 +254,43 @@ impl Value {
     }
 
     /// Test if the value is writable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    ///
+    /// {
+    ///     assert!(value.is_writable());
+    ///
+    ///     let borrowed = value.borrow_mut::<Struct>()?;
+    ///     assert!(!value.is_writable());
+    ///     drop(borrowed);
+    ///     assert!(value.is_writable());
+    /// }
+    ///
+    /// let foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_ref(&foo)? };
+    ///     assert!(value.is_readable());
+    ///     assert!(!value.is_writable());
+    /// }
+    ///
+    /// let mut foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_mut(&mut foo)? };
+    ///     assert!(value.is_readable());
+    ///     assert!(value.is_writable());
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn is_writable(&self) -> bool {
         match self.repr {
             Repr::Inline(Inline::Empty) => false,
@@ -263,7 +300,44 @@ impl Value {
         }
     }
 
-    /// Test if the value is readable.
+    /// Test if a value is readable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Any, Value};
+    ///
+    /// #[derive(Any)]
+    /// struct Struct(u32);
+    ///
+    /// let value = Value::new(Struct(42))?;
+    ///
+    /// {
+    ///     assert!(value.is_writable());
+    ///
+    ///     let borrowed = value.borrow_mut::<Struct>()?;
+    ///     assert!(!value.is_writable());
+    ///     drop(borrowed);
+    ///     assert!(value.is_writable());
+    /// }
+    ///
+    /// let foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_ref(&foo)? };
+    ///     assert!(value.is_readable());
+    ///     assert!(!value.is_writable());
+    /// }
+    ///
+    /// let mut foo = Struct(42);
+    ///
+    /// {
+    ///     let (value, guard) = unsafe { Value::from_mut(&mut foo)? };
+    ///     assert!(value.is_readable());
+    ///     assert!(value.is_writable());
+    /// }
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
     pub fn is_readable(&self) -> bool {
         match &self.repr {
             Repr::Inline(Inline::Empty) => false,
@@ -893,7 +967,7 @@ impl Value {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Value;
     /// use rune::alloc::String;
     ///
@@ -926,7 +1000,7 @@ impl Value {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Value;
     /// use rune::alloc::String;
     ///
@@ -964,7 +1038,7 @@ impl Value {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::Value;
     /// use rune::alloc::String;
     ///
@@ -1010,7 +1084,7 @@ impl Value {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```
     /// use rune::{Mut, Value};
     /// use rune::alloc::String;
     ///

@@ -39,12 +39,7 @@ impl fmt::Display for RuntimeWarningDiagnostic {
     }
 }
 
-impl core::error::Error for RuntimeWarningDiagnostic {
-    #[inline]
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        None
-    }
-}
+impl core::error::Error for RuntimeWarningDiagnostic {}
 
 /// The kind of a [RuntimeWarningDiagnostic].
 #[derive(Debug)]

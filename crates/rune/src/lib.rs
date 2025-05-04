@@ -233,7 +233,7 @@ pub use self::diagnostics::Diagnostics;
 
 pub mod hash;
 #[doc(inline)]
-pub use self::hash::{Hash, ToTypeHash};
+pub use self::hash::{Hash, NonZeroHash, ToTypeHash};
 
 mod hashbrown;
 

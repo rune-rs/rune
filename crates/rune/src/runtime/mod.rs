@@ -22,9 +22,12 @@ pub use self::borrow_mut::BorrowMut;
 mod borrow_ref;
 pub use self::borrow_ref::BorrowRef;
 
+mod any_obj_vtable;
+use self::any_obj_vtable::AnyObjVtable;
+
 mod any_obj;
-use self::any_obj::AnyObjErrorKind;
 pub use self::any_obj::{AnyObj, AnyObjError};
+use self::any_obj::{AnyObjData, AnyObjErrorKind};
 pub(crate) use self::any_obj::{AnyObjDrop, RawAnyObjGuard};
 
 mod shared;

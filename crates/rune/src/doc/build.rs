@@ -634,7 +634,7 @@ impl<'m> Ctxt<'_, 'm> {
 
         let mut it = self
             .context
-            .meta_by_hash(hash)?
+            .meta_by_hash(hash.get())?
             .into_iter()
             .flat_map(|m| Some((m, into_item_kind(m)?)));
 
@@ -642,7 +642,7 @@ impl<'m> Ctxt<'_, 'm> {
             let Some((meta, kind)) = it.next() else {
                 tracing::warn!(?hash, "No link for hash");
 
-                for _meta in self.context.meta_by_hash(hash)? {
+                for _meta in self.context.meta_by_hash(hash.get())? {
                     tracing::warn!("Candidate: {:?}", _meta.kind);
                 }
 
@@ -721,7 +721,7 @@ impl<'m> Ctxt<'_, 'm> {
         while let Some(arg) = it.next() {
             if matches!(sig, Signature::Instance) && arg.name.is_self() {
                 if let Some(hash) = arg.base.as_non_empty() {
-                    self.write_link(&mut string, hash, Some("self"), &[])?;
+                    self.write_link(&mut string, hash.get(), Some("self"), &[])?;
                 } else {
                     write!(string, "self")?;
                 }

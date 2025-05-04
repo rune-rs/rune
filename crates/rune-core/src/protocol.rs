@@ -7,7 +7,16 @@ use crate::alloc;
 use crate::hash::{Hash, ToTypeHash};
 use crate::item::ItemBuf;
 
-/// A built in instance function.
+/// A pre-defined protocol function.
+///
+/// # Examples
+///
+/// ```
+/// use rune::runtime::Protocol;
+///
+/// let protocol = Protocol::GET;
+/// assert_eq!(protocol.name, "GET");
+/// ```
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Protocol {
@@ -74,7 +83,7 @@ macro_rules! maybe {
 macro_rules! define {
     (
         $(
-            $(#[$($meta:meta)*])*
+            $(#[doc = $outer_doc:literal])*
             $vis:vis const $ident:ident: Protocol = Protocol {
                 $(method: $method:expr,)?
                 hash: $hash:expr,
@@ -85,7 +94,18 @@ macro_rules! define {
     ) => {
         impl Protocol {
             $(
-                $(#[$($meta)*])*
+                $(#[doc = $outer_doc])*
+                ///
+                /// # Examples
+                ///
+                /// ```
+                /// use rune::hash::IntoHash;
+                /// use rune::runtime::Protocol;
+                ///
+                #[doc = concat!(" let hash = Protocol::", stringify!($ident), ".into_hash();")]
+                /// let protocol = Protocol::from_hash(hash);
+                #[doc = concat!(" assert_eq!(protocol, Some(Protocol::", stringify!($ident), "));")]
+                /// ```
                 $vis const $ident: Protocol = Protocol {
                     name: stringify!($ident),
                     method: maybe!($($method)*),
@@ -98,7 +118,18 @@ macro_rules! define {
             )*
 
             /// Look up protocol for the given hash.
-            pub fn from_hash(hash: Hash) -> Option<Self> {
+            ///
+            /// # Examples
+            ///
+            /// ```
+            /// use rune::runtime::Protocol;
+            ///
+            /// let hash = Protocol::GET.hash;
+            /// let protocol = Protocol::from_hash(hash).ok_or("missing protocol")?;
+            /// assert_eq!(protocol, Protocol::GET);
+            /// # Ok::<_, &'static str>(())
+            /// ```
+            pub const fn from_hash(hash: Hash) -> Option<Self> {
                 match hash {
                     $(
                         Hash($hash) => {

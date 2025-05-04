@@ -1,17 +1,16 @@
-use core::any::TypeId;
 use core::cell::Cell;
 use core::fmt;
-use core::mem::{needs_drop, offset_of, replace, ManuallyDrop};
-use core::ptr::{self, addr_of, addr_of_mut, drop_in_place, NonNull};
+use core::mem::{replace, ManuallyDrop};
+use core::ptr::{self, addr_of, NonNull};
 
-use crate::alloc::alloc::Global;
 use crate::alloc::clone::TryClone;
 use crate::alloc::{self, Box};
 use crate::{Any, Hash};
 
 use super::{
-    Access, AccessError, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, Mut, RawAccessGuard,
-    RawAnyGuard, Ref, RefVtable, RuntimeError, Shared, Snapshot, ToValue, TypeInfo, Value,
+    Access, AccessError, AnyObjVtable, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, Mut,
+    RawAccessGuard, RawAnyGuard, Ref, RefVtable, RuntimeError, Shared, Snapshot, ToValue, TypeInfo,
+    Value,
 };
 
 /// A type-erased wrapper for a reference.
@@ -20,6 +19,16 @@ pub struct AnyObj {
 }
 
 impl AnyObj {
+    /// Construct a new typed object.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that the type is of the value `T`.
+    #[inline]
+    pub(super) const unsafe fn from_raw(shared: NonNull<AnyObjData>) -> Self {
+        Self { shared }
+    }
+
     /// Construct an Any that wraps an owned object.
     ///
     /// # Examples
@@ -42,42 +51,15 @@ impl AnyObj {
     where
         T: Any,
     {
-        let vtable = &Vtable {
-            kind: Kind::Own,
-            type_id: TypeId::of::<T>,
-            debug: debug_ref_impl::<T>,
-            type_info: T::ANY_TYPE_INFO,
-            type_hash: T::HASH,
-            drop_value: const {
-                if needs_drop::<T>() {
-                    Some(drop_value::<T>)
-                } else {
-                    None
-                }
-            },
-            drop: drop_box::<ManuallyDrop<T>>,
-            clone: clone_own::<T>,
-        };
-
         let shared = AnyObjData {
             access: Access::new(),
             count: Cell::new(1),
-            vtable,
+            vtable: AnyObjVtable::owned::<T>(),
             data,
         };
 
         let shared = NonNull::from(Box::leak(Box::try_new(shared)?)).cast();
         Ok(Self { shared })
-    }
-
-    /// Construct a new typed object.
-    ///
-    /// # Safety
-    ///
-    /// Caller must ensure that the type is of the value `T`.
-    #[inline]
-    pub(super) unsafe fn from_raw(shared: NonNull<AnyObjData>) -> Self {
-        Self { shared }
     }
 
     /// Construct an Any that wraps a pointer.
@@ -91,21 +73,10 @@ impl AnyObj {
     where
         T: Any,
     {
-        let vtable = &Vtable {
-            kind: Kind::Ref,
-            type_id: TypeId::of::<T>,
-            debug: debug_ref_impl::<T>,
-            type_info: T::ANY_TYPE_INFO,
-            type_hash: T::HASH,
-            drop_value: None,
-            drop: drop_box::<NonNull<T>>,
-            clone: clone_ref::<T>,
-        };
-
         let shared = AnyObjData {
             access: Access::new(),
             count: Cell::new(1),
-            vtable,
+            vtable: AnyObjVtable::from_ref::<T>(),
             data: NonNull::new_unchecked(data.cast_mut()),
         };
 
@@ -124,21 +95,10 @@ impl AnyObj {
     where
         T: Any,
     {
-        let vtable = &Vtable {
-            kind: Kind::Mut,
-            type_id: TypeId::of::<T>,
-            debug: debug_mut_impl::<T>,
-            type_info: T::ANY_TYPE_INFO,
-            type_hash: T::HASH,
-            drop_value: None,
-            drop: drop_box::<NonNull<T>>,
-            clone: clone_mut::<T>,
-        };
-
         let shared = AnyObjData {
             access: Access::new(),
             count: Cell::new(1),
-            vtable,
+            vtable: AnyObjVtable::from_mut::<T>(),
             data: NonNull::new_unchecked(data),
         };
 
@@ -153,7 +113,7 @@ impl AnyObj {
     {
         let vtable = vtable(&self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
@@ -185,14 +145,14 @@ impl AnyObj {
     {
         let vtable = vtable(&self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
@@ -210,7 +170,7 @@ impl AnyObj {
     pub(crate) fn drop(self) -> Result<(), AnyObjError> {
         let vtable = vtable(&self);
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
@@ -232,12 +192,6 @@ impl AnyObj {
     pub fn take(self) -> Result<Self, AnyObjError> {
         let vtable = vtable(&self);
 
-        if !matches!(vtable.kind, Kind::Own) {
-            return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
-                vtable.type_info(),
-            )));
-        }
-
         // SAFETY: We've checked for the appropriate type just above.
         unsafe {
             self.shared.as_ref().access.try_take()?;
@@ -257,14 +211,14 @@ impl AnyObj {
     {
         let vtable = vtable(&self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
@@ -301,14 +255,14 @@ impl AnyObj {
     {
         let vtable = vtable(&self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
             )));
         }
 
-        if !matches!(vtable.kind, Kind::Own) {
+        if !vtable.is_owned() {
             return Err(AnyObjError::new(AnyObjErrorKind::NotOwned(
                 vtable.type_info(),
             )));
@@ -343,7 +297,7 @@ impl AnyObj {
     {
         let vtable = vtable(self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
@@ -371,7 +325,7 @@ impl AnyObj {
     {
         let vtable = vtable(self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Ok(None);
         }
 
@@ -396,7 +350,7 @@ impl AnyObj {
     {
         let vtable = vtable(self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Ok(None);
         }
 
@@ -415,14 +369,7 @@ impl AnyObj {
     {
         let vtable = vtable(self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::ANY_TYPE_INFO,
-                vtable.type_info(),
-            )));
-        }
-
-        if matches!(vtable.kind, Kind::Ref) {
+        if !vtable.is::<T>() || !vtable.is_mutable() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
@@ -447,7 +394,7 @@ impl AnyObj {
     {
         let vtable = vtable(&self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
+        if !vtable.is::<T>() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
@@ -479,14 +426,7 @@ impl AnyObj {
     {
         let vtable = vtable(&self);
 
-        if (vtable.type_id)() != TypeId::of::<T>() {
-            return Err(AnyObjError::new(AnyObjErrorKind::Cast(
-                T::ANY_TYPE_INFO,
-                vtable.type_info(),
-            )));
-        }
-
-        if matches!(vtable.kind, Kind::Ref) {
+        if !vtable.is::<T>() || !vtable.is_mutable() {
             return Err(AnyObjError::new(AnyObjErrorKind::Cast(
                 T::ANY_TYPE_INFO,
                 vtable.type_info(),
@@ -541,7 +481,7 @@ impl AnyObj {
     pub(crate) fn is_writable(&self) -> bool {
         unsafe {
             let shared = self.shared.as_ref();
-            !matches!(shared.vtable.kind, Kind::Ref) && shared.access.is_exclusive()
+            shared.vtable.is_mutable() && shared.access.is_exclusive()
         }
     }
 
@@ -552,17 +492,17 @@ impl AnyObj {
 
     /// Debug format the current any type.
     pub(crate) fn debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        (vtable(self).debug)(f)
+        vtable(self).debug(f)
     }
 
     /// Access the underlying type id for the data.
     pub(crate) fn type_hash(&self) -> Hash {
-        vtable(self).type_hash
+        vtable(self).type_hash()
     }
 
     /// Access full type info for the underlying type.
     pub fn type_info(&self) -> TypeInfo {
-        TypeInfo::any_type_info(vtable(self).type_info)
+        vtable(self).type_info()
     }
 }
 
@@ -637,61 +577,6 @@ impl ToValue for AnyObj {
     }
 }
 
-/// The signature of a pointer coercion function.
-type TypeIdFn = fn() -> TypeId;
-
-/// The signature of a descriptive type name function.
-type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
-
-/// The kind of the stored value in the `AnyObj`.
-pub(super) enum Kind {
-    /// Underlying access is shared.
-    Ref,
-    /// Underlying access is exclusive.
-    Mut,
-    /// Underlying access is owned.
-    Own,
-}
-
-pub(super) struct Vtable {
-    /// The statically known kind of reference being stored.
-    pub(super) kind: Kind,
-    /// Punt the inner pointer to the type corresponding to the type hash.
-    pub(super) type_id: TypeIdFn,
-    /// Type information for diagnostics.
-    pub(super) debug: DebugFn,
-    /// Type information.
-    pub(super) type_info: AnyTypeInfo,
-    /// Type hash of the interior type.
-    pub(super) type_hash: Hash,
-    /// Value drop implementation. Set to `None` if the underlying value does
-    /// not need to be dropped.
-    pub(super) drop_value: Option<unsafe fn(NonNull<AnyObjData>)>,
-    /// Only drop the box implementation.
-    pub(super) drop: unsafe fn(NonNull<AnyObjData>),
-    /// Clone the literal content of the shared value.
-    pub(super) clone: unsafe fn(NonNull<AnyObjData>) -> alloc::Result<AnyObj>,
-}
-
-impl Vtable {
-    #[inline]
-    pub(super) fn type_info(&self) -> TypeInfo {
-        TypeInfo::any_type_info(self.type_info)
-    }
-
-    pub(super) fn as_ptr<T>(&self, base: NonNull<AnyObjData>) -> NonNull<T> {
-        if matches!(self.kind, Kind::Own) {
-            unsafe { base.byte_add(offset_of!(AnyObjData<T>, data)).cast() }
-        } else {
-            unsafe {
-                base.byte_add(offset_of!(AnyObjData<NonNull<T>>, data))
-                    .cast()
-                    .read()
-            }
-        }
-    }
-}
-
 #[repr(C)]
 pub(super) struct AnyObjData<T = ()> {
     /// The currently handed out access to the shared data.
@@ -699,7 +584,7 @@ pub(super) struct AnyObjData<T = ()> {
     /// The number of strong references to the shared data.
     pub(super) count: Cell<usize>,
     /// Vtable of the shared value.
-    pub(super) vtable: &'static Vtable,
+    pub(super) vtable: &'static AnyObjVtable,
     /// Data of the shared reference.
     pub(super) data: T,
 }
@@ -863,59 +748,7 @@ pub(crate) struct RawAnyObjGuard {
     pub(super) dec_shared: AnyObjDecShared,
 }
 
-fn debug_ref_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
-where
-    T: ?Sized + Any,
-{
-    write!(f, "&{}", T::ITEM)
-}
-
-fn debug_mut_impl<T>(f: &mut fmt::Formatter<'_>) -> fmt::Result
-where
-    T: ?Sized + Any,
-{
-    write!(f, "&mut {}", T::ITEM)
-}
-
-unsafe fn drop_value<T>(this: NonNull<AnyObjData>) {
-    let data = addr_of_mut!((*this.cast::<AnyObjData<T>>().as_ptr()).data);
-    drop_in_place(data);
-}
-
-unsafe fn drop_box<T>(this: NonNull<AnyObjData>) {
-    drop(Box::from_raw_in(
-        this.cast::<AnyObjData<T>>().as_ptr(),
-        Global,
-    ))
-}
-
-unsafe fn clone_own<T>(this: NonNull<AnyObjData>) -> alloc::Result<AnyObj>
-where
-    T: Any,
-{
-    // NB: We read the value without deallocating it from the previous location,
-    // since that would cause the returned value to be invalid.
-    let value = addr_of_mut!((*this.cast::<AnyObjData<T>>().as_ptr()).data).read();
-    AnyObj::new(value)
-}
-
-unsafe fn clone_ref<T>(this: NonNull<AnyObjData>) -> alloc::Result<AnyObj>
-where
-    T: Any,
-{
-    let value = addr_of_mut!((*this.cast::<AnyObjData<NonNull<T>>>().as_ptr()).data).read();
-    AnyObj::from_ref(value.as_ptr().cast_const())
-}
-
-unsafe fn clone_mut<T>(this: NonNull<AnyObjData>) -> alloc::Result<AnyObj>
-where
-    T: Any,
-{
-    let value = addr_of_mut!((*this.cast::<AnyObjData<NonNull<T>>>().as_ptr()).data).read();
-    AnyObj::from_mut(value.as_ptr())
-}
-
 #[inline]
-fn vtable(any: &AnyObj) -> &'static Vtable {
+fn vtable(any: &AnyObj) -> &'static AnyObjVtable {
     unsafe { addr_of!((*any.shared.as_ptr()).vtable).read() }
 }
