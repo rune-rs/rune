@@ -1,10 +1,9 @@
 use core::alloc::Layout;
+use core::hint;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
-use core::mem;
-use core::mem::MaybeUninit;
-use core::ptr::NonNull;
-use core::{hint, ptr};
+use core::mem::{self, MaybeUninit};
+use core::ptr::{self, NonNull};
 
 use crate::hashbrown::scopeguard::{guard, ScopeGuard};
 
@@ -3998,8 +3997,9 @@ impl Iterator for RawIterHashInner {
 mod test_map {
     use super::*;
 
-    use crate::alloc::into_ok;
     use core::convert::Infallible;
+
+    use crate::alloc::into_ok;
 
     fn rehash_in_place<T>(
         table: &mut RawTable<T>,
@@ -4124,11 +4124,15 @@ mod test_map {
     /// ARE ZERO, EVEN IF WE HAVE `FULL` CONTROL BYTES.
     #[test]
     fn test_catch_panic_clone_from() {
-        use crate::alloc::{AllocError, Allocator};
+        use core::iter;
         use core::sync::atomic::{AtomicI8, Ordering};
+
         use rust_alloc::sync::Arc;
         use rust_alloc::vec::Vec;
+
         use std::thread;
+
+        use crate::alloc::{AllocError, Allocator};
 
         struct MyAllocInner {
             drop_count: Arc<AtomicI8>,
@@ -4197,7 +4201,7 @@ mod test_map {
             }),
         });
 
-        for (idx, panic_in_clone) in core::iter::repeat(DISARMED).take(7).enumerate() {
+        for (idx, panic_in_clone) in iter::repeat_n(DISARMED, 7).enumerate() {
             let idx = idx as u64;
             table
                 .insert(
