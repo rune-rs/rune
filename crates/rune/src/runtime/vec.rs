@@ -10,6 +10,7 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
+use crate::shared::FixedVec;
 use crate::{vm_try, Any, TypeHash};
 
 use super::{
@@ -570,23 +571,6 @@ impl UnsafeToRef for [Value] {
     }
 }
 
-impl<T, const N: usize> ToValue for [T; N]
-where
-    T: ToValue,
-{
-    #[inline]
-    fn to_value(self) -> Result<Value, RuntimeError> {
-        let mut inner = alloc::Vec::try_with_capacity(self.len())?;
-
-        for value in self {
-            let value = value.to_value()?;
-            inner.try_push(value)?;
-        }
-
-        Ok(Value::try_from(Vec { inner })?)
-    }
-}
-
 impl<T> ToValue for alloc::Vec<T>
 where
     T: ToValue,
@@ -605,6 +589,49 @@ where
 }
 
 impl<T> ToValue for rust_alloc::vec::Vec<T>
+where
+    T: ToValue,
+{
+    #[inline]
+    fn to_value(self) -> Result<Value, RuntimeError> {
+        let mut inner = alloc::Vec::try_with_capacity(self.len())?;
+
+        for value in self {
+            let value = value.to_value()?;
+            inner.try_push(value)?;
+        }
+
+        Ok(Value::try_from(Vec { inner })?)
+    }
+}
+
+impl<T, const N: usize> FromValue for [T; N]
+where
+    T: FromValue,
+{
+    fn from_value(value: Value) -> Result<Self, RuntimeError> {
+        let vec = value.into_ref::<Vec>()?;
+
+        let values = vec.as_slice();
+
+        if values.len() != N {
+            return Err(RuntimeError::new(VmErrorKind::ExpectedVecLength {
+                actual: vec.len(),
+                expected: N,
+            }));
+        };
+
+        let mut output = FixedVec::<T, N>::new();
+
+        for v in values {
+            output.try_push(T::from_value(v.clone())?)?;
+        }
+
+        Ok(output.into_inner())
+    }
+}
+
+impl<T, const N: usize> ToValue for [T; N]
 where
     T: ToValue,
 {

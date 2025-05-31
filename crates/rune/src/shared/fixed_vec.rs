@@ -43,6 +43,7 @@ impl<T, const N: usize> FixedVec<T, N> {
     }
 
     /// Try to push an element onto the fixed vector.
+    #[inline]
     pub(crate) fn try_push(&mut self, element: T) -> alloc::Result<()> {
         if self.len >= N {
             return Err(alloc::Error::CapacityOverflow);
@@ -56,6 +57,8 @@ impl<T, const N: usize> FixedVec<T, N> {
         Ok(())
     }
 
+    /// Clear the fixed vector.
+    #[inline]
     pub(crate) fn clear(&mut self) {
         if self.len == 0 {
             return;

@@ -1452,7 +1452,7 @@ impl Value {
     ///
     /// Any empty value will cause an access error.
     #[inline]
-    pub(crate) fn as_any(&self) -> Option<&AnyObj> {
+    pub fn as_any(&self) -> Option<&AnyObj> {
         match &self.repr {
             Repr::Inline(..) => None,
             Repr::Dynamic(..) => None,

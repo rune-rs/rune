@@ -13,7 +13,7 @@ struct InternalItem {
     attrs: Vec<syn::Attribute>,
     #[allow(unused)]
     impl_token: Token![impl],
-    params: Option<Params>,
+    generics: syn::Generics,
     item: syn::Path,
     #[allow(unused)]
     for_token: Token![for],
@@ -26,11 +26,7 @@ impl syn::parse::Parse for InternalItem {
         Ok(Self {
             attrs: syn::Attribute::parse_outer(input)?,
             impl_token: input.parse()?,
-            params: if input.peek(Token![<]) {
-                Some(input.parse()?)
-            } else {
-                None
-            },
+            generics: input.parse()?,
             item: input.parse()?,
             for_token: input.parse()?,
             ty: input.parse()?,
@@ -122,9 +118,8 @@ impl InternalCall {
                 type_item,
                 installers: Vec::new(),
                 tokens,
-                generics: syn::Generics::default(),
+                generics: item.generics,
                 attrs,
-                params: item.params,
                 kind,
             });
         }
@@ -194,7 +189,6 @@ impl Derive {
             tokens,
             generics: self.input.generics,
             attrs: Vec::new(),
-            params: None,
             kind: TypeKind::Derive,
         })
     }
@@ -572,7 +566,6 @@ pub struct TypeBuilder<'a, T> {
     tokens: &'a Tokens,
     generics: syn::Generics,
     attrs: Vec<syn::Attribute>,
-    params: Option<Params>,
     kind: TypeKind,
 }
 
@@ -956,7 +949,7 @@ where
             type_item,
             tokens,
             attrs,
-            params,
+            generics,
             type_hash,
             ..
         } = self;
@@ -974,11 +967,7 @@ where
             ..
         } = tokens;
 
-        let p = params
-            .as_ref()
-            .into_iter()
-            .flat_map(|p| p.params.iter())
-            .collect::<Vec<_>>();
+        let p = generics.type_params().collect::<Vec<_>>();
 
         let type_hash = type_hash.into_inner();
         let make_hash = quote!(#hash::new(#type_hash));
@@ -986,13 +975,13 @@ where
         quote! {
             #[automatically_derived]
             #(#attrs)*
-            impl #params #type_hash_t for #ident {
+            impl #generics #type_hash_t for #ident {
                 const HASH: #hash = #make_hash;
             }
 
             #[automatically_derived]
             #(#attrs)*
-            impl #params #type_of for #ident
+            impl #generics #type_of for #ident
             where
                 #(#p: #maybe_type_of,)*
             {
@@ -1010,7 +999,7 @@ where
 
             #[automatically_derived]
             #(#attrs)*
-            impl #params #maybe_type_of for #ident
+            impl #generics #maybe_type_of for #ident
             where
                 #(#p: #maybe_type_of,)*
             {
@@ -1020,50 +1009,6 @@ where
                 }
             }
         }
-    }
-}
-
-struct Params {
-    lt_token: Token![<],
-    params: Punctuated<syn::Ident, Token![,]>,
-    gt_token: Token![>],
-}
-
-impl syn::parse::Parse for Params {
-    #[inline]
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let lt_token: Token![<] = input.parse()?;
-
-        let mut params = Punctuated::new();
-
-        loop {
-            if input.peek(Token![>]) {
-                break;
-            }
-
-            params.push_value(input.parse()?);
-
-            if input.peek(Token![>]) {
-                break;
-            }
-
-            params.push_punct(input.parse()?);
-        }
-
-        Ok(Self {
-            lt_token,
-            params,
-            gt_token: input.parse()?,
-        })
-    }
-}
-
-impl ToTokens for Params {
-    #[inline]
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.lt_token.to_tokens(tokens);
-        self.params.to_tokens(tokens);
-        self.gt_token.to_tokens(tokens);
     }
 }
 

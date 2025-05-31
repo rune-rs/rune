@@ -835,6 +835,10 @@ pub(crate) enum VmErrorKind {
         actual: usize,
         expected: usize,
     },
+    ExpectedVecLength {
+        actual: usize,
+        expected: usize,
+    },
     ConstNotSupported {
         actual: TypeInfo,
     },
@@ -1051,6 +1055,10 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::ExpectedTupleLength { actual, expected } => write!(
                 f,
                 "Expected a tuple of length `{expected}`, but found one with length `{actual}`",
+            ),
+            VmErrorKind::ExpectedVecLength { actual, expected } => write!(
+                f,
+                "Expected a vector of length `{expected}`, but found one with length `{actual}`",
             ),
             VmErrorKind::ConstNotSupported { actual } => {
                 write!(f, "Type `{actual}` can't be converted to a constant value")
