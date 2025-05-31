@@ -495,8 +495,8 @@ impl AnyObj {
         vtable(self).debug(f)
     }
 
-    /// Access the underlying type id for the data.
-    pub(crate) fn type_hash(&self) -> Hash {
+    /// Access the underlying type hash for the data.
+    pub fn type_hash(&self) -> Hash {
         vtable(self).type_hash()
     }
 

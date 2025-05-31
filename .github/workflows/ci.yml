@@ -124,6 +124,28 @@ jobs:
     - run: cargo check --release -p rune --no-default-features --features ${{matrix.feature}}
     - run: cargo clippy --all-targets --no-default-features --features ${{matrix.feature}}
 
+  build_rune_modules_feature:
+    runs-on: ubuntu-latest
+    needs: basics
+    strategy:
+      fail-fast: false
+      matrix:
+        feature:
+        - rand
+        - rand,small_rng,os_rng
+        - rand,std_rng,os_rng
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo check -p rune-modules --no-default-features --features ${{matrix.feature}}
+    - run: cargo check --release -p rune-modules --no-default-features --features ${{matrix.feature}}
+    - run: cargo clippy -p rune-modules --no-default-features --features ${{matrix.feature}}
+
   wasm:
     runs-on: ubuntu-latest
     needs: basics

@@ -919,6 +919,8 @@ rune_macros::binding! {
     #[type_of]
     impl<T> ::std::vec::Vec for crate::alloc::Vec<T>;
     #[type_of]
+    impl<T, const N: usize> ::std::vec::Vec for [T; N];
+    #[type_of]
     impl<T> ::std::vec::Vec for crate::runtime::VecTuple<T>;
     #[type_of]
     impl ::std::tuple::Tuple for crate::runtime::Tuple;

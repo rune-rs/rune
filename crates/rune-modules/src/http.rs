@@ -1376,6 +1376,7 @@ pub struct Error {
 }
 
 impl From<reqwest::Error> for Error {
+    #[inline]
     fn from(inner: reqwest::Error) -> Self {
         Self { inner }
     }

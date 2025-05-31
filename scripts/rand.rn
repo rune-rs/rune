@@ -1,11 +1,15 @@
-let rng = rand::WyRand::new();
-let rand_int = rng.int();
-println!("Random int: {}", rand_int);
-let rand_int_range = rng.int_range(-100, 100);
-println!("Random int between -100 and 100: {}", rand_int_range);
+let rng = rand::SmallRng::try_from_os_rng()?;
+let v = rng.random::<u64>();
+println!("Random u64: {v}");
+let v = rng.random_range::<i64>(-100..100);
+println!("Random i64 in range: {v}");
+let v = rng.random::<char>();
+println!("Random char: {v:?}");
 
-let rng = rand::Pcg64::new();
-let rand_int = rng.int();
-println!("Random int: {}", rand_int);
-let rand_int_range = rng.int_range(-100, 100);
-println!("Random int between -100 and 100: {}", rand_int_range);
+let rng = rand::StdRng::try_from_os_rng()?;
+let v = rng.random::<u64>();
+println!("Random u64: {v}");
+let v = rng.random_range::<i64>(-100..100);
+println!("Random i64 in range: {v}");
+let v = rng.random_range::<char>('a'..'z');
+println!("Random char between 'a' and 'z': {v:?}");

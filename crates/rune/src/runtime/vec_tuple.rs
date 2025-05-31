@@ -30,7 +30,7 @@ macro_rules! impl_from_value_tuple_vec {
                 let vec = value.into_ref::<$crate::runtime::Vec>()?;
 
                 let [$($var,)*] = vec.as_slice() else {
-                    return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {
+                    return Err(RuntimeError::new(VmErrorKind::ExpectedVecLength {
                         actual: vec.len(),
                         expected: $count,
                     }));
