@@ -34,7 +34,7 @@ use rune::Any;
 ///
 /// [getrandom]: https://crates.io/crates/getrandom
 #[derive(Any)]
-#[rune(item = ::rand, fields = none)]
+#[rune(item = ::rand, fields = empty)]
 pub(super) struct OsRng {
     pub(super) inner: rand::rngs::OsRng,
 }

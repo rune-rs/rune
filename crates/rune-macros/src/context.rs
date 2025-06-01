@@ -119,6 +119,7 @@ pub(crate) enum TypeFields {
     #[default]
     Default,
     None,
+    Empty,
 }
 
 /// Parsed field attributes.
@@ -685,13 +686,18 @@ impl Context {
                     meta.input.parse::<Token![=]>()?;
                     let ident = meta.input.parse::<syn::Ident>()?;
 
+                    if ident == "default" {
+                        attr.fields = TypeFields::Default;
+                        return Ok(());
+                    }
+
                     if ident == "none" {
                         attr.fields = TypeFields::None;
                         return Ok(());
                     }
 
-                    if ident == "default" {
-                        attr.fields = TypeFields::Default;
+                    if ident == "empty" {
+                        attr.fields = TypeFields::Empty;
                         return Ok(());
                     }
 
