@@ -16,7 +16,7 @@ impl Path {
     #[inline]
     pub fn new<P>(path: &P) -> &Path
     where
-        P: ?Sized + AsRef<Path>,
+        P: ?Sized + AsRef<[u8]>,
     {
         unsafe { &*(path.as_ref() as *const _ as *const Path) }
     }
