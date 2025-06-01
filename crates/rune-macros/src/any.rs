@@ -304,11 +304,8 @@ fn expand_struct_install_with(
     let make_constructor;
     let make_fields;
 
-    if matches!(attr.fields, TypeFields::None) {
-        make_constructor = None;
-        make_fields = None;
-    } else {
-        match &st.fields {
+    match attr.fields {
+        TypeFields::Default => match &st.fields {
             syn::Fields::Named(fields) => {
                 make_constructor = attr
                     .constructor
@@ -343,6 +340,14 @@ fn expand_struct_install_with(
 
                 make_fields = Some(quote!(.make_empty_struct()?));
             }
+        },
+        TypeFields::None => {
+            make_constructor = None;
+            make_fields = None;
+        }
+        TypeFields::Empty => {
+            make_constructor = None;
+            make_fields = Some(quote!(.make_empty_struct()?));
         }
     }
 

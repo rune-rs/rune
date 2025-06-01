@@ -145,7 +145,49 @@ pub trait AnyMarker: Any {}
 ///
 /// <br>
 ///
-/// ## Field functions
+/// ### `#[rune(fields = default | empty | none)]` attribute
+///
+/// This attribute controls how the metadata of fields are handled in the type.
+///
+/// By default fields are registered depending on the type of structure or enum
+/// being registered. This prevents the metadata from being further customized
+/// through methods such as [`TypeMut::make_empty_struct`] since that would
+/// result in duplicate metadata being registered.
+///
+/// To avoid this behavior, the `#[rune(fields)]` attribute can be used which
+/// suppressed any field metadata from being generated for `none` or customized
+/// like `empty`. If set to `none` then it leaves the field metadata free to be
+/// configured manually during [`Module::ty`] setup.
+///
+/// Registering a type like this allows it to be used like an empty struct like
+/// `let v = Struct;` despite having fields:
+///
+/// ```
+/// use rune::{Any, Module};
+///
+/// #[derive(Any)]
+/// #[rune(fields = empty)]
+/// struct Struct {
+///     field: u32,
+/// }
+///
+/// impl Struct {
+///     fn new() -> Self {
+///         Self { field: 42 }
+///     }
+/// }
+///
+/// let mut m = Module::new();
+/// m.ty::<Struct>()?.constructor(Struct::new)?;
+/// ```
+///
+/// <br>
+/// 
+/// ## Field attributes
+///
+/// <br>
+///
+/// ### Field functions
 ///
 /// Field functions are special operations which operate on fields. These are
 /// distinct from associated functions, because they are invoked by using the
@@ -228,7 +270,7 @@ pub trait AnyMarker: Any {}
 /// }
 /// ```
 ///
-/// ## Customizing how fields are cloned with `#[rune(get)]`
+/// ### Customizing how fields are cloned with `#[rune(get)]`
 ///
 /// In order to return a value through `#[rune(get)]`, the value has to be
 /// cloned.
@@ -291,6 +333,7 @@ pub trait AnyMarker: Any {}
 /// }
 /// ```
 ///
+/// [`Module::ty`]: crate::Module::ty
 /// [`Protocol::ADD_ASSIGN`]: crate::runtime::Protocol::ADD_ASSIGN
 /// [`Protocol::BIT_AND_ASSIGN`]: crate::runtime::Protocol::BIT_AND_ASSIGN
 /// [`Protocol::BIT_OR_ASSIGN`]: crate::runtime::Protocol::BIT_OR_ASSIGN
@@ -305,4 +348,5 @@ pub trait AnyMarker: Any {}
 /// [`Protocol::SUB_ASSIGN`]: crate::runtime::Protocol::SUB_ASSIGN
 /// [`rune::alloc`]: crate::alloc
 /// [`TryClone` trait]: crate::alloc::clone::TryClone
+/// [`TypeMut::make_empty_struct`]: crate::module::TypeMut::make_empty_struct
 pub use rune_macros::Any;
