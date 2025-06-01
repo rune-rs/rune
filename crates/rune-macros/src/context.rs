@@ -114,10 +114,19 @@ impl Default for ParseKind {
     }
 }
 
+#[derive(Default)]
+pub(crate) enum TypeFields {
+    #[default]
+    Default,
+    None,
+}
+
 /// Parsed field attributes.
 #[derive(Default)]
 #[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct TypeAttr {
+    /// `#[rune(fields = <ident>)]` to suppress default metadata.
+    pub(crate) fields: TypeFields,
     /// `#[rune(name = TypeName)]` to override the default type name.
     pub(crate) name: Option<syn::Ident>,
     /// `#[rune(module = <path>)]`.
@@ -670,6 +679,26 @@ impl Context {
                     meta.input.parse::<Token![=]>()?;
                     attr.item = Some(meta.input.parse()?);
                     return Ok(());
+                }
+
+                if meta.path.is_ident("fields") {
+                    meta.input.parse::<Token![=]>()?;
+                    let ident = meta.input.parse::<syn::Ident>()?;
+
+                    if ident == "none" {
+                        attr.fields = TypeFields::None;
+                        return Ok(());
+                    }
+
+                    if ident == "default" {
+                        attr.fields = TypeFields::Default;
+                        return Ok(());
+                    }
+
+                    return Err(syn::Error::new_spanned(
+                        ident,
+                        "Unsupported fields configuration",
+                    ));
                 }
 
                 if meta.path.is_ident("name") {

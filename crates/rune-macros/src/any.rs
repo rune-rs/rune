@@ -7,7 +7,7 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;
 
-use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttr};
+use crate::context::{Context, Generate, GenerateTarget, Tokens, TypeAttr, TypeFields};
 
 struct InternalItem {
     attrs: Vec<syn::Attribute>,
@@ -247,8 +247,11 @@ fn expand_struct_install_with(
     tokens: &Tokens,
     attr: &TypeAttr,
 ) -> Result<(), ()> {
+    let mut field_attrs = Vec::new();
+
     for (n, field) in st.fields.iter().enumerate() {
         let attrs = cx.field_attrs(&field.attrs);
+
         let name;
         let index;
 
@@ -282,6 +285,10 @@ fn expand_struct_install_with(
                 target,
             }));
         }
+
+        if attrs.field {
+            field_attrs.push(attrs);
+        }
     }
 
     let mut docs = syn::ExprArray {
@@ -294,35 +301,54 @@ fn expand_struct_install_with(
         docs.elems.push(el.clone());
     }
 
-    match &st.fields {
-        syn::Fields::Named(fields) => {
-            let constructor = attr
-                .constructor
-                .is_some()
-                .then(|| make_constructor(syn::parse_quote!(#ident), &fields.named));
+    let make_constructor;
+    let make_fields;
 
-            let fields = fields.named.iter().flat_map(|f| {
-                let ident = f.ident.as_ref()?;
-                Some(syn::LitStr::new(&ident.to_string(), ident.span()))
-            });
+    if matches!(attr.fields, TypeFields::None) {
+        make_constructor = None;
+        make_fields = None;
+    } else {
+        match &st.fields {
+            syn::Fields::Named(fields) => {
+                make_constructor = attr
+                    .constructor
+                    .is_some()
+                    .then(|| make_named_constructor(syn::parse_quote!(#ident), &fields.named));
 
-            installers.push(quote! {
-                module.type_meta::<Self>()?.make_named_struct(&[#(#fields,)*])?.static_docs(&#docs)?#constructor;
-            });
-        }
-        syn::Fields::Unnamed(fields) => {
-            let len = fields.unnamed.len();
+                let fields = fields.named.iter().zip(&field_attrs).filter_map(|(f, a)| {
+                    if !a.field {
+                        return None;
+                    }
 
-            installers.push(quote! {
-                module.type_meta::<Self>()?.make_unnamed_struct(#len)?.static_docs(&#docs)?;
-            });
-        }
-        syn::Fields::Unit => {
-            installers.push(quote! {
-                module.type_meta::<Self>()?.make_empty_struct()?.static_docs(&#docs)?;
-            });
+                    let ident = f.ident.as_ref()?;
+                    Some(syn::LitStr::new(&ident.to_string(), ident.span()))
+                });
+
+                make_fields = Some(quote!(.make_named_struct(&[#(#fields,)*])?));
+            }
+            syn::Fields::Unnamed(fields) => {
+                make_constructor = attr
+                    .constructor
+                    .is_some()
+                    .then(|| make_unnamed_constructor(syn::parse_quote!(#ident), &fields.unnamed));
+
+                let len = field_attrs.iter().take_while(|f| f.field).count();
+                make_fields = Some(quote!(.make_unnamed_struct(#len)?));
+            }
+            syn::Fields::Unit => {
+                make_constructor = attr
+                    .constructor
+                    .is_some()
+                    .then(|| make_unit_constructor(syn::parse_quote!(#ident)));
+
+                make_fields = Some(quote!(.make_empty_struct()?));
+            }
         }
     }
+
+    installers.push(quote! {
+        module.type_meta::<Self>()?.static_docs(&#docs)? #make_constructor #make_fields;
+    });
 
     Ok(())
 }
@@ -412,7 +438,7 @@ fn expand_enum_install_with(
                 }
 
                 let constructor = variant_attr.constructor.is_some().then(|| {
-                    make_constructor(syn::parse_quote!(#ident::#variant_ident), &fields.named)
+                    make_named_constructor(syn::parse_quote!(#ident::#variant_ident), &fields.named)
                 });
 
                 variant_metas.push(quote! {
@@ -1012,20 +1038,47 @@ where
     }
 }
 
-fn make_constructor(path: syn::Path, named: &Punctuated<syn::Field, Token![,]>) -> impl ToTokens {
+fn make_named_constructor(
+    path: syn::Path,
+    named: &Punctuated<syn::Field, Token![,]>,
+) -> TokenStream {
     let args = named.iter().flat_map(|f| {
         let ident = f.ident.as_ref()?;
-        let typ = &f.ty;
-        Some(quote!(#ident: #typ))
+        let ty = &f.ty;
+        Some(quote!(#ident: #ty))
     });
 
     let field_names = named.iter().flat_map(|f| f.ident.as_ref());
 
     quote! {
-        .constructor(|#(#args),*| {
-            #path {
-                #(#field_names),*
-            }
-        })?
+        .constructor(|#(#args),*| #path { #(#field_names),* })?
     }
+}
+
+fn make_unnamed_constructor(
+    path: syn::Path,
+    named: &Punctuated<syn::Field, Token![,]>,
+) -> TokenStream {
+    let field_names = named
+        .iter()
+        .enumerate()
+        .map(|(n, _)| quote::format_ident!("v{n}"));
+
+    let args = named
+        .iter()
+        .enumerate()
+        .map(|(n, _)| quote::format_ident!("v{n}"))
+        .zip(named)
+        .flat_map(|(ident, f)| {
+            let ty = &f.ty;
+            Some(quote!(#ident: #ty))
+        });
+
+    quote! {
+        .constructor(|#(#args),*| #path(#(#field_names),*))?
+    }
+}
+
+fn make_unit_constructor(path: syn::Path) -> TokenStream {
+    quote!(.constructor(|| #path)?)
 }

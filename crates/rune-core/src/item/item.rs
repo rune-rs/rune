@@ -445,14 +445,21 @@ impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.iter();
 
-        if let Some(last) = it.next_back() {
-            for p in it {
-                write!(f, "{}::", p)?;
+        let Some(last) = it.next_back() else {
+            f.write_str("{root}")?;
+            return Ok(());
+        };
+
+        let mut first = true;
+
+        for c in it.chain([last]) {
+            if !first {
+                write!(f, "::{c}")?;
+            } else {
+                write!(f, "{c}")?;
             }
 
-            write!(f, "{}", last)?;
-        } else {
-            f.write_str("{root}")?;
+            first = false;
         }
 
         Ok(())

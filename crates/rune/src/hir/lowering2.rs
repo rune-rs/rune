@@ -2648,19 +2648,24 @@ fn struct_match_for(
 
             (fields, kind)
         }
+        meta::Kind::Type { .. } if open => {
+            return Ok(Some((
+                HashSet::new(),
+                hir::PatSequenceKind::Type { hash: meta.hash },
+            )));
+        }
         _ => {
             return Ok(None);
         }
     };
 
     let fields = match fields {
-        meta::Fields::Unnamed(0) if open => HashSet::new(),
-        meta::Fields::Empty if open => HashSet::new(),
         meta::Fields::Named(st) => st
             .fields
             .iter()
             .map(|f| f.name.try_clone())
             .try_collect::<alloc::Result<_>>()??,
+        _ if open => HashSet::new(),
         _ => return Ok(None),
     };
 

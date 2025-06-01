@@ -322,12 +322,14 @@ impl<A: Allocator> Deref for ItemBuf<A> {
 
 /// Format implementation for an [ItemBuf], defers to [Item].
 impl<A: Allocator> fmt::Display for ItemBuf<A> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Item::fmt(self, f)
     }
 }
 
 impl<A: Allocator> fmt::Debug for ItemBuf<A> {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Item::fmt(self, f)
     }

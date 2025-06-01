@@ -1247,11 +1247,19 @@ impl fmt::Display for ParameterizedItem<'_> {
             return self.0.fmt(f);
         };
 
-        let base = it.as_item();
+        let mut first = false;
+
+        for c in it {
+            if first {
+                write!(f, "::{c}")?;
+            } else {
+                write!(f, "{c}")?;
+            }
+
+            first = true;
+        }
 
         let [ty_param, item_param] = self.1;
-
-        write!(f, "{base}")?;
 
         if let Some(ty_param) = ty_param {
             write!(f, "::{ty}<{ty_param}>")?;

@@ -24,9 +24,10 @@ full = [
     "process",
     "signal",
     "rand",
+    "os_rng",
     "small_rng",
     "std_rng",
-    "os_rng",
+    "thread_rng",
     "io",
     "fmt",
     "base64",
@@ -46,6 +47,7 @@ rand = ["dep:rand"]
 os_rng = ["getrandom", "rand?/os_rng"]
 small_rng = ["rand?/small_rng"]
 std_rng = ["rand?/std_rng"]
+thread_rng = ["rand?/thread_rng"]
 
 [dependencies]
 base64 = { version = "0.22.0", optional = true }
