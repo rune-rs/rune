@@ -1433,37 +1433,63 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_not(&mut self, operand: InstAddress, out: Output) -> VmResult<()> {
-        let value = self.stack.at(operand);
-
-        let value = match value.as_ref() {
-            Repr::Inline(Inline::Bool(value)) => Value::from(!value),
-            Repr::Inline(Inline::Unsigned(value)) => Value::from(!value),
-            Repr::Inline(Inline::Signed(value)) => Value::from(!value),
-            value => {
-                let operand = value.type_info();
-                return err(VmErrorKind::UnsupportedUnaryOperation { op: "!", operand });
-            }
-        };
-
-        vm_try!(out.store(&mut self.stack, value));
-        VmResult::Ok(())
+    fn op_not(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
+        self.unary(addr, out, &Protocol::NOT, |inline| match *inline {
+            Inline::Bool(value) => Some(Inline::Bool(!value)),
+            Inline::Unsigned(value) => Some(Inline::Unsigned(!value)),
+            Inline::Signed(value) => Some(Inline::Signed(!value)),
+            _ => None,
+        })
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_neg(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
-        let value = self.stack.at(addr);
+        self.unary(addr, out, &Protocol::NEG, |inline| match *inline {
+            Inline::Signed(value) => Some(Inline::Signed(-value)),
+            Inline::Float(value) => Some(Inline::Float(-value)),
+            _ => None,
+        })
+    }
 
-        let value = match value.as_ref() {
-            Repr::Inline(Inline::Float(value)) => Value::from(-value),
-            Repr::Inline(Inline::Signed(value)) => Value::from(-value),
-            actual => {
-                let operand = actual.type_info();
-                return err(VmErrorKind::UnsupportedUnaryOperation { op: "-", operand });
-            }
+    fn unary(
+        &mut self,
+        operand: InstAddress,
+        out: Output,
+        protocol: &'static Protocol,
+        op: impl FnOnce(&Inline) -> Option<Inline>,
+    ) -> VmResult<()> {
+        let value = self.stack.at(operand);
+
+        'fallback: {
+            let store = match value.as_ref() {
+                Repr::Inline(inline) => op(inline),
+                Repr::Any(..) => break 'fallback,
+                _ => None,
+            };
+
+            let Some(store) = store else {
+                let operand = value.type_info();
+                return err(VmErrorKind::UnsupportedUnaryOperation {
+                    op: protocol.name,
+                    operand,
+                });
+            };
+
+            vm_try!(out.store(&mut self.stack, store));
+            return VmResult::Ok(());
         };
 
-        vm_try!(out.store(&mut self.stack, value));
+        let operand = value.clone();
+
+        if let CallResult::Unsupported(operand) =
+            vm_try!(self.call_instance_fn(Isolated::None, operand, protocol, &mut (), out))
+        {
+            return err(VmErrorKind::UnsupportedUnaryOperation {
+                op: protocol.name,
+                operand: operand.type_info(),
+            });
+        }
+
         VmResult::Ok(())
     }
 
