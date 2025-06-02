@@ -1458,20 +1458,19 @@ impl Vm {
         protocol: &'static Protocol,
         op: impl FnOnce(&Inline) -> Option<Inline>,
     ) -> VmResult<()> {
-        let value = self.stack.at(operand);
+        let operand = self.stack.at(operand);
 
         'fallback: {
-            let store = match value.as_ref() {
+            let store = match operand.as_ref() {
                 Repr::Inline(inline) => op(inline),
                 Repr::Any(..) => break 'fallback,
                 _ => None,
             };
 
             let Some(store) = store else {
-                let operand = value.type_info();
                 return err(VmErrorKind::UnsupportedUnaryOperation {
                     op: protocol.name,
-                    operand,
+                    operand: operand.type_info(),
                 });
             };
 
@@ -1479,7 +1478,7 @@ impl Vm {
             return VmResult::Ok(());
         };
 
-        let operand = value.clone();
+        let operand = operand.clone();
 
         if let CallResult::Unsupported(operand) =
             vm_try!(self.call_instance_fn(Isolated::None, operand, protocol, &mut (), out))
