@@ -471,6 +471,8 @@ mod debug_fmt;
 #[cfg(not(miri))]
 mod deprecation;
 #[cfg(not(miri))]
+mod derive_constructor;
+#[cfg(not(miri))]
 mod destructuring;
 #[cfg(not(miri))]
 mod esoteric_impls;

@@ -51,7 +51,7 @@ pub(crate) struct ModuleType {
     /// The specification for the type.
     pub(crate) spec: Option<TypeSpecification>,
     /// Handler to use if this type can be constructed through a regular function call.
-    pub(crate) constructor: Option<Arc<FunctionHandler>>,
+    pub(crate) constructor: Option<TypeConstructor>,
 }
 
 /// A trait defined in a module.
@@ -91,6 +91,16 @@ pub(crate) enum Fields {
 }
 
 impl Fields {
+    /// Get the raw number of fields, regardless of whether they are named or unnamed.
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Fields::Named(fields) => fields.len(),
+            Fields::Unnamed(size) => *size,
+            Fields::Empty => 0,
+        }
+    }
+
     /// Get the number of named fields.
     #[inline]
     fn size(&self) -> usize {
@@ -122,7 +132,7 @@ pub struct Variant {
     /// Variant metadata.
     pub(crate) fields: Option<Fields>,
     /// Handler to use if this variant can be constructed through a regular function call.
-    pub(crate) constructor: Option<Arc<FunctionHandler>>,
+    pub(crate) constructor: Option<TypeConstructor>,
     /// Variant deprecation.
     pub(crate) deprecated: Option<Box<str>>,
     /// Variant documentation.
@@ -163,6 +173,14 @@ pub(crate) struct Enum {
 pub(crate) enum TypeSpecification {
     Struct(Fields),
     Enum(Enum),
+}
+
+/// A type constructor.
+pub(crate) struct TypeConstructor {
+    /// The handler for the constructor.
+    pub(crate) handler: Arc<FunctionHandler>,
+    /// The number of arguments the constructor takes.
+    pub(crate) args: usize,
 }
 
 /// A key that identifies an associated function.

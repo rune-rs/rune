@@ -60,7 +60,7 @@ impl CloneWith {
 /// Parsed `#[rune(..)]` field attributes.
 #[derive(Default)]
 #[must_use = "Attributes must be used or explicitly ignored"]
-pub(crate) struct FieldAttrs {
+pub(crate) struct FieldAttr {
     /// A field that is an identifier. Should use `Default::default` to be
     /// constructed and ignored during `ToTokens` and `Spanned`.
     pub(crate) id: Option<Span>,
@@ -84,7 +84,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) field: bool,
 }
 
-impl FieldAttrs {
+impl FieldAttr {
     /// Indicate if the field should be skipped.
     pub(crate) fn skip(&self) -> bool {
         self.skip.is_some() || self.id.is_some()
@@ -118,16 +118,54 @@ impl Default for ParseKind {
 pub(crate) enum TypeFields {
     #[default]
     Default,
-    None,
     Empty,
+    Unnamed(syn::LitInt),
+}
+
+#[derive(Default)]
+pub(crate) enum TypeConstructor {
+    #[default]
+    None,
+    /// An implicit constructor using all visible fields.
+    Implicit(Span),
+    /// Path to an explicit constructor.
+    Explicit(syn::Path),
+}
+
+impl TypeConstructor {
+    /// Get the explicit type constructor, or generate an implicit if specified.
+    #[inline]
+    pub(crate) fn or_implicit(&self, f: impl FnOnce() -> TokenStream) -> Option<TokenStream> {
+        match self {
+            Self::None => None,
+            Self::Implicit(..) => Some(f()),
+            Self::Explicit(path) => Some(quote! { #path }),
+        }
+    }
+
+    /// Get the explicit type constructor, if any.
+    #[inline]
+    pub(crate) fn as_explicit(&self) -> Option<TokenStream> {
+        match self {
+            Self::Explicit(path) => Some(quote! { #path }),
+            _ => None,
+        }
+    }
+
+    /// Get the span of the constructor, if any.
+    pub(crate) fn as_span(&self) -> Option<Span> {
+        match self {
+            Self::None => None,
+            Self::Implicit(span) => Some(*span),
+            Self::Explicit(path) => Some(path.span()),
+        }
+    }
 }
 
 /// Parsed field attributes.
 #[derive(Default)]
 #[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct TypeAttr {
-    /// `#[rune(fields = <ident>)]` to suppress default metadata.
-    pub(crate) fields: TypeFields,
     /// `#[rune(name = TypeName)]` to override the default type name.
     pub(crate) name: Option<syn::Ident>,
     /// `#[rune(module = <path>)]`.
@@ -138,8 +176,10 @@ pub(crate) struct TypeAttr {
     pub(crate) parse: ParseKind,
     /// `#[rune(item = <path>)]`.
     pub(crate) item: Option<syn::Path>,
+    /// `#[rune(fields)]` to suppress default metadata.
+    pub(crate) fields: TypeFields,
     /// `#[rune(constructor)]`.
-    pub(crate) constructor: Option<Span>,
+    pub(crate) constructor: TypeConstructor,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
     /// Method to use to convert from value.
@@ -158,8 +198,10 @@ pub(crate) struct ConstValueTypeAttr {
 #[derive(Default)]
 #[must_use = "Attributes must be used or explicitly ignored"]
 pub(crate) struct VariantAttrs {
+    /// `#[rune(fields)]` to suppress default metadata.
+    pub(crate) fields: TypeFields,
     /// `#[rune(constructor)]`.
-    pub(crate) constructor: Option<Span>,
+    pub(crate) constructor: TypeConstructor,
     /// Discovered documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -178,7 +220,7 @@ pub(crate) enum GenerateTarget<'a> {
 #[derive(Clone)]
 pub(crate) struct Generate<'a> {
     pub(crate) tokens: &'a Tokens,
-    pub(crate) attrs: &'a FieldAttrs,
+    pub(crate) attr: &'a FieldAttr,
     pub(crate) protocol: &'a FieldProtocol,
     pub(crate) field: &'a syn::Field,
     pub(crate) ty: &'a syn::Type,
@@ -313,7 +355,7 @@ impl Context {
     }
 
     /// Parse field attributes.
-    pub(crate) fn field_attrs(&self, input: &[syn::Attribute]) -> FieldAttrs {
+    pub(crate) fn field_attrs(&self, input: &[syn::Attribute]) -> FieldAttr {
         macro_rules! generate_assign {
             ($proto:ident, $op:tt) => {
                 |g| {
@@ -404,7 +446,7 @@ impl Context {
             };
         }
 
-        let mut attr = FieldAttrs::default();
+        let mut attr = FieldAttr::default();
 
         for a in input {
             if !a.path().is_ident(RUNE) {
@@ -526,7 +568,7 @@ impl Context {
 
                             match target {
                                 GenerateTarget::Named { field_ident, field_name } => {
-                                    let access = g.attrs.clone_with.decorate(g.tokens, quote!(&s.#field_ident));
+                                    let access = g.attr.clone_with.decorate(g.tokens, quote!(&s.#field_ident));
                                     let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
@@ -534,7 +576,7 @@ impl Context {
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
-                                    let access = g.attrs.clone_with.decorate(g.tokens, quote!(&s.#field_index));
+                                    let access = g.attr.clone_with.decorate(g.tokens, quote!(&s.#field_index));
                                     let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
@@ -682,29 +724,16 @@ impl Context {
                     return Ok(());
                 }
 
-                if meta.path.is_ident("fields") {
-                    meta.input.parse::<Token![=]>()?;
-                    let ident = meta.input.parse::<syn::Ident>()?;
+                if meta.path.is_ident("empty") {
+                    attr.fields = TypeFields::Empty;
+                    return Ok(());
+                }
 
-                    if ident == "default" {
-                        attr.fields = TypeFields::Default;
-                        return Ok(());
-                    }
-
-                    if ident == "none" {
-                        attr.fields = TypeFields::None;
-                        return Ok(());
-                    }
-
-                    if ident == "empty" {
-                        attr.fields = TypeFields::Empty;
-                        return Ok(());
-                    }
-
-                    return Err(syn::Error::new_spanned(
-                        ident,
-                        "Unsupported fields configuration",
-                    ));
+                if meta.path.is_ident("unnamed") {
+                    let input;
+                    _ = syn::parenthesized!(input in meta.input);
+                    attr.fields = TypeFields::Unnamed(input.parse::<syn::LitInt>()?);
+                    return Ok(());
                 }
 
                 if meta.path.is_ident("name") {
@@ -730,14 +759,22 @@ impl Context {
                 }
 
                 if meta.path.is_ident("constructor") {
-                    if attr.constructor.is_some() {
-                        return Err(syn::Error::new(
+                    if let Some(span) = attr.constructor.as_span() {
+                        let mut error = syn::Error::new(
                             meta.path.span(),
                             "#[rune(constructor)] must only be used once",
-                        ));
+                        );
+
+                        error.combine(syn::Error::new(span, "Previously defined here"));
+                        return Err(error);
                     }
 
-                    attr.constructor = Some(meta.path.span());
+                    if meta.input.parse::<Option<Token![=]>>()?.is_some() {
+                        attr.constructor = TypeConstructor::Explicit(meta.input.parse()?);
+                    } else {
+                        attr.constructor = TypeConstructor::Implicit(meta.path.span());
+                    }
+
                     return Ok(());
                 }
 
@@ -782,20 +819,39 @@ impl Context {
             }
 
             let result = a.parse_nested_meta(|meta| {
-                if meta.path.is_ident("constructor") {
-                    if attr.constructor.is_some() {
-                        return Err(syn::Error::new(
-                            meta.path.span(),
-                            "#[rune(constructor)] must only be used once",
-                        ));
-                    }
-
-                    attr.constructor = Some(meta.path.span());
-                } else {
-                    return Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"));
+                if meta.path.is_ident("empty") {
+                    attr.fields = TypeFields::Empty;
+                    return Ok(());
                 }
 
-                Ok(())
+                if meta.path.is_ident("unnamed") {
+                    let input;
+                    _ = syn::parenthesized!(input in meta.input);
+                    attr.fields = TypeFields::Unnamed(input.parse::<syn::LitInt>()?);
+                    return Ok(());
+                }
+
+                if meta.path.is_ident("constructor") {
+                    if let Some(span) = attr.constructor.as_span() {
+                        let mut error = syn::Error::new(
+                            meta.path.span(),
+                            "#[rune(constructor)] must only be used once",
+                        );
+
+                        error.combine(syn::Error::new(span, "Previously defined here"));
+                        return Err(error);
+                    }
+
+                    if meta.input.parse::<Option<Token![=]>>()?.is_some() {
+                        attr.constructor = TypeConstructor::Explicit(meta.input.parse()?);
+                    } else {
+                        attr.constructor = TypeConstructor::Implicit(meta.path.span());
+                    }
+
+                    return Ok(());
+                }
+
+                Err(syn::Error::new_spanned(&meta.path, "Unsupported attribute"))
             });
 
             if let Err(e) = result {
@@ -871,6 +927,7 @@ impl Context {
             const_value: path(m, ["__priv", "ConstValue"]),
             context_error: path(m, ["compile", "ContextError"]),
             double_ended_iterator: path(core, ["iter", "DoubleEndedIterator"]),
+            default: path(core, ["default", "Default"]),
             fmt: path(core, ["fmt"]),
             from_const_value_t: path(m, ["__priv", "FromConstValue"]),
             from_value: path(m, ["__priv", "FromValue"]),
@@ -964,6 +1021,7 @@ pub(crate) struct Tokens {
     pub(crate) const_value: syn::Path,
     pub(crate) context_error: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
+    pub(crate) default: syn::Path,
     pub(crate) fmt: syn::Path,
     pub(crate) from_const_value_t: syn::Path,
     pub(crate) from_value: syn::Path,

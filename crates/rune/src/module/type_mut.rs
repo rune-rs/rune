@@ -9,7 +9,7 @@ use crate::function::{Function, Plain};
 use crate::runtime::{FunctionHandler, TypeOf};
 use crate::Item;
 
-use super::{Enum, EnumMut, Fields, TypeSpecification, Variant};
+use super::{Enum, EnumMut, Fields, TypeConstructor, TypeSpecification, Variant};
 
 /// Handle to a a type inserted into a module which allows for mutation of its
 /// metadata.
@@ -29,7 +29,7 @@ where
     #[cfg(feature = "doc")]
     pub(super) deprecated: &'a mut Option<Box<str>>,
     pub(super) spec: &'a mut Option<TypeSpecification>,
-    pub(super) constructor: &'a mut Option<Arc<FunctionHandler>>,
+    pub(super) constructor: &'a mut Option<TypeConstructor>,
     pub(super) item: &'a Item,
     pub(super) _marker: PhantomData<T>,
 }
@@ -127,9 +127,14 @@ where
             });
         }
 
-        *self.constructor = Some(Arc::new(move |stack, addr, args, output| {
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, addr, args, output| {
             constructor.fn_call(stack, addr, args, output)
-        }));
+        });
+
+        *self.constructor = Some(TypeConstructor {
+            handler,
+            args: F::ARGS,
+        });
 
         Ok(self)
     }

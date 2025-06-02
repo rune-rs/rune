@@ -13,7 +13,7 @@ mod module_meta;
 pub(crate) use self::module_meta::{
     AssociatedKey, DocFunction, Fields, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
     ModuleItem, ModuleItemCommon, ModuleItemKind, ModuleReexport, ModuleTrait, ModuleTraitImpl,
-    ModuleType, TraitFunction, TypeSpecification,
+    ModuleType, TraitFunction, TypeConstructor, TypeSpecification,
 };
 use self::module_meta::{Enum, ModuleAttributeMacro, ModuleMacro, Variant};
 #[doc(inline)]

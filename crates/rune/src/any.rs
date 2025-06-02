@@ -104,7 +104,7 @@ pub trait AnyMarker: Any {}
 /// the expected path hash.
 ///
 /// ```
-/// use rune::Any;
+/// use rune::{Any, Module};
 ///
 /// #[derive(Any)]
 /// #[rune(item = ::process)]
@@ -112,11 +112,9 @@ pub trait AnyMarker: Any {}
 ///     /* .. */
 /// }
 ///
-/// fn install() -> Result<rune::Module, rune::ContextError> {
-///     let mut module = rune::Module::with_crate("process")?;
-///     module.ty::<Process>()?;
-///     Ok(module)
-/// }
+/// let mut m = Module::with_crate("process")?;
+/// m.ty::<Process>()?;
+/// # Ok::<_, rune::ContextError>(())
 /// ```
 ///
 /// <br>
@@ -129,23 +127,21 @@ pub trait AnyMarker: Any {}
 /// This can be overrided with the `#[rune(name = <ident>)]` attribute:
 ///
 /// ```
-/// use rune::Any;
+/// use rune::{Any, Module};
 ///
 /// #[derive(Any)]
 /// #[rune(name = Bar)]
 /// struct Foo {
 /// }
 ///
-/// fn install() -> Result<rune::Module, rune::ContextError> {
-///     let mut module = rune::Module::new();
-///     module.ty::<Foo>()?;
-///     Ok(module)
-/// }
+/// let mut m = Module::new();
+/// m.ty::<Foo>()?;
+/// # Ok::<_, rune::ContextError>(())
 /// ```
 ///
 /// <br>
 ///
-/// ### `#[rune(fields = default | empty | none)]` attribute
+/// ### `#[rune(empty)]`, `#[rune(unnamed(<int>))]`
 ///
 /// This attribute controls how the metadata of fields are handled in the type.
 ///
@@ -166,7 +162,7 @@ pub trait AnyMarker: Any {}
 /// use rune::{Any, Module};
 ///
 /// #[derive(Any)]
-/// #[rune(fields = empty)]
+/// #[rune(empty, constructor = Struct::new)]
 /// struct Struct {
 ///     field: u32,
 /// }
@@ -178,11 +174,90 @@ pub trait AnyMarker: Any {}
 /// }
 ///
 /// let mut m = Module::new();
-/// m.ty::<Struct>()?.constructor(Struct::new)?;
+/// m.ty::<Struct>()?;
+/// # Ok::<_, rune::ContextError>(())
 /// ```
 ///
+/// Support for an unnamed struct:
+///
+/// ```
+/// use rune::{Any, Module};
+///
+/// #[derive(Any)]
+/// #[rune(unnamed(2), constructor = Struct::new)]
+/// struct Struct {
+///     a: u32,
+///     b: u32,
+/// }
+///
+/// impl Struct {
+///     fn new(a: u32, b: u32) -> Self {
+///         Self { a, b }
+///     }
+/// }
+///
+/// let mut m = Module::new();
+/// m.ty::<Struct>()?;
+/// # Ok::<_, rune::ContextError>(())
+/// ```
+///
+///
 /// <br>
-/// 
+///
+/// ### `#[rune(constructor)]`
+///
+/// This allows for specifying that a type has a rune-visible constructor, and
+/// which method should be called to construct the value.
+///
+/// A constructor in this instance means supporting expressions such as:
+///
+/// * `Struct { field: 42 }` for named structs.
+/// * `Struct(42)` for unnamed structs.
+/// * `Struct` for empty structs.
+///
+/// By default the attribute will generate a constructor out of every field
+/// which is marked with `#[rune(get)]`. The remaining fields must then
+/// implement [`Default`].
+///
+/// ```
+/// use rune::{Any, Module};
+///
+/// #[derive(Any)]
+/// #[rune(constructor)]
+/// struct Struct {
+///     #[rune(get)]
+///     a: u32,
+///     b: u32,
+/// }
+///
+/// let mut m = Module::new();
+/// m.ty::<Struct>()?;
+/// # Ok::<_, rune::ContextError>(())
+/// ```
+///
+/// For fine-grained control over the constructor, `#[rune(constructor =
+/// <path>)]` can be used.
+///
+/// ```
+/// use rune::{Any, Module};
+///
+/// #[derive(Any)]
+/// #[rune(empty, constructor = Struct::new)]
+/// struct Struct {
+///     field: u32,
+/// }
+///
+/// impl Struct {
+///     fn new() -> Self {
+///         Self { field: 42 }
+///     }
+/// }
+///
+/// let mut m = Module::new();
+/// m.ty::<Struct>()?;
+/// # Ok::<_, rune::ContextError>(())
+/// ```
+///
 /// ## Field attributes
 ///
 /// <br>
@@ -200,15 +275,19 @@ pub trait AnyMarker: Any {}
 /// various `#[rune(...)]` attributes:
 ///
 /// ```rust
-/// use rune::Any;
+/// use rune::{Any, Module};
 ///
 /// #[derive(Any)]
-/// struct External {
+/// struct Struct {
 ///     #[rune(get, set, add_assign, copy)]
 ///     number: i64,
 ///     #[rune(get, set)]
 ///     string: String,
 /// }
+///
+/// let mut m = Module::new();
+/// m.ty::<Struct>()?;
+/// # Ok::<_, rune::ContextError>(())
 /// ```
 ///
 /// Once registered, this allows `External` to be used like this in Rune:

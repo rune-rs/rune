@@ -6,7 +6,7 @@ use crate::compile::{ContextError, Docs};
 use crate::function::{Function, Plain};
 use crate::runtime::{FunctionHandler, TypeOf};
 
-use super::Fields;
+use super::{Fields, TypeConstructor};
 
 /// Handle to a a variant inserted into a module which allows for mutation of
 /// its metadata.
@@ -17,7 +17,7 @@ where
     pub(crate) name: &'static str,
     pub(crate) docs: &'a mut Docs,
     pub(crate) fields: &'a mut Option<Fields>,
-    pub(crate) constructor: &'a mut Option<Arc<FunctionHandler>>,
+    pub(crate) constructor: &'a mut Option<TypeConstructor>,
     pub(crate) _marker: PhantomData<T>,
 }
 
@@ -72,9 +72,14 @@ where
             });
         }
 
-        *self.constructor = Some(Arc::new(move |stack, addr, args, output| {
+        let handler: Arc<FunctionHandler> = Arc::new(move |stack, addr, args, output| {
             constructor.fn_call(stack, addr, args, output)
-        }));
+        });
+
+        *self.constructor = Some(TypeConstructor {
+            handler,
+            args: F::ARGS,
+        });
 
         Ok(self)
     }

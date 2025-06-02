@@ -125,6 +125,17 @@ pub enum ContextError {
         type_info: TypeInfo,
         name: &'static str,
     },
+    ConstructorArgumentsMismatch {
+        type_info: TypeInfo,
+        expected: usize,
+        actual: usize,
+    },
+    VariantConstructorArgumentsMismatch {
+        type_info: TypeInfo,
+        name: &'static str,
+        expected: usize,
+        actual: usize,
+    },
     ConflictingConstConstruct {
         type_info: TypeInfo,
         hash: Hash,
@@ -335,6 +346,27 @@ impl fmt::Display for ContextError {
                 write!(
                     f,
                     "Constructor for variant `{name}` for `{type_info}` already exists"
+                )?;
+            }
+            ContextError::ConstructorArgumentsMismatch {
+                type_info,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Constructor for `{type_info}` has {actual} arguments but expected {expected}"
+                )?;
+            }
+            ContextError::VariantConstructorArgumentsMismatch {
+                type_info,
+                name,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Constructor for variant `{name}` for `{type_info}` has {actual} arguments but expected {expected}"
                 )?;
             }
             ContextError::ConflictingConstConstruct { type_info, hash } => {
