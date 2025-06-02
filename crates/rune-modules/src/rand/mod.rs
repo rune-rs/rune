@@ -111,7 +111,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 
     #[cfg(feature = "os_rng")]
     {
-        m.ty::<OsRng>()?.constructor(OsRng::new)?;
+        m.ty::<OsRng>()?;
     }
 
     #[cfg(feature = "small_rng")]

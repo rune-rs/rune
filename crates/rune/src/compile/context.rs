@@ -730,7 +730,15 @@ impl Context {
                                 return_type: meta::DocType::new(ty.hash),
                             };
 
-                            self.insert_native_fn(&ty.type_info, ty.hash, c, None)?;
+                            if c.args != fields.len() {
+                                return Err(ContextError::ConstructorArgumentsMismatch {
+                                    type_info: ty.type_info.try_clone()?,
+                                    expected: fields.len(),
+                                    actual: c.args,
+                                });
+                            }
+
+                            self.insert_native_fn(&ty.type_info, ty.hash, &c.handler, None)?;
                             Some(signature)
                         }
                         None => None,
@@ -798,7 +806,21 @@ impl Context {
                                 return_type: meta::DocType::new(ty.hash),
                             };
 
-                            self.insert_native_fn(&item, hash, c, variant.deprecated.as_deref())?;
+                            if c.args != fields.len() {
+                                return Err(ContextError::VariantConstructorArgumentsMismatch {
+                                    type_info: ty.type_info.try_clone()?,
+                                    name: variant.name,
+                                    expected: fields.len(),
+                                    actual: c.args,
+                                });
+                            }
+
+                            self.insert_native_fn(
+                                &item,
+                                hash,
+                                &c.handler,
+                                variant.deprecated.as_deref(),
+                            )?;
                             Some(signature)
                         } else {
                             None
