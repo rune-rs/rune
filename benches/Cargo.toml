@@ -5,7 +5,7 @@ publish = false
 
 [dependencies]
 rune = { path = "../crates/rune", features = ["bench", "capture-io"] }
-rhai = "1.19.0"
+rhai = "1.21.0"
 
 tokio = { version = "1.28.1", features = ["macros"] }
 criterion = "0.4.0"

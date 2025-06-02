@@ -1029,9 +1029,10 @@ where
             use rand::prelude::*;
 
             if args.random {
+                let mut rand = rand::rng();
+
                 for _ in 0..args.count.unwrap_or(1) {
-                    let mut rand = rand::thread_rng();
-                    writeln!(io.stdout, "{}", Hash::new(rand.gen::<u64>()))?;
+                    writeln!(io.stdout, "{}", Hash::new(rand.random::<u64>()))?;
                 }
             }
 
