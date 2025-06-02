@@ -260,140 +260,154 @@ define! {
         /// Allows for total ordering to work.
     };
 
-    /// The function to implement for the addition operation.
+    /// The protocol for the unary negation operation.
+    pub const NEG: Protocol = Protocol {
+        hash: 0x9ffb490461f68150u64,
+        repr: "let $out = -$value",
+        /// Allows the `-` operator to apply to values of this type.
+    };
+
+    /// The protocol for the unary not operation.
+    pub const NOT: Protocol = Protocol {
+        hash: 0xea93fbfca4da3b36u64,
+        repr: "let $out = !$value",
+        /// Allows the `!` operator to apply to values of this type.
+    };
+
+    /// The protocol for the addition operation.
     pub const ADD: Protocol = Protocol {
         hash: 0xe4ecf51fa0bf1076u64,
         repr: "let $out = $value + $b",
         /// Allows the `+` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the addition assign operation.
+    /// The protocol for the addition assign operation.
     pub const ADD_ASSIGN: Protocol = Protocol {
         hash: 0x42451ccb0a2071a9u64,
         repr: "$value += $b",
         /// Allows the `+=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the subtraction operation.
+    /// The protocol for the subtraction operation.
     pub const SUB: Protocol = Protocol {
         hash: 0x6fa86a5f18d0bf71u64,
         repr: "let $out = $value - $b",
         /// Allows the `-` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the subtraction assign operation.
+    /// The protocol for the subtraction assign operation.
     pub const SUB_ASSIGN: Protocol = Protocol {
         hash: 0x5939bb56a1415284u64,
         repr: "$value -= $b",
         /// Allows the `-=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the multiply operation.
+    /// The protocol for the multiply operation.
     pub const MUL: Protocol = Protocol {
         hash: 0xb09e99dc94091d1cu64,
         repr: "let $out = $value * $b",
         /// Allows the `*` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the multiply assign operation.
+    /// The protocol for the multiply assign operation.
     pub const MUL_ASSIGN: Protocol = Protocol {
         hash: 0x29a54b727f980ebfu64,
         repr: "$value *= $b",
         /// Allows the `*=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the division operation.
+    /// The protocol for the division operation.
     pub const DIV: Protocol = Protocol {
         hash: 0xf26d6eea1afca6e8u64,
         repr: "let $out = $value / $b",
         /// Allows the `/` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the division assign operation.
+    /// The protocol for the division assign operation.
     pub const DIV_ASSIGN: Protocol = Protocol {
         hash: 0x4dd087a8281c04e6u64,
         repr: "$value /= $b",
         /// Allows the `/=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the remainder operation.
+    /// The protocol for the remainder operation.
     pub const REM: Protocol = Protocol {
         hash: 0x5c6293639c74e671u64,
         repr: "let $out = $value % $b",
         /// Allows the `%` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the remainder assign operation.
+    /// The protocol for the remainder assign operation.
     pub const REM_ASSIGN: Protocol = Protocol {
         hash: 0x3a8695980e77baf4u64,
         repr: "$value %= $b",
         /// Allows the `%=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise and operation.
+    /// The protocol for the bitwise and operation.
     pub const BIT_AND: Protocol = Protocol {
         hash: 0x0e11f20d940eebe8u64,
         repr: "let $out = $value & $b",
         /// Allows the `&` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise and assign operation.
+    /// The protocol for the bitwise and assign operation.
     pub const BIT_AND_ASSIGN: Protocol = Protocol {
         hash: 0x95cb1ba235dfb5ecu64,
         repr: "$value &= $b",
         /// Allows the `&=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise xor operation.
+    /// The protocol for the bitwise xor operation.
     pub const BIT_XOR: Protocol = Protocol {
         hash: 0xa3099c54e1de4cbfu64,
         repr: "let $out = $value ^ $b",
         /// Allows the `^` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise xor assign operation.
+    /// The protocol for the bitwise xor assign operation.
     pub const BIT_XOR_ASSIGN: Protocol = Protocol {
         hash: 0x01fa9706738f9867u64,
         repr: "$value ^= $b",
         /// Allows the `^=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise or operation.
+    /// The protocol for the bitwise or operation.
     pub const BIT_OR: Protocol = Protocol {
         hash: 0x05010afceb4a03d0u64,
         repr: "let $out = $value | $b",
         /// Allows the `|` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise xor assign operation.
+    /// The protocol for the bitwise xor assign operation.
     pub const BIT_OR_ASSIGN: Protocol = Protocol {
         hash: 0x606d79ff1750a7ecu64,
         repr: "$value |= $b",
         /// Allows the `|=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise shift left operation.
+    /// The protocol for the bitwise shift left operation.
     pub const SHL: Protocol = Protocol {
         hash: 0x6845f7d0cc9e002du64,
         repr: "let $out = $value << $b",
         /// Allows the `<<` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise shift left assign operation.
+    /// The protocol for the bitwise shift left assign operation.
     pub const SHL_ASSIGN: Protocol = Protocol {
         hash: 0xdc4702d0307ba27bu64,
         repr: "$value <<= $b",
         /// Allows the `<<=` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise shift right operation.
+    /// The protocol for the bitwise shift right operation.
     pub const SHR: Protocol = Protocol {
         hash: 0x6b485e8e6e58fbc8u64,
         repr: "let $out = $value >> $b",
         /// Allows the `>>` operator to apply to values of this type, where the current type is the left-hand side.
     };
 
-    /// The function to implement for the bitwise shift right assign operation.
+    /// The protocol for the bitwise shift right assign operation.
     pub const SHR_ASSIGN: Protocol = Protocol {
         hash: 0x61ff7c46ff00e74au64,
         repr: "$value >>= $b",

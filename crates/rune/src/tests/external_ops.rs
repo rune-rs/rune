@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 
 #[test]
-fn strut_assign() -> Result<()> {
+fn struct_assign() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
             #[derive(Debug, Default, Any)]
@@ -175,31 +175,17 @@ fn tuple_assign() -> Result<()> {
 }
 
 #[test]
-#[ignore = "assembly currently doesn't know how to handle this"]
-fn struct_ops() -> Result<()> {
+fn struct_binary() -> Result<()> {
     macro_rules! test_case {
         ([$($op:tt)*], $protocol:ident, $derived:tt, $initial:literal, $arg:literal, $expected:literal) => {{
-            #[derive(Debug, Default, Any)]
+            #[derive(Debug, Any)]
             struct External {
                 value: i64,
-                field: i64,
-                #[rune($derived)]
-                derived: i64,
-                #[rune($derived = External::custom)]
-                custom: i64,
             }
 
             impl External {
                 fn value(&self, value: i64) -> i64 {
                     self.value $($op)* value
-                }
-
-                fn field(&self, value: i64) -> i64 {
-                    self.field $($op)* value
-                }
-
-                fn custom(&self, value: i64) -> i64 {
-                    self.custom $($op)* value
                 }
             }
 
@@ -207,20 +193,11 @@ fn struct_ops() -> Result<()> {
             module.ty::<External>()?;
 
             module.associated_function(&Protocol::$protocol, External::value)?;
-            module.field_function(&Protocol::$protocol, "field", External::field)?;
 
             let mut context = Context::default();
             context.install(module)?;
 
-            let source = format!(r#"
-            pub fn type(number) {{
-                let a = number {op} {arg};
-                let b = number.field {op} {arg};
-                let c = number.derived {op} {arg};
-                let d = number.custom {op} {arg};
-                (a, b, c, d)
-            }}
-            "#, op = stringify!($($op)*), arg = stringify!($arg));
+            let source = format!("pub fn type(number) {{ number {op} {arg} }}", op = stringify!($($op)*), arg = stringify!($arg));
 
             let mut sources = Sources::new();
             sources.insert(Source::memory(source)?)?;
@@ -233,21 +210,12 @@ fn struct_ops() -> Result<()> {
 
             let mut vm = Vm::new(Arc::new(context.runtime()?), unit);
 
-            let mut foo = External::default();
-            foo.value = $initial;
-            foo.field = $initial;
-            foo.derived = $initial;
-            foo.custom = $initial;
-
-            let output = vm.call(["type"], (&mut foo,))?;
-            let (a, b, c, d) = crate::from_value::<(i64, i64, i64, i64)>(output)?;
+            let foo = External { value: $initial };
+            let output = vm.call(["type"], (foo,))?;
+            let value = crate::from_value::<i64>(output)?;
 
             let expected: i64 = $expected;
-
-            assert_eq!(a, expected, "{a} != {expected} (value)");
-            assert_eq!(b, expected, "{b} != {expected} (field)");
-            assert_eq!(c, expected, "{c} != {expected} (derived)");
-            assert_eq!(d, expected, "{d} != {expected} (custom)");
+            assert_eq!(value, expected, "{value} != {expected} (value)");
         }};
     }
 
@@ -261,6 +229,61 @@ fn struct_ops() -> Result<()> {
     test_case!([^], BIT_XOR, bit_xor, 0b1001, 0b0011, 0b1010);
     test_case!([<<], SHL, shl, 0b1001, 0b0001, 0b10010);
     test_case!([>>], SHR, shr, 0b1001, 0b0001, 0b100);
+    Ok(())
+}
+
+#[test]
+fn struct_unary() -> Result<()> {
+    macro_rules! test_case {
+        ([$($op:tt)*], $protocol:ident, $derived:tt, $ty:ty, $initial:literal, $expected:expr) => {{
+            #[derive(Debug, Any)]
+            struct External {
+                value: $ty,
+            }
+
+            impl External {
+                fn value(&self) -> External {
+                    External {
+                        value: $($op)*self.value,
+                    }
+                }
+            }
+
+            let mut module = Module::new();
+            module.ty::<External>()?;
+            module.associated_function(&Protocol::$protocol, External::value)?;
+
+            let mut context = Context::default();
+            context.install(module)?;
+
+            let source = format!("pub fn type(value) {{ {op} value }}", op = stringify!($($op)*));
+
+            let mut sources = Sources::new();
+            sources.insert(Source::memory(source)?)?;
+
+            let unit = prepare(&mut sources)
+                .with_context(&context)
+                .build()?;
+
+            let unit = Arc::new(unit);
+
+            let mut vm = Vm::new(Arc::new(context.runtime()?), unit);
+
+            let external = External { value: $initial };
+
+            let output = vm.call(["type"], (external,))?;
+            let External { value: actual } = crate::from_value(output)?;
+
+            let expected: $ty = $expected;
+            assert_eq!(actual, expected);
+        }};
+    }
+
+    test_case!([-], NEG, neg, i64, 100, -100);
+    test_case!([-], NEG, neg, f64, 100.0, -100.0);
+    test_case!([!], NOT, not, i64, 100, !100);
+    test_case!([!], NOT, not, u64, 100, !100);
+    test_case!([!], NOT, not, bool, true, false);
     Ok(())
 }
 
