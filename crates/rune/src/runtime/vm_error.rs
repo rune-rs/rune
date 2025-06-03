@@ -855,9 +855,6 @@ pub(crate) enum VmErrorKind {
         actual: TypeInfo,
     },
     MissingInterfaceEnvironment,
-    ExpectedExecutionState {
-        actual: ExecutionState,
-    },
     ExpectedExitedExecutionState {
         actual: ExecutionState,
     },
@@ -1077,9 +1074,6 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MissingInterfaceEnvironment => {
                 write!(f, "Missing interface environment")
-            }
-            VmErrorKind::ExpectedExecutionState { actual } => {
-                write!(f, "Expected resume execution state, but was {actual}")
             }
             VmErrorKind::ExpectedExitedExecutionState { actual } => {
                 write!(f, "Expected exited execution state, but was {actual}")

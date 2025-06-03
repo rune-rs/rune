@@ -5,10 +5,13 @@ use crate::Any;
 
 /// The state of a generator.
 ///
+/// # Examples
+///
 /// ```
-/// use rune::{Value, Vm};
-/// use rune::runtime::{Generator, GeneratorState};
 /// use std::sync::Arc;
+///
+/// use rune::{Value, Vm};
+/// use rune::runtime::GeneratorState;
 ///
 /// let mut sources = rune::sources! {
 ///     entry => {
@@ -23,10 +26,10 @@ use crate::Any;
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
-/// let mut execution = vm.execute(["main"], ())?;
+/// let mut generator = vm.execute(["main"], ())?.into_generator();
 ///
 /// // Initial resume doesn't take a value.
-/// let first = match execution.resume().into_result()? {
+/// let first = match generator.resume(Value::empty())? {
 ///     GeneratorState::Yielded(first) => rune::from_value::<i64>(first)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
 /// };
@@ -34,16 +37,64 @@ use crate::Any;
 /// assert_eq!(first, 1);
 ///
 /// // Additional resumes require a value.
-/// let second = match execution.resume_with(rune::to_value(2i64)?).into_result()? {
+/// let second = match generator.resume(rune::to_value(2i64)?)? {
 ///     GeneratorState::Yielded(second) => rune::from_value::<i64>(second)?,
 ///     GeneratorState::Complete(..) => panic!("generator completed"),
 /// };
 ///
 /// assert_eq!(second, 3);
 ///
-/// let ret = match execution.resume_with(rune::to_value(42i64)?).into_result()? {
+/// let ret = match generator.resume(rune::to_value(42i64)?)? {
 ///     GeneratorState::Complete(ret) => rune::from_value::<i64>(ret)?,
 ///     GeneratorState::Yielded(..) => panic!("generator yielded"),
+/// };
+///
+/// assert_eq!(ret, 42);
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+///
+/// An asynchronous generator, also known as a stream:
+///
+/// ```
+/// use std::sync::Arc;
+///
+/// use rune::{Value, Vm};
+/// use rune::runtime::GeneratorState;
+///
+/// let mut sources = rune::sources! {
+///     entry => {
+///         pub async fn main() {
+///             let n = yield 1;
+///             let out = yield n + 1;
+///             out
+///         }
+///     }
+/// };
+///
+/// let unit = rune::prepare(&mut sources).build()?;
+///
+/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let mut stream = vm.execute(["main"], ())?.into_stream();
+///
+/// // Initial resume doesn't take a value.
+/// let first = match stream.resume(Value::empty()).await? {
+///     GeneratorState::Yielded(first) => rune::from_value::<i64>(first)?,
+///     GeneratorState::Complete(..) => panic!("stream completed"),
+/// };
+///
+/// assert_eq!(first, 1);
+///
+/// // Additional resumes require a value.
+/// let second = match stream.resume(rune::to_value(2i64)?).await? {
+///     GeneratorState::Yielded(second) => rune::from_value::<i64>(second)?,
+///     GeneratorState::Complete(..) => panic!("stream completed"),
+/// };
+///
+/// assert_eq!(second, 3);
+///
+/// let ret = match stream.resume(rune::to_value(42i64)?).await? {
+///     GeneratorState::Complete(ret) => rune::from_value::<i64>(ret)?,
+///     GeneratorState::Yielded(..) => panic!("stream yielded"),
 /// };
 ///
 /// assert_eq!(ret, 42);

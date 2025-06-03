@@ -41,7 +41,7 @@ impl VmCall {
     #[tracing::instrument(skip_all)]
     pub(crate) fn into_execution<T>(self, execution: &mut VmExecution<T>) -> VmResult<()>
     where
-        T: AsRef<Vm> + AsMut<Vm>,
+        T: AsMut<Vm>,
     {
         let out = self.out;
 
@@ -78,7 +78,7 @@ impl VmCall {
     #[tracing::instrument(skip_all)]
     fn build_vm<T>(self, execution: &mut VmExecution<T>) -> VmResult<Vm>
     where
-        T: AsRef<Vm> + AsMut<Vm>,
+        T: AsMut<Vm>,
     {
         let vm = execution.vm_mut();
 

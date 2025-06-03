@@ -42,13 +42,6 @@ impl Stream {
         }
     }
 
-    /// Construct a generator from a complete execution.
-    pub(crate) fn from_execution(execution: VmExecution<Vm>) -> Self {
-        Self {
-            execution: Some(execution),
-        }
-    }
-
     /// Get the next value produced by this stream.
     pub async fn next(&mut self) -> VmResult<Option<Value>> {
         let Some(execution) = self.execution.as_mut() else {
@@ -56,18 +49,18 @@ impl Stream {
         };
 
         match vm_try!(execution.resume().await) {
-            VmOutcome::Complete(value) => VmResult::Ok(Some(value)),
-            VmOutcome::Yielded(..) => {
+            VmOutcome::Complete(..) => {
                 self.execution = None;
                 VmResult::Ok(None)
             }
+            VmOutcome::Yielded(value) => VmResult::Ok(Some(value)),
             VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
             }),
         }
     }
 
-    /// Resume the generator and return the next generator state.
+    /// Resume the stream with a value and return the next [`GeneratorState`].
     pub async fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
         let execution = vm_try!(self
             .execution
@@ -75,13 +68,17 @@ impl Stream {
             .ok_or(VmErrorKind::GeneratorComplete));
 
         let outcome = vm_try!(execution.resume().with_value(value).await);
-        let state = vm_try!(outcome.into_generator_state());
 
-        if state.is_complete() {
-            self.execution = None;
+        match outcome {
+            VmOutcome::Complete(value) => {
+                self.execution = None;
+                VmResult::Ok(GeneratorState::Complete(value))
+            }
+            VmOutcome::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
         }
-
-        VmResult::Ok(state)
     }
 }
 

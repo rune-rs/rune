@@ -13,8 +13,8 @@ use crate::shared::AssertSend;
 use crate::{async_vm_try, vm_try};
 
 use super::{
-    Generator, GeneratorState, InstAddress, Output, RuntimeContext, Stream, Unit, Value, Vm,
-    VmDiagnostics, VmErrorKind, VmHalt, VmHaltInfo, VmResult,
+    GeneratorState, InstAddress, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics, VmError,
+    VmErrorKind, VmHalt, VmHaltInfo, VmResult,
 };
 
 static COMPLETE_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
@@ -69,14 +69,44 @@ pub(crate) struct VmExecutionState {
 /// will be cleared.
 pub struct VmExecution<T> {
     /// The current head vm which holds the execution.
-    head: T,
+    vm: T,
     /// The state of an execution.
     state: ExecutionState,
     /// Indicates the current stack of suspended contexts.
     states: Vec<VmExecutionState>,
 }
 
-impl VmExecution<Vm> {
+impl<T> VmExecution<T> {
+    /// Get a reference to the current virtual machine.
+    pub fn vm(&self) -> &Vm
+    where
+        T: AsRef<Vm>,
+    {
+        self.vm.as_ref()
+    }
+
+    /// Get a mutable reference the current virtual machine.
+    pub fn vm_mut(&mut self) -> &mut Vm
+    where
+        T: AsMut<Vm>,
+    {
+        self.vm.as_mut()
+    }
+
+    /// Construct an execution from a virtual machine.
+    pub(crate) fn new(vm: T) -> Self {
+        Self {
+            vm,
+            state: ExecutionState::Initial,
+            states: Vec::new(),
+        }
+    }
+}
+
+impl<T> VmExecution<T>
+where
+    T: AsMut<Vm>,
+{
     /// Coerce the current execution into a generator if appropriate.
     ///
     /// ```
@@ -99,15 +129,17 @@ impl VmExecution<Vm> {
     ///
     /// let mut n = 1i64;
     ///
-    /// while let Some(value) = generator.next().into_result()? {
+    /// while let Some(value) = generator.next()? {
     ///     let value: i64 = rune::from_value(value)?;
     ///     assert_eq!(value, n);
     ///     n += 1;
     /// }
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn into_generator(self) -> Generator {
-        Generator::from_execution(self)
+    pub fn into_generator(self) -> VmGenerator<T> {
+        VmGenerator {
+            execution: Some(self),
+        }
     }
 
     /// Coerce the current execution into a stream if appropriate.
@@ -133,7 +165,7 @@ impl VmExecution<Vm> {
     ///
     /// let mut n = 1i64;
     ///
-    /// while let Some(value) = stream.next().await.into_result()? {
+    /// while let Some(value) = stream.next().await? {
     ///     let value: i64 = rune::from_value(value)?;
     ///     assert_eq!(value, n);
     ///     n += 1;
@@ -142,41 +174,17 @@ impl VmExecution<Vm> {
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn into_stream(self) -> Stream {
-        Stream::from_execution(self)
-    }
-}
-
-impl<T> VmExecution<T> {
-    /// Construct an execution from a virtual machine.
-    pub(crate) fn new(head: T) -> Self {
-        Self {
-            head,
-            state: ExecutionState::Initial,
-            states: Vec::new(),
+    pub fn into_stream(self) -> VmStream<T> {
+        VmStream {
+            execution: Some(self),
         }
-    }
-
-    /// Test if the current execution state is resumed.
-    pub(crate) fn is_resumed(&self) -> bool {
-        matches!(self.state, ExecutionState::Resumed(..))
     }
 }
 
 impl<T> VmExecution<T>
 where
-    T: AsRef<Vm> + AsMut<Vm>,
+    T: AsMut<Vm>,
 {
-    /// Get a reference to the current virtual machine.
-    pub fn vm(&self) -> &Vm {
-        self.head.as_ref()
-    }
-
-    /// Get a mutable reference the current virtual machine.
-    pub fn vm_mut(&mut self) -> &mut Vm {
-        self.head.as_mut()
-    }
-
     /// Synchronously complete the current execution.
     ///
     /// # Errors
@@ -222,7 +230,7 @@ where
             execution: self,
             diagnostics: None,
             awaited: None,
-            init: Some(Init::Empty),
+            init: Some(Value::empty()),
         }
     }
 
@@ -233,7 +241,7 @@ where
         };
 
         let value = match addr {
-            Some(addr) => self.head.as_ref().stack().at(addr).clone(),
+            Some(addr) => self.vm.as_mut().stack().at(addr).clone(),
             None => Value::unit(),
         };
 
@@ -245,7 +253,7 @@ where
     #[tracing::instrument(skip_all)]
     pub(crate) fn push_state(&mut self, state: VmExecutionState) -> VmResult<()> {
         tracing::trace!("pushing suspended state");
-        let vm = self.head.as_mut();
+        let vm = self.vm.as_mut();
         let context = state.context.map(|c| replace(vm.context_mut(), c));
         let unit = state.unit.map(|u| replace(vm.unit_mut(), u));
         vm_try!(self.states.try_push(VmExecutionState { context, unit }));
@@ -259,7 +267,7 @@ where
         tracing::trace!("popping suspended state");
 
         let state = vm_try!(self.states.pop().ok_or(VmErrorKind::NoRunningVm));
-        let vm = self.head.as_mut();
+        let vm = self.vm.as_mut();
 
         if let Some(context) = state.context {
             *vm.context_mut() = context;
@@ -276,11 +284,11 @@ where
 impl VmExecution<&mut Vm> {
     /// Convert the current execution into one which owns its virtual machine.
     pub fn into_owned(self) -> VmExecution<Vm> {
-        let stack = take(self.head.stack_mut());
-        let head = Vm::with_stack(self.head.context().clone(), self.head.unit().clone(), stack);
+        let stack = take(self.vm.stack_mut());
+        let head = Vm::with_stack(self.vm.context().clone(), self.vm.unit().clone(), stack);
 
         VmExecution {
-            head,
+            vm: head,
             states: self.states,
             state: self.state,
         }
@@ -360,7 +368,7 @@ where
     #[inline]
     fn try_clone(&self) -> Result<Self, rune_alloc::Error> {
         Ok(Self {
-            head: self.head.try_clone()?,
+            vm: self.vm.try_clone()?,
             state: self.state,
             states: self.states.try_clone()?,
         })
@@ -388,11 +396,6 @@ where
         let future = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.future) };
         Poll::Ready(async_vm_try!(ready!(future.poll(cx))).into_complete())
     }
-}
-
-enum Init {
-    Empty,
-    Value(Value),
 }
 
 /// The outcome of completing an execution through a [`VmResume`] operation.
@@ -448,20 +451,14 @@ impl VmOutcome {
 /// perform asynchronous operations, or it can be completed by calling
 /// [`VmResume::complete`] which will produce an error in case asynchronous
 /// operations that need to be suspended are encountered.
-pub struct VmResume<'this, 'diag, T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+pub struct VmResume<'this, 'diag, T> {
     execution: &'this mut VmExecution<T>,
     diagnostics: Option<&'diag mut dyn VmDiagnostics>,
-    init: Option<Init>,
+    init: Option<Value>,
     awaited: Option<Awaited>,
 }
 
-impl<'this, 'diag, T> VmResume<'this, 'diag, T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl<'this, 'diag, T> VmResume<'this, 'diag, T> {
     /// Associated a budget with the resumed execution.
     pub fn with_budget(self, budget: usize) -> Budget<Self> {
         budget::with(budget, self)
@@ -472,7 +469,7 @@ where
     /// This is necessary to provide a value for a generator which has yielded.
     pub fn with_value(self, value: Value) -> VmResume<'this, 'diag, T> {
         Self {
-            init: Some(Init::Value(value)),
+            init: Some(value),
             ..self
         }
     }
@@ -489,7 +486,12 @@ where
             awaited: self.awaited,
         }
     }
+}
 
+impl<'this, 'diag, T> VmResume<'this, 'diag, T>
+where
+    T: AsMut<Vm>,
+{
     /// Try to synchronously complete the run, returning the generator state it produced.
     ///
     /// This will error if the execution is suspended through awaiting.
@@ -508,7 +510,7 @@ where
 
 impl<'this, 'diag, T> Future for VmResume<'this, 'diag, T>
 where
-    T: AsRef<Vm> + AsMut<Vm>,
+    T: AsMut<Vm>,
 {
     type Output = VmResult<VmOutcome>;
 
@@ -518,33 +520,17 @@ where
         // projected fields.
         let this = unsafe { Pin::get_unchecked_mut(self) };
 
-        if let Some(init) = this.init.take() {
-            let vm = this.execution.head.as_mut();
+        if let Some(value) = this.init.take() {
+            let state = replace(&mut this.execution.state, ExecutionState::Suspended);
 
-            match init {
-                Init::Empty => {
-                    if let ExecutionState::Resumed(out) =
-                        replace(&mut this.execution.state, ExecutionState::Suspended)
-                    {
-                        async_vm_try!(out.store(vm.stack_mut(), Value::unit));
-                    }
-                }
-                Init::Value(value) => {
-                    let state = replace(&mut this.execution.state, ExecutionState::Suspended);
-
-                    let ExecutionState::Resumed(out) = state else {
-                        return Poll::Ready(VmResult::err(VmErrorKind::ExpectedExecutionState {
-                            actual: state,
-                        }));
-                    };
-
-                    async_vm_try!(out.store(vm.stack_mut(), value));
-                }
+            if let ExecutionState::Resumed(out) = state {
+                let vm = this.execution.vm.as_mut();
+                async_vm_try!(out.store(vm.stack_mut(), value));
             }
         }
 
         loop {
-            let vm = this.execution.head.as_mut();
+            let vm = this.execution.vm.as_mut();
 
             if let Some(awaited) = &mut this.awaited {
                 let awaited = unsafe { Pin::new_unchecked(awaited) };
@@ -590,6 +576,116 @@ where
             }
 
             async_vm_try!(this.execution.pop_state());
+        }
+    }
+}
+
+/// A [`VmExecution`] that can be used with a generator api.
+pub struct VmGenerator<T> {
+    execution: Option<VmExecution<T>>,
+}
+
+impl<T> VmGenerator<T>
+where
+    T: AsMut<Vm>,
+{
+    /// Get the next value produced by this generator.
+    ///
+    /// See [`VmExecution::into_generator`].
+    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
+        let Some(execution) = &mut self.execution else {
+            return Ok(None);
+        };
+
+        let outcome = execution.resume().complete().into_result()?;
+
+        match outcome {
+            VmOutcome::Complete(_) => {
+                self.execution = None;
+                Ok(None)
+            }
+            VmOutcome::Yielded(value) => Ok(Some(value)),
+            VmOutcome::Limited => Err(VmError::new(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            })),
+        }
+    }
+
+    /// Resume the generator with a value and get the next [`GeneratorState`].
+    ///
+    /// See [`VmExecution::into_generator`].
+    pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let execution = self
+            .execution
+            .as_mut()
+            .ok_or(VmErrorKind::GeneratorComplete)?;
+
+        let outcome = execution
+            .resume()
+            .with_value(value)
+            .complete()
+            .into_result()?;
+
+        match outcome {
+            VmOutcome::Complete(value) => {
+                self.execution = None;
+                Ok(GeneratorState::Complete(value))
+            }
+            VmOutcome::Yielded(value) => Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => Err(VmError::new(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            })),
+        }
+    }
+}
+
+/// A [`VmExecution`] that can be used with a stream api.
+pub struct VmStream<T> {
+    execution: Option<VmExecution<T>>,
+}
+
+impl<T> VmStream<T>
+where
+    T: AsMut<Vm>,
+{
+    /// Get the next value produced by this stream.
+    ///
+    /// See [`VmExecution::into_stream`].
+    pub async fn next(&mut self) -> Result<Option<Value>, VmError> {
+        let Some(execution) = &mut self.execution else {
+            return Ok(None);
+        };
+
+        match execution.resume().await.into_result()? {
+            VmOutcome::Complete(value) => {
+                self.execution = None;
+                Ok(Some(value))
+            }
+            VmOutcome::Yielded(..) => Ok(None),
+            VmOutcome::Limited => Err(VmError::new(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            })),
+        }
+    }
+
+    /// Resume the stream with a value and return the next [`GeneratorState`].
+    ///
+    /// See [`VmExecution::into_stream`].
+    pub async fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let execution = self
+            .execution
+            .as_mut()
+            .ok_or(VmErrorKind::GeneratorComplete)?;
+
+        match execution.resume().with_value(value).await.into_result()? {
+            VmOutcome::Complete(value) => {
+                self.execution = None;
+                Ok(GeneratorState::Complete(value))
+            }
+            VmOutcome::Yielded(value) => Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => Err(VmError::new(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            })),
         }
     }
 }

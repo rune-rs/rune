@@ -3,7 +3,9 @@ use core::iter;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmResult};
+use crate::runtime::{
+    GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome, VmResult,
+};
 use crate::{vm_try, Any};
 
 /// A generator produced by a generator function.
@@ -38,57 +40,45 @@ impl Generator {
         }
     }
 
-    /// Construct a generator from a complete execution.
-    pub(crate) fn from_execution(execution: VmExecution<Vm>) -> Self {
-        Self {
-            execution: Some(execution),
-        }
-    }
-
     /// Get the next value produced by this stream.
-    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> VmResult<Option<Value>> {
         let Some(execution) = self.execution.as_mut() else {
             return VmResult::Ok(None);
         };
 
-        let outcome = if execution.is_resumed() {
-            vm_try!(execution.resume().with_value(Value::empty()).complete())
-        } else {
-            vm_try!(execution.resume().complete())
-        };
-
-        let state = vm_try!(outcome.into_generator_state());
+        let state = vm_try!(execution.resume().complete());
 
         match state {
-            GeneratorState::Yielded(value) => VmResult::Ok(Some(value)),
-            GeneratorState::Complete(_) => {
+            VmOutcome::Complete(_) => {
                 self.execution = None;
                 VmResult::Ok(None)
             }
+            VmOutcome::Yielded(value) => VmResult::Ok(Some(value)),
+            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
         }
     }
 
-    /// Resume the generator with a value and get the next generator state.
+    /// Resume the generator with a value and get the next [`GeneratorState`].
     pub fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
         let execution = vm_try!(self
             .execution
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete));
 
-        let outcome = if execution.is_resumed() {
-            vm_try!(execution.resume().with_value(value).complete())
-        } else {
-            vm_try!(execution.resume().complete())
-        };
+        let outcome = vm_try!(execution.resume().with_value(value).complete());
 
-        let state = vm_try!(outcome.into_generator_state());
-
-        if state.is_complete() {
-            self.execution = None;
+        match outcome {
+            VmOutcome::Complete(value) => {
+                self.execution = None;
+                VmResult::Ok(GeneratorState::Complete(value))
+            }
+            VmOutcome::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
         }
-
-        VmResult::Ok(state)
     }
 }
 
