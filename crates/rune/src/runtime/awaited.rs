@@ -3,7 +3,7 @@ use core::pin::Pin;
 use core::task::{ready, Context, Poll};
 
 use crate::async_vm_try;
-use crate::runtime::{Future, Output, Select, Vm, VmResult};
+use crate::runtime::{Future, Output, Select, Vm, VmError};
 
 /// A stored await task.
 #[derive(Debug)]
@@ -19,25 +19,25 @@ impl Awaited {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         vm: &mut Vm,
-    ) -> Poll<VmResult<()>> {
+    ) -> Poll<Result<(), VmError>> {
         let this = unsafe { Pin::get_unchecked_mut(self) };
 
         match this {
             Self::Future(future, out) => {
                 let future = unsafe { Pin::new_unchecked(future) };
                 let result = ready!(future.poll(cx));
-                let value = async_vm_try!(result.with_vm(vm));
+                let value = async_vm_try!(result.with_vm(vm).into_result());
                 async_vm_try!(out.store(vm.stack_mut(), value));
             }
             Self::Select(select, value_addr) => {
                 let select = unsafe { Pin::new_unchecked(select) };
                 let result = ready!(select.poll(cx));
-                let (ip, value) = async_vm_try!(result.with_vm(vm));
+                let (ip, value) = async_vm_try!(result.with_vm(vm).into_result());
                 vm.set_ip(ip);
                 async_vm_try!(value_addr.store(vm.stack_mut(), || value));
             }
         }
 
-        Poll::Ready(VmResult::Ok(()))
+        Poll::Ready(Ok(()))
     }
 }

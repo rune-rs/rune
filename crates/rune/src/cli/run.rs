@@ -6,7 +6,7 @@ use std::time::Instant;
 use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::runtime::{UnitStorage, VmError, VmExecution, VmOutcome, VmResult};
+use crate::runtime::{UnitStorage, VmError, VmExecution, VmOutcome};
 use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
 mod cli {
@@ -261,20 +261,17 @@ pub(super) async fn run(
         )
         .await
         {
-            Ok(value) => VmResult::Ok(value),
+            Ok(value) => Ok(value),
             Err(TraceError::Io(io)) => return Err(io.into()),
-            Err(TraceError::VmError(vm)) => VmResult::Err(vm),
+            Err(TraceError::VmError(vm)) => Err(vm),
             Err(TraceError::Limited) => return Err(anyhow!("Trace limit reached")),
         }
     } else {
-        execution
-            .resume()
-            .await
-            .and_then(|value| value.into_complete())
+        execution.resume().await.and_then(VmOutcome::into_complete)
     };
 
     let errored = match result {
-        VmResult::Ok(result) => {
+        Ok(result) => {
             if c.verbose || args.time || args.dump_return {
                 let duration = Instant::now().saturating_duration_since(last);
 
@@ -285,7 +282,7 @@ pub(super) async fn run(
 
             None
         }
-        VmResult::Err(error) => {
+        Err(error) => {
             if c.verbose || args.time || args.dump_return {
                 let duration = Instant::now().saturating_duration_since(last);
 
@@ -372,7 +369,7 @@ where
     T: AsRef<Vm> + AsMut<Vm>,
 {
     let mut current_frame_len = execution.vm().call_frames().len();
-    let mut result = VmResult::Ok(None);
+    let mut result = None;
     let mut yielded = None;
 
     while limit > 0 {
@@ -453,33 +450,22 @@ where
             }
         }
 
-        match result {
-            VmResult::Ok(result) => {
-                if let Some(result) = result {
-                    return Ok(result);
-                }
+        if let Some(value) = result {
+            return Ok(value);
+        }
+
+        match execution.resume().with_budget(1).await {
+            Ok(VmOutcome::Complete(value)) => {
+                result = Some(value);
             }
-            VmResult::Err(error) => {
+            Ok(VmOutcome::Yielded(value)) => {
+                yielded = Some(value);
+            }
+            Ok(VmOutcome::Limited) => {}
+            Err(error) => {
                 return Err(TraceError::VmError(error));
             }
         }
-
-        result = match execution.resume().with_budget(1).await {
-            VmResult::Ok(VmOutcome::Complete(value)) => VmResult::Ok(Some(value)),
-            VmResult::Ok(VmOutcome::Yielded(value)) => {
-                yielded = Some(value);
-                VmResult::Ok(None)
-            }
-            VmResult::Ok(VmOutcome::Limited) => VmResult::Ok(None),
-            VmResult::Err(error) => VmResult::Err(error),
-        };
-
-        result = match result {
-            VmResult::Err(error) => {
-                return Err(TraceError::VmError(error));
-            }
-            result => result,
-        };
 
         limit = limit.wrapping_sub(1);
     }

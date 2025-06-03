@@ -186,10 +186,11 @@ pub mod no_std;
 
 #[macro_use]
 mod internal_macros;
+pub(crate) use self::internal_macros::async_vm_try;
 
 mod exported_macros;
 #[doc(inline)]
-pub use self::exported_macros::{async_vm_try, docstring, vm_panic, vm_try, vm_write};
+pub use self::exported_macros::{docstring, vm_panic, vm_try, vm_write};
 
 #[macro_use]
 pub mod ast;

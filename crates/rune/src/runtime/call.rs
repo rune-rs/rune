@@ -39,7 +39,7 @@ impl Call {
             Call::Async => {
                 let mut execution = vm.into_execution();
                 let future = vm_try!(Future::new(async move {
-                    vm_try!(execution.resume().await).into_complete()
+                    execution.resume().await?.into_complete()
                 }));
                 vm_try!(Value::try_from(future))
             }

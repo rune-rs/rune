@@ -37,7 +37,7 @@ use rune::ast::Spanned;
 use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::modules::capture_io::CaptureIo;
-use rune::runtime::{budget, VmResult};
+use rune::runtime::budget;
 use rune::{Context, ContextError, Options};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -307,8 +307,8 @@ async fn inner_compile(
     let future = budget::with(budget, execution.async_complete());
 
     let output = match future.await {
-        VmResult::Ok(output) => output,
-        VmResult::Err(error) => {
+        Ok(output) => output,
+        Err(error) => {
             let vm = execution.vm();
 
             let (unit, ip) = match error.first_location() {

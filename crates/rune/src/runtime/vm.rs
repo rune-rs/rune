@@ -323,19 +323,17 @@ impl Vm {
 
     /// Run the given vm to completion.
     ///
-    /// If any async instructions are encountered, this will error.
+    /// # Errors
+    ///
+    /// If any non-completing outcomes like yielding or awaiting are
+    /// encountered, this will error.
     pub fn complete(self) -> Result<Value, VmError> {
-        self.into_execution().complete().into_result()
+        self.into_execution().complete()
     }
 
     /// Run the given vm to completion with support for async functions.
     pub async fn async_complete(self) -> Result<Value, VmError> {
-        self.into_execution()
-            .resume()
-            .await
-            .into_result()?
-            .into_complete()
-            .into_result()
+        self.into_execution().resume().await?.into_complete()
     }
 
     /// Call the function identified by the given name.
@@ -358,7 +356,7 @@ impl Vm {
     /// let unit = Arc::new(Unit::default());
     /// let mut vm = rune::Vm::without_runtime(unit);
     ///
-    /// let output = vm.execute(["main"], (33i64,))?.complete().into_result()?;
+    /// let output = vm.execute(["main"], (33i64,))?.complete()?;
     /// let output: i64 = rune::from_value(output)?;
     ///
     /// println!("output: {}", output);
@@ -381,7 +379,7 @@ impl Vm {
     /// args.push(rune::to_value(1u32)?);
     /// args.push(rune::to_value(String::from("Hello World"))?);
     ///
-    /// let output = vm.execute(["main"], args)?.complete().into_result()?;
+    /// let output = vm.execute(["main"], args)?.complete()?;
     /// let output: i64 = rune::from_value(output)?;
     ///
     /// println!("output: {}", output);
@@ -393,7 +391,7 @@ impl Vm {
         args: impl Args,
     ) -> Result<VmExecution<&mut Self>, VmError> {
         self.set_entrypoint(name, args.count())?;
-        args.into_stack(&mut self.stack).into_result()?;
+        args.into_stack(&mut self.stack)?;
         Ok(VmExecution::new(self))
     }
 
@@ -413,7 +411,7 @@ impl Vm {
         self.stack.clear();
 
         self.set_entrypoint(name, args.count())?;
-        args.into_stack(&mut self.stack).into_result()?;
+        args.into_stack(&mut self.stack)?;
         Ok(VmSendExecution(VmExecution::new(self)))
     }
 
@@ -431,13 +429,13 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { args.guarded_into_stack(&mut self.stack).into_result()? };
+        let guard = unsafe { args.guarded_into_stack(&mut self.stack)? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
             // above.
             let vm = ClearStack(self);
-            VmExecution::new(&mut *vm.0).complete().into_result()?
+            VmExecution::new(&mut *vm.0).complete()?
         };
 
         // Note: this might panic if something in the vm is holding on to a
@@ -462,7 +460,7 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { args.guarded_into_stack(&mut self.stack).into_result()? };
+        let guard = unsafe { args.guarded_into_stack(&mut self.stack)? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
@@ -479,7 +477,7 @@ impl Vm {
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
-        value.into_result()
+        value
     }
 
     /// Call the given function immediately asynchronously, returning the
@@ -497,7 +495,7 @@ impl Vm {
         // Safety: We hold onto the guard until the vm has completed and
         // `VmExecution` will clear the stack before this function returns.
         // Erronously or not.
-        let guard = unsafe { args.guarded_into_stack(&mut self.stack).into_result()? };
+        let guard = unsafe { args.guarded_into_stack(&mut self.stack)? };
 
         let value = {
             // Clearing the stack here on panics has safety implications - see
@@ -513,7 +511,7 @@ impl Vm {
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
-        value.into_result()
+        value
     }
 
     /// Update the instruction pointer to match the function matching the given
@@ -1121,8 +1119,7 @@ impl Vm {
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             let mut execution = vm.into_execution();
-            let future =
-                Future::new(async move { vm_try!(execution.resume().await).into_complete() })?;
+            let future = Future::new(async move { execution.resume().await?.into_complete() })?;
             *self.stack.at_mut(at)? = Value::try_from(future)?;
         } else {
             values.iter_mut().for_each(consume);

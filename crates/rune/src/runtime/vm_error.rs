@@ -353,6 +353,16 @@ cfg_std! {
     }
 }
 
+impl<T> From<Result<T, VmError>> for VmResult<T> {
+    #[inline]
+    fn from(value: Result<T, VmError>) -> Self {
+        match value {
+            Ok(ok) => VmResult::Ok(ok),
+            Err(err) => VmResult::Err(err),
+        }
+    }
+}
+
 impl<E> From<E> for VmError
 where
     VmErrorKind: From<E>,

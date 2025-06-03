@@ -71,6 +71,7 @@ use crate::Any;
 ///     }
 /// };
 ///
+/// # futures_executor::block_on(async move {
 /// let unit = rune::prepare(&mut sources).build()?;
 ///
 /// let mut vm = Vm::without_runtime(Arc::new(unit));
@@ -98,6 +99,8 @@ use crate::Any;
 /// };
 ///
 /// assert_eq!(ret, 42);
+/// # Ok::<_, rune::support::Error>(())
+/// # })?;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Debug, TryClone)]
