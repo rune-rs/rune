@@ -260,6 +260,18 @@ impl<T> VmResult<T> {
         self.into_result().unwrap()
     }
 
+    /// Calls `op` if the result is [`VmResult::Ok`], otherwise returns the
+    /// [`VmResult::Err`] value of `self`.
+    pub fn and_then<U, F>(self, op: F) -> VmResult<U>
+    where
+        F: FnOnce(T) -> VmResult<U>,
+    {
+        match self {
+            Self::Ok(value) => op(value),
+            Self::Err(error) => VmResult::Err(error),
+        }
+    }
+
     /// Convert a [`VmResult`] into a [`Result`].
     #[inline]
     pub fn into_result(self) -> Result<T, VmError> {
@@ -337,6 +349,16 @@ cfg_std! {
                 VmResult::Ok(_) => ::std::process::ExitCode::SUCCESS,
                 VmResult::Err(_) => ::std::process::ExitCode::FAILURE,
             }
+        }
+    }
+}
+
+impl<T> From<Result<T, VmError>> for VmResult<T> {
+    #[inline]
+    fn from(value: Result<T, VmError>) -> Self {
+        match value {
+            Ok(ok) => VmResult::Ok(ok),
+            Err(err) => VmResult::Err(err),
         }
     }
 }
@@ -843,9 +865,6 @@ pub(crate) enum VmErrorKind {
         actual: TypeInfo,
     },
     MissingInterfaceEnvironment,
-    ExpectedExecutionState {
-        actual: ExecutionState,
-    },
     ExpectedExitedExecutionState {
         actual: ExecutionState,
     },
@@ -1065,9 +1084,6 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MissingInterfaceEnvironment => {
                 write!(f, "Missing interface environment")
-            }
-            VmErrorKind::ExpectedExecutionState { actual } => {
-                write!(f, "Expected resume execution state, but was {actual}")
             }
             VmErrorKind::ExpectedExitedExecutionState { actual } => {
                 write!(f, "Expected exited execution state, but was {actual}")

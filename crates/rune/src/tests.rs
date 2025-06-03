@@ -163,8 +163,9 @@ where
         vm.execute(["main"], args).map_err(TestError::VmError)?
     };
 
-    let output = ::futures_executor::block_on(execute.async_complete())
-        .into_result()
+    let output = ::futures_executor::block_on(execute.resume())
+        .map_err(TestError::VmError)?
+        .into_complete()
         .map_err(TestError::VmError)?;
 
     crate::from_value(output).map_err(|error| TestError::VmError(error.into()))

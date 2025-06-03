@@ -1,8 +1,7 @@
 use core::fmt;
 
 use crate::alloc::Vec;
-use crate::runtime::{GuardedArgs, Stack, ToValue, Value, VmResult};
-use crate::vm_try;
+use crate::runtime::{GuardedArgs, Stack, ToValue, Value, VmError};
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -17,17 +16,19 @@ impl fmt::Display for DynArgsUsed {
 /// Object safe variant of args which errors instead of consumed itself.
 pub(crate) trait DynArgs {
     /// Encode arguments onto a stack.
-    fn push_to_stack(&mut self, stack: &mut Stack) -> VmResult<()>;
+    fn push_to_stack(&mut self, stack: &mut Stack) -> Result<(), VmError>;
 
     /// Get the number of arguments.
     fn count(&self) -> usize;
 }
 
 impl DynArgs for () {
-    fn push_to_stack(&mut self, _: &mut Stack) -> VmResult<()> {
-        VmResult::Ok(())
+    #[inline]
+    fn push_to_stack(&mut self, _: &mut Stack) -> Result<(), VmError> {
+        Ok(())
     }
 
+    #[inline]
     fn count(&self) -> usize {
         0
     }
@@ -37,13 +38,13 @@ impl<T> DynArgs for Option<T>
 where
     T: Args,
 {
-    fn push_to_stack(&mut self, stack: &mut Stack) -> VmResult<()> {
+    fn push_to_stack(&mut self, stack: &mut Stack) -> Result<(), VmError> {
         let Some(args) = self.take() else {
-            return VmResult::err(DynArgsUsed);
+            return Err(VmError::new(DynArgsUsed));
         };
 
-        vm_try!(args.into_stack(stack));
-        VmResult::Ok(())
+        args.into_stack(stack)?;
+        Ok(())
     }
 
     fn count(&self) -> usize {
@@ -75,15 +76,14 @@ impl<T> DynArgs for DynGuardedArgs<T>
 where
     T: GuardedArgs,
 {
-    fn push_to_stack(&mut self, stack: &mut Stack) -> VmResult<()> {
+    fn push_to_stack(&mut self, stack: &mut Stack) -> Result<(), VmError> {
         let Some(value) = self.value.take() else {
-            return VmResult::err(DynArgsUsed);
+            return Err(VmError::new(DynArgsUsed));
         };
 
         // SAFETY: We've setup the type so that the caller cannot ignore the guard.
-        self.guard = unsafe { Some(vm_try!(GuardedArgs::guarded_into_stack(value, stack))) };
-
-        VmResult::Ok(())
+        self.guard = unsafe { Some(GuardedArgs::guarded_into_stack(value, stack)?) };
+        Ok(())
     }
 
     fn count(&self) -> usize {
@@ -94,16 +94,16 @@ where
 /// Trait for converting arguments into an array.
 pub trait FixedArgs<const N: usize> {
     /// Encode arguments as array.
-    fn into_array(self) -> VmResult<[Value; N]>;
+    fn into_array(self) -> Result<[Value; N], VmError>;
 }
 
 /// Trait for converting arguments onto the stack.
 pub trait Args {
     /// Encode arguments onto a stack.
-    fn into_stack(self, stack: &mut Stack) -> VmResult<()>;
+    fn into_stack(self, stack: &mut Stack) -> Result<(), VmError>;
 
     /// Convert arguments into a vector.
-    fn try_into_vec(self) -> VmResult<Vec<Value>>;
+    fn try_into_vec(self) -> Result<Vec<Value>, VmError>;
 
     /// The number of arguments.
     fn count(&self) -> usize;
@@ -116,10 +116,10 @@ macro_rules! impl_into_args {
             $($ty: ToValue,)*
         {
             #[allow(unused)]
-            fn into_array(self) -> VmResult<[Value; $count]> {
+            fn into_array(self) -> Result<[Value; $count], VmError> {
                 let ($($value,)*) = self;
-                $(let $value = $crate::vm_try!($value.to_value());)*
-                VmResult::Ok([$($value),*])
+                $(let $value = $value.to_value()?;)*
+                Ok([$($value),*])
             }
         }
 
@@ -128,18 +128,18 @@ macro_rules! impl_into_args {
             $($ty: ToValue,)*
         {
             #[allow(unused)]
-            fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
+            fn into_stack(self, stack: &mut Stack) -> Result<(), VmError> {
                 let ($($value,)*) = self;
-                $($crate::vm_try!(stack.push($crate::vm_try!($value.to_value())));)*
-                VmResult::Ok(())
+                $(stack.push($value.to_value()?)?;)*
+                Ok(())
             }
 
             #[allow(unused)]
-            fn try_into_vec(self) -> VmResult<Vec<Value>> {
+            fn try_into_vec(self) -> Result<Vec<Value>, VmError> {
                 let ($($value,)*) = self;
-                let mut vec = $crate::vm_try!(Vec::try_with_capacity($count));
-                $($crate::vm_try!(vec.try_push($crate::vm_try!(<$ty>::to_value($value))));)*
-                VmResult::Ok(vec)
+                let mut vec = Vec::try_with_capacity($count)?;
+                $(vec.try_push(<$ty>::to_value($value)?)?;)*
+                Ok(vec)
             }
 
             #[inline]
@@ -154,17 +154,17 @@ repeat_macro!(impl_into_args);
 
 impl Args for Vec<Value> {
     #[inline]
-    fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
+    fn into_stack(self, stack: &mut Stack) -> Result<(), VmError> {
         for value in self {
-            vm_try!(stack.push(value));
+            stack.push(value)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     #[inline]
-    fn try_into_vec(self) -> VmResult<Vec<Value>> {
-        VmResult::Ok(self)
+    fn try_into_vec(self) -> Result<Vec<Value>, VmError> {
+        Ok(self)
     }
 
     #[inline]
@@ -175,17 +175,17 @@ impl Args for Vec<Value> {
 
 impl Args for rust_alloc::vec::Vec<Value> {
     #[inline]
-    fn into_stack(self, stack: &mut Stack) -> VmResult<()> {
+    fn into_stack(self, stack: &mut Stack) -> Result<(), VmError> {
         for value in self {
-            vm_try!(stack.push(value));
+            stack.push(value)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     #[inline]
-    fn try_into_vec(self) -> VmResult<Vec<Value>> {
-        VmResult::Ok(vm_try!(Vec::try_from(self)))
+    fn try_into_vec(self) -> Result<Vec<Value>, VmError> {
+        Ok(Vec::try_from(self)?)
     }
 
     #[inline]

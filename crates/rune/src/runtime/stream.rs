@@ -4,7 +4,8 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{
-    Formatter, GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmResult,
+    Formatter, GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
+    VmResult,
 };
 use crate::{vm_try, vm_write, Any};
 
@@ -28,29 +29,16 @@ use crate::{vm_try, vm_write, Any};
 /// assert!(g is Stream);
 /// ```
 #[derive(Any)]
-#[rune(impl_params = [Vm], item = ::std::stream)]
-pub struct Stream<T = Vm>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    execution: Option<VmExecution<T>>,
+#[rune(item = ::std::stream)]
+pub struct Stream {
+    execution: Option<VmExecution<Vm>>,
 }
 
-impl<T> Stream<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl Stream {
     /// Construct a stream from a virtual machine.
-    pub(crate) fn new(vm: T) -> Self {
+    pub(crate) fn new(vm: Vm) -> Self {
         Self {
             execution: Some(VmExecution::new(vm)),
-        }
-    }
-
-    /// Construct a generator from a complete execution.
-    pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
-        Self {
-            execution: Some(execution),
         }
     }
 
@@ -60,39 +48,37 @@ where
             return VmResult::Ok(None);
         };
 
-        let state = if execution.is_resumed() {
-            vm_try!(execution.async_resume_with(Value::empty()).await)
-        } else {
-            vm_try!(execution.async_resume().await)
-        };
-
-        VmResult::Ok(match state {
-            GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(_) => {
+        match vm_try!(execution.resume().await) {
+            VmOutcome::Complete(..) => {
                 self.execution = None;
-                None
+                VmResult::Ok(None)
             }
-        })
+            VmOutcome::Yielded(value) => VmResult::Ok(Some(value)),
+            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
+        }
     }
 
-    /// Resume the generator and return the next generator state.
+    /// Resume the stream with a value and return the next [`GeneratorState`].
     pub async fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
         let execution = vm_try!(self
             .execution
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete));
 
-        let state = if execution.is_resumed() {
-            vm_try!(execution.async_resume_with(value).await)
-        } else {
-            vm_try!(execution.async_resume().await)
-        };
+        let outcome = vm_try!(execution.resume().with_value(value).await);
 
-        if state.is_complete() {
-            self.execution = None;
+        match outcome {
+            VmOutcome::Complete(value) => {
+                self.execution = None;
+                VmResult::Ok(GeneratorState::Complete(value))
+            }
+            VmOutcome::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
         }
-
-        VmResult::Ok(state)
     }
 }
 
@@ -228,19 +214,7 @@ impl Stream {
     }
 }
 
-impl Stream<&mut Vm> {
-    /// Convert the current stream into one which owns its virtual machine.
-    pub fn into_owned(self) -> Stream<Vm> {
-        Stream {
-            execution: self.execution.map(|e| e.into_owned()),
-        }
-    }
-}
-
-impl<T> fmt::Debug for Stream<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl fmt::Debug for Stream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stream")
             .field("completed", &self.execution.is_none())
@@ -248,10 +222,7 @@ where
     }
 }
 
-impl<T> TryClone for Stream<T>
-where
-    T: TryClone + AsRef<Vm> + AsMut<Vm>,
-{
+impl TryClone for Stream {
     fn try_clone(&self) -> crate::alloc::Result<Self> {
         Ok(Self {
             execution: self.execution.try_clone()?,

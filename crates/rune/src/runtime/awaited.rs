@@ -1,5 +1,9 @@
-use crate::runtime::{Future, Output, Select, Vm, VmResult};
-use crate::vm_try;
+use core::future::Future as _;
+use core::pin::Pin;
+use core::task::{ready, Context, Poll};
+
+use crate::async_vm_try;
+use crate::runtime::{Future, Output, Select, Vm, VmError};
 
 /// A stored await task.
 #[derive(Debug)]
@@ -11,20 +15,29 @@ pub(crate) enum Awaited {
 }
 
 impl Awaited {
-    /// Wait for the given awaited into the specified virtual machine.
-    pub(crate) async fn into_vm(self, vm: &mut Vm) -> VmResult<()> {
-        match self {
+    pub(crate) fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        vm: &mut Vm,
+    ) -> Poll<Result<(), VmError>> {
+        let this = unsafe { Pin::get_unchecked_mut(self) };
+
+        match this {
             Self::Future(future, out) => {
-                let value = vm_try!(future.await.with_vm(vm));
-                vm_try!(out.store(vm.stack_mut(), value));
+                let future = unsafe { Pin::new_unchecked(future) };
+                let result = ready!(future.poll(cx));
+                let value = async_vm_try!(result.with_vm(vm).into_result());
+                async_vm_try!(out.store(vm.stack_mut(), value));
             }
             Self::Select(select, value_addr) => {
-                let (ip, value) = vm_try!(select.await.with_vm(vm));
+                let select = unsafe { Pin::new_unchecked(select) };
+                let result = ready!(select.poll(cx));
+                let (ip, value) = async_vm_try!(result.with_vm(vm).into_result());
                 vm.set_ip(ip);
-                vm_try!(value_addr.store(vm.stack_mut(), || value));
+                async_vm_try!(value_addr.store(vm.stack_mut(), || value));
             }
         }
 
-        VmResult::Ok(())
+        Poll::Ready(Ok(()))
     }
 }

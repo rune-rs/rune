@@ -163,7 +163,6 @@ impl<'a> Parser<'a> {
     }
 
     /// Consume the next token from the parser.
-    #[allow(clippy::should_implement_trait)]
     pub(crate) fn next(&mut self) -> compile::Result<Token> {
         if let Some(error) = self.peeker.error.take() {
             return Err(error);

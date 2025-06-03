@@ -268,10 +268,9 @@ pub fn binding(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let stream = Context::build_with_crate(|cx| {
         let mut stream = TokenStream::default();
-        let attr = context::TypeAttr::default();
         let tokens = cx.tokens_with_module(None);
 
-        for builder in derive.into_any_builders(cx, &attr, &tokens) {
+        for builder in derive.into_any_builders(cx, &tokens) {
             stream.extend(builder.expand());
         }
 

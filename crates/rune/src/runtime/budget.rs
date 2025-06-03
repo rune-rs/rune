@@ -88,6 +88,14 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     Budget { budget, value }
 }
 
+/// Replace the current budget returning a guard that will release it.
+///
+/// Use [`BudgetGuard::take`] to take permites from the returned budget.
+#[inline(never)]
+pub fn replace(budget: usize) -> BudgetGuard {
+    BudgetGuard(self::no_std::rune_budget_replace(budget))
+}
+
 /// Acquire the current budget.
 ///
 /// Use [`BudgetGuard::take`] to take permites from the returned budget.
@@ -106,6 +114,7 @@ pub struct BudgetGuard(usize);
 
 impl BudgetGuard {
     /// Take a ticker from the budget.
+    #[inline]
     pub fn take(&mut self) -> bool {
         if self.0 == usize::MAX {
             return true;
@@ -121,6 +130,7 @@ impl BudgetGuard {
 }
 
 impl Drop for BudgetGuard {
+    #[inline]
     fn drop(&mut self) {
         let _ = self::no_std::rune_budget_replace(self.0);
     }
@@ -131,6 +141,7 @@ where
     T: Callable,
 {
     /// Call the budgeted function.
+    #[inline]
     pub fn call(self) -> T::Output {
         Callable::call(self)
     }
@@ -155,6 +166,7 @@ where
 {
     type Output = T::Output;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 

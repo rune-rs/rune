@@ -37,7 +37,7 @@ async fn main() -> rune::support::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.execute(["main"], (33i64,))?.complete().into_result()?;
+    let output = vm.execute(["main"], (33i64,))?.complete()?;
     let output: i64 = rune::from_value(output)?;
 
     println!("output: {}", output);

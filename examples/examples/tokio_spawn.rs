@@ -35,13 +35,13 @@ async fn main() -> rune::support::Result<()> {
 
     let execution = vm.try_clone()?.send_execute(["main"], (5u32,))?;
     let t1 = tokio::spawn(async move {
-        execution.async_complete().await.unwrap();
+        execution.complete().await.unwrap();
         println!("timer ticked");
     });
 
     let execution = vm.try_clone()?.send_execute(["main"], (2u32,))?;
     let t2 = tokio::spawn(async move {
-        execution.async_complete().await.unwrap();
+        execution.complete().await.unwrap();
         println!("timer ticked");
     });
 

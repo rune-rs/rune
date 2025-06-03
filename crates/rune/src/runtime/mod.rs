@@ -191,7 +191,8 @@ mod vm_call;
 pub(crate) use self::vm_call::VmCall;
 
 pub(crate) mod vm_diagnostics;
-pub(crate) use self::vm_diagnostics::{VmDiagnostics, VmDiagnosticsObj};
+pub use self::vm_diagnostics::VmDiagnostics;
+pub(crate) use self::vm_diagnostics::VmDiagnosticsObj;
 
 mod vm_error;
 #[cfg(feature = "emit")]
@@ -201,7 +202,7 @@ pub(crate) use self::vm_error::{VmErrorKind, VmIntegerRepr};
 
 mod vm_execution;
 pub(crate) use self::vm_execution::ExecutionState;
-pub use self::vm_execution::{VmExecution, VmSendExecution};
+pub use self::vm_execution::{VmExecution, VmOutcome, VmResume, VmSendExecution};
 
 mod vm_halt;
 pub(crate) use self::vm_halt::{VmHalt, VmHaltInfo};

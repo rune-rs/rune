@@ -38,7 +38,7 @@ pub fn main() -> rune::support::Result<()> {
     let unit = result?;
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
-    let output = vm.execute(["main"], ())?.complete().into_result()?;
+    let output = vm.execute(["main"], ())?.complete()?;
     let output: (u32, u32) = rune::from_value(output)?;
 
     println!("{:?}", output);

@@ -31,7 +31,8 @@ impl Future {
     /// Construct a new wrapped future.
     pub(crate) fn new<T, O>(future: T) -> alloc::Result<Self>
     where
-        T: 'static + future::Future<Output = VmResult<O>>,
+        T: 'static + future::Future,
+        VmResult<O>: From<T::Output>,
         O: ToValue,
     {
         let (future, Global) = Box::into_raw_with_allocator(Box::try_new(future)?);
@@ -44,11 +45,13 @@ impl Future {
                 poll: |future, cx| unsafe {
                     match Pin::new_unchecked(&mut *future.cast::<T>()).poll(cx) {
                         Poll::Pending => Poll::Pending,
-                        Poll::Ready(VmResult::Ok(result)) => match result.to_value() {
-                            Ok(value) => Poll::Ready(VmResult::Ok(value)),
-                            Err(err) => Poll::Ready(VmResult::Err(err.into())),
+                        Poll::Ready(result) => match VmResult::from(result) {
+                            VmResult::Ok(result) => match result.to_value() {
+                                Ok(value) => Poll::Ready(VmResult::Ok(value)),
+                                Err(err) => Poll::Ready(VmResult::Err(err.into())),
+                            },
+                            VmResult::Err(err) => Poll::Ready(VmResult::Err(err)),
                         },
-                        Poll::Ready(VmResult::Err(err)) => Poll::Ready(VmResult::Err(err)),
                     }
                 },
                 drop: |future| unsafe {

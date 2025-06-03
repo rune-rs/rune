@@ -18,7 +18,7 @@ use crate::cli::{
 use crate::compile::FileSourceLoader;
 use crate::doc::{TestKind, TestParams};
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Repr, Value, Vm, VmError, VmResult};
+use crate::runtime::{Repr, Value, Vm, VmError, VmOutcome};
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, TypeHash, Unit};
 
 mod cli {
@@ -527,14 +527,14 @@ impl TestCase {
 
     async fn execute(&mut self, vm: &mut Vm, capture_io: &CaptureIo) -> Result<()> {
         let result = match vm.execute(self.hash, ()) {
-            Ok(mut execution) => execution.async_complete().await,
-            Err(err) => VmResult::Err(err),
+            Ok(mut execution) => execution.resume().await.and_then(VmOutcome::into_complete),
+            Err(err) => Err(err),
         };
 
         capture_io.drain_into(&mut self.output)?;
 
         self.outcome = match result {
-            VmResult::Ok(v) => match v.as_ref() {
+            Ok(v) => match v.as_ref() {
                 Repr::Any(value) => match value.type_hash() {
                     Result::<Value, Value>::HASH => {
                         let result = value.borrow_ref::<Result<Value, Value>>()?;
@@ -556,7 +556,7 @@ impl TestCase {
                 },
                 _ => Outcome::Ok,
             },
-            VmResult::Err(e) => Outcome::Panic(e),
+            Err(e) => Outcome::Panic(e),
         };
 
         if self.params.should_panic {

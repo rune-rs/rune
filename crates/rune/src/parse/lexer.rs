@@ -591,7 +591,6 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume the next token from the lexer.
-    #[allow(clippy::should_implement_trait)]
     pub(crate) fn next(&mut self) -> compile::Result<Option<ast::Token>> {
         'outer: loop {
             if let Some(token) = self.buffer.pop_front() {
