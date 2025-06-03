@@ -182,8 +182,6 @@ pub(crate) struct TypeAttr {
     pub(crate) constructor: TypeConstructor,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
-    /// Method to use to convert from value.
-    pub(crate) impl_params: Option<syn::punctuated::Punctuated<syn::TypeParam, Token![,]>>,
 }
 
 /// Parsed #[const_value(..)] field attributes.
@@ -775,15 +773,6 @@ impl Context {
                         attr.constructor = TypeConstructor::Implicit(meta.path.span());
                     }
 
-                    return Ok(());
-                }
-
-                if meta.path.is_ident("impl_params") {
-                    meta.input.parse::<Token![=]>()?;
-                    let content;
-                    syn::bracketed!(content in meta.input);
-                    attr.impl_params =
-                        Some(syn::punctuated::Punctuated::parse_terminated(&content)?);
                     return Ok(());
                 }
 

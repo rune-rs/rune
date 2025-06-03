@@ -67,10 +67,7 @@ pub(crate) struct VmExecutionState {
 ///
 /// When an execution is dropped, the stack of the stack of the head machine
 /// will be cleared.
-pub struct VmExecution<T = Vm>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+pub struct VmExecution<T> {
     /// The current head vm which holds the execution.
     head: T,
     /// The state of an execution.
@@ -79,24 +76,7 @@ where
     states: Vec<VmExecutionState>,
 }
 
-impl<T> VmExecution<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    /// Construct an execution from a virtual machine.
-    pub(crate) fn new(head: T) -> Self {
-        Self {
-            head,
-            state: ExecutionState::Initial,
-            states: Vec::new(),
-        }
-    }
-
-    /// Test if the current execution state is resumed.
-    pub(crate) fn is_resumed(&self) -> bool {
-        matches!(self.state, ExecutionState::Resumed(..))
-    }
-
+impl VmExecution<Vm> {
     /// Coerce the current execution into a generator if appropriate.
     ///
     /// ```
@@ -126,7 +106,7 @@ where
     /// }
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn into_generator(self) -> Generator<T> {
+    pub fn into_generator(self) -> Generator {
         Generator::from_execution(self)
     }
 
@@ -162,10 +142,31 @@ where
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn into_stream(self) -> Stream<T> {
+    pub fn into_stream(self) -> Stream {
         Stream::from_execution(self)
     }
+}
 
+impl<T> VmExecution<T> {
+    /// Construct an execution from a virtual machine.
+    pub(crate) fn new(head: T) -> Self {
+        Self {
+            head,
+            state: ExecutionState::Initial,
+            states: Vec::new(),
+        }
+    }
+
+    /// Test if the current execution state is resumed.
+    pub(crate) fn is_resumed(&self) -> bool {
+        matches!(self.state, ExecutionState::Resumed(..))
+    }
+}
+
+impl<T> VmExecution<T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
     /// Get a reference to the current virtual machine.
     pub fn vm(&self) -> &Vm {
         self.head.as_ref()
@@ -222,24 +223,6 @@ where
             diagnostics: None,
             awaited: None,
             init: Some(Init::Empty),
-        }
-    }
-
-    /// Perform a single step of the execution.
-    ///
-    /// This will set the execution budget to `1`, which means that this
-    /// execution can produce [`VmOutcome::Limited`].
-    ///
-    /// To complete this operation synchronously, use [`Step::complete`].
-    pub fn step(&mut self) -> Step<'_, 'static, T> {
-        Step {
-            _budget: budget::replace(1),
-            resume: VmResume {
-                execution: self,
-                diagnostics: None,
-                awaited: None,
-                init: None,
-            },
         }
     }
 
@@ -494,7 +477,7 @@ where
         }
     }
 
-    /// Associate [`VmDiagnostics`] with the execution.
+    /// Associate diagnostics with the execution.
     pub fn with_diagnostics<'a>(
         self,
         diagnostics: &'a mut dyn VmDiagnostics,
@@ -608,49 +591,5 @@ where
 
             async_vm_try!(this.execution.pop_state());
         }
-    }
-}
-
-/// A future that governs a single step of an execution.
-pub struct Step<'this, 'diag, T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    _budget: budget::BudgetGuard,
-    resume: VmResume<'this, 'diag, T>,
-}
-
-impl<'this, 'diag, T> Step<'this, 'diag, T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    /// Try to synchronously complete the run, returning the generator state it
-    /// produced.
-    ///
-    /// This will error if the execution is suspended through awaiting.
-    #[inline]
-    pub fn complete(self) -> VmResult<VmOutcome> {
-        let this = pin!(self);
-        let mut cx = Context::from_waker(&COMPLETE_WAKER);
-
-        match this.poll(&mut cx) {
-            Poll::Ready(result) => result,
-            Poll::Pending => VmResult::err(VmErrorKind::Halted {
-                halt: VmHaltInfo::Awaited,
-            }),
-        }
-    }
-}
-
-impl<'this, 'diag, T> Future for Step<'this, 'diag, T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    type Output = VmResult<VmOutcome>;
-
-    #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let resume = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.resume) };
-        resume.poll(cx)
     }
 }

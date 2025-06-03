@@ -25,27 +25,21 @@ use crate::{vm_try, Any};
 /// assert!(g is Generator);
 /// ```
 #[derive(Any)]
-#[rune(crate, impl_params = [Vm], item = ::std::ops::generator)]
-pub struct Generator<T = Vm>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    execution: Option<VmExecution<T>>,
+#[rune(crate, item = ::std::ops::generator)]
+pub struct Generator {
+    execution: Option<VmExecution<Vm>>,
 }
 
-impl<T> Generator<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl Generator {
     /// Construct a generator from a virtual machine.
-    pub(crate) fn new(vm: T) -> Self {
+    pub(crate) fn new(vm: Vm) -> Self {
         Self {
             execution: Some(VmExecution::new(vm)),
         }
     }
 
     /// Construct a generator from a complete execution.
-    pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
+    pub(crate) fn from_execution(execution: VmExecution<Vm>) -> Self {
         Self {
             execution: Some(execution),
         }
@@ -98,15 +92,6 @@ where
     }
 }
 
-impl Generator<&mut Vm> {
-    /// Convert the current generator into one which owns its virtual machine.
-    pub fn into_owned(self) -> Generator<Vm> {
-        Generator {
-            execution: self.execution.map(|e| e.into_owned()),
-        }
-    }
-}
-
 impl Generator {
     /// Convert into iterator
     pub fn rune_iter(self) -> Iter {
@@ -150,10 +135,7 @@ impl iter::Iterator for Iter {
     }
 }
 
-impl<T> fmt::Debug for Generator<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl fmt::Debug for Generator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Generator")
             .field("completed", &self.execution.is_none())
@@ -161,10 +143,7 @@ where
     }
 }
 
-impl<T> TryClone for Generator<T>
-where
-    T: TryClone + AsRef<Vm> + AsMut<Vm>,
-{
+impl TryClone for Generator {
     #[inline]
     fn try_clone(&self) -> Result<Self, rune_alloc::Error> {
         Ok(Self {

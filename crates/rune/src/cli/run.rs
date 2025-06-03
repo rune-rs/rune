@@ -464,7 +464,7 @@ where
             }
         }
 
-        result = match execution.step().await {
+        result = match execution.resume().with_budget(1).await {
             VmResult::Ok(VmOutcome::Complete(value)) => VmResult::Ok(Some(value)),
             VmResult::Ok(VmOutcome::Yielded(value)) => {
                 yielded = Some(value);

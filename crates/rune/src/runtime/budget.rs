@@ -114,6 +114,7 @@ pub struct BudgetGuard(usize);
 
 impl BudgetGuard {
     /// Take a ticker from the budget.
+    #[inline]
     pub fn take(&mut self) -> bool {
         if self.0 == usize::MAX {
             return true;
@@ -129,6 +130,7 @@ impl BudgetGuard {
 }
 
 impl Drop for BudgetGuard {
+    #[inline]
     fn drop(&mut self) {
         let _ = self::no_std::rune_budget_replace(self.0);
     }
@@ -139,6 +141,7 @@ where
     T: Callable,
 {
     /// Call the budgeted function.
+    #[inline]
     pub fn call(self) -> T::Output {
         Callable::call(self)
     }
@@ -163,6 +166,7 @@ where
 {
     type Output = T::Output;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
 

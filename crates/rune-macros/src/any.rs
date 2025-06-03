@@ -63,7 +63,6 @@ impl InternalCall {
     pub(super) fn into_any_builders<'a>(
         self,
         cx: &Context,
-        attr: &'a TypeAttr,
         tokens: &'a Tokens,
     ) -> Vec<TypeBuilder<'a, syn::Type>> {
         let mut output = Vec::new();
@@ -112,7 +111,6 @@ impl InternalCall {
             };
 
             output.push(TypeBuilder {
-                attr,
                 ident: item.ty,
                 type_hash,
                 type_item,
@@ -181,7 +179,6 @@ impl Derive {
         }
 
         Ok(TypeBuilder {
-            attr,
             ident: self.input.ident,
             type_hash,
             type_item,
@@ -590,7 +587,6 @@ enum TypeKind {
 }
 
 pub struct TypeBuilder<'a, T> {
-    attr: &'a TypeAttr,
     ident: T,
     /// Hash of the type.
     type_hash: Hash,
@@ -618,7 +614,6 @@ where
 
     pub(super) fn expand_derive(self) -> TokenStream {
         let TypeBuilder {
-            attr,
             ident,
             type_hash,
             type_item,
@@ -659,30 +654,8 @@ where
             ..
         } = tokens;
 
-        let empty;
-        let mut current;
-        let generic_names;
-
-        let (impl_generics, type_generics, where_clause) = match &attr.impl_params {
-            Some(params) => {
-                empty = syn::Generics::default();
-                current = syn::Generics::default();
-
-                for p in params {
-                    current.params.push(syn::GenericParam::Type(p.clone()));
-                }
-
-                let (impl_generics, _, where_clause) = empty.split_for_impl();
-                let (_, type_generics, _) = current.split_for_impl();
-                generic_names = Vec::new();
-                (impl_generics, type_generics, where_clause)
-            }
-            None => {
-                current = generics;
-                generic_names = current.type_params().map(|v| &v.ident).collect::<Vec<_>>();
-                current.split_for_impl()
-            }
-        };
+        let generic_names = generics.type_params().map(|v| &v.ident).collect::<Vec<_>>();
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
 
         let named_rest = if let [first_name, remainder @ ..] = &generic_names[..] {
             Some(quote! {

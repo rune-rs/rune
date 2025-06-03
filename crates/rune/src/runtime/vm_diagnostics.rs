@@ -4,9 +4,13 @@ use crate::hash::Hash;
 use crate::runtime::VmResult;
 use crate::{vm_try, Diagnostics};
 
+/// A trait for runtime diagnostics in the virtual machine.
 pub trait VmDiagnostics {
+    /// Mark that a function has been used.
     fn function_used(&mut self, hash: Hash, at: usize) -> VmResult<()>;
 
+    /// Returns the vtable for this diagnostics object.
+    #[doc(hidden)]
     fn vtable(&self) -> &'static VmDiagnosticsObjVtable;
 }
 

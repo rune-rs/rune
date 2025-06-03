@@ -29,27 +29,21 @@ use crate::{vm_try, vm_write, Any};
 /// assert!(g is Stream);
 /// ```
 #[derive(Any)]
-#[rune(impl_params = [Vm], item = ::std::stream)]
-pub struct Stream<T = Vm>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
-    execution: Option<VmExecution<T>>,
+#[rune(item = ::std::stream)]
+pub struct Stream {
+    execution: Option<VmExecution<Vm>>,
 }
 
-impl<T> Stream<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl Stream {
     /// Construct a stream from a virtual machine.
-    pub(crate) fn new(vm: T) -> Self {
+    pub(crate) fn new(vm: Vm) -> Self {
         Self {
             execution: Some(VmExecution::new(vm)),
         }
     }
 
     /// Construct a generator from a complete execution.
-    pub(crate) fn from_execution(execution: VmExecution<T>) -> Self {
+    pub(crate) fn from_execution(execution: VmExecution<Vm>) -> Self {
         Self {
             execution: Some(execution),
         }
@@ -223,19 +217,7 @@ impl Stream {
     }
 }
 
-impl Stream<&mut Vm> {
-    /// Convert the current stream into one which owns its virtual machine.
-    pub fn into_owned(self) -> Stream<Vm> {
-        Stream {
-            execution: self.execution.map(|e| e.into_owned()),
-        }
-    }
-}
-
-impl<T> fmt::Debug for Stream<T>
-where
-    T: AsRef<Vm> + AsMut<Vm>,
-{
+impl fmt::Debug for Stream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stream")
             .field("completed", &self.execution.is_none())
@@ -243,10 +225,7 @@ where
     }
 }
 
-impl<T> TryClone for Stream<T>
-where
-    T: TryClone + AsRef<Vm> + AsMut<Vm>,
-{
+impl TryClone for Stream {
     fn try_clone(&self) -> crate::alloc::Result<Self> {
         Ok(Self {
             execution: self.execution.try_clone()?,

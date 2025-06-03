@@ -191,7 +191,8 @@ mod vm_call;
 pub(crate) use self::vm_call::VmCall;
 
 pub(crate) mod vm_diagnostics;
-pub(crate) use self::vm_diagnostics::{VmDiagnostics, VmDiagnosticsObj};
+pub use self::vm_diagnostics::VmDiagnostics;
+pub(crate) use self::vm_diagnostics::VmDiagnosticsObj;
 
 mod vm_error;
 #[cfg(feature = "emit")]
