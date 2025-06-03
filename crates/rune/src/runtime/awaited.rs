@@ -26,13 +26,13 @@ impl Awaited {
             Self::Future(future, out) => {
                 let future = unsafe { Pin::new_unchecked(future) };
                 let result = ready!(future.poll(cx));
-                let value = async_vm_try!(result.with_vm(vm).into_result());
+                let value = async_vm_try!(VmError::with_vm(result, vm));
                 async_vm_try!(out.store(vm.stack_mut(), value));
             }
             Self::Select(select, value_addr) => {
                 let select = unsafe { Pin::new_unchecked(select) };
                 let result = ready!(select.poll(cx));
-                let (ip, value) = async_vm_try!(result.with_vm(vm).into_result());
+                let (ip, value) = async_vm_try!(VmError::with_vm(result, vm));
                 vm.set_ip(ip);
                 async_vm_try!(value_addr.store(vm.stack_mut(), || value));
             }

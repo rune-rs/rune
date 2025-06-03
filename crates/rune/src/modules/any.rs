@@ -77,5 +77,5 @@ fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
 #[rune::function]
 #[inline]
 pub fn type_name_of_val(value: Value) -> VmResult<String> {
-    value.into_type_name()
+    value.into_type_name().into()
 }

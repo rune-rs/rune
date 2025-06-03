@@ -561,7 +561,7 @@ impl Vm {
         hash: impl ToTypeHash,
         args: &mut dyn DynArgs,
         out: Output,
-    ) -> VmResult<CallResult<()>> {
+    ) -> Result<CallResult<()>, VmError> {
         let count = args.count().wrapping_add(1);
         let type_hash = target.type_hash();
         let hash = Hash::associated_function(type_hash, hash.to_type_hash());
@@ -577,7 +577,7 @@ impl Vm {
         name: impl IntoHash,
         args: &mut dyn DynArgs,
         out: Output,
-    ) -> VmResult<CallResult<()>> {
+    ) -> Result<CallResult<()>, VmError> {
         let count = args.count().wrapping_add(1);
         let hash = Hash::field_function(protocol, target.type_hash(), name);
         self.call_hash_with(Isolated::None, hash, target, args, count, out)
@@ -592,19 +592,19 @@ impl Vm {
         index: usize,
         args: &mut dyn DynArgs,
         out: Output,
-    ) -> VmResult<CallResult<()>> {
+    ) -> Result<CallResult<()>, VmError> {
         let count = args.count().wrapping_add(1);
         let hash = Hash::index_function(protocol, target.type_hash(), Hash::index(index));
         self.call_hash_with(Isolated::None, hash, target, args, count, out)
     }
 
-    fn called_function_hook(&self, hash: Hash) -> VmResult<()> {
+    fn called_function_hook(&self, hash: Hash) -> Result<(), VmError> {
         runtime::env::exclusive(|_, _, diagnostics| {
             if let Some(diagnostics) = diagnostics {
-                vm_try!(diagnostics.function_used(hash, self.ip()));
+                diagnostics.function_used(hash, self.ip())?;
             }
 
-            VmResult::Ok(())
+            Ok(())
         })
     }
 
@@ -617,18 +617,18 @@ impl Vm {
         args: &mut dyn DynArgs,
         count: usize,
         out: Output,
-    ) -> VmResult<CallResult<()>> {
+    ) -> Result<CallResult<()>, VmError> {
         if let Some(handler) = self.context.function(&hash) {
             let addr = self.stack.addr();
 
-            vm_try!(self.called_function_hook(hash));
-            vm_try!(self.stack.push(target));
-            vm_try!(args.push_to_stack(&mut self.stack));
+            self.called_function_hook(hash)?;
+            self.stack.push(target)?;
+            args.push_to_stack(&mut self.stack)?;
 
             let result = handler(&mut self.stack, addr, count, out);
             self.stack.truncate(addr);
-            vm_try!(result);
-            return VmResult::Ok(CallResult::Ok(()));
+            result?;
+            return Ok(CallResult::Ok(()));
         }
 
         if let Some(UnitFn::Offset {
@@ -638,25 +638,25 @@ impl Vm {
             ..
         }) = self.unit.function(&hash)
         {
-            vm_try!(check_args(count, *expected));
+            check_args(count, *expected)?;
 
             let addr = self.stack.addr();
 
-            vm_try!(self.called_function_hook(hash));
-            vm_try!(self.stack.push(target));
-            vm_try!(args.push_to_stack(&mut self.stack));
+            self.called_function_hook(hash)?;
+            self.stack.push(target)?;
+            args.push_to_stack(&mut self.stack)?;
 
             let result = self.call_offset_fn(*offset, *call, addr, count, isolated, out);
 
-            if vm_try!(result) {
+            if result? {
                 self.stack.truncate(addr);
-                return VmResult::Ok(CallResult::Frame);
+                return Ok(CallResult::Frame);
             } else {
-                return VmResult::Ok(CallResult::Ok(()));
+                return Ok(CallResult::Ok(()));
             }
         }
 
-        VmResult::Ok(CallResult::Unsupported(target))
+        Ok(CallResult::Unsupported(target))
     }
 
     #[cfg_attr(feature = "bench", inline(never))]

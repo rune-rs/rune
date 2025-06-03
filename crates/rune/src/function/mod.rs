@@ -9,20 +9,20 @@ use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
     self, AnyTypeInfo, FromValue, InstAddress, MaybeTypeOf, Memory, Output, RuntimeError, ToReturn,
-    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmErrorKind, VmResult,
+    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind, VmResult,
 };
 
 // Expand to function variable bindings.
 macro_rules! access_memory {
     ($count:expr, $add:expr, $memory:ident, $addr:ident, $args:ident, $($from_fn:path, $var:ident, $num:expr),* $(,)?) => {
         if $args != $count + $add {
-            return VmResult::err(VmErrorKind::BadArgumentCount {
+            return Err(VmError::new(VmErrorKind::BadArgumentCount {
                 actual: $args,
                 expected: $count + $add,
-            });
+            }));
         }
 
-        let [$($var,)*] = $crate::vm_try!($memory.slice_at_mut($addr, $args)) else {
+        let [$($var,)*] = $memory.slice_at_mut($addr, $args)? else {
             unreachable!();
         };
 
@@ -34,7 +34,7 @@ macro_rules! access_memory {
                 Err(error) => {
                     return VmResult::err(error).with_error(|| VmErrorKind::BadArgument {
                         arg: $num,
-                    });
+                    }).into_result();
                 }
             };
         )*
@@ -86,7 +86,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
         addr: InstAddress,
         args: usize,
         out: Output,
-    ) -> VmResult<()>;
+    ) -> Result<(), VmError>;
 }
 
 /// Trait used to provide the [`associated_function`] function.
@@ -116,7 +116,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
         addr: InstAddress,
         args: usize,
         out: Output,
-    ) -> VmResult<()>;
+    ) -> Result<(), VmError>;
 }
 
 macro_rules! impl_instance_function_traits {
@@ -132,7 +132,7 @@ macro_rules! impl_instance_function_traits {
             const ARGS: usize  = <T as Function<(Instance, $($ty,)*), Kind>>::ARGS;
 
             #[inline]
-            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
                 Function::fn_call(self, memory, addr, args, out)
             }
         }
@@ -241,7 +241,7 @@ macro_rules! impl_function_traits {
             const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
                 access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to memory, so we can guarantee
@@ -249,9 +249,9 @@ macro_rules! impl_function_traits {
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let value = $crate::vm_try!(ToReturn::to_return(ret));
-                $crate::vm_try!(out.store(memory, value));
-                VmResult::Ok(())
+                let value = ToReturn::to_return(ret)?;
+                out.store(memory, value)?;
+                Ok(())
             }
         }
 
@@ -267,7 +267,7 @@ macro_rules! impl_function_traits {
             const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
                 access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);
@@ -277,14 +277,13 @@ macro_rules! impl_function_traits {
                 // used.
                 $(drop($var.1);)*
 
-                let ret = $crate::vm_try!(runtime::Future::new(async move {
-                    let output = fut.await;
-                    VmResult::Ok($crate::vm_try!(ToReturn::to_return(output)))
-                }));
+                let ret = runtime::Future::new(async move {
+                    ToReturn::to_return(fut.await)
+                })?;
 
-                let value = $crate::vm_try!(Value::try_from(ret));
-                $crate::vm_try!(out.store(memory, value));
-                VmResult::Ok(())
+                let value = Value::try_from(ret)?;
+                out.store(memory, value)?;
+                Ok(())
             }
         }
     };

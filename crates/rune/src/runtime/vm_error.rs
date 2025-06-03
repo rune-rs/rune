@@ -40,6 +40,22 @@ impl VmError {
         }
     }
 
+    /// Apply the given frame to the current result.
+    pub(crate) fn with_vm<T>(result: Result<T, Self>, vm: &Vm) -> Result<T, Self> {
+        match result {
+            Ok(ok) => Ok(ok),
+            Err(mut err) => {
+                err.inner.stacktrace.push(VmErrorLocation {
+                    unit: vm.unit().clone(),
+                    ip: vm.last_ip(),
+                    frames: vm.call_frames().to_vec(),
+                });
+
+                Err(err)
+            }
+        }
+    }
+
     /// Construct an error containing a panic.
     pub fn panic<D>(message: D) -> Self
     where

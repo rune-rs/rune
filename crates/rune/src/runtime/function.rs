@@ -16,7 +16,7 @@ use crate::{vm_try, vm_write, Any, Hash};
 use super::{
     AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs,
     InstAddress, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
-    VmCall, VmErrorKind, VmHalt, VmResult,
+    VmCall, VmError, VmErrorKind, VmHalt, VmResult,
 };
 
 /// The type of a function in Rune.
@@ -841,17 +841,14 @@ struct FnOffset {
 impl FnOffset {
     /// Perform a call into the specified offset and return the produced value.
     #[tracing::instrument(skip_all, fields(args = args.count(), extra = extra.count(), ?self.offset, ?self.call, ?self.args, ?self.hash))]
-    fn call(&self, args: impl GuardedArgs, extra: impl Args) -> VmResult<Value> {
-        vm_try!(check_args(
-            args.count().wrapping_add(extra.count()),
-            self.args
-        ));
+    fn call(&self, args: impl GuardedArgs, extra: impl Args) -> Result<Value, VmError> {
+        check_args(args.count().wrapping_add(extra.count()), self.args)?;
 
         let mut vm = Vm::new(self.context.clone(), self.unit.clone());
 
         vm.set_ip(self.offset);
-        let _guard = vm_try!(unsafe { args.guarded_into_stack(vm.stack_mut()) });
-        vm_try!(extra.into_stack(vm.stack_mut()));
+        let _guard = unsafe { args.guarded_into_stack(vm.stack_mut())? };
+        extra.into_stack(vm.stack_mut())?;
 
         self.call.call_with_vm(vm)
     }
@@ -947,10 +944,14 @@ impl FromValue for SyncFunction {
     }
 }
 
-fn check_args(actual: usize, expected: usize) -> VmResult<()> {
+#[inline]
+fn check_args(actual: usize, expected: usize) -> Result<(), VmError> {
     if actual != expected {
-        return VmResult::err(VmErrorKind::BadArgumentCount { expected, actual });
+        return Err(VmError::new(VmErrorKind::BadArgumentCount {
+            expected,
+            actual,
+        }));
     }
 
-    VmResult::Ok(())
+    Ok(())
 }

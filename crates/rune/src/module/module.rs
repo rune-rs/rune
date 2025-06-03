@@ -1111,7 +1111,9 @@ impl Module {
         ModuleRawFunctionBuilder {
             module: self,
             name,
-            handler: Arc::new(move |stack, addr, args, output| f(stack, addr, args, output)),
+            handler: Arc::new(move |stack, addr, args, output| {
+                f(stack, addr, args, output).into_result()
+            }),
         }
     }
 

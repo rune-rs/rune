@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::runtime::{Future, Generator, Stream, Value, Vm, VmResult};
-use crate::vm_try;
+use crate::runtime::{Future, Generator, Stream, Value, Vm, VmError};
 
 /// The calling convention of a function.
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -31,17 +30,15 @@ pub enum Call {
 impl Call {
     /// Perform the call with the given virtual machine.
     #[inline]
-    pub(crate) fn call_with_vm(self, vm: Vm) -> VmResult<Value> {
-        VmResult::Ok(match self {
-            Call::Stream => vm_try!(Value::try_from(Stream::new(vm))),
-            Call::Generator => vm_try!(Value::try_from(Generator::new(vm))),
-            Call::Immediate => vm_try!(vm.complete()),
+    pub(crate) fn call_with_vm(self, vm: Vm) -> Result<Value, VmError> {
+        Ok(match self {
+            Call::Stream => Value::try_from(Stream::new(vm))?,
+            Call::Generator => Value::try_from(Generator::new(vm))?,
+            Call::Immediate => vm.complete()?,
             Call::Async => {
                 let mut execution = vm.into_execution();
-                let future = vm_try!(Future::new(async move {
-                    execution.resume().await?.into_complete()
-                }));
-                vm_try!(Value::try_from(future))
+                let future = Future::new(async move { execution.resume().await?.into_complete() })?;
+                Value::try_from(future)?
             }
         })
     }

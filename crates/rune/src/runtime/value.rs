@@ -39,8 +39,8 @@ use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
     IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
-    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmErrorKind,
-    VmIntegerRepr, VmResult,
+    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmError,
+    VmErrorKind, VmIntegerRepr, VmResult,
 };
 
 /// Defined guard for a reference value.
@@ -560,29 +560,33 @@ impl Value {
     /// environment.
     ///
     /// [`Vm`]: crate::Vm
-    pub fn into_type_name(self) -> VmResult<String> {
+    pub fn into_type_name(self) -> Result<String, VmError> {
         let hash = Hash::associated_function(self.type_hash(), &Protocol::INTO_TYPE_NAME);
 
         crate::runtime::env::shared(|context, unit| {
             if let Some(name) = context.constant(&hash) {
                 match name.as_kind() {
-                    ConstValueKind::String(s) => {
-                        return VmResult::Ok(vm_try!(String::try_from(s.as_str())))
+                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_str())?),
+                    _ => {
+                        return Err(VmError::new(VmErrorKind::expected::<String>(
+                            name.type_info(),
+                        )))
                     }
-                    _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
             if let Some(name) = unit.constant(&hash) {
                 match name.as_kind() {
-                    ConstValueKind::String(s) => {
-                        return VmResult::Ok(vm_try!(String::try_from(s.as_str())))
+                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_str())?),
+                    _ => {
+                        return Err(VmError::new(VmErrorKind::expected::<String>(
+                            name.type_info(),
+                        )))
                     }
-                    _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
-            VmResult::Ok(vm_try!(self.type_info().try_to_string()))
+            Ok(self.type_info().try_to_string()?)
         })
     }
 
@@ -903,9 +907,7 @@ impl Value {
             repr => Value::from(repr),
         };
 
-        let value = EnvProtocolCaller
-            .call_protocol_fn(&Protocol::INTO_FUTURE, target, &mut ())
-            .into_result()?;
+        let value = EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_FUTURE, target, &mut ())?;
 
         Future::from_value(value)
     }
@@ -1499,7 +1501,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn protocol_into_iter(&self) -> VmResult<Value> {
+    pub(crate) fn protocol_into_iter(&self) -> Result<Value, VmError> {
         EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_ITER, self.clone(), &mut ())
     }
 

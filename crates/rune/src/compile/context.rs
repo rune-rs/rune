@@ -146,9 +146,10 @@ impl TraitContext<'_> {
     where
         F: Function<A, Plain>,
     {
-        self.raw_function(name, move |memory, addr, len, out| {
-            handler.fn_call(memory, addr, len, out)
-        })
+        let handler: Arc<FunctionHandler> =
+            Arc::new(move |memory, addr, len, out| handler.fn_call(memory, addr, len, out));
+        self.function_handler(name, &handler)?;
+        Ok(handler)
     }
 
     /// Define a new associated raw function for the current type.
@@ -160,7 +161,8 @@ impl TraitContext<'_> {
     where
         F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
     {
-        let handler: Arc<FunctionHandler> = Arc::new(handler);
+        let handler: Arc<FunctionHandler> =
+            Arc::new(move |memory, addr, len, out| handler(memory, addr, len, out).into_result());
         self.function_handler(name, &handler)?;
         Ok(handler)
     }
