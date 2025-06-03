@@ -628,15 +628,15 @@ impl Value {
     }
 
     /// Move the interior value.
-    pub(crate) fn move_(self) -> VmResult<Self> {
+    pub(crate) fn move_(self) -> Result<Self, VmError> {
         match self.repr {
-            Repr::Dynamic(value) => VmResult::Ok(Value {
-                repr: Repr::Dynamic(vm_try!(value.take())),
+            Repr::Dynamic(value) => Ok(Value {
+                repr: Repr::Dynamic(value.take()?),
             }),
-            Repr::Any(value) => VmResult::Ok(Value {
-                repr: Repr::Any(vm_try!(value.take())),
+            Repr::Any(value) => Ok(Value {
+                repr: Repr::Any(value.take()?),
             }),
-            repr => VmResult::Ok(Value { repr }),
+            repr => Ok(Value { repr }),
         }
     }
 
