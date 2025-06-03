@@ -163,7 +163,10 @@ where
         vm.execute(["main"], args).map_err(TestError::VmError)?
     };
 
-    let output = ::futures_executor::block_on(execute.async_complete())
+    let output = ::futures_executor::block_on(execute.resume())
+        .into_result()
+        .map_err(TestError::VmError)?
+        .into_complete()
         .into_result()
         .map_err(TestError::VmError)?;
 

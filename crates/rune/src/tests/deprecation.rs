@@ -89,7 +89,7 @@ fn test_deprecation_warnings() -> Result<()> {
     );
 
     let mut vm = Vm::new(Arc::new(context.runtime()?), unit.clone());
-    vm.call_with_diagnostics(["main"], (), Some(&mut diagnostics))?;
+    vm.call_with_diagnostics(["main"], (), &mut diagnostics)?;
 
     // print diagnostics - just for manual check
     if !diagnostics.is_empty() {
@@ -122,9 +122,7 @@ async fn test_deprecation_warnings_async() -> Result<()> {
 
     let vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
     let future = vm.send_execute(["main"], ())?;
-    let _ = future
-        .async_complete_with_diagnostics(Some(&mut diagnostics))
-        .await;
+    let _ = future.complete_with_diagnostics(&mut diagnostics).await;
 
     // print diagnostics - just for manual check
     if !diagnostics.is_empty() {

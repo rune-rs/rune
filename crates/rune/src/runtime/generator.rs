@@ -58,19 +58,21 @@ where
             return VmResult::Ok(None);
         };
 
-        let state = if execution.is_resumed() {
-            vm_try!(execution.resume_with(Value::empty()))
+        let outcome = if execution.is_resumed() {
+            vm_try!(execution.resume().with_value(Value::empty()).complete())
         } else {
-            vm_try!(execution.resume())
+            vm_try!(execution.resume().complete())
         };
 
-        VmResult::Ok(match state {
-            GeneratorState::Yielded(value) => Some(value),
+        let state = vm_try!(outcome.into_generator_state());
+
+        match state {
+            GeneratorState::Yielded(value) => VmResult::Ok(Some(value)),
             GeneratorState::Complete(_) => {
                 self.execution = None;
-                None
+                VmResult::Ok(None)
             }
-        })
+        }
     }
 
     /// Resume the generator with a value and get the next generator state.
@@ -80,11 +82,13 @@ where
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete));
 
-        let state = if execution.is_resumed() {
-            vm_try!(execution.resume_with(value))
+        let outcome = if execution.is_resumed() {
+            vm_try!(execution.resume().with_value(value).complete())
         } else {
-            vm_try!(execution.resume())
+            vm_try!(execution.resume().complete())
         };
+
+        let state = vm_try!(outcome.into_generator_state());
 
         if state.is_complete() {
             self.execution = None;

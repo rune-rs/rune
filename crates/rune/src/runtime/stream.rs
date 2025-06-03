@@ -61,13 +61,7 @@ where
             return VmResult::Ok(None);
         };
 
-        let outcome = if execution.is_resumed() {
-            vm_try!(execution.async_resume_with(Value::empty()).await)
-        } else {
-            vm_try!(execution.async_resume().await)
-        };
-
-        match outcome {
+        match vm_try!(execution.resume().await) {
             VmOutcome::Complete(value) => VmResult::Ok(Some(value)),
             VmOutcome::Yielded(..) => {
                 self.execution = None;
@@ -86,13 +80,8 @@ where
             .as_mut()
             .ok_or(VmErrorKind::GeneratorComplete));
 
-        let state = if execution.is_resumed() {
-            vm_try!(execution.async_resume_with(value).await)
-        } else {
-            vm_try!(execution.async_resume().await)
-        };
-
-        let state = vm_try!(state.into_generator_state());
+        let outcome = vm_try!(execution.resume().with_value(value).await);
+        let state = vm_try!(outcome.into_generator_state());
 
         if state.is_complete() {
             self.execution = None;

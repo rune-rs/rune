@@ -25,8 +25,8 @@ use super::{
     Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type,
     TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
-    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmResult,
-    VmSendExecution,
+    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome,
+    VmResult, VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -330,7 +330,12 @@ impl Vm {
 
     /// Run the given vm to completion with support for async functions.
     pub async fn async_complete(self) -> Result<Value, VmError> {
-        self.into_execution().async_complete().await.into_result()
+        self.into_execution()
+            .resume()
+            .await
+            .into_result()?
+            .into_complete()
+            .into_result()
     }
 
     /// Call the function identified by the given name.
@@ -416,16 +421,6 @@ impl Vm {
     ///
     /// This function permits for using references since it doesn't defer its
     /// execution.
-    ///
-    /// # Panics
-    ///
-    /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`] this call
-    /// will panic as we are trying to free the metadata relatedc to the
-    /// reference.
-    ///
-    /// [`Mut<T>`]: crate::Mut
-    /// [`Ref<T>`]: crate::Ref
     pub fn call(
         &mut self,
         name: impl ToTypeHash,
@@ -456,21 +451,11 @@ impl Vm {
     ///
     /// This function permits for using references since it doesn't defer its
     /// execution.
-    ///
-    /// # Panics
-    ///
-    /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`] this call
-    /// will panic as we are trying to free the metadata relatedc to the
-    /// reference.
-    ///
-    /// [`Mut<T>`]: crate::Mut
-    /// [`Ref<T>`]: crate::Ref
     pub fn call_with_diagnostics(
         &mut self,
         name: impl ToTypeHash,
         args: impl GuardedArgs,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
+        diagnostics: &mut dyn VmDiagnostics,
     ) -> Result<Value, VmError> {
         self.set_entrypoint(name, args.count())?;
 
@@ -484,15 +469,17 @@ impl Vm {
             // above.
             let vm = ClearStack(self);
             VmExecution::new(&mut *vm.0)
-                .complete_with_diagnostics(diagnostics)
-                .into_result()?
+                .resume()
+                .with_diagnostics(diagnostics)
+                .complete()
+                .and_then(VmOutcome::into_complete)
         };
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
-        Ok(value)
+        value.into_result()
     }
 
     /// Call the given function immediately asynchronously, returning the
@@ -500,16 +487,6 @@ impl Vm {
     ///
     /// This function permits for using references since it doesn't defer its
     /// execution.
-    ///
-    /// # Panics
-    ///
-    /// If any of the arguments passed in are references, and that references is
-    /// captured somewhere in the call as [`Mut<T>`] or [`Ref<T>`]
-    /// this call will panic as we are trying to free the metadata relatedc to
-    /// the reference.
-    ///
-    /// [`Mut<T>`]: runtime::Mut
-    /// [`Ref<T>`]: runtime::Ref
     pub async fn async_call<A, N>(&mut self, name: N, args: A) -> Result<Value, VmError>
     where
         N: ToTypeHash,
@@ -527,16 +504,16 @@ impl Vm {
             // above.
             let vm = ClearStack(self);
             VmExecution::new(&mut *vm.0)
-                .async_complete()
+                .resume()
                 .await
-                .into_result()?
+                .and_then(VmOutcome::into_complete)
         };
 
         // Note: this might panic if something in the vm is holding on to a
         // reference of the value. We should prevent it from being possible to
         // take any owned references to values held by this.
         drop(guard);
-        Ok(value)
+        value.into_result()
     }
 
     /// Update the instruction pointer to match the function matching the given
@@ -1144,7 +1121,8 @@ impl Vm {
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
             vm.ip = offset;
             let mut execution = vm.into_execution();
-            let future = Future::new(async move { execution.async_complete().await })?;
+            let future =
+                Future::new(async move { vm_try!(execution.resume().await).into_complete() })?;
             *self.stack.at_mut(at)? = Value::try_from(future)?;
         } else {
             values.iter_mut().for_each(consume);

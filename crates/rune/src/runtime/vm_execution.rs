@@ -7,6 +7,7 @@ use core::task::{ready, Context, Poll, RawWaker, RawWakerVTable, Waker};
 use rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
+use crate::runtime::budget::Budget;
 use crate::runtime::{budget, Awaited};
 use crate::shared::AssertSend;
 use crate::{async_vm_try, vm_try};
@@ -23,8 +24,9 @@ static COMPLETE_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
     |_| {},
 );
 
+// SAFETY: This waker does nothing.
 static COMPLETE_WAKER: Waker =
-    const { unsafe { Waker::from_raw(RawWaker::new(&(), &COMPLETE_WAKER_VTABLE)) } };
+    unsafe { Waker::from_raw(RawWaker::new(&(), &COMPLETE_WAKER_VTABLE)) };
 
 /// The state of an execution. We keep track of this because it's important to
 /// correctly interact with functions that yield (like generators and streams)
@@ -174,109 +176,65 @@ where
         self.head.as_mut()
     }
 
-    /// Complete the current execution without support for async instructions.
+    /// Synchronously complete the current execution.
     ///
-    /// This will error if the execution is suspended through yielding.
-    pub fn async_complete(&mut self) -> AsyncComplete<'_, 'static, T> {
-        AsyncComplete {
-            future: self.async_resume(),
-        }
-    }
-
-    /// Complete the current execution without support for async instructions.
+    /// # Errors
     ///
-    /// If any async instructions are encountered, this will error. This will
-    /// also error if the execution is suspended through yielding.
+    /// If anything except the completion of the execution is encountered, this
+    /// will result in an error.
+    ///
+    /// To handle other outcomes and more configurability see
+    /// [`VmExecution::resume`].
     pub fn complete(&mut self) -> VmResult<Value> {
-        self.complete_with_diagnostics(None)
+        vm_try!(self.resume().complete()).into_complete()
     }
 
-    /// Complete the current execution without support for async instructions.
+    /// Asynchronously complete the current execution.
     ///
-    /// If any async instructions are encountered, this will error. This will
-    /// also error if the execution is suspended through yielding.
-    pub fn complete_with_diagnostics(
-        &mut self,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<Value> {
-        match vm_try!(self.resume_with_diagnostics(diagnostics)) {
-            GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                halt: VmHaltInfo::Yielded,
-            }),
+    /// # Errors
+    ///
+    /// If anything except the completion of the execution is encountered, this
+    /// will result in an error.
+    ///
+    /// To handle other outcomes and more configurability see
+    /// [`VmExecution::resume`].
+    pub async fn async_complete(&mut self) -> VmResult<Value> {
+        vm_try!(self.resume().await).into_complete()
+    }
+
+    /// Resume the current execution.
+    ///
+    /// To complete this operation synchronously, use [`VmResume::complete`].
+    ///
+    /// ## Resume with a value
+    ///
+    /// To resume an execution with a value, use [`VmResume::with_value`]. This
+    /// requires that the execution has yielded first, otherwise an error will
+    /// be produced.
+    ///
+    /// ## Resume with diagnostics
+    ///
+    /// To associated [`VmDiagnostics`] with the execution, use
+    /// [`VmResume::with_diagnostics`].
+    pub fn resume(&mut self) -> VmResume<'_, 'static, T> {
+        VmResume {
+            execution: self,
+            diagnostics: None,
+            awaited: None,
+            init: Some(Init::Empty),
         }
     }
 
-    /// Resume the current execution with the given value and resume
-    /// asynchronous execution.
-    pub fn async_resume_with(&mut self, value: Value) -> Resume<'_, 'static, T> {
-        self.inner_resume(None, Init::Value(value))
-    }
-
-    /// Resume the current execution with support for async instructions.
+    /// Perform a single step of the execution.
     ///
-    /// If the function being executed is a generator or stream this will resume
-    /// it while returning a unit from the current `yield`.
-    pub fn async_resume(&mut self) -> Resume<'_, 'static, T> {
-        self.inner_resume(None, Init::Empty)
-    }
-
-    /// Resume the current execution with support for async instructions.
+    /// This will set the execution budget to `1`, which means that this
+    /// execution can produce [`VmOutcome::Limited`].
     ///
-    /// If the function being executed is a generator or stream this will resume
-    /// it while returning a unit from the current `yield`.
-    pub fn async_resume_with_diagnostics<'this, 'diag>(
-        &'this mut self,
-        diagnostics: Option<&'diag mut dyn VmDiagnostics>,
-    ) -> Resume<'this, 'diag, T> {
-        self.inner_resume(diagnostics, Init::Empty)
-    }
-
-    /// Resume the current execution with the given value and resume synchronous
-    /// execution.
-    #[tracing::instrument(skip_all, fields(?value))]
-    pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        vm_try!(self.inner_resume(None, Init::Value(value)).complete()).into_generator_state()
-    }
-
-    /// Resume the current execution without support for async instructions.
-    ///
-    /// If the function being executed is a generator or stream this will resume
-    /// it while returning a unit from the current `yield`.
-    ///
-    /// If any async instructions are encountered, this will error.
-    pub fn resume(&mut self) -> VmResult<GeneratorState> {
-        self.resume_with_diagnostics(None)
-    }
-
-    /// Resume the current execution without support for async instructions.
-    ///
-    /// If the function being executed is a generator or stream this will resume
-    /// it while returning a unit from the current `yield`.
-    ///
-    /// If any async instructions are encountered, this will error.
-    #[tracing::instrument(skip_all, fields(diagnostics=diagnostics.is_some()))]
-    pub fn resume_with_diagnostics(
-        &mut self,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        vm_try!(self.inner_resume(diagnostics, Init::Empty).complete()).into_generator_state()
-    }
-
-    /// Step the single execution for one step without support for async
-    /// instructions.
-    ///
-    /// If any async instructions are encountered, this will error.
-    pub fn step(&mut self) -> VmResult<VmOutcome> {
-        self.async_step().complete()
-    }
-
-    /// Step the single execution for one step with support for async
-    /// instructions.
-    pub fn async_step(&mut self) -> Step<'_, 'static, T> {
+    /// To complete this operation synchronously, use [`Step::complete`].
+    pub fn step(&mut self) -> Step<'_, 'static, T> {
         Step {
             _budget: budget::replace(1),
-            resume: Resume {
+            resume: VmResume {
                 execution: self,
                 diagnostics: None,
                 awaited: None,
@@ -330,20 +288,6 @@ where
 
         VmResult::Ok(())
     }
-
-    #[inline]
-    fn inner_resume<'this, 'diag>(
-        &'this mut self,
-        diagnostics: Option<&'diag mut dyn VmDiagnostics>,
-        init: Init,
-    ) -> Resume<'this, 'diag, T> {
-        Resume {
-            execution: self,
-            diagnostics,
-            awaited: None,
-            init: Some(init),
-        }
-    }
 }
 
 impl VmExecution<&mut Vm> {
@@ -380,12 +324,18 @@ impl VmSendExecution {
     /// This requires that the result of the Vm is converted into a
     /// [crate::FromValue] that also implements [Send],  which prevents non-Send
     /// values from escaping from the virtual machine.
-    pub fn async_complete(mut self) -> impl Future<Output = VmResult<Value>> + Send + 'static {
-        let future = async move { vm_try!(self.0.async_resume().await).into_complete() };
+    pub fn complete(mut self) -> impl Future<Output = VmResult<Value>> + Send + 'static {
+        let future = async move { self.0.resume().await.and_then(VmOutcome::into_complete) };
 
         // Safety: we wrap all APIs around the [VmExecution], preventing values
         // from escaping from contained virtual machine.
         unsafe { AssertSend::new(future) }
+    }
+
+    /// Alias for [`VmSendExecution::complete`].
+    #[deprecated = "Use `VmSendExecution::complete`"]
+    pub fn async_complete(self) -> impl Future<Output = VmResult<Value>> + Send + 'static {
+        self.complete()
     }
 
     /// Complete the current execution with support for async instructions.
@@ -393,18 +343,30 @@ impl VmSendExecution {
     /// This requires that the result of the Vm is converted into a
     /// [crate::FromValue] that also implements [Send],  which prevents non-Send
     /// values from escaping from the virtual machine.
-    pub fn async_complete_with_diagnostics(
+    pub fn complete_with_diagnostics(
         mut self,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
+        diagnostics: &mut dyn VmDiagnostics,
     ) -> impl Future<Output = VmResult<Value>> + Send + '_ {
         let future = async move {
-            let result = vm_try!(self.0.async_resume_with_diagnostics(diagnostics).await);
-            result.into_complete()
+            self.0
+                .resume()
+                .with_diagnostics(diagnostics)
+                .await
+                .and_then(VmOutcome::into_complete)
         };
 
         // Safety: we wrap all APIs around the [VmExecution], preventing values
         // from escaping from contained virtual machine.
         unsafe { AssertSend::new(future) }
+    }
+
+    /// Alias for [`VmSendExecution::complete_with_diagnostics`].
+    #[deprecated = "Use `VmSendExecution::complete_with_diagnostics`"]
+    pub fn async_complete_with_diagnostics(
+        self,
+        diagnostics: &mut dyn VmDiagnostics,
+    ) -> impl Future<Output = VmResult<Value>> + Send + '_ {
+        self.complete_with_diagnostics(diagnostics)
     }
 }
 
@@ -429,7 +391,7 @@ pub struct AsyncComplete<'this, 'diag, T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {
-    future: Resume<'this, 'diag, T>,
+    future: VmResume<'this, 'diag, T>,
 }
 
 impl<'this, 'diag, T> Future for AsyncComplete<'this, 'diag, T>
@@ -450,7 +412,7 @@ enum Init {
     Value(Value),
 }
 
-/// The outcome of completing an execution through a [`Resume`] operation.
+/// The outcome of completing an execution through a [`VmResume`] operation.
 #[non_exhaustive]
 pub enum VmOutcome {
     /// A value has been produced by the execution returning.
@@ -501,9 +463,9 @@ impl VmOutcome {
 ///
 /// This can either be completed as a future, which allows the execution to
 /// perform asynchronous operations, or it can be completed by calling
-/// [`Resume::complete`] which will produce an error in case asynchronous
+/// [`VmResume::complete`] which will produce an error in case asynchronous
 /// operations that need to be suspended are encountered.
-pub struct Resume<'this, 'diag, T>
+pub struct VmResume<'this, 'diag, T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {
@@ -513,10 +475,38 @@ where
     awaited: Option<Awaited>,
 }
 
-impl<'this, 'diag, T> Resume<'this, 'diag, T>
+impl<'this, 'diag, T> VmResume<'this, 'diag, T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {
+    /// Associated a budget with the resumed execution.
+    pub fn with_budget(self, budget: usize) -> Budget<Self> {
+        budget::with(budget, self)
+    }
+
+    /// Associate a value with the resumed execution.
+    ///
+    /// This is necessary to provide a value for a generator which has yielded.
+    pub fn with_value(self, value: Value) -> VmResume<'this, 'diag, T> {
+        Self {
+            init: Some(Init::Value(value)),
+            ..self
+        }
+    }
+
+    /// Associate [`VmDiagnostics`] with the execution.
+    pub fn with_diagnostics<'a>(
+        self,
+        diagnostics: &'a mut dyn VmDiagnostics,
+    ) -> VmResume<'this, 'a, T> {
+        VmResume {
+            execution: self.execution,
+            diagnostics: Some(diagnostics),
+            init: self.init,
+            awaited: self.awaited,
+        }
+    }
+
     /// Try to synchronously complete the run, returning the generator state it produced.
     ///
     /// This will error if the execution is suspended through awaiting.
@@ -533,7 +523,7 @@ where
     }
 }
 
-impl<'this, 'diag, T> Future for Resume<'this, 'diag, T>
+impl<'this, 'diag, T> Future for VmResume<'this, 'diag, T>
 where
     T: AsRef<Vm> + AsMut<Vm>,
 {
@@ -541,6 +531,8 @@ where
 
     #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: We are ensuring that we never move this value or any
+        // projected fields.
         let this = unsafe { Pin::get_unchecked_mut(self) };
 
         if let Some(init) = this.init.take() {
@@ -625,7 +617,7 @@ where
     T: AsRef<Vm> + AsMut<Vm>,
 {
     _budget: budget::BudgetGuard,
-    resume: Resume<'this, 'diag, T>,
+    resume: VmResume<'this, 'diag, T>,
 }
 
 impl<'this, 'diag, T> Step<'this, 'diag, T>

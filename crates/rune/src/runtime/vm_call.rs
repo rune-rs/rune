@@ -50,7 +50,7 @@ impl VmCall {
                 let vm = vm_try!(self.build_vm(execution));
                 let mut execution = vm.into_execution();
                 vm_try!(Value::try_from(vm_try!(Future::new(async move {
-                    execution.async_complete().await
+                    vm_try!(execution.resume().await).into_complete()
                 }))))
             }
             Call::Immediate => {

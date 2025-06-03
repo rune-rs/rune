@@ -267,7 +267,10 @@ pub(super) async fn run(
             Err(TraceError::Limited) => return Err(anyhow!("Trace limit reached")),
         }
     } else {
-        execution.async_complete().await
+        execution
+            .resume()
+            .await
+            .and_then(|value| value.into_complete())
     };
 
     let errored = match result {
@@ -461,7 +464,7 @@ where
             }
         }
 
-        result = match execution.async_step().await {
+        result = match execution.step().await {
             VmResult::Ok(VmOutcome::Complete(value)) => VmResult::Ok(Some(value)),
             VmResult::Ok(VmOutcome::Yielded(value)) => {
                 yielded = Some(value);

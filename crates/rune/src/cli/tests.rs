@@ -18,7 +18,7 @@ use crate::cli::{
 use crate::compile::FileSourceLoader;
 use crate::doc::{TestKind, TestParams};
 use crate::modules::capture_io::CaptureIo;
-use crate::runtime::{Repr, Value, Vm, VmError, VmResult};
+use crate::runtime::{Repr, Value, Vm, VmError, VmOutcome, VmResult};
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, TypeHash, Unit};
 
 mod cli {
@@ -527,7 +527,7 @@ impl TestCase {
 
     async fn execute(&mut self, vm: &mut Vm, capture_io: &CaptureIo) -> Result<()> {
         let result = match vm.execute(self.hash, ()) {
-            Ok(mut execution) => execution.async_complete().await,
+            Ok(mut execution) => execution.resume().await.and_then(VmOutcome::into_complete),
             Err(err) => VmResult::Err(err),
         };
 
