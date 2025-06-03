@@ -16,7 +16,7 @@ use crate::{vm_try, Any, TypeHash};
 use super::{
     EnvProtocolCaller, Formatter, FromValue, Hasher, ProtocolCaller, Range, RangeFrom, RangeFull,
     RangeInclusive, RangeTo, RangeToInclusive, RawAnyGuard, Ref, RuntimeError, ToValue,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    UnsafeToRef, Value, VmError, VmErrorKind, VmResult,
 };
 
 /// Struct representing a dynamic vector.
@@ -296,70 +296,70 @@ impl Vec {
     pub(crate) fn eq_with(
         a: &[Value],
         b: &[Value],
-        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> VmResult<bool>,
+        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> Result<bool, VmError>,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         if a.len() != b.len() {
-            return VmResult::Ok(false);
+            return Ok(false);
         }
 
         for (a, b) in a.iter().zip(b.iter()) {
-            if !vm_try!(eq(a, b, caller)) {
-                return VmResult::Ok(false);
+            if !eq(a, b, caller)? {
+                return Ok(false);
             }
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 
     pub(crate) fn partial_cmp_with(
         a: &[Value],
         b: &[Value],
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
+    ) -> Result<Option<Ordering>, VmError> {
         let mut b = b.iter();
 
         for a in a.iter() {
             let Some(b) = b.next() else {
-                return VmResult::Ok(Some(Ordering::Greater));
+                return Ok(Some(Ordering::Greater));
             };
 
-            match vm_try!(Value::partial_cmp_with(a, b, caller)) {
+            match Value::partial_cmp_with(a, b, caller)? {
                 Some(Ordering::Equal) => continue,
-                other => return VmResult::Ok(other),
+                other => return Ok(other),
             }
         }
 
         if b.next().is_some() {
-            return VmResult::Ok(Some(Ordering::Less));
+            return Ok(Some(Ordering::Less));
         }
 
-        VmResult::Ok(Some(Ordering::Equal))
+        Ok(Some(Ordering::Equal))
     }
 
     pub(crate) fn cmp_with(
         a: &[Value],
         b: &[Value],
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Ordering> {
+    ) -> Result<Ordering, VmError> {
         let mut b = b.iter();
 
         for a in a.iter() {
             let Some(b) = b.next() else {
-                return VmResult::Ok(Ordering::Greater);
+                return Ok(Ordering::Greater);
             };
 
-            match vm_try!(Value::cmp_with(a, b, caller)) {
+            match Value::cmp_with(a, b, caller)? {
                 Ordering::Equal => continue,
-                other => return VmResult::Ok(other),
+                other => return Ok(other),
             }
         }
 
         if b.next().is_some() {
-            return VmResult::Ok(Ordering::Less);
+            return Ok(Ordering::Less);
         }
 
-        VmResult::Ok(Ordering::Equal)
+        Ok(Ordering::Equal)
     }
 
     /// This is a common get implementation that can be used across linear

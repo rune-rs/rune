@@ -6,7 +6,8 @@ use crate::alloc::fmt::TryWrite;
 use crate::{vm_try, Any};
 
 use super::{
-    EnvProtocolCaller, Formatter, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmResult,
+    EnvProtocolCaller, Formatter, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmError,
+    VmResult,
 };
 
 /// Used to tell an operation whether it should exit early or go on as usual.
@@ -59,20 +60,20 @@ impl ControlFlow {
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
     pub(crate) fn partial_eq(&self, other: &Self) -> VmResult<bool> {
-        Self::partial_eq_with(self, other, &mut EnvProtocolCaller)
+        Self::partial_eq_with(self, other, &mut EnvProtocolCaller).into()
     }
 
     pub(crate) fn partial_eq_with(
         &self,
         other: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         match (self, other) {
             (ControlFlow::Continue(a), ControlFlow::Continue(b)) => {
                 Value::partial_eq_with(a, b, caller)
             }
             (ControlFlow::Break(a), ControlFlow::Break(b)) => Value::partial_eq_with(a, b, caller),
-            _ => VmResult::Ok(false),
+            _ => Ok(false),
         }
     }
 
@@ -98,18 +99,18 @@ impl ControlFlow {
     /// ```
     #[rune::function(keep, protocol = EQ)]
     pub(crate) fn eq(&self, other: &ControlFlow) -> VmResult<bool> {
-        self.eq_with(other, &mut EnvProtocolCaller)
+        self.eq_with(other, &mut EnvProtocolCaller).into()
     }
 
     pub(crate) fn eq_with(
         &self,
         other: &ControlFlow,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         match (self, other) {
             (ControlFlow::Continue(a), ControlFlow::Continue(b)) => Value::eq_with(a, b, caller),
             (ControlFlow::Break(a), ControlFlow::Break(b)) => Value::eq_with(a, b, caller),
-            _ => VmResult::Ok(false),
+            _ => Ok(false),
         }
     }
 
@@ -124,28 +125,28 @@ impl ControlFlow {
     /// ```
     #[rune::function(keep, protocol = DEBUG_FMT)]
     pub(crate) fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        Self::debug_fmt_with(self, f, &mut EnvProtocolCaller)
+        Self::debug_fmt_with(self, f, &mut EnvProtocolCaller).into()
     }
 
     pub(crate) fn debug_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         match self {
             ControlFlow::Continue(value) => {
-                vm_try!(write!(f, "Continue("));
-                vm_try!(Value::debug_fmt_with(value, f, caller));
-                vm_try!(write!(f, ")"));
+                write!(f, "Continue(")?;
+                Value::debug_fmt_with(value, f, caller)?;
+                write!(f, ")")?;
             }
             ControlFlow::Break(value) => {
-                vm_try!(write!(f, "Break("));
-                vm_try!(Value::debug_fmt_with(value, f, caller));
-                vm_try!(write!(f, ")"));
+                write!(f, "Break(")?;
+                Value::debug_fmt_with(value, f, caller)?;
+                write!(f, ")")?;
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Clone the control flow.

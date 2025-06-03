@@ -7,7 +7,8 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::{
-    ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, Value, VmResult,
+    ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, Value, VmError,
+    VmResult,
 };
 use crate::{hash_in, vm_try, ContextError, Hash, Module};
 
@@ -258,10 +259,10 @@ fn expect(result: &Result<Value, Value>, message: Value) -> VmResult<Value> {
         Err(err) => {
             let mut s = String::new();
             vm_try!(Formatter::format_with(&mut s, |f| {
-                vm_try!(message.display_fmt(f));
-                vm_try!(f.try_write_str(": "));
-                vm_try!(err.debug_fmt(f));
-                VmResult::Ok(())
+                message.display_fmt(f)?;
+                f.try_write_str(": ")?;
+                err.debug_fmt(f)?;
+                Ok::<_, VmError>(())
             }));
             VmResult::err(Panic::custom(s))
         }
@@ -362,8 +363,8 @@ fn clone(this: &Result<Value, Value>) -> VmResult<Result<Value, Value>> {
 #[inline]
 fn partial_eq(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResult<bool> {
     match (this, rhs) {
-        (Ok(a), Ok(b)) => Value::partial_eq(a, b),
-        (Err(a), Err(b)) => Value::partial_eq(a, b),
+        (Ok(a), Ok(b)) => Value::partial_eq(a, b).into(),
+        (Err(a), Err(b)) => Value::partial_eq(a, b).into(),
         _ => VmResult::Ok(false),
     }
 }
@@ -383,8 +384,8 @@ fn partial_eq(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResu
 #[inline]
 fn eq(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResult<bool> {
     match (this, rhs) {
-        (Ok(a), Ok(b)) => Value::eq(a, b),
-        (Err(a), Err(b)) => Value::eq(a, b),
+        (Ok(a), Ok(b)) => Value::eq(a, b).into(),
+        (Err(a), Err(b)) => Value::eq(a, b).into(),
         _ => VmResult::Ok(false),
     }
 }
@@ -416,8 +417,8 @@ fn partial_cmp(
     rhs: &Result<Value, Value>,
 ) -> VmResult<Option<Ordering>> {
     match (this, rhs) {
-        (Ok(a), Ok(b)) => Value::partial_cmp(a, b),
-        (Err(a), Err(b)) => Value::partial_cmp(a, b),
+        (Ok(a), Ok(b)) => Value::partial_cmp(a, b).into(),
+        (Err(a), Err(b)) => Value::partial_cmp(a, b).into(),
         (Ok(..), Err(..)) => VmResult::Ok(Some(Ordering::Greater)),
         (Err(..), Ok(..)) => VmResult::Ok(Some(Ordering::Less)),
     }
@@ -439,8 +440,8 @@ fn partial_cmp(
 #[inline]
 fn cmp(this: &Result<Value, Value>, rhs: &Result<Value, Value>) -> VmResult<Ordering> {
     match (this, rhs) {
-        (Ok(a), Ok(b)) => Value::cmp(a, b),
-        (Err(a), Err(b)) => Value::cmp(a, b),
+        (Ok(a), Ok(b)) => Value::cmp(a, b).into(),
+        (Err(a), Err(b)) => Value::cmp(a, b).into(),
         (Ok(..), Err(..)) => VmResult::Ok(Ordering::Greater),
         (Err(..), Ok(..)) => VmResult::Ok(Ordering::Less),
     }

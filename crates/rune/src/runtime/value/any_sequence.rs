@@ -12,9 +12,8 @@ use crate::alloc::fmt::TryWrite;
 use crate::hash::Hash;
 use crate::runtime::{
     Access, AccessError, BorrowMut, BorrowRef, Formatter, IntoOutput, ProtocolCaller, Rtti,
-    RttiKind, RuntimeError, Snapshot, TypeInfo, Value, VmResult,
+    RttiKind, RuntimeError, Snapshot, TypeInfo, Value, VmError,
 };
-use crate::vm_try;
 
 #[derive(Debug)]
 pub(crate) enum AnySequenceTakeError {
@@ -407,9 +406,9 @@ impl AnySequence<Arc<Rtti>, Value> {
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         let rtti = self.rtti();
-        let values = vm_try!(self.borrow_ref());
+        let values = self.borrow_ref()?;
 
         match rtti.kind {
             RttiKind::Empty => debug_empty(rtti, f),
@@ -419,9 +418,9 @@ impl AnySequence<Arc<Rtti>, Value> {
     }
 }
 
-fn debug_empty(rtti: &Rtti, f: &mut Formatter) -> VmResult<()> {
-    vm_try!(write!(f, "{}", rtti.item));
-    VmResult::Ok(())
+fn debug_empty(rtti: &Rtti, f: &mut Formatter) -> Result<(), VmError> {
+    write!(f, "{}", rtti.item)?;
+    Ok(())
 }
 
 fn debug_tuple(
@@ -429,21 +428,21 @@ fn debug_tuple(
     values: &[Value],
     f: &mut Formatter,
     caller: &mut dyn ProtocolCaller,
-) -> VmResult<()> {
-    vm_try!(write!(f, "{} (", rtti.item));
+) -> Result<(), VmError> {
+    write!(f, "{} (", rtti.item)?;
 
     let mut first = true;
 
     for value in values.iter() {
         if !take(&mut first) {
-            vm_try!(write!(f, ", "));
+            write!(f, ", ")?;
         }
 
-        vm_try!(value.debug_fmt_with(f, caller));
+        value.debug_fmt_with(f, caller)?;
     }
 
-    vm_try!(write!(f, ")"));
-    VmResult::Ok(())
+    write!(f, ")")?;
+    Ok(())
 }
 
 fn debug_struct(
@@ -451,8 +450,8 @@ fn debug_struct(
     values: &[Value],
     f: &mut Formatter,
     caller: &mut dyn ProtocolCaller,
-) -> VmResult<()> {
-    vm_try!(write!(f, "{} {{", rtti.item));
+) -> Result<(), VmError> {
+    write!(f, "{} {{", rtti.item)?;
 
     let mut first = true;
 
@@ -462,15 +461,15 @@ fn debug_struct(
         };
 
         if !take(&mut first) {
-            vm_try!(write!(f, ", "));
+            write!(f, ", ")?;
         }
 
-        vm_try!(write!(f, "{name}: "));
-        vm_try!(field.debug_fmt_with(f, caller));
+        write!(f, "{name}: ")?;
+        field.debug_fmt_with(f, caller)?;
     }
 
-    vm_try!(write!(f, "}}"));
-    VmResult::Ok(())
+    write!(f, "}}")?;
+    Ok(())
 }
 
 impl IntoOutput for AnySequence<Arc<Rtti>, Value> {

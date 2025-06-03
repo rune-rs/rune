@@ -13,7 +13,7 @@ use crate::alloc::prelude::*;
 use crate::support::Result;
 use crate::Any;
 
-use super::{Access, AnyObj, Bytes, Tuple, TypeHash, Value, VmResult};
+use super::{Access, AnyObj, Bytes, Tuple, TypeHash, Value};
 
 #[derive(Debug, PartialEq, Eq, Any)]
 struct Thing(u32);
@@ -114,7 +114,7 @@ fn test_from_mut() -> Result<()> {
 fn ensure_future_dropped_poll() -> crate::support::Result<()> {
     use crate::runtime::Future;
 
-    let mut future = pin!(Future::new(async { VmResult::Ok(10) })?);
+    let mut future = pin!(Future::new(async { Ok(10) })?);
 
     let waker = Arc::new(NoopWaker).into();
     let mut cx = Context::from_waker(&waker);
@@ -135,9 +135,9 @@ fn ensure_future_dropped_poll() -> crate::support::Result<()> {
 fn ensure_future_dropped_explicitly() -> crate::support::Result<()> {
     use crate::runtime::Future;
 
-    let mut future = pin!(Future::new(async { VmResult::Ok(10) })?);
+    let mut future = pin!(Future::new(async { Ok(10) })?);
     // NB: We cause the future to be dropped explicitly through it's Drop destructor here by replacing it.
-    future.set(Future::new(async { VmResult::Ok(0) })?);
+    future.set(Future::new(async { Ok(0) })?);
 
     let waker = Arc::new(NoopWaker).into();
     let mut cx = Context::from_waker(&waker);

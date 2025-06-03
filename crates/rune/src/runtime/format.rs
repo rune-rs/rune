@@ -14,8 +14,10 @@ use serde::{Deserialize, Serialize};
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::String;
-use crate::runtime::{Formatter, Inline, ProtocolCaller, Repr, Value, VmErrorKind, VmResult};
+use crate::alloc::{self, String};
+use crate::runtime::{
+    Formatter, Inline, ProtocolCaller, Repr, Value, VmError, VmErrorKind, VmResult,
+};
 use crate::{vm_try, Any, TypeHash};
 
 /// Error raised when trying to parse a type string and it fails.
@@ -124,22 +126,22 @@ impl FormatSpec {
     }
 
     /// Format the given number.
-    fn format_number(&self, buf: &mut String, n: i64) -> VmResult<()> {
+    fn format_number(&self, buf: &mut String, n: i64) -> alloc::Result<()> {
         let mut buffer = itoa::Buffer::new();
-        vm_try!(buf.try_push_str(buffer.format(n)));
-        VmResult::Ok(())
+        buf.try_push_str(buffer.format(n))?;
+        Ok(())
     }
 
     /// Format the given float.
-    fn format_float(&self, buf: &mut String, n: f64) -> VmResult<()> {
+    fn format_float(&self, buf: &mut String, n: f64) -> alloc::Result<()> {
         if let Some(precision) = self.precision {
-            vm_try!(write!(buf, "{:.*}", precision.get(), n));
+            write!(buf, "{:.*}", precision.get(), n)?;
         } else {
             let mut buffer = ryu::Buffer::new();
-            vm_try!(buf.try_push_str(buffer.format(n)));
+            buf.try_push_str(buffer.format(n))?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Format fill.
@@ -149,18 +151,18 @@ impl FormatSpec {
         align: Alignment,
         fill: char,
         sign: Option<char>,
-    ) -> VmResult<()> {
+    ) -> alloc::Result<()> {
         let (f, buf) = f.parts_mut();
 
         if let Some(sign) = sign {
-            vm_try!(f.try_write_char(sign));
+            f.try_write_char(sign)?;
         }
 
         let mut w = self.width.map(|n| n.get()).unwrap_or_default();
 
         if w == 0 {
-            vm_try!(f.try_write_str(buf));
-            return VmResult::Ok(());
+            f.try_write_str(buf)?;
+            return Ok(());
         }
 
         w = w
@@ -168,41 +170,41 @@ impl FormatSpec {
             .saturating_sub(sign.map(|_| 1).unwrap_or_default());
 
         if w == 0 {
-            vm_try!(f.try_write_str(buf));
-            return VmResult::Ok(());
+            f.try_write_str(buf)?;
+            return Ok(());
         }
 
         let mut filler = iter::repeat_n(fill, w);
 
         match align {
             Alignment::Left => {
-                vm_try!(f.try_write_str(buf));
+                f.try_write_str(buf)?;
 
                 for c in filler {
-                    vm_try!(f.try_write_char(c));
+                    f.try_write_char(c)?;
                 }
             }
             Alignment::Center => {
                 for c in (&mut filler).take(w / 2) {
-                    vm_try!(f.try_write_char(c));
+                    f.try_write_char(c)?;
                 }
 
-                vm_try!(f.try_write_str(buf));
+                f.try_write_str(buf)?;
 
                 for c in filler {
-                    vm_try!(f.try_write_char(c));
+                    f.try_write_char(c)?;
                 }
             }
             Alignment::Right => {
                 for c in filler {
-                    vm_try!(f.try_write_char(c));
+                    f.try_write_char(c)?;
                 }
 
-                vm_try!(f.try_write_str(buf));
+                f.try_write_str(buf)?;
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     fn format_display(
@@ -210,23 +212,23 @@ impl FormatSpec {
         value: &Value,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         'fallback: {
             match value.as_ref() {
                 Repr::Inline(value) => match value {
                     Inline::Char(c) => {
-                        vm_try!(f.buf_mut().try_push(*c));
-                        vm_try!(self.format_fill(f, self.align, self.fill, None));
+                        f.buf_mut().try_push(*c)?;
+                        self.format_fill(f, self.align, self.fill, None)?;
                     }
                     Inline::Signed(n) => {
                         let (n, align, fill, sign) = self.int_traits(*n);
-                        vm_try!(self.format_number(f.buf_mut(), n));
-                        vm_try!(self.format_fill(f, align, fill, sign));
+                        self.format_number(f.buf_mut(), n)?;
+                        self.format_fill(f, align, fill, sign)?;
                     }
                     Inline::Float(n) => {
                         let (n, align, fill, sign) = self.float_traits(*n);
-                        vm_try!(self.format_float(f.buf_mut(), n));
-                        vm_try!(self.format_fill(f, align, fill, sign));
+                        self.format_float(f.buf_mut(), n)?;
+                        self.format_fill(f, align, fill, sign)?;
                     }
                     _ => {
                         break 'fallback;
@@ -237,9 +239,9 @@ impl FormatSpec {
                 }
                 Repr::Any(value) => match value.type_hash() {
                     String::HASH => {
-                        let s = vm_try!(value.borrow_ref::<String>());
-                        vm_try!(f.buf_mut().try_push_str(&s));
-                        vm_try!(self.format_fill(f, self.align, self.fill, None));
+                        let s = value.borrow_ref::<String>()?;
+                        f.buf_mut().try_push_str(&s)?;
+                        self.format_fill(f, self.align, self.fill, None)?;
                     }
                     _ => {
                         break 'fallback;
@@ -247,7 +249,7 @@ impl FormatSpec {
                 },
             }
 
-            return VmResult::Ok(());
+            return Ok(());
         }
 
         value.display_fmt_with(f, caller)
@@ -258,19 +260,19 @@ impl FormatSpec {
         value: &Value,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         'fallback: {
             match value.as_ref() {
                 Repr::Inline(value) => match value {
                     Inline::Signed(n) => {
                         let (n, align, fill, sign) = self.int_traits(*n);
-                        vm_try!(self.format_number(f.buf_mut(), n));
-                        vm_try!(self.format_fill(f, align, fill, sign));
+                        self.format_number(f.buf_mut(), n)?;
+                        self.format_fill(f, align, fill, sign)?;
                     }
                     Inline::Float(n) => {
                         let (n, align, fill, sign) = self.float_traits(*n);
-                        vm_try!(self.format_float(f.buf_mut(), n));
-                        vm_try!(self.format_fill(f, align, fill, sign));
+                        self.format_float(f.buf_mut(), n)?;
+                        self.format_fill(f, align, fill, sign)?;
                     }
                     _ => {
                         break 'fallback;
@@ -281,8 +283,8 @@ impl FormatSpec {
                 }
                 Repr::Any(value) => match value.type_hash() {
                     String::HASH => {
-                        let s = vm_try!(value.borrow_ref::<String>());
-                        vm_try!(write!(f, "{s:?}"));
+                        let s = value.borrow_ref::<String>()?;
+                        write!(f, "{s:?}")?;
                     }
                     _ => {
                         break 'fallback;
@@ -290,7 +292,7 @@ impl FormatSpec {
                 },
             }
 
-            return VmResult::Ok(());
+            return Ok(());
         };
 
         value.debug_fmt_with(f, caller)

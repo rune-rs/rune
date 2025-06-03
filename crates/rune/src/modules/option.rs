@@ -513,7 +513,7 @@ fn clone(this: &Option<Value>) -> VmResult<Option<Value>> {
 #[inline]
 fn partial_eq(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<bool> {
     match (this, rhs) {
-        (Some(a), Some(b)) => Value::partial_eq(a, b),
+        (Some(a), Some(b)) => Value::partial_eq(a, b).into(),
         (None, None) => VmResult::Ok(true),
         _ => VmResult::Ok(false),
     }
@@ -535,7 +535,7 @@ fn partial_eq(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<bool> {
 #[inline]
 fn eq(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<bool> {
     match (this, rhs) {
-        (Some(a), Some(b)) => Value::eq(a, b),
+        (Some(a), Some(b)) => Value::eq(a, b).into(),
         (None, None) => VmResult::Ok(true),
         _ => VmResult::Ok(false),
     }
@@ -565,7 +565,7 @@ fn eq(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<bool> {
 #[inline]
 fn partial_cmp(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<Option<Ordering>> {
     match (this, rhs) {
-        (Some(a), Some(b)) => Value::partial_cmp(a, b),
+        (Some(a), Some(b)) => Value::partial_cmp(a, b).into(),
         (None, None) => VmResult::Ok(Some(Ordering::Equal)),
         (Some(..), None) => VmResult::Ok(Some(Ordering::Greater)),
         (None, Some(..)) => VmResult::Ok(Some(Ordering::Less)),
@@ -588,7 +588,7 @@ fn partial_cmp(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<Option<Ord
 #[inline]
 fn cmp(this: &Option<Value>, rhs: &Option<Value>) -> VmResult<Ordering> {
     match (this, rhs) {
-        (Some(a), Some(b)) => Value::cmp(a, b),
+        (Some(a), Some(b)) => Value::cmp(a, b).into(),
         (None, None) => VmResult::Ok(Ordering::Equal),
         (Some(..), None) => VmResult::Ok(Ordering::Greater),
         (None, Some(..)) => VmResult::Ok(Ordering::Less),

@@ -2,7 +2,6 @@ use core::ptr::NonNull;
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::{self, String};
-use crate::runtime::VmResult;
 use crate::Any;
 
 /// A formatter for the rune virtual machine.
@@ -21,10 +20,10 @@ pub struct Formatter {
 
 impl Formatter {
     /// Format onto the given trywrite.
-    pub(crate) fn format_with(
+    pub(crate) fn format_with<E>(
         out: &mut String,
-        f: impl FnOnce(&mut Self) -> VmResult<()>,
-    ) -> VmResult<()> {
+        f: impl FnOnce(&mut Self) -> Result<(), E>,
+    ) -> Result<(), E> {
         // SAFETY: Call to this function ensures that the formatter does not
         // outlive the passed in reference.
         let mut fmt = Formatter {

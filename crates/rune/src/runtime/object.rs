@@ -383,24 +383,24 @@ impl Object {
     pub(crate) fn eq_with(
         a: &Self,
         b: &Self,
-        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> VmResult<bool>,
+        eq: fn(&Value, &Value, &mut dyn ProtocolCaller) -> Result<bool, VmError>,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         if a.inner.len() != b.inner.len() {
-            return VmResult::Ok(false);
+            return Ok(false);
         }
 
         for (key, a) in a.inner.iter() {
             let Some(b) = b.inner.get(key) else {
-                return VmResult::Ok(false);
+                return Ok(false);
             };
 
-            if !vm_try!(eq(a, b, caller)) {
-                return VmResult::Ok(false);
+            if !eq(a, b, caller)? {
+                return Ok(false);
             }
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 }
 

@@ -189,7 +189,7 @@ fn partial_eq(this: &Tuple, other: Value) -> VmResult<bool> {
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
 fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
-    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
+    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller).into()
 }
 
 /// Perform a partial comparison check with this tuple.
@@ -204,7 +204,7 @@ fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
-    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
+    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller).into()
 }
 
 /// Perform a total comparison check with this tuple.
@@ -222,7 +222,7 @@ fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
 /// ```
 #[rune::function(keep, instance, protocol = CMP)]
 fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
-    Vec::cmp_with(this, other, &mut EnvProtocolCaller)
+    Vec::cmp_with(this, other, &mut EnvProtocolCaller).into()
 }
 
 /// Calculate a hash for a tuple.

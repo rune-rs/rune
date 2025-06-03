@@ -666,25 +666,25 @@ impl Vm {
         lhs: InstAddress,
         rhs: InstAddress,
         out: Output,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         let rhs = self.stack.at(rhs);
         let lhs = self.stack.at(lhs);
 
         let ordering = match (lhs.as_inline_unchecked(), rhs.as_inline_unchecked()) {
-            (Some(lhs), Some(rhs)) => vm_try!(lhs.partial_cmp(rhs)),
+            (Some(lhs), Some(rhs)) => lhs.partial_cmp(rhs)?,
             _ => {
                 let lhs = lhs.clone();
                 let rhs = rhs.clone();
-                vm_try!(Value::partial_cmp_with(&lhs, &rhs, self))
+                Value::partial_cmp_with(&lhs, &rhs, self)?
             }
         };
 
-        vm_try!(out.store(&mut self.stack, || match ordering {
+        out.store(&mut self.stack, || match ordering {
             Some(ordering) => match_ordering(ordering),
             None => false,
-        }));
+        })?;
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Push a new call frame.
@@ -974,15 +974,15 @@ impl Vm {
     }
 
     /// Internal implementation of the instance check.
-    fn as_op(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<Value> {
+    fn as_op(&mut self, lhs: InstAddress, rhs: InstAddress) -> Result<Value, VmError> {
         let b = self.stack.at(rhs);
         let a = self.stack.at(lhs);
 
         let Repr::Inline(Inline::Type(ty)) = b.as_ref() else {
-            return err(VmErrorKind::UnsupportedIs {
+            return Err(VmError::new(VmErrorKind::UnsupportedIs {
                 value: a.type_info(),
                 test_type: b.type_info(),
-            });
+            }));
         };
 
         macro_rules! convert {
@@ -992,10 +992,10 @@ impl Vm {
                     u64::HASH => Value::from($value as u64),
                     i64::HASH => Value::from($value as i64),
                     ty => {
-                        return err(VmErrorKind::UnsupportedAs {
+                        return Err(VmError::new(VmErrorKind::UnsupportedAs {
                             value: TypeInfo::from(<$from as TypeOf>::STATIC_TYPE_INFO),
                             type_hash: ty,
-                        });
+                        }));
                     }
                 }
             };
@@ -1006,29 +1006,29 @@ impl Vm {
             Repr::Inline(Inline::Signed(a)) => convert!(i64, *a),
             Repr::Inline(Inline::Float(a)) => convert!(f64, *a),
             value => {
-                return err(VmErrorKind::UnsupportedAs {
+                return Err(VmError::new(VmErrorKind::UnsupportedAs {
                     value: value.type_info(),
                     type_hash: ty.into_hash(),
-                });
+                }));
             }
         };
 
-        VmResult::Ok(value)
+        Ok(value)
     }
 
     /// Internal implementation of the instance check.
-    fn test_is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> VmResult<bool> {
+    fn test_is_instance(&mut self, lhs: InstAddress, rhs: InstAddress) -> Result<bool, VmError> {
         let b = self.stack.at(rhs);
         let a = self.stack.at(lhs);
 
         let Some(Inline::Type(ty)) = b.as_inline() else {
-            return err(VmErrorKind::UnsupportedIs {
+            return Err(VmError::new(VmErrorKind::UnsupportedIs {
                 value: a.type_info(),
                 test_type: b.type_info(),
-            });
+            }));
         };
 
-        VmResult::Ok(a.type_hash() == ty.into_hash())
+        Ok(a.type_hash() == ty.into_hash())
     }
 
     fn internal_bool(
@@ -1038,7 +1038,7 @@ impl Vm {
         lhs: InstAddress,
         rhs: InstAddress,
         out: Output,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         let rhs = self.stack.at(rhs);
         let lhs = self.stack.at(lhs);
 
@@ -1048,16 +1048,16 @@ impl Vm {
                 Inline::Bool(value)
             }
             (lhs, rhs) => {
-                return err(VmErrorKind::UnsupportedBinaryOperation {
+                return Err(VmError::new(VmErrorKind::UnsupportedBinaryOperation {
                     op,
                     lhs: lhs.type_info(),
                     rhs: rhs.type_info(),
-                });
+                }));
             }
         };
 
-        vm_try!(out.store(&mut self.stack, inline));
-        VmResult::Ok(())
+        out.store(&mut self.stack, inline)?;
+        Ok(())
     }
 
     /// Construct a future from calling an async function.
@@ -1402,13 +1402,13 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_allocate(&mut self, size: usize) -> VmResult<()> {
-        vm_try!(self.stack.resize(size));
-        VmResult::Ok(())
+    fn op_allocate(&mut self, size: usize) -> Result<(), VmError> {
+        self.stack.resize(size)?;
+        Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_not(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
+    fn op_not(&mut self, addr: InstAddress, out: Output) -> Result<(), VmError> {
         self.unary(addr, out, &Protocol::NOT, |inline| match *inline {
             Inline::Bool(value) => Some(Inline::Bool(!value)),
             Inline::Unsigned(value) => Some(Inline::Unsigned(!value)),
@@ -1418,7 +1418,7 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_neg(&mut self, addr: InstAddress, out: Output) -> VmResult<()> {
+    fn op_neg(&mut self, addr: InstAddress, out: Output) -> Result<(), VmError> {
         self.unary(addr, out, &Protocol::NEG, |inline| match *inline {
             Inline::Signed(value) => Some(Inline::Signed(-value)),
             Inline::Float(value) => Some(Inline::Float(-value)),
@@ -1432,7 +1432,7 @@ impl Vm {
         out: Output,
         protocol: &'static Protocol,
         op: impl FnOnce(&Inline) -> Option<Inline>,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         let operand = self.stack.at(operand);
 
         'fallback: {
@@ -1443,28 +1443,28 @@ impl Vm {
             };
 
             let Some(store) = store else {
-                return err(VmErrorKind::UnsupportedUnaryOperation {
+                return Err(VmError::new(VmErrorKind::UnsupportedUnaryOperation {
                     op: protocol.name,
                     operand: operand.type_info(),
-                });
+                }));
             };
 
-            vm_try!(out.store(&mut self.stack, store));
-            return VmResult::Ok(());
+            out.store(&mut self.stack, store)?;
+            return Ok(());
         };
 
         let operand = operand.clone();
 
         if let CallResult::Unsupported(operand) =
-            vm_try!(self.call_instance_fn(Isolated::None, operand, protocol, &mut (), out))
+            self.call_instance_fn(Isolated::None, operand, protocol, &mut (), out)?
         {
-            return err(VmErrorKind::UnsupportedUnaryOperation {
+            return Err(VmError::new(VmErrorKind::UnsupportedUnaryOperation {
                 op: protocol.name,
                 operand: operand.type_info(),
-            });
+            }));
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1474,79 +1474,79 @@ impl Vm {
         lhs: InstAddress,
         rhs: InstAddress,
         out: Output,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         match op {
             InstOp::Lt => {
-                vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Less), lhs, rhs, out));
+                self.internal_cmp(|o| matches!(o, Ordering::Less), lhs, rhs, out)?;
             }
             InstOp::Le => {
-                vm_try!(self.internal_cmp(
+                self.internal_cmp(
                     |o| matches!(o, Ordering::Less | Ordering::Equal),
                     lhs,
                     rhs,
-                    out
-                ));
+                    out,
+                )?;
             }
             InstOp::Gt => {
-                vm_try!(self.internal_cmp(|o| matches!(o, Ordering::Greater), lhs, rhs, out));
+                self.internal_cmp(|o| matches!(o, Ordering::Greater), lhs, rhs, out)?;
             }
             InstOp::Ge => {
-                vm_try!(self.internal_cmp(
+                self.internal_cmp(
                     |o| matches!(o, Ordering::Greater | Ordering::Equal),
                     lhs,
                     rhs,
-                    out
-                ));
+                    out,
+                )?;
             }
             InstOp::Eq => {
                 let rhs = self.stack.at(rhs);
                 let lhs = self.stack.at(lhs);
 
                 let test = if let (Some(lhs), Some(rhs)) = (lhs.as_inline(), rhs.as_inline()) {
-                    vm_try!(lhs.partial_eq(rhs))
+                    lhs.partial_eq(rhs)?
                 } else {
                     let lhs = lhs.clone();
                     let rhs = rhs.clone();
-                    vm_try!(Value::partial_eq_with(&lhs, &rhs, self))
+                    Value::partial_eq_with(&lhs, &rhs, self)?
                 };
 
-                vm_try!(out.store(&mut self.stack, test));
+                out.store(&mut self.stack, test)?;
             }
             InstOp::Neq => {
                 let rhs = self.stack.at(rhs);
                 let lhs = self.stack.at(lhs);
 
                 let test = if let (Some(lhs), Some(rhs)) = (lhs.as_inline(), rhs.as_inline()) {
-                    vm_try!(lhs.partial_eq(rhs))
+                    lhs.partial_eq(rhs)?
                 } else {
                     let lhs = lhs.clone();
                     let rhs = rhs.clone();
-                    vm_try!(Value::partial_eq_with(&lhs, &rhs, self))
+                    Value::partial_eq_with(&lhs, &rhs, self)?
                 };
 
-                vm_try!(out.store(&mut self.stack, !test));
+                out.store(&mut self.stack, !test)?;
             }
             InstOp::And => {
-                vm_try!(self.internal_bool(|a, b| a && b, "&&", lhs, rhs, out));
+                self.internal_bool(|a, b| a && b, "&&", lhs, rhs, out)?;
             }
             InstOp::Or => {
-                vm_try!(self.internal_bool(|a, b| a || b, "||", lhs, rhs, out));
+                self.internal_bool(|a, b| a || b, "||", lhs, rhs, out)?;
             }
             InstOp::As => {
-                let value = vm_try!(self.as_op(lhs, rhs));
-                vm_try!(out.store(&mut self.stack, value));
+                let value = self.as_op(lhs, rhs)?;
+                out.store(&mut self.stack, value)?;
             }
             InstOp::Is => {
-                let is_instance = vm_try!(self.test_is_instance(lhs, rhs));
-                vm_try!(out.store(&mut self.stack, is_instance));
+                let is_instance = self.test_is_instance(lhs, rhs)?;
+                out.store(&mut self.stack, is_instance)?;
             }
             InstOp::IsNot => {
-                let is_instance = vm_try!(self.test_is_instance(lhs, rhs));
-                vm_try!(out.store(&mut self.stack, !is_instance));
+                let is_instance = self.test_is_instance(lhs, rhs)?;
+                out.store(&mut self.stack, !is_instance)?;
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -2417,10 +2417,10 @@ impl Vm {
 
         let result = Formatter::format_with(&mut s, |f| {
             for value in values {
-                vm_try!(value.display_fmt_with(f, &mut *self));
+                value.display_fmt_with(f, &mut *self)?;
             }
 
-            VmResult::Ok(())
+            Ok::<_, VmError>(())
         });
 
         vm_try!(result);

@@ -6,7 +6,8 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmError, VmErrorKind,
+    VmResult,
 };
 use crate::{docstring, vm_try, ContextError, Module};
 
@@ -306,11 +307,11 @@ fn sort(vec: &mut Vec) -> VmResult<()> {
     let mut err = None;
 
     vec.sort_by(|a, b| {
-        let result: VmResult<Ordering> = Value::cmp(a, b);
+        let result: Result<Ordering, VmError> = Value::cmp(a, b);
 
         match result {
-            VmResult::Ok(cmp) => cmp,
-            VmResult::Err(e) => {
+            Ok(cmp) => cmp,
+            Err(e) => {
                 if err.is_none() {
                     err = Some(e);
                 }
@@ -650,7 +651,7 @@ fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
 fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
-    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
+    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller).into()
 }
 
 /// Perform a partial comparison check with this vector.
@@ -665,7 +666,7 @@ fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_CMP)]
 fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
-    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
+    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller).into()
 }
 
 /// Perform a total comparison check with this vector.
@@ -683,7 +684,7 @@ fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
 /// ```
 #[rune::function(keep, instance, protocol = CMP)]
 fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
-    Vec::cmp_with(this, other, &mut EnvProtocolCaller)
+    Vec::cmp_with(this, other, &mut EnvProtocolCaller).into()
 }
 
 /// Calculate the hash of a vector.

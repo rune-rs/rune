@@ -166,7 +166,7 @@ fn partial_eq(this: &Object, other: &Object) -> VmResult<bool> {
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
 fn eq(this: &Object, other: &Object) -> VmResult<bool> {
-    Object::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
+    Object::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller).into()
 }
 
 /// Clones an object.

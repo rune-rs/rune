@@ -322,6 +322,6 @@ impl<'a> KeyEq<'a> {
 impl<V> alloc::hashbrown::EqFn<dyn ProtocolCaller, (Value, V), VmError> for KeyEq<'_> {
     #[inline]
     fn eq(&self, cx: &mut dyn ProtocolCaller, (other, _): &(Value, V)) -> Result<bool, VmError> {
-        self.key.eq_with(other, cx).into_result()
+        self.key.eq_with(other, cx)
     }
 }

@@ -234,7 +234,7 @@ fn generator_clone(this: &Generator) -> VmResult<Generator> {
 /// ``
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.partial_eq_with(other, &mut EnvProtocolCaller)
+    this.partial_eq_with(other, &mut EnvProtocolCaller).into()
 }
 
 /// Test for total equality over a generator state.
@@ -258,7 +258,7 @@ fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> 
 /// ``
 #[rune::function(keep, instance, protocol = EQ)]
 fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.eq_with(other, &mut EnvProtocolCaller)
+    this.eq_with(other, &mut EnvProtocolCaller).into()
 }
 
 /// Debug print this generator state.

@@ -4,10 +4,11 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{
-    EnvProtocolCaller, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmResult,
-};
 use crate::{vm_try, Any};
+
+use super::{
+    EnvProtocolCaller, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmError, VmResult,
+};
 
 /// Type for an inclusive range expression `..=end`.
 ///
@@ -71,14 +72,14 @@ impl RangeToInclusive {
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
     pub fn partial_eq(&self, other: &Self) -> VmResult<bool> {
-        self.partial_eq_with(other, &mut EnvProtocolCaller)
+        self.partial_eq_with(other, &mut EnvProtocolCaller).into()
     }
 
     pub(crate) fn partial_eq_with(
         &self,
         b: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         Value::partial_eq_with(&self.end, &b.end, caller)
     }
 
@@ -95,10 +96,14 @@ impl RangeToInclusive {
     /// ```
     #[rune::function(keep, protocol = EQ)]
     pub fn eq(&self, other: &Self) -> VmResult<bool> {
-        self.eq_with(other, &mut EnvProtocolCaller)
+        self.eq_with(other, &mut EnvProtocolCaller).into()
     }
 
-    pub(crate) fn eq_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(
+        &self,
+        b: &Self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<bool, VmError> {
         Value::eq_with(&self.end, &b.end, caller)
     }
 
@@ -114,14 +119,14 @@ impl RangeToInclusive {
     /// ```
     #[rune::function(keep, protocol = PARTIAL_CMP)]
     pub fn partial_cmp(&self, other: &Self) -> VmResult<Option<Ordering>> {
-        self.partial_cmp_with(other, &mut EnvProtocolCaller)
+        self.partial_cmp_with(other, &mut EnvProtocolCaller).into()
     }
 
     pub(crate) fn partial_cmp_with(
         &self,
         b: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
+    ) -> Result<Option<Ordering>, VmError> {
         Value::partial_cmp_with(&self.end, &b.end, caller)
     }
 
@@ -138,10 +143,14 @@ impl RangeToInclusive {
     /// ```
     #[rune::function(keep, protocol = CMP)]
     pub fn cmp(&self, other: &Self) -> VmResult<Ordering> {
-        self.cmp_with(other, &mut EnvProtocolCaller)
+        self.cmp_with(other, &mut EnvProtocolCaller).into()
     }
 
-    pub(crate) fn cmp_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
+    pub(crate) fn cmp_with(
+        &self,
+        b: &Self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<Ordering, VmError> {
         Value::cmp_with(&self.end, &b.end, caller)
     }
 
