@@ -6,7 +6,7 @@ use std::time::Instant;
 use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::runtime::{GeneratorState, UnitStorage, VmError, VmExecution, VmResult};
+use crate::runtime::{UnitStorage, VmError, VmExecution, VmOutcome, VmResult};
 use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
 mod cli {
@@ -462,12 +462,12 @@ where
         }
 
         result = match execution.async_step().await {
-            VmResult::Ok(Some(GeneratorState::Complete(value))) => VmResult::Ok(Some(value)),
-            VmResult::Ok(Some(GeneratorState::Yielded(value))) => {
+            VmResult::Ok(VmOutcome::Complete(value)) => VmResult::Ok(Some(value)),
+            VmResult::Ok(VmOutcome::Yielded(value)) => {
                 yielded = Some(value);
                 VmResult::Ok(None)
             }
-            VmResult::Ok(None) => VmResult::Ok(None),
+            VmResult::Ok(VmOutcome::Limited) => VmResult::Ok(None),
             VmResult::Err(error) => VmResult::Err(error),
         };
 

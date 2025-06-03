@@ -4,7 +4,8 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{
-    Formatter, GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmResult,
+    Formatter, GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
+    VmResult,
 };
 use crate::{vm_try, vm_write, Any};
 
@@ -60,19 +61,22 @@ where
             return VmResult::Ok(None);
         };
 
-        let state = if execution.is_resumed() {
+        let outcome = if execution.is_resumed() {
             vm_try!(execution.async_resume_with(Value::empty()).await)
         } else {
             vm_try!(execution.async_resume().await)
         };
 
-        VmResult::Ok(match state {
-            GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(_) => {
+        match outcome {
+            VmOutcome::Complete(value) => VmResult::Ok(Some(value)),
+            VmOutcome::Yielded(..) => {
                 self.execution = None;
-                None
+                VmResult::Ok(None)
             }
-        })
+            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited,
+            }),
+        }
     }
 
     /// Resume the generator and return the next generator state.
@@ -87,6 +91,8 @@ where
         } else {
             vm_try!(execution.async_resume().await)
         };
+
+        let state = vm_try!(state.into_generator_state());
 
         if state.is_complete() {
             self.execution = None;
