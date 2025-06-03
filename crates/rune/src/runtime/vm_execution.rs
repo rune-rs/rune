@@ -1,18 +1,32 @@
 use core::fmt;
 use core::future::Future;
 use core::mem::{replace, take};
+use core::pin::{pin, Pin};
+use core::task::{ready, Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 use rust_alloc::sync::Arc;
 
 use crate::alloc::prelude::*;
-use crate::runtime::budget;
+use crate::runtime::{budget, Awaited};
 use crate::shared::AssertSend;
-use crate::vm_try;
+use crate::{async_vm_try, vm_try};
 
 use super::{
     Generator, GeneratorState, InstAddress, Output, RuntimeContext, Stream, Unit, Value, Vm,
     VmDiagnostics, VmErrorKind, VmHalt, VmHaltInfo, VmResult,
 };
+
+static COMPLETE_WAKER_VTABLE: RawWakerVTable = const {
+    RawWakerVTable::new(
+        |_| RawWaker::new(&(), &COMPLETE_WAKER_VTABLE),
+        |_| {},
+        |_| {},
+        |_| {},
+    )
+};
+
+static COMPLETE_WAKER: Waker =
+    const { unsafe { Waker::from_raw(RawWaker::new(&(), &COMPLETE_WAKER_VTABLE)) } };
 
 /// The state of an execution. We keep track of this because it's important to
 /// correctly interact with functions that yield (like generators and streams)
@@ -165,12 +179,9 @@ where
     /// Complete the current execution without support for async instructions.
     ///
     /// This will error if the execution is suspended through yielding.
-    pub async fn async_complete(&mut self) -> VmResult<Value> {
-        match vm_try!(self.async_resume().await) {
-            GeneratorState::Complete(value) => VmResult::Ok(value),
-            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
-                halt: VmHaltInfo::Yielded,
-            }),
+    pub fn async_complete(&mut self) -> AsyncComplete<'_, 'static, T> {
+        AsyncComplete {
+            future: self.async_resume(),
         }
     }
 
@@ -200,102 +211,34 @@ where
 
     /// Resume the current execution with the given value and resume
     /// asynchronous execution.
-    pub async fn async_resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let state = replace(&mut self.state, ExecutionState::Suspended);
-
-        let ExecutionState::Resumed(out) = state else {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
-        };
-
-        vm_try!(out.store(self.head.as_mut().stack_mut(), value));
-        self.inner_async_resume(None).await
+    pub fn async_resume_with(&mut self, value: Value) -> Resume<'_, 'static, T> {
+        self.inner_resume(None, Init::Value(value))
     }
 
     /// Resume the current execution with support for async instructions.
     ///
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
-    pub async fn async_resume(&mut self) -> VmResult<GeneratorState> {
-        self.async_resume_with_diagnostics(None).await
+    pub fn async_resume(&mut self) -> Resume<'_, 'static, T> {
+        self.inner_resume(None, Init::Empty)
     }
 
     /// Resume the current execution with support for async instructions.
     ///
     /// If the function being executed is a generator or stream this will resume
     /// it while returning a unit from the current `yield`.
-    pub async fn async_resume_with_diagnostics(
-        &mut self,
-        diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        if let ExecutionState::Resumed(out) = self.state {
-            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::unit));
-        }
-
-        self.inner_async_resume(diagnostics).await
-    }
-
-    async fn inner_async_resume(
-        &mut self,
-        mut diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        loop {
-            let vm = self.head.as_mut();
-
-            match vm_try!(vm
-                .run(match diagnostics {
-                    Some(ref mut value) => Some(&mut **value),
-                    None => None,
-                })
-                .with_vm(vm))
-            {
-                VmHalt::Exited(addr) => {
-                    self.state = ExecutionState::Exited(addr);
-                }
-                VmHalt::Awaited(awaited) => {
-                    vm_try!(awaited.into_vm(vm).await);
-                    continue;
-                }
-                VmHalt::VmCall(vm_call) => {
-                    vm_try!(vm_call.into_execution(self));
-                    continue;
-                }
-                VmHalt::Yielded(addr, out) => {
-                    let value = match addr {
-                        Some(addr) => vm.stack().at(addr).clone(),
-                        None => Value::unit(),
-                    };
-
-                    self.state = ExecutionState::Resumed(out);
-                    return VmResult::Ok(GeneratorState::Yielded(value));
-                }
-                halt => {
-                    return VmResult::err(VmErrorKind::Halted {
-                        halt: halt.into_info(),
-                    })
-                }
-            }
-
-            if self.states.is_empty() {
-                let value = vm_try!(self.end());
-                return VmResult::Ok(GeneratorState::Complete(value));
-            }
-
-            vm_try!(self.pop_state());
-        }
+    pub fn async_resume_with_diagnostics<'this, 'diag>(
+        &'this mut self,
+        diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+    ) -> Resume<'this, 'diag, T> {
+        self.inner_resume(diagnostics, Init::Empty)
     }
 
     /// Resume the current execution with the given value and resume synchronous
     /// execution.
     #[tracing::instrument(skip_all, fields(?value))]
     pub fn resume_with(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let state = replace(&mut self.state, ExecutionState::Suspended);
-
-        let ExecutionState::Resumed(out) = state else {
-            return VmResult::err(VmErrorKind::ExpectedExecutionState { actual: state });
-        };
-
-        vm_try!(out.store(self.head.as_mut().stack_mut(), value));
-        self.inner_resume(None)
+        self.inner_resume(None, Init::Value(value)).complete()
     }
 
     /// Resume the current execution without support for async instructions.
@@ -319,125 +262,26 @@ where
         &mut self,
         diagnostics: Option<&mut dyn VmDiagnostics>,
     ) -> VmResult<GeneratorState> {
-        if let ExecutionState::Resumed(out) = replace(&mut self.state, ExecutionState::Suspended) {
-            vm_try!(out.store(self.head.as_mut().stack_mut(), Value::unit()));
-        }
-
-        self.inner_resume(diagnostics)
-    }
-
-    fn inner_resume(
-        &mut self,
-        mut diagnostics: Option<&mut dyn VmDiagnostics>,
-    ) -> VmResult<GeneratorState> {
-        loop {
-            let len = self.states.len();
-            let vm = self.head.as_mut();
-
-            match vm_try!(vm
-                .run(match diagnostics {
-                    Some(ref mut value) => Some(&mut **value),
-                    None => None,
-                })
-                .with_vm(vm))
-            {
-                VmHalt::Exited(addr) => {
-                    self.state = ExecutionState::Exited(addr);
-                }
-                VmHalt::VmCall(vm_call) => {
-                    vm_try!(vm_call.into_execution(self));
-                    continue;
-                }
-                VmHalt::Yielded(addr, out) => {
-                    let value = match addr {
-                        Some(addr) => vm.stack().at(addr).clone(),
-                        None => Value::unit(),
-                    };
-
-                    self.state = ExecutionState::Resumed(out);
-                    return VmResult::Ok(GeneratorState::Yielded(value));
-                }
-                halt => {
-                    return VmResult::err(VmErrorKind::Halted {
-                        halt: halt.into_info(),
-                    });
-                }
-            }
-
-            if len == 0 {
-                let value = vm_try!(self.end());
-                return VmResult::Ok(GeneratorState::Complete(value));
-            }
-
-            vm_try!(self.pop_state());
-        }
+        self.inner_resume(diagnostics, Init::Empty).complete()
     }
 
     /// Step the single execution for one step without support for async
     /// instructions.
     ///
     /// If any async instructions are encountered, this will error.
-    pub fn step(&mut self) -> VmResult<Option<Value>> {
-        let len = self.states.len();
-        let vm = self.head.as_mut();
-
-        match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
-            VmHalt::Exited(addr) => {
-                self.state = ExecutionState::Exited(addr);
-            }
-            VmHalt::VmCall(vm_call) => {
-                vm_try!(vm_call.into_execution(self));
-                return VmResult::Ok(None);
-            }
-            VmHalt::Limited => return VmResult::Ok(None),
-            halt => {
-                return VmResult::err(VmErrorKind::Halted {
-                    halt: halt.into_info(),
-                })
-            }
-        }
-
-        if len == 0 {
-            let value = vm_try!(self.end());
-            return VmResult::Ok(Some(value));
-        }
-
-        vm_try!(self.pop_state());
-        VmResult::Ok(None)
+    pub fn step(&mut self) -> VmResult<Option<GeneratorState>> {
+        self.async_step().complete()
     }
 
     /// Step the single execution for one step with support for async
     /// instructions.
-    pub async fn async_step(&mut self) -> VmResult<Option<Value>> {
-        let vm = self.head.as_mut();
-
-        match vm_try!(budget::with(1, || vm.run(None).with_vm(vm)).call()) {
-            VmHalt::Exited(addr) => {
-                self.state = ExecutionState::Exited(addr);
-            }
-            VmHalt::Awaited(awaited) => {
-                vm_try!(awaited.into_vm(vm).await);
-                return VmResult::Ok(None);
-            }
-            VmHalt::VmCall(vm_call) => {
-                vm_try!(vm_call.into_execution(self));
-                return VmResult::Ok(None);
-            }
-            VmHalt::Limited => return VmResult::Ok(None),
-            halt => {
-                return VmResult::err(VmErrorKind::Halted {
-                    halt: halt.into_info(),
-                });
-            }
+    pub fn async_step(&mut self) -> Step<'_, 'static, T> {
+        Step {
+            _budget: budget::replace(1),
+            execution: self,
+            diagnostics: None,
+            awaited: None,
         }
-
-        if self.states.is_empty() {
-            let value = vm_try!(self.end());
-            return VmResult::Ok(Some(value));
-        }
-
-        vm_try!(self.pop_state());
-        VmResult::Ok(None)
     }
 
     /// End execution and perform debug checks.
@@ -484,6 +328,20 @@ where
         }
 
         VmResult::Ok(())
+    }
+
+    #[inline]
+    fn inner_resume<'this, 'diag>(
+        &'this mut self,
+        diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+        init: Init,
+    ) -> Resume<'this, 'diag, T> {
+        Resume {
+            execution: self,
+            diagnostics,
+            awaited: None,
+            init: Some(init),
+        }
     }
 }
 
@@ -575,5 +433,250 @@ where
             state: self.state,
             states: self.states.try_clone()?,
         })
+    }
+}
+
+/// Future that completes an execution returning the completed value.
+///
+/// This will error if the underlying execution produces a state which does not complete to a value.
+pub struct AsyncComplete<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    future: Resume<'this, 'diag, T>,
+}
+
+impl<'this, 'diag, T> Future for AsyncComplete<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    type Output = VmResult<Value>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let future = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.future) };
+
+        Poll::Ready(match async_vm_try!(ready!(future.poll(cx))) {
+            GeneratorState::Complete(value) => VmResult::Ok(value),
+            GeneratorState::Yielded(..) => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Yielded,
+            }),
+        })
+    }
+}
+
+enum Init {
+    Empty,
+    Value(Value),
+}
+
+/// Future that resumes an execution.
+pub struct Resume<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    execution: &'this mut VmExecution<T>,
+    diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+    init: Option<Init>,
+    awaited: Option<Awaited>,
+}
+
+impl<'this, 'diag, T> Resume<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    /// Try to synchronously complete the run, returning the generator state it produced.
+    ///
+    /// This will error if the execution is suspended through awaiting.
+    pub fn complete(self) -> VmResult<GeneratorState> {
+        let this = pin!(self);
+        let mut cx = Context::from_waker(&COMPLETE_WAKER);
+
+        match this.poll(&mut cx) {
+            Poll::Ready(result) => result,
+            Poll::Pending => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Awaited,
+            }),
+        }
+    }
+}
+
+impl<'this, 'diag, T> Future for Resume<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    type Output = VmResult<GeneratorState>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = unsafe { Pin::get_unchecked_mut(self) };
+
+        if let Some(init) = this.init.take() {
+            let vm = this.execution.head.as_mut();
+
+            match init {
+                Init::Empty => {
+                    if let ExecutionState::Resumed(out) =
+                        replace(&mut this.execution.state, ExecutionState::Suspended)
+                    {
+                        async_vm_try!(out.store(vm.stack_mut(), Value::unit));
+                    }
+                }
+                Init::Value(value) => {
+                    let state = replace(&mut this.execution.state, ExecutionState::Suspended);
+
+                    let ExecutionState::Resumed(out) = state else {
+                        return Poll::Ready(VmResult::err(VmErrorKind::ExpectedExecutionState {
+                            actual: state,
+                        }));
+                    };
+
+                    async_vm_try!(out.store(vm.stack_mut(), value));
+                }
+            }
+        }
+
+        loop {
+            let vm = this.execution.head.as_mut();
+
+            if let Some(awaited) = &mut this.awaited {
+                let awaited = unsafe { Pin::new_unchecked(awaited) };
+                async_vm_try!(ready!(awaited.poll(cx, vm)));
+                this.awaited = None;
+            }
+
+            match async_vm_try!(vm
+                .run(match this.diagnostics {
+                    Some(ref mut value) => Some(&mut **value),
+                    None => None,
+                })
+                .with_vm(vm))
+            {
+                VmHalt::Exited(addr) => {
+                    this.execution.state = ExecutionState::Exited(addr);
+                }
+                VmHalt::Awaited(awaited) => {
+                    this.awaited = Some(awaited);
+                    continue;
+                }
+                VmHalt::VmCall(vm_call) => {
+                    async_vm_try!(vm_call.into_execution(this.execution));
+                    continue;
+                }
+                VmHalt::Yielded(addr, out) => {
+                    let value = match addr {
+                        Some(addr) => vm.stack().at(addr).clone(),
+                        None => Value::unit(),
+                    };
+
+                    this.execution.state = ExecutionState::Resumed(out);
+                    return Poll::Ready(VmResult::Ok(GeneratorState::Yielded(value)));
+                }
+                halt => {
+                    return Poll::Ready(VmResult::err(VmErrorKind::Halted {
+                        halt: halt.into_info(),
+                    }));
+                }
+            }
+
+            if this.execution.states.is_empty() {
+                let value = async_vm_try!(this.execution.end());
+                return Poll::Ready(VmResult::Ok(GeneratorState::Complete(value)));
+            }
+
+            async_vm_try!(this.execution.pop_state());
+        }
+    }
+}
+
+/// A future that governs a single step of an execution.
+pub struct Step<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    _budget: budget::BudgetGuard,
+    execution: &'this mut VmExecution<T>,
+    diagnostics: Option<&'diag mut dyn VmDiagnostics>,
+    awaited: Option<Awaited>,
+}
+
+impl<'this, 'diag, T> Step<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    /// Try to synchronously complete the run, returning the generator state it
+    /// produced.
+    ///
+    /// This will error if the execution is suspended through awaiting.
+    #[inline]
+    pub fn complete(self) -> VmResult<Option<GeneratorState>> {
+        let this = pin!(self);
+        let mut cx = Context::from_waker(&COMPLETE_WAKER);
+
+        match this.poll(&mut cx) {
+            Poll::Ready(result) => result,
+            Poll::Pending => VmResult::err(VmErrorKind::Halted {
+                halt: VmHaltInfo::Awaited,
+            }),
+        }
+    }
+}
+
+impl<'this, 'diag, T> Future for Step<'this, 'diag, T>
+where
+    T: AsRef<Vm> + AsMut<Vm>,
+{
+    type Output = VmResult<Option<GeneratorState>>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = unsafe { Pin::get_unchecked_mut(self) };
+
+        loop {
+            let vm = this.execution.head.as_mut();
+
+            if let Some(awaited) = &mut this.awaited {
+                let awaited = unsafe { Pin::new_unchecked(awaited) };
+                async_vm_try!(ready!(awaited.poll(cx, vm)));
+                this.awaited = None;
+            }
+
+            match async_vm_try!(vm
+                .run(match this.diagnostics {
+                    Some(ref mut value) => Some(&mut **value),
+                    None => None,
+                })
+                .with_vm(vm))
+            {
+                VmHalt::Exited(addr) => {
+                    this.execution.state = ExecutionState::Exited(addr);
+                }
+                VmHalt::Awaited(awaited) => {
+                    this.awaited = Some(awaited);
+                    continue;
+                }
+                VmHalt::VmCall(vm_call) => {
+                    async_vm_try!(vm_call.into_execution(this.execution));
+                    continue;
+                }
+                VmHalt::Yielded(addr, out) => {
+                    let value = match addr {
+                        Some(addr) => vm.stack().at(addr).clone(),
+                        None => Value::unit(),
+                    };
+
+                    this.execution.state = ExecutionState::Resumed(out);
+                    return Poll::Ready(VmResult::Ok(Some(GeneratorState::Yielded(value))));
+                }
+                VmHalt::Limited => return Poll::Ready(VmResult::Ok(None)),
+            }
+
+            if this.execution.states.is_empty() {
+                let value = async_vm_try!(this.execution.end());
+                return Poll::Ready(VmResult::Ok(Some(GeneratorState::Complete(value))));
+            }
+
+            async_vm_try!(this.execution.pop_state());
+        }
     }
 }

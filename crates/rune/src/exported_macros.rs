@@ -18,6 +18,26 @@ macro_rules! __vm_try {
     };
 }
 
+/// Asynchronous helper to perform the try operation over [`VmResult`].
+///
+/// This can be used through [`rune::function`] by enabling the `vm_result`
+/// option and suffixing an expression with `<expr>.vm?`.
+///
+/// [`rune::function`]: macro@crate::function
+/// [`VmResult`]: crate::runtime::VmResult
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __async_vm_try {
+    ($expr:expr) => {
+        match $crate::runtime::try_result($expr) {
+            $crate::runtime::VmResult::Ok(value) => value,
+            $crate::runtime::VmResult::Err(err) => {
+                return ::core::task::Poll::Ready($crate::runtime::VmResult::Err(err));
+            }
+        }
+    };
+}
+
 /// Helper to cause a panic.
 ///
 /// This simply returns a [`VmResult`], but the macro is provided to play nicely
@@ -82,6 +102,8 @@ macro_rules! __docstring {
     };
 }
 
+#[doc(inline)]
+pub use __async_vm_try as async_vm_try;
 #[doc(inline)]
 pub use __docstring as docstring;
 #[doc(inline)]

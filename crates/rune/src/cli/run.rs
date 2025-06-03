@@ -6,7 +6,7 @@ use std::time::Instant;
 use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::runtime::{UnitStorage, VmError, VmExecution, VmResult};
+use crate::runtime::{GeneratorState, UnitStorage, VmError, VmExecution, VmResult};
 use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
 mod cli {
@@ -111,6 +111,10 @@ impl CommandBase for Flags {
 
         if self.trace_limit.is_some() {
             self.trace = true;
+        }
+
+        if self.trace {
+            self.dump_return = true;
         }
     }
 
@@ -366,11 +370,16 @@ where
 {
     let mut current_frame_len = execution.vm().call_frames().len();
     let mut result = VmResult::Ok(None);
+    let mut yielded = None;
 
     while limit > 0 {
         let vm = execution.vm();
         let ip = vm.ip();
         let mut o = io.stdout.lock();
+
+        if let Some(value) = yielded.take() {
+            vm.with(|| writeln!(o, "yield: {value:?}"))?;
+        }
 
         if let Some((hash, signature)) = vm.unit().debug_info().and_then(|d| d.function_at(ip)) {
             writeln!(o, "fn {} ({}):", signature, hash)?;
@@ -452,7 +461,15 @@ where
             }
         }
 
-        result = execution.async_step().await;
+        result = match execution.async_step().await {
+            VmResult::Ok(Some(GeneratorState::Complete(value))) => VmResult::Ok(Some(value)),
+            VmResult::Ok(Some(GeneratorState::Yielded(value))) => {
+                yielded = Some(value);
+                VmResult::Ok(None)
+            }
+            VmResult::Ok(None) => VmResult::Ok(None),
+            VmResult::Err(error) => VmResult::Err(error),
+        };
 
         result = match result {
             VmResult::Err(error) => {

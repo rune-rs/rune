@@ -88,6 +88,14 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     Budget { budget, value }
 }
 
+/// Replace the current budget returning a guard that will release it.
+///
+/// Use [`BudgetGuard::take`] to take permites from the returned budget.
+#[inline(never)]
+pub fn replace(budget: usize) -> BudgetGuard {
+    BudgetGuard(self::no_std::rune_budget_replace(budget))
+}
+
 /// Acquire the current budget.
 ///
 /// Use [`BudgetGuard::take`] to take permites from the returned budget.
