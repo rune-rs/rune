@@ -3,9 +3,12 @@ use core::fmt;
 use rust_alloc::boxed::Box;
 
 use crate::runtime::PanicReason;
+use crate::vm_error;
 
 pub trait BoxedPanic: fmt::Display + fmt::Debug + Send + Sync {}
 impl<T> BoxedPanic for T where T: ?Sized + fmt::Display + fmt::Debug + Send + Sync {}
+
+vm_error!(Panic);
 
 /// A descriptive panic.
 ///

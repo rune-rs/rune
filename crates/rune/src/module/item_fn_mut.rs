@@ -113,7 +113,7 @@ impl ItemFnMut<'_> {
     /// Set argument names.
     pub fn argument_names(
         self,
-        names: impl IntoIterator<Item: AsRef<str>>,
+        #[cfg_attr(not(feature = "doc"), allow(unused))] names: impl IntoIterator<Item: AsRef<str>>,
     ) -> Result<Self, ContextError> {
         #[cfg(feature = "doc")]
         {

@@ -85,5 +85,37 @@ macro_rules! __async_vm_try {
     };
 }
 
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __vm_error {
+    ($ty:ty) => {
+        impl<T> $crate::runtime::MaybeTypeOf for Result<T, $ty>
+        where
+            T: $crate::runtime::MaybeTypeOf,
+        {
+            #[inline]
+            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
+                <T as $crate::runtime::MaybeTypeOf>::maybe_type_of()
+            }
+        }
+
+        impl<T> $crate::runtime::ToReturn for Result<T, $ty>
+        where
+            T: $crate::runtime::ToValue,
+        {
+            #[inline]
+            fn to_return(self) -> Result<$crate::runtime::Value, $crate::runtime::VmError> {
+                match self {
+                    Ok(value) => Ok(value.to_value()?),
+                    Err(error) => Err($crate::runtime::VmError::from(error)),
+                }
+            }
+        }
+    };
+}
+
 #[doc(inline)]
 pub(crate) use __async_vm_try as async_vm_try;
+
+#[doc(inline)]
+pub(crate) use __vm_error as vm_error;

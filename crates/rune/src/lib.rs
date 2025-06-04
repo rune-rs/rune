@@ -186,7 +186,7 @@ pub mod no_std;
 
 #[macro_use]
 mod internal_macros;
-pub(crate) use self::internal_macros::async_vm_try;
+pub(crate) use self::internal_macros::{async_vm_try, vm_error};
 
 mod exported_macros;
 #[doc(inline)]
@@ -942,3 +942,5 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::any::Hash for crate::hash::Hash;
 }
+
+vm_error!(crate::alloc::Error);

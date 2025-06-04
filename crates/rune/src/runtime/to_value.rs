@@ -112,7 +112,10 @@ pub trait ToValue: Sized {
 }
 
 /// Trait governing things that can be returned from native functions.
-pub trait ToReturn: Sized {
+pub trait ToReturn
+where
+    Self: Sized,
+{
     /// Convert something into a return value.
     fn to_return(self) -> Result<Value, VmError>;
 }

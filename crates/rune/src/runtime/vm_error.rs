@@ -9,13 +9,15 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
-use crate::{Any, Hash, ItemBuf};
+use crate::{vm_error, Any, Hash, ItemBuf};
 
 use super::{
     AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, AnyTypeInfo,
     BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
     StackError, StaticString, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
+
+vm_error!(VmError);
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
@@ -37,22 +39,6 @@ impl VmError {
                 chain: rust_alloc::vec::Vec::new(),
                 stacktrace: rust_alloc::vec::Vec::new(),
             }),
-        }
-    }
-
-    /// Apply the given frame to the current result.
-    pub(crate) fn with_vm<T>(result: Result<T, Self>, vm: &Vm) -> Result<T, Self> {
-        match result {
-            Ok(ok) => Ok(ok),
-            Err(mut err) => {
-                err.inner.stacktrace.push(VmErrorLocation {
-                    unit: vm.unit().clone(),
-                    ip: vm.last_ip(),
-                    frames: vm.call_frames().to_vec(),
-                });
-
-                Err(err)
-            }
         }
     }
 
@@ -95,6 +81,22 @@ impl VmError {
 
     pub(crate) fn into_kind(self) -> VmErrorKind {
         self.inner.error.kind
+    }
+
+    /// Apply the given frame to the current result.
+    pub(crate) fn with_vm<T>(result: Result<T, Self>, vm: &Vm) -> Result<T, Self> {
+        match result {
+            Ok(ok) => Ok(ok),
+            Err(mut err) => {
+                err.inner.stacktrace.push(VmErrorLocation {
+                    unit: vm.unit().clone(),
+                    ip: vm.last_ip(),
+                    frames: vm.call_frames().to_vec(),
+                });
+
+                Err(err)
+            }
+        }
     }
 }
 
