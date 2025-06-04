@@ -1,14 +1,15 @@
 use core::ptr;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawAnyGuard, Ref, Value, VmResult,
+    EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawAnyGuard, Ref, Value, VmError,
 };
-use crate::{vm_try, Any, ContextError, Module};
+use crate::{Any, ContextError, Module};
 
 /// A dynamic hash set.
 #[rune::module(::std::collections::hash_set)]
@@ -150,9 +151,9 @@ impl HashSet {
     /// assert!(set.capacity() >= 10);
     /// ```
     #[rune::function(keep, path = Self::with_capacity)]
-    pub(crate) fn with_capacity(capacity: usize) -> VmResult<Self> {
-        VmResult::Ok(Self {
-            table: vm_try!(Table::try_with_capacity(capacity)),
+    pub(crate) fn with_capacity(capacity: usize) -> alloc::Result<Self> {
+        Ok(Self {
+            table: Table::try_with_capacity(capacity)?,
         })
     }
 
@@ -224,9 +225,11 @@ impl HashSet {
     /// assert_eq!(set.len(), 1);
     /// ```
     #[rune::function(keep)]
-    pub(crate) fn insert(&mut self, key: Value) -> VmResult<bool> {
-        let mut caller = EnvProtocolCaller;
-        VmResult::Ok(vm_try!(self.table.insert_with(key, (), &mut caller)).is_none())
+    pub(crate) fn insert(&mut self, key: Value) -> Result<bool, VmError> {
+        Ok(self
+            .table
+            .insert_with(key, (), &mut EnvProtocolCaller)?
+            .is_none())
     }
 
     /// Removes a value from the set. Returns whether the value was present in
@@ -244,9 +247,11 @@ impl HashSet {
     /// assert_eq!(set.remove(2), false);
     /// ```
     #[rune::function(keep)]
-    fn remove(&mut self, key: Value) -> VmResult<bool> {
-        let mut caller = EnvProtocolCaller;
-        VmResult::Ok(vm_try!(self.table.remove_with(&key, &mut caller)).is_some())
+    fn remove(&mut self, key: Value) -> Result<bool, VmError> {
+        Ok(self
+            .table
+            .remove_with(&key, &mut EnvProtocolCaller)?
+            .is_some())
     }
 
     /// Returns `true` if the set contains a value.
@@ -262,9 +267,8 @@ impl HashSet {
     /// assert!(!set.contains(4));
     /// ```
     #[rune::function(keep)]
-    fn contains(&self, key: Value) -> VmResult<bool> {
-        let mut caller = EnvProtocolCaller;
-        VmResult::Ok(vm_try!(self.table.get(&key, &mut caller)).is_some())
+    fn contains(&self, key: Value) -> Result<bool, VmError> {
+        Ok(self.table.get(&key, &mut EnvProtocolCaller)?.is_some())
     }
 
     /// Clears the set, removing all values.
@@ -366,7 +370,7 @@ impl HashSet {
     /// assert_eq!(union, HashSet::from_iter([1, 2, 3, 4]));
     /// ```
     #[rune::function(keep, instance, path = Self::union)]
-    fn union(this: Ref<Self>, other: Ref<Self>) -> VmResult<Union> {
+    fn union(this: Ref<Self>, other: Ref<Self>) -> Union {
         unsafe {
             let (this, this_guard) = Ref::into_raw(Ref::map(this, |this| &this.table));
             let (other, other_guard) = Ref::into_raw(Ref::map(other, |this| &this.table));
@@ -394,7 +398,7 @@ impl HashSet {
                 }
             };
 
-            VmResult::Ok(iter)
+            iter
         }
     }
 
@@ -419,15 +423,15 @@ impl HashSet {
 
     /// Extend this set from an iterator.
     #[rune::function(keep)]
-    fn extend(&mut self, value: Value) -> VmResult<()> {
+    fn extend(&mut self, value: Value) -> Result<(), VmError> {
         let mut caller = EnvProtocolCaller;
-        let mut it = vm_try!(value.into_iter());
+        let mut it = value.into_iter()?;
 
-        while let Some(key) = vm_try!(it.next()) {
-            vm_try!(self.table.insert_with(key, (), &mut caller));
+        while let Some(key) = it.next()? {
+            self.table.insert_with(key, (), &mut caller)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Convert the set into an iterator.
@@ -466,25 +470,25 @@ impl HashSet {
     /// println!("{:?}", set);
     /// ```
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+    fn debug_fmt(&self, f: &mut Formatter) -> Result<(), VmError> {
         self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
-    fn debug_fmt_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> VmResult<()> {
-        vm_try!(write!(f, "{{"));
+    fn debug_fmt_with(&self, f: &mut Formatter, _: &mut dyn ProtocolCaller) -> Result<(), VmError> {
+        write!(f, "{{")?;
 
         let mut it = self.table.iter().peekable();
 
-        while let Some(value) = it.next() {
-            vm_try!(write!(f, "{:?}", value));
+        while let Some((value, _)) = it.next() {
+            write!(f, "{value:?}")?;
 
             if it.peek().is_some() {
-                vm_try!(write!(f, ", "));
+                write!(f, ", ")?;
             }
         }
 
-        vm_try!(write!(f, "}}"));
-        VmResult::Ok(())
+        write!(f, "}}")?;
+        Ok(())
     }
 
     /// Convert a [`HashSet`] from an iterator.
@@ -503,23 +507,22 @@ impl HashSet {
     /// assert!(set.contains("b"));
     /// ```
     #[rune::function(keep, path = Self::from_iter)]
-    fn from_iter(it: Iterator) -> VmResult<HashSet> {
-        let mut caller = EnvProtocolCaller;
-        Self::from_iter_with(it, &mut caller)
+    fn from_iter(it: Iterator) -> Result<HashSet, VmError> {
+        Self::from_iter_with(it, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn from_iter_with(
         mut it: Iterator,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Self> {
-        let (lo, _) = vm_try!(it.size_hint());
-        let mut set = vm_try!(Table::try_with_capacity(lo));
+    ) -> Result<Self, VmError> {
+        let (lo, _) = it.size_hint()?;
+        let mut set = Table::try_with_capacity(lo)?;
 
-        while let Some(key) = vm_try!(it.next()) {
-            vm_try!(set.insert_with(key, (), caller));
+        while let Some(key) = it.next()? {
+            set.insert_with(key, (), caller)?;
         }
 
-        VmResult::Ok(HashSet { table: set })
+        Ok(HashSet { table: set })
     }
 
     /// Perform a partial equality test between two sets.
@@ -536,7 +539,7 @@ impl HashSet {
     /// assert_ne!(set, HashSet::from_iter([2, 3, 4]));
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
-    fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+    fn partial_eq(&self, other: &Self) -> Result<bool, VmError> {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
@@ -553,28 +556,28 @@ impl HashSet {
     /// assert!(!eq(set, HashSet::from_iter([2, 3, 4])));
     /// ```
     #[rune::function(keep, protocol = EQ)]
-    fn eq(&self, other: &Self) -> VmResult<bool> {
+    fn eq(&self, other: &Self) -> Result<bool, VmError> {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
-    fn eq_with(&self, other: &Self, caller: &mut EnvProtocolCaller) -> VmResult<bool> {
+    fn eq_with(&self, other: &Self, caller: &mut EnvProtocolCaller) -> Result<bool, VmError> {
         if self.table.len() != other.table.len() {
-            return VmResult::Ok(false);
+            return Ok(false);
         }
 
         for (key, ()) in self.table.iter() {
-            if vm_try!(other.table.get(key, caller)).is_none() {
-                return VmResult::Ok(false);
+            if other.table.get(key, caller)?.is_none() {
+                return Ok(false);
             }
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 
     #[rune::function(keep, instance, path = Self::clone, protocol = CLONE)]
-    fn clone(this: &HashSet) -> VmResult<HashSet> {
-        VmResult::Ok(Self {
-            table: vm_try!(this.table.try_clone()),
+    fn clone(this: &HashSet) -> Result<HashSet, VmError> {
+        Ok(Self {
+            table: this.table.try_clone()?,
         })
     }
 }
@@ -612,23 +615,23 @@ struct Intersection {
 
 impl Intersection {
     #[rune::function(keep, instance, protocol = NEXT)]
-    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
+    pub(crate) fn next(&mut self) -> Result<Option<Value>, VmError> {
         let mut caller = EnvProtocolCaller;
 
         let Some(other) = &self.other else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
         for (key, ()) in self.this.by_ref() {
-            let c = vm_try!(other.table.get(&key, &mut caller)).is_some();
+            let c = other.table.get(&key, &mut caller)?.is_some();
 
             if c {
-                return VmResult::Ok(Some(key));
+                return Ok(Some(key));
             }
         }
 
         self.other = None;
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, instance, protocol = SIZE_HINT)]
@@ -647,23 +650,23 @@ struct Difference {
 
 impl Difference {
     #[rune::function(keep, instance, protocol = NEXT)]
-    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
+    pub(crate) fn next(&mut self) -> Result<Option<Value>, VmError> {
         let mut caller = EnvProtocolCaller;
 
         let Some(other) = &self.other else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
         for (key, ()) in self.this.by_ref() {
-            let c = vm_try!(other.table.get(&key, &mut caller)).is_some();
+            let c = other.table.get(&key, &mut caller)?.is_some();
 
             if !c {
-                return VmResult::Ok(Some(key));
+                return Ok(Some(key));
             }
         }
 
         self.other = None;
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, instance, protocol = SIZE_HINT)]
@@ -684,13 +687,13 @@ struct Union {
 
 impl Union {
     #[rune::function(keep, instance, protocol = NEXT)]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         // SAFETY: we're holding onto the ref guards for both collections during
         // iteration, so this is valid for the lifetime of the iterator.
         unsafe {
             if let Some(bucket) = self.this_iter.next() {
                 let (value, ()) = bucket.as_ref();
-                return VmResult::Ok(Some(value.clone()));
+                return Ok(Some(value.clone()));
             }
 
             let mut caller = EnvProtocolCaller;
@@ -698,12 +701,12 @@ impl Union {
             for bucket in self.other_iter.by_ref() {
                 let (key, ()) = bucket.as_ref();
 
-                if vm_try!(self.this.as_ref().get(key, &mut caller)).is_none() {
-                    return VmResult::Ok(Some(key.clone()));
+                if self.this.as_ref().get(key, &mut caller)?.is_none() {
+                    return Ok(Some(key.clone()));
                 }
             }
 
-            VmResult::Ok(None)
+            Ok(None)
         }
     }
 }
