@@ -1,9 +1,10 @@
 use core::convert::Infallible;
 use core::fmt;
 
+use rune::alloc;
 use rune::alloc::fmt::TryWrite;
-use rune::runtime::{Formatter, VmResult};
-use rune::{vm_write, Any};
+use rune::runtime::Formatter;
+use rune::Any;
 
 /// An error returned by fallible `try_from_rng` methods.
 #[derive(Any)]
@@ -15,8 +16,8 @@ pub struct TryFromRngError {
 impl TryFromRngError {
     /// Write a display representation the error.
     #[rune::function(instance, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{}", self.kind)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.kind)
     }
 }
 

@@ -53,6 +53,7 @@ macro_rules! __vm_panic {
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
 #[doc(hidden)]
+#[deprecated = "Convert any relevant errors to `VmError` instead of using this macro using for example `write!(..)?`."]
 macro_rules! __vm_write {
     ($($tt:tt)*) => {
         match core::write!($($tt)*) {
@@ -89,4 +90,5 @@ pub use __vm_panic as vm_panic;
 #[doc(inline)]
 pub use __vm_try as vm_try;
 #[doc(inline)]
+#[allow(deprecated)]
 pub use __vm_write as vm_write;

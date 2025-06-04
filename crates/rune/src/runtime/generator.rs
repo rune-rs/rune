@@ -6,7 +6,7 @@ use crate::alloc::clone::TryClone;
 use crate::runtime::{
     GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
 };
-use crate::{vm_try, Any};
+use crate::Any;
 
 /// A generator produced by a generator function.
 ///
@@ -46,7 +46,7 @@ impl Generator {
             return Ok(None);
         };
 
-        let state = vm_try!(execution.resume().complete());
+        let state = execution.resume().complete()?;
 
         match state {
             VmOutcome::Complete(_) => {

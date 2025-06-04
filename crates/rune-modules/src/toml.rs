@@ -46,9 +46,10 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 pub mod de {
     //! Deserializer types for the toml module.
 
+    use rune::alloc;
     use rune::alloc::fmt::TryWrite;
-    use rune::runtime::{Formatter, VmResult};
-    use rune::{vm_write, Any, ContextError, Module};
+    use rune::runtime::Formatter;
+    use rune::{Any, ContextError, Module};
 
     pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         let mut module = Module::with_crate_item("toml", ["de"])?;
@@ -66,13 +67,13 @@ pub mod de {
 
     impl Error {
         #[rune::function(protocol = DISPLAY_FMT)]
-        pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
-            vm_write!(f, "{}", self.error)
+        pub(crate) fn display(&self, f: &mut Formatter) -> alloc::Result<()> {
+            write!(f, "{}", self.error)
         }
 
         #[rune::function(protocol = DEBUG_FMT)]
-        pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-            vm_write!(f, "{:?}", self.error)
+        pub(crate) fn debug(&self, f: &mut Formatter) -> alloc::Result<()> {
+            write!(f, "{:?}", self.error)
         }
     }
 
@@ -86,9 +87,10 @@ pub mod de {
 pub mod ser {
     //! Serializer types for the toml module.
 
+    use rune::alloc;
     use rune::alloc::fmt::TryWrite;
-    use rune::runtime::{Formatter, VmResult};
-    use rune::{vm_write, Any, ContextError, Module};
+    use rune::runtime::Formatter;
+    use rune::{Any, ContextError, Module};
 
     pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         let mut module = Module::with_crate_item("toml", ["ser"])?;
@@ -106,13 +108,13 @@ pub mod ser {
 
     impl Error {
         #[rune::function(protocol = DISPLAY_FMT)]
-        pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
-            vm_write!(f, "{}", self.error)
+        pub(crate) fn display(&self, f: &mut Formatter) -> alloc::Result<()> {
+            write!(f, "{}", self.error)
         }
 
         #[rune::function(protocol = DEBUG_FMT)]
-        pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-            vm_write!(f, "{:?}", self.error)
+        pub(crate) fn debug(&self, f: &mut Formatter) -> alloc::Result<()> {
+            write!(f, "{:?}", self.error)
         }
     }
 

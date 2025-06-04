@@ -561,8 +561,8 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn to_string(this: $ty) -> $crate::runtime::VmResult<alloc::String> {
-            Ok($crate::vm_try!(this.try_to_string()))
+        fn to_string(this: $ty) -> $crate::alloc::Result<$crate::alloc::String> {
+            this.try_to_string()
         }
     };
 }

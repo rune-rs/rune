@@ -1292,8 +1292,8 @@ impl Instant {
     /// println!("{now:?}");
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 
     /// Clone the current instant.

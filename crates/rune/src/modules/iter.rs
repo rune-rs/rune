@@ -7,10 +7,10 @@ use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
     FromValue, Function, Inline, InstAddress, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,
-    Value, Vec, VmError, VmErrorKind, VmResult,
+    Value, Vec, VmError, VmErrorKind,
 };
 use crate::shared::Caller;
-use crate::{docstring, vm_try, Any, ContextError, Module, Params};
+use crate::{docstring, Any, ContextError, Module, Params};
 
 /// Rune support for iterators.
 ///
@@ -1689,26 +1689,23 @@ pub fn module() -> Result<Module, ContextError> {
             cx.find_or_define(&Protocol::NTH_BACK, {
                 let next_back = next_back.clone();
 
-                move |iterator: Value, mut n: usize| loop {
-                    let mut memory = [iterator.clone()];
+                move |iterator: Value, mut n: usize| -> Result<Option<Value>, VmError> {
+                    loop {
+                        let mut memory = [iterator.clone()];
 
-                    vm_try!(next_back(
-                        &mut memory,
-                        InstAddress::ZERO,
-                        1,
-                        Output::keep(0)
-                    ));
-                    let [value] = memory;
+                        next_back(&mut memory, InstAddress::ZERO, 1, Output::keep(0))?;
+                        let [value] = memory;
 
-                    let Some(value) = vm_try!(Option::<Value>::from_value(value)) else {
-                        break VmResult::Ok(None);
-                    };
+                        let Some(value) = Option::<Value>::from_value(value)? else {
+                            break Ok(None);
+                        };
 
-                    if n == 0 {
-                        break VmResult::Ok(Some(value));
+                        if n == 0 {
+                            break Ok(Some(value));
+                        }
+
+                        n -= 1;
                     }
-
-                    n -= 1;
                 }
             })?;
 

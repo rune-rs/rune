@@ -3,13 +3,14 @@
 use core::fmt;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::compile;
 use crate::macros::{FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
-use crate::runtime::{EnvProtocolCaller, Format, Formatter, VmResult};
-use crate::{vm_try, vm_write, ContextError, Module};
+use crate::runtime::{EnvProtocolCaller, Format, Formatter, VmError};
+use crate::{ContextError, Module};
 
 /// Formatting text.
 ///
@@ -41,8 +42,8 @@ pub fn module() -> Result<Module, ContextError> {
 }
 
 #[rune::function(instance, protocol = DISPLAY_FMT)]
-fn fmt_error_display_fmt(error: &fmt::Error, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{error}")
+fn fmt_error_display_fmt(error: &fmt::Error, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{error}")
 }
 
 /// Format a string using a format specifier.
@@ -75,9 +76,11 @@ pub(crate) fn format(
 /// assert_eq!(format!("{value}"), "Hello00000");
 /// ```
 #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
-fn format_display_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
-    vm_try!(format.spec.format(&format.value, f, &mut EnvProtocolCaller));
-    VmResult::Ok(())
+fn format_display_fmt(format: &Format, f: &mut Formatter) -> Result<(), VmError> {
+    format
+        .spec
+        .format(&format.value, f, &mut EnvProtocolCaller)?;
+    Ok(())
 }
 
 /// Write a debug representation of a format specification.
@@ -90,8 +93,8 @@ fn format_display_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
 /// assert!(string is String);
 /// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-fn format_debug_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{format:?}")
+fn format_debug_fmt(format: &Format, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{format:?}")
 }
 
 /// Clones a format specification.
@@ -104,6 +107,6 @@ fn format_debug_fmt(format: &Format, f: &mut Formatter) -> VmResult<()> {
 /// assert_eq!(format!("{value}"), "Hello00000");
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
-fn format_clone(this: &Format) -> VmResult<Format> {
-    VmResult::Ok(vm_try!(this.try_clone()))
+fn format_clone(this: &Format) -> Result<Format, VmError> {
+    Ok(this.try_clone()?)
 }

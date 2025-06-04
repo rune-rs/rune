@@ -14,9 +14,9 @@ use crate::runtime::range_from::RangeFromIter;
 use crate::runtime::range_inclusive::RangeInclusiveIter;
 use crate::runtime::{
     ControlFlow, EnvProtocolCaller, Function, Hasher, Range, RangeFrom, RangeFull, RangeInclusive,
-    RangeTo, RangeToInclusive, Value, VmResult,
+    RangeTo, RangeToInclusive, Value, VmError,
 };
-use crate::{vm_try, ContextError, Module};
+use crate::{ContextError, Module};
 
 static STATE: OnceCell<RandomState> = OnceCell::new();
 
@@ -233,7 +233,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert!(!partial_eq(1.0, 2.0));
 /// ```
 #[rune::function(keep)]
-fn partial_eq(lhs: Value, rhs: Value) -> VmResult<bool> {
+fn partial_eq(lhs: Value, rhs: Value) -> Result<bool, VmError> {
     Value::partial_eq(&lhs, &rhs)
 }
 
@@ -256,7 +256,7 @@ fn partial_eq(lhs: Value, rhs: Value) -> VmResult<bool> {
 /// assert!(!eq(1.0, 2.0));
 /// ```
 #[rune::function(keep)]
-fn eq(lhs: Value, rhs: Value) -> VmResult<bool> {
+fn eq(lhs: Value, rhs: Value) -> Result<bool, VmError> {
     Value::eq(&lhs, &rhs)
 }
 
@@ -283,7 +283,7 @@ fn eq(lhs: Value, rhs: Value) -> VmResult<bool> {
 /// assert_eq!(partial_cmp(1.0, f64::NAN), None);
 /// ```
 #[rune::function(keep)]
-fn partial_cmp(lhs: Value, rhs: Value) -> VmResult<Option<Ordering>> {
+fn partial_cmp(lhs: Value, rhs: Value) -> Result<Option<Ordering>, VmError> {
     Value::partial_cmp(&lhs, &rhs)
 }
 
@@ -311,7 +311,7 @@ fn partial_cmp(lhs: Value, rhs: Value) -> VmResult<Option<Ordering>> {
 /// assert_eq!(cmp(1, 2), Ordering::Less);
 /// ```
 #[rune::function(keep)]
-fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
+fn cmp(lhs: Value, rhs: Value) -> Result<Ordering, VmError> {
     Value::cmp(&lhs, &rhs)
 }
 
@@ -338,15 +338,11 @@ fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
 /// assert_eq!(hash([1, 2]), hash((1, 2)));
 /// ```
 #[rune::function(keep)]
-fn hash(value: Value) -> VmResult<u64> {
+fn hash(value: Value) -> Result<u64, VmError> {
     let state = STATE.get_or_init(RandomState::new);
     let mut hasher = Hasher::new_with(state);
 
-    vm_try!(Value::hash_with(
-        &value,
-        &mut hasher,
-        &mut EnvProtocolCaller
-    ));
+    Value::hash_with(&value, &mut hasher, &mut EnvProtocolCaller)?;
 
-    VmResult::Ok(hasher.finish())
+    Ok(hasher.finish())
 }

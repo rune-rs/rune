@@ -190,6 +190,7 @@ pub(crate) use self::internal_macros::{async_vm_try, vm_error};
 
 mod exported_macros;
 #[doc(inline)]
+#[allow(deprecated)]
 pub use self::exported_macros::{docstring, vm_panic, vm_try, vm_write};
 
 #[macro_use]
@@ -505,6 +506,7 @@ pub use rune_macros::attribute_macro;
 /// use rune::vm_write;
 /// use rune::runtime::{Formatter, VmResult};
 /// use rune::alloc::fmt::TryWrite;
+/// use rune::alloc;
 ///
 /// #[derive(Any)]
 /// struct String {
@@ -544,9 +546,8 @@ pub use rune_macros::attribute_macro;
 ///     /// assert_eq!(format!("{}", string), "hello");
 ///     /// ```
 ///     #[rune::function(protocol = DISPLAY_FMT)]
-///     fn display(&self, f: &mut Formatter) -> VmResult<()> {
-///         vm_write!(f, "{}", self.inner);
-///         VmResult::Ok(())
+///     fn display(&self, f: &mut Formatter) -> alloc::Result<()> {
+///         write!(f, "{}", self.inner)
 ///     }
 /// }
 ///

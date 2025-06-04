@@ -1,8 +1,8 @@
 use base64::prelude::*;
 use rune::alloc::fmt::TryWrite;
-use rune::alloc::{String, Vec};
+use rune::alloc::{self, String, Vec};
 use rune::runtime::Bytes;
-use rune::runtime::{Formatter, VmResult};
+use rune::runtime::Formatter;
 use rune::{vm_panic, ContextError, Module};
 
 #[rune::module(::base64)]
@@ -95,7 +95,7 @@ impl From<base64::DecodeSliceError> for DecodeError {
 
 impl DecodeError {
     #[rune::function(instance, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 }

@@ -4,7 +4,6 @@ use core::cmp::Ordering;
 use core::num::ParseIntError;
 
 use crate as rune;
-use crate::alloc;
 use crate::alloc::string::TryToString;
 use crate::{ContextError, Module};
 

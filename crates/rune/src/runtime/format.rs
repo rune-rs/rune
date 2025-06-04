@@ -15,10 +15,8 @@ use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::{self, String};
-use crate::runtime::{
-    Formatter, Inline, ProtocolCaller, Repr, Value, VmError, VmErrorKind, VmResult,
-};
-use crate::{vm_try, Any, TypeHash};
+use crate::runtime::{Formatter, Inline, ProtocolCaller, Repr, Value, VmError, VmErrorKind};
+use crate::{Any, TypeHash};
 
 /// Error raised when trying to parse a type string and it fails.
 #[derive(Debug, Clone, Copy)]
@@ -298,12 +296,12 @@ impl FormatSpec {
         value.debug_fmt_with(f, caller)
     }
 
-    fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
+    fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(write!(f.buf_mut(), "{:X}", n));
-                vm_try!(self.format_fill(f, align, fill, sign));
+                write!(f.buf_mut(), "{:X}", n)?;
+                self.format_fill(f, align, fill, sign)?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -313,12 +311,12 @@ impl FormatSpec {
         Ok(())
     }
 
-    fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
+    fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(write!(f.buf_mut(), "{:x}", n));
-                vm_try!(self.format_fill(f, align, fill, sign));
+                write!(f.buf_mut(), "{:x}", n)?;
+                self.format_fill(f, align, fill, sign)?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -328,12 +326,12 @@ impl FormatSpec {
         Ok(())
     }
 
-    fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
+    fn format_binary(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(write!(f.buf_mut(), "{:b}", n));
-                vm_try!(self.format_fill(f, align, fill, sign));
+                write!(f.buf_mut(), "{:b}", n)?;
+                self.format_fill(f, align, fill, sign)?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -343,12 +341,12 @@ impl FormatSpec {
         Ok(())
     }
 
-    fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
+    fn format_pointer(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                vm_try!(write!(f.buf_mut(), "{:p}", n as *const ()));
-                vm_try!(self.format_fill(f, align, fill, sign));
+                write!(f.buf_mut(), "{:p}", n as *const ())?;
+                self.format_fill(f, align, fill, sign)?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -365,16 +363,16 @@ impl FormatSpec {
         value: &Value,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         f.buf_mut().clear();
 
         match self.format_type {
-            Type::Display => vm_try!(self.format_display(value, f, caller)),
-            Type::Debug => vm_try!(self.format_debug(value, f, caller)),
-            Type::UpperHex => vm_try!(self.format_upper_hex(value, f)),
-            Type::LowerHex => vm_try!(self.format_lower_hex(value, f)),
-            Type::Binary => vm_try!(self.format_binary(value, f)),
-            Type::Pointer => vm_try!(self.format_pointer(value, f)),
+            Type::Display => self.format_display(value, f, caller)?,
+            Type::Debug => self.format_debug(value, f, caller)?,
+            Type::UpperHex => self.format_upper_hex(value, f)?,
+            Type::LowerHex => self.format_lower_hex(value, f)?,
+            Type::Binary => self.format_binary(value, f)?,
+            Type::Pointer => self.format_pointer(value, f)?,
         }
 
         Ok(())

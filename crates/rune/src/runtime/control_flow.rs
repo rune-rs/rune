@@ -1,13 +1,13 @@
 use core::ops;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
-use crate::{vm_try, Any};
+use crate::Any;
 
 use super::{
     EnvProtocolCaller, Formatter, FromValue, ProtocolCaller, RuntimeError, ToValue, Value, VmError,
-    VmResult,
 };
 
 /// Used to tell an operation whether it should exit early or go on as usual.
@@ -59,7 +59,7 @@ impl ControlFlow {
     /// };
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
-    pub(crate) fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+    pub(crate) fn partial_eq(&self, other: &Self) -> Result<bool, VmError> {
         Self::partial_eq_with(self, other, &mut EnvProtocolCaller)
     }
 
@@ -98,7 +98,7 @@ impl ControlFlow {
     /// };
     /// ```
     #[rune::function(keep, protocol = EQ)]
-    pub(crate) fn eq(&self, other: &ControlFlow) -> VmResult<bool> {
+    pub(crate) fn eq(&self, other: &ControlFlow) -> Result<bool, VmError> {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
@@ -124,7 +124,7 @@ impl ControlFlow {
     /// let string = format!("{:?}", ControlFlow::Continue(true));
     /// ```
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    pub(crate) fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+    pub(crate) fn debug_fmt(&self, f: &mut Formatter) -> Result<(), VmError> {
         Self::debug_fmt_with(self, f, &mut EnvProtocolCaller)
     }
 
@@ -162,8 +162,8 @@ impl ControlFlow {
     /// assert_eq!(flow, flow2);
     /// ```
     #[rune::function(keep, protocol = CLONE)]
-    pub(crate) fn clone(&self) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(self.try_clone()))
+    pub(crate) fn clone(&self) -> alloc::Result<Self> {
+        self.try_clone()
     }
 }
 

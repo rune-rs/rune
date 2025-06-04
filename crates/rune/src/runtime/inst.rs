@@ -1205,11 +1205,11 @@ impl Output {
     /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
     ///     let mut number = 0;
     ///
-    ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer::<i64>());
+    ///     for value in stack.slice_at(addr, args)? {
+    ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number);
+    ///     out.store(stack, number)?;
     ///     VmResult::Ok(())
     /// }
     #[inline(always)]

@@ -30,9 +30,9 @@
 //! ```
 
 use rune::alloc::fmt::TryWrite;
-use rune::alloc::{String, Vec};
-use rune::runtime::{Bytes, Formatter, Value, VmResult};
-use rune::{vm_write, Any, ContextError, Module};
+use rune::alloc::{self, String, Vec};
+use rune::runtime::{Bytes, Formatter, Value};
+use rune::{Any, ContextError, Module};
 
 #[rune::module(::json)]
 /// Module for processing JSON.
@@ -65,13 +65,13 @@ struct Error {
 
 impl Error {
     #[rune::function(protocol = DISPLAY_FMT)]
-    pub(crate) fn display(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{}", self.error)
+    pub(crate) fn display(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.error)
     }
 
     #[rune::function(protocol = DEBUG_FMT)]
-    pub(crate) fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.error)
+    pub(crate) fn debug(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.error)
     }
 }
 

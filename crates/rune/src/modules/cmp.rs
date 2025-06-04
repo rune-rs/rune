@@ -3,11 +3,12 @@
 use core::cmp::Ordering;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
+use crate::docstring;
 use crate::hash;
-use crate::runtime::{Formatter, Protocol, Value, VmResult};
+use crate::runtime::{Formatter, Protocol, Value};
 use crate::shared::Caller;
-use crate::{docstring, vm_try, vm_write};
 use crate::{ContextError, Hash, Module, VmError};
 
 /// Comparison and ordering.
@@ -696,8 +697,8 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(max(2, 2), 2);
 /// ```
 #[rune::function(keep)]
-fn max(v1: Value, v2: Value) -> VmResult<Value> {
-    Ok(match vm_try!(Value::cmp(&v1, &v2)) {
+fn max(v1: Value, v2: Value) -> Result<Value, VmError> {
+    Ok(match Value::cmp(&v1, &v2)? {
         Ordering::Less | Ordering::Equal => v2,
         Ordering::Greater => v1,
     })
@@ -718,8 +719,8 @@ fn max(v1: Value, v2: Value) -> VmResult<Value> {
 /// assert_eq!(min(2, 2), 2);
 /// ```
 #[rune::function(keep)]
-fn min(v1: Value, v2: Value) -> VmResult<Value> {
-    Ok(match vm_try!(Value::cmp(&v1, &v2)) {
+fn min(v1: Value, v2: Value) -> Result<Value, VmError> {
+    Ok(match Value::cmp(&v1, &v2)? {
         Ordering::Less | Ordering::Equal => v1,
         Ordering::Greater => v2,
     })
@@ -766,6 +767,6 @@ fn ordering_eq(this: Ordering, other: Ordering) -> bool {
 /// assert_eq!(format!("{:?}", Ordering::Less), "Less");
 /// ```
 #[rune::function(instance, protocol = DEBUG_FMT)]
-fn ordering_debug_fmt(this: Ordering, s: &mut Formatter) -> VmResult<()> {
-    vm_write!(s, "{this:?}")
+fn ordering_debug_fmt(this: Ordering, s: &mut Formatter) -> alloc::Result<()> {
+    write!(s, "{this:?}")
 }

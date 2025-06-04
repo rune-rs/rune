@@ -6,7 +6,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::{Value, VmError};
-use crate::{docstring, vm_try, ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 /// Core types and methods in Rune.
 ///
@@ -49,7 +49,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// If you want to format a message, consider using the [panic!] macro.
 #[rune::function]
 fn panic(message: &str) -> Result<(), VmError> {
-    Err(VmError::panic(vm_try!(message.try_to_owned())))
+    Err(VmError::panic(message.try_to_owned()?))
 }
 
 /// Test if the given `value` is readable.

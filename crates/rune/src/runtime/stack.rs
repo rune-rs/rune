@@ -234,12 +234,12 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Stack, VmError, InstAddress};
     ///
-    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-    ///     let value = vm_try!(stack.at(addr).as_integer::<i64>());
+    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let value = stack.at(addr).as_integer::<i64>()?;
     ///     out.store(stack, value + 1);
-    ///     VmResult::Ok(())
+    ///     Ok(())
     /// }
     /// ```
     #[inline(always)]
@@ -257,14 +257,14 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Stack, VmError, InstAddress};
     ///
-    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-    ///     let mut value = vm_try!(stack.at_mut(addr));
-    ///     let number = vm_try!(value.as_integer::<i64>());
-    ///     *value = vm_try!(rune::to_value(number + 1));
+    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let mut value = stack.at_mut(addr)?;
+    ///     let number = value.as_integer::<i64>()?;
+    ///     *value = rune::to_value(number + 1)?;
     ///     out.store(stack, ());
-    ///     VmResult::Ok(())
+    ///     Ok(())
     /// }
     /// ```
     pub fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
@@ -281,17 +281,17 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, ToValue, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Stack, ToValue, VmError, InstAddress};
     ///
-    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
-    ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer::<i64>());
+    ///     for value in stack.slice_at(addr, args)? {
+    ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number);
-    ///     VmResult::Ok(())
+    ///     out.store(stack, number)?;
+    ///     Ok(())
     /// }
     /// ```
     pub fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
@@ -311,16 +311,16 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Stack, VmError, InstAddress};
     ///
-    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
-    ///     for value in vm_try!(stack.slice_at_mut(addr, args)) {
-    ///         let number = vm_try!(value.as_integer::<i64>());
-    ///         *value = vm_try!(rune::to_value(number + 1));
+    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    ///     for value in stack.slice_at_mut(addr, args)? {
+    ///         let number = value.as_integer::<i64>()?;
+    ///         *value = rune::to_value(number + 1)?;
     ///     }
     ///
-    ///     out.store(stack, ());
-    ///     VmResult::Ok(())
+    ///     out.store(stack, ())?;
+    ///     Ok(())
     /// }
     /// ```
     pub fn slice_at_mut(

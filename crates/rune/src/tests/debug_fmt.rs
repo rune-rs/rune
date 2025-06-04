@@ -2,14 +2,16 @@
 
 prelude!();
 
+use rune::alloc;
+
 #[derive(Any, Debug)]
 #[rune(item = ::native_crate)]
 pub struct NativeStructWithProtocol;
 
 impl NativeStructWithProtocol {
     #[rune::function(protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 }
 
