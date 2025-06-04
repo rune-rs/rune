@@ -9,7 +9,7 @@ use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
     self, AnyTypeInfo, FromValue, InstAddress, MaybeTypeOf, Memory, Output, RuntimeError, ToReturn,
-    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind, VmResult,
+    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 // Expand to function variable bindings.
@@ -32,9 +32,9 @@ macro_rules! access_memory {
             let $var = match $from_fn($var) {
                 Ok($var) => $var,
                 Err(error) => {
-                    return VmResult::err(error).with_error(|| VmErrorKind::BadArgument {
+                    return Err(VmError::with_error(VmError::from(error), VmErrorKind::BadArgument {
                         arg: $num,
-                    }).into_result();
+                    }));
                 }
             };
         )*

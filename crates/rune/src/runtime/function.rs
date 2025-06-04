@@ -11,12 +11,12 @@ use crate::function;
 use crate::runtime;
 use crate::runtime::vm::Isolated;
 use crate::shared::AssertSend;
-use crate::{vm_try, vm_write, Any, Hash};
+use crate::{Any, Hash};
 
 use super::{
     AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs,
     InstAddress, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
-    VmCall, VmError, VmErrorKind, VmHalt, VmResult,
+    VmCall, VmError, VmErrorKind, VmHalt,
 };
 
 /// The type of a function in Rune.
@@ -127,7 +127,7 @@ impl Function {
 
     /// Perform an asynchronous call over the function which also implements
     /// [Send].
-    pub async fn async_send_call<A, T>(&self, args: A) -> VmResult<T>
+    pub async fn async_send_call<A, T>(&self, args: A) -> Result<T, VmError>
     where
         A: Send + GuardedArgs,
         T: Send + FromValue,
@@ -159,10 +159,10 @@ impl Function {
     /// let value = vm.call(["main"], ())?;
     ///
     /// let value: Function = rune::from_value(value)?;
-    /// assert_eq!(value.call::<u32>((1, 2)).into_result()?, 3);
+    /// assert_eq!(value.call::<u32>((1, 2))?, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn call<T>(&self, args: impl GuardedArgs) -> VmResult<T>
+    pub fn call<T>(&self, args: impl GuardedArgs) -> Result<T, VmError>
     where
         T: FromValue,
     {
@@ -351,8 +351,8 @@ impl Function {
     /// assert_eq!(a(), b());
     /// ```
     #[rune::function(keep, protocol = CLONE)]
-    fn clone(&self) -> VmResult<Function> {
-        VmResult::Ok(vm_try!(self.try_clone()))
+    fn clone(&self) -> Result<Function, VmError> {
+        Ok(self.try_clone()?)
     }
 
     /// Debug format a function.
@@ -367,8 +367,8 @@ impl Function {
     /// println!("{function:?}");
     /// ``
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 }
 
@@ -406,13 +406,13 @@ impl SyncFunction {
     /// let add = vm.call(["main"], ())?;
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
-    /// let value = add.async_send_call::<u32>((1, 2)).await.into_result()?;
+    /// let value = add.async_send_call::<u32>((1, 2)).await?;
     /// assert_eq!(value, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub async fn async_send_call<T>(&self, args: impl GuardedArgs + Send) -> VmResult<T>
+    pub async fn async_send_call<T>(&self, args: impl GuardedArgs + Send) -> Result<T, VmError>
     where
         T: Send + FromValue,
     {
@@ -443,10 +443,10 @@ impl SyncFunction {
     /// let add = vm.call(["main"], ())?;
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
-    /// assert_eq!(add.call::<u32>((1, 2)).into_result()?, 3);
+    /// assert_eq!(add.call::<u32>((1, 2))?, 3);
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn call<T>(&self, args: impl GuardedArgs) -> VmResult<T>
+    pub fn call<T>(&self, args: impl GuardedArgs) -> Result<T, VmError>
     where
         T: FromValue,
     {
@@ -515,7 +515,7 @@ where
     OwnedTuple: TryFrom<Box<[V]>>,
     VmErrorKind: From<<OwnedTuple as TryFrom<Box<[V]>>>::Error>,
 {
-    fn call<T>(&self, args: impl GuardedArgs) -> VmResult<T>
+    fn call<T>(&self, args: impl GuardedArgs) -> Result<T, VmError>
     where
         T: FromValue,
     {
@@ -524,54 +524,55 @@ where
                 let count = args.count();
                 let size = count.max(1);
                 // Ensure we have space for the return value.
-                let mut stack = vm_try!(Stack::with_capacity(size));
-                let _guard = vm_try!(unsafe { args.guarded_into_stack(&mut stack) });
-                vm_try!(stack.resize(size));
-                vm_try!((handler.handler)(
+                let mut stack = Stack::with_capacity(size)?;
+                let _guard = unsafe { args.guarded_into_stack(&mut stack) }?;
+                stack.resize(size)?;
+                (handler.handler)(
                     &mut stack,
                     InstAddress::ZERO,
                     count,
-                    InstAddress::ZERO.output()
-                ));
+                    InstAddress::ZERO.output(),
+                )?;
                 stack.at(InstAddress::ZERO).clone()
             }
-            Inner::FnOffset(fn_offset) => {
-                vm_try!(fn_offset.call(args, ()))
-            }
+            Inner::FnOffset(fn_offset) => fn_offset.call(args, ())?,
             Inner::FnClosureOffset(closure) => {
-                let environment = vm_try!(closure.environment.try_clone());
-                let environment = vm_try!(OwnedTuple::try_from(environment));
-                vm_try!(closure.fn_offset.call(args, (environment,)))
+                let environment = closure.environment.try_clone()?;
+                let environment = OwnedTuple::try_from(environment)?;
+                closure.fn_offset.call(args, (environment,))?
             }
             Inner::FnUnitStruct(empty) => {
-                vm_try!(check_args(args.count(), 0));
-                vm_try!(Value::empty_struct(empty.rtti.clone()))
+                check_args(args.count(), 0)?;
+                Value::empty_struct(empty.rtti.clone())?
             }
             Inner::FnTupleStruct(tuple) => {
-                vm_try!(check_args(args.count(), tuple.args));
+                check_args(args.count(), tuple.args)?;
                 // SAFETY: We don't let the guard outlive the value.
-                let (args, _guard) = vm_try!(unsafe { args.guarded_into_vec() });
-                vm_try!(Value::tuple_struct(tuple.rtti.clone(), args))
+                let (args, _guard) = unsafe { args.guarded_into_vec()? };
+                Value::tuple_struct(tuple.rtti.clone(), args)?
             }
         };
 
-        VmResult::Ok(vm_try!(T::from_value(value)))
+        Ok(T::from_value(value)?)
     }
 
-    fn async_send_call<'a, A, T>(&'a self, args: A) -> impl Future<Output = VmResult<T>> + Send + 'a
+    fn async_send_call<'a, A, T>(
+        &'a self,
+        args: A,
+    ) -> impl Future<Output = Result<T, VmError>> + Send + 'a
     where
         A: 'a + Send + GuardedArgs,
         T: 'a + Send + FromValue,
     {
         let future = async move {
-            let value: Value = vm_try!(self.call(args));
+            let value: Value = self.call(args)?;
 
-            let value = match vm_try!(value.try_borrow_mut::<runtime::Future>()) {
-                Some(future) => vm_try!(future.await),
+            let value = match value.try_borrow_mut::<runtime::Future>()? {
+                Some(future) => future.await?,
                 None => value,
             };
 
-            VmResult::Ok(vm_try!(T::from_value(value)))
+            Ok(T::from_value(value)?)
         };
 
         // Safety: Future is send because there is no way to call this

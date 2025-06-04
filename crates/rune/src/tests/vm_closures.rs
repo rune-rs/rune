@@ -37,8 +37,8 @@ fn test_closure_in_lit_object() -> Result<()> {
     let proxy: Proxy = eval("let a = 4; #{a: 0, b: || 2, c: || a, d: 3}");
 
     assert_eq!(0, proxy.a);
-    assert_eq!(2, proxy.b.call::<i64>(()).into_result()?);
-    assert_eq!(4, proxy.c.call::<i64>(()).into_result()?);
+    assert_eq!(2, proxy.b.call::<i64>(())?);
+    assert_eq!(4, proxy.c.call::<i64>(())?);
     assert_eq!(3, proxy.d);
     Ok(())
 }

@@ -10,12 +10,12 @@ use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::iter::{IteratorExt, TryFromIteratorIn};
 use crate::alloc::{self, Box};
-use crate::{vm_try, Any};
+use crate::Any;
 
 use super::{
     ConstValue, EmptyConstContext, Formatter, FromConstValue, FromValue, Hasher, Mut,
     ProtocolCaller, RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue, UnsafeToMut,
-    UnsafeToRef, Value, VmErrorKind, VmResult,
+    UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 /// The type of a tuple slice.
@@ -45,59 +45,62 @@ impl Tuple {
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<T>(&self, index: usize) -> VmResult<Option<T>>
+    pub fn get_value<T>(&self, index: usize) -> Result<Option<T>, VmError>
     where
         T: FromValue,
     {
         let value = match self.values.get(index) {
             Some(value) => value.clone(),
-            None => return VmResult::Ok(None),
+            None => return Ok(None),
         };
 
-        VmResult::Ok(Some(vm_try!(T::from_value(value))))
+        Ok(Some(T::from_value(value)?))
     }
 
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         for value in self.values.iter() {
-            vm_try!(value.hash_with(hasher, caller));
+            value.hash_with(hasher, caller)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     pub(crate) fn debug_fmt_with(
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         let mut it = self.iter().peekable();
-        vm_try!(write!(f, "("));
+        write!(f, "(")?;
 
         while let Some(value) = it.next() {
-            vm_try!(value.debug_fmt_with(f, caller));
+            value.debug_fmt_with(f, caller)?;
 
             if it.peek().is_some() {
-                vm_try!(write!(f, ", "));
+                write!(f, ", ")?;
             }
         }
 
-        vm_try!(write!(f, ")"));
-        VmResult::Ok(())
+        write!(f, ")")?;
+        Ok(())
     }
 
-    pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<OwnedTuple> {
-        let mut vec = vm_try!(alloc::Vec::try_with_capacity(self.len()));
+    pub(crate) fn clone_with(
+        &self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<OwnedTuple, VmError> {
+        let mut vec = alloc::Vec::try_with_capacity(self.len())?;
 
         for value in self.values.iter() {
-            let value = vm_try!(value.clone_with(caller));
-            vm_try!(vec.try_push(value));
+            let value = value.clone_with(caller)?;
+            vec.try_push(value)?;
         }
 
-        VmResult::Ok(vm_try!(OwnedTuple::try_from(vec)))
+        Ok(OwnedTuple::try_from(vec)?)
     }
 }
 

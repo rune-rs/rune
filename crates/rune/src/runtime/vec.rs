@@ -11,12 +11,12 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
 use crate::shared::FixedVec;
-use crate::{vm_try, Any, TypeHash};
+use crate::{Any, TypeHash};
 
 use super::{
     EnvProtocolCaller, Formatter, FromValue, Hasher, ProtocolCaller, Range, RangeFrom, RangeFull,
     RangeInclusive, RangeTo, RangeToInclusive, RawAnyGuard, Ref, RuntimeError, ToValue,
-    UnsafeToRef, Value, VmError, VmErrorKind, VmResult,
+    UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 /// Struct representing a dynamic vector.
@@ -27,13 +27,13 @@ use super::{
 /// let mut vec = rune::runtime::Vec::new();
 /// assert!(vec.is_empty());
 ///
-/// vec.push_value(42).into_result()?;
-/// vec.push_value(true).into_result()?;
+/// vec.push_value(42)?;
+/// vec.push_value(true)?;
 /// assert_eq!(2, vec.len());
 ///
-/// assert_eq!(Some(42), vec.get_value(0).into_result()?);
-/// assert_eq!(Some(true), vec.get_value(1).into_result()?);
-/// assert_eq!(None::<bool>, vec.get_value(2).into_result()?);
+/// assert_eq!(Some(42), vec.get_value(0)?);
+/// assert_eq!(Some(true), vec.get_value(1)?);
+/// assert_eq!(None::<bool>, vec.get_value(2)?);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Default, Any)]
@@ -113,16 +113,16 @@ impl Vec {
     }
 
     /// Set by index
-    pub fn set(&mut self, index: usize, value: Value) -> VmResult<()> {
+    pub fn set(&mut self, index: usize, value: Value) -> Result<(), VmError> {
         let Some(v) = self.inner.get_mut(index) else {
-            return VmResult::err(VmErrorKind::OutOfRange {
+            return Err(VmError::new(VmErrorKind::OutOfRange {
                 index: index.into(),
                 length: self.len().into(),
-            });
+            }));
         };
 
         *v = value;
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
@@ -130,23 +130,23 @@ impl Vec {
     /// If `new_len` is greater than `len`, the `Vec` is extended by the
     /// difference, with each additional slot filled with `value`. If `new_len`
     /// is less than `len`, the `Vec` is simply truncated.
-    pub fn resize(&mut self, new_len: usize, value: Value) -> VmResult<()> {
+    pub fn resize(&mut self, new_len: usize, value: Value) -> Result<(), VmError> {
         if value.is_inline() {
-            vm_try!(self.inner.try_resize(new_len, value));
+            self.inner.try_resize(new_len, value)?;
         } else {
             let len = self.inner.len();
 
             if new_len > len {
                 for _ in 0..new_len - len {
-                    let value = vm_try!(value.clone_with(&mut EnvProtocolCaller));
-                    vm_try!(self.inner.try_push(value));
+                    let value = value.clone_with(&mut EnvProtocolCaller)?;
+                    self.inner.try_push(value)?;
                 }
             } else {
                 self.inner.truncate(new_len);
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Appends an element to the back of a dynamic vector.
@@ -156,12 +156,12 @@ impl Vec {
 
     /// Appends an element to the back of a dynamic vector, converting it as
     /// necessary through the [`ToValue`] trait.
-    pub fn push_value<T>(&mut self, value: T) -> VmResult<()>
+    pub fn push_value<T>(&mut self, value: T) -> Result<(), VmError>
     where
         T: ToValue,
     {
-        vm_try!(self.inner.try_push(vm_try!(value.to_value())));
-        VmResult::Ok(())
+        self.inner.try_push(value.to_value()?)?;
+        Ok(())
     }
 
     /// Get the value at the given index.
@@ -173,16 +173,15 @@ impl Vec {
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<T>(&self, index: usize) -> VmResult<Option<T>>
+    pub fn get_value<T>(&self, index: usize) -> Result<Option<T>, VmError>
     where
         T: FromValue,
     {
-        let value = match self.inner.get(index) {
-            Some(value) => value.clone(),
-            None => return VmResult::Ok(None),
+        let Some(value) = self.inner.get(index) else {
+            return Ok(None);
         };
 
-        VmResult::Ok(Some(vm_try!(T::from_value(value))))
+        Ok(Some(T::from_value(value.clone())?))
     }
 
     /// Get the mutable value at the given index.
@@ -211,21 +210,20 @@ impl Vec {
 
     /// Inserts an element at position index within the vector, shifting all
     /// elements after it to the right.
-    pub fn insert(&mut self, index: usize, value: Value) -> VmResult<()> {
-        vm_try!(self.inner.try_insert(index, value));
-        VmResult::Ok(())
+    pub fn insert(&mut self, index: usize, value: Value) -> alloc::Result<()> {
+        self.inner.try_insert(index, value)
     }
 
     /// Extend this vector with something that implements the into_iter
     /// protocol.
-    pub fn extend(&mut self, value: Value) -> VmResult<()> {
-        let mut it = vm_try!(value.into_iter());
+    pub fn extend(&mut self, value: Value) -> Result<(), VmError> {
+        let mut it = value.into_iter()?;
 
-        while let Some(value) = vm_try!(it.next()) {
-            vm_try!(self.push(value));
+        while let Some(value) = it.next()? {
+            self.push(value)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Iterate over the vector.
@@ -253,44 +251,44 @@ impl Vec {
         this: &[Value],
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         let mut it = this.iter().peekable();
-        vm_try!(write!(f, "["));
+        write!(f, "[")?;
 
         while let Some(value) = it.next() {
-            vm_try!(value.debug_fmt_with(f, caller));
+            value.debug_fmt_with(f, caller)?;
 
             if it.peek().is_some() {
-                vm_try!(write!(f, ", "));
+                write!(f, ", ")?;
             }
         }
 
-        vm_try!(write!(f, "]"));
-        VmResult::Ok(())
+        write!(f, "]")?;
+        Ok(())
     }
 
     pub(crate) fn partial_eq_with(
         a: &[Value],
         b: Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
-        let mut b = vm_try!(b.into_iter_with(caller));
+    ) -> Result<bool, VmError> {
+        let mut b = b.into_iter_with(caller)?;
 
         for a in a {
-            let Some(b) = vm_try!(b.next()) else {
-                return VmResult::Ok(false);
+            let Some(b) = b.next()? else {
+                return Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq_with(a, &b, caller)) {
-                return VmResult::Ok(false);
+            if !Value::partial_eq_with(a, &b, caller)? {
+                return Ok(false);
             }
         }
 
-        if vm_try!(b.next()).is_some() {
-            return VmResult::Ok(false);
+        if b.next()?.is_some() {
+            return Ok(false);
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 
     pub(crate) fn eq_with(
@@ -364,72 +362,72 @@ impl Vec {
 
     /// This is a common get implementation that can be used across linear
     /// types, such as vectors and tuples.
-    pub(crate) fn index_get(this: &[Value], index: Value) -> VmResult<Option<Value>> {
+    pub(crate) fn index_get(this: &[Value], index: Value) -> Result<Option<Value>, VmError> {
         let slice: Option<&[Value]> = 'out: {
             if let Some(value) = index.as_any() {
                 match value.type_hash() {
                     RangeFrom::HASH => {
-                        let range = vm_try!(value.borrow_ref::<RangeFrom>());
-                        let start = vm_try!(range.start.as_usize());
+                        let range = value.borrow_ref::<RangeFrom>()?;
+                        let start = range.start.as_usize()?;
                         break 'out this.get(start..);
                     }
                     RangeFull::HASH => {
-                        _ = vm_try!(value.borrow_ref::<RangeFull>());
+                        _ = value.borrow_ref::<RangeFull>()?;
                         break 'out this.get(..);
                     }
                     RangeInclusive::HASH => {
-                        let range = vm_try!(value.borrow_ref::<RangeInclusive>());
-                        let start = vm_try!(range.start.as_usize());
-                        let end = vm_try!(range.end.as_usize());
+                        let range = value.borrow_ref::<RangeInclusive>()?;
+                        let start = range.start.as_usize()?;
+                        let end = range.end.as_usize()?;
                         break 'out this.get(start..=end);
                     }
                     RangeToInclusive::HASH => {
-                        let range = vm_try!(value.borrow_ref::<RangeToInclusive>());
-                        let end = vm_try!(range.end.as_usize());
+                        let range = value.borrow_ref::<RangeToInclusive>()?;
+                        let end = range.end.as_usize()?;
                         break 'out this.get(..=end);
                     }
                     RangeTo::HASH => {
-                        let range = vm_try!(value.borrow_ref::<RangeTo>());
-                        let end = vm_try!(range.end.as_usize());
+                        let range = value.borrow_ref::<RangeTo>()?;
+                        let end = range.end.as_usize()?;
                         break 'out this.get(..end);
                     }
                     Range::HASH => {
-                        let range = vm_try!(value.borrow_ref::<Range>());
-                        let start = vm_try!(range.start.as_usize());
-                        let end = vm_try!(range.end.as_usize());
+                        let range = value.borrow_ref::<Range>()?;
+                        let start = range.start.as_usize()?;
+                        let end = range.end.as_usize()?;
                         break 'out this.get(start..end);
                     }
                     _ => {}
                 }
             };
 
-            let index = vm_try!(usize::from_value(index));
+            let index = usize::from_value(index)?;
 
             let Some(value) = this.get(index) else {
-                return VmResult::Ok(None);
+                return Ok(None);
             };
 
-            return VmResult::Ok(Some(value.clone()));
+            return Ok(Some(value.clone()));
         };
 
         let Some(values) = slice else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
-        let vec = vm_try!(alloc::Vec::try_from(values));
-        VmResult::Ok(Some(vm_try!(Value::vec(vec))))
+        let vec = alloc::Vec::try_from(values)?;
+        Ok(Some(Value::vec(vec)?))
     }
 
     pub(crate) fn hash_with(
         &self,
         hasher: &mut Hasher,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         for value in self.inner.iter() {
-            vm_try!(value.hash_with(hasher, caller));
+            value.hash_with(hasher, caller)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 }
 

@@ -5,9 +5,9 @@ use core::cmp::Ordering;
 use crate as rune;
 use crate::runtime::slice::Iter;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Hasher, OwnedTuple, Ref, Tuple, Value, Vec, VmResult,
+    EnvProtocolCaller, Formatter, Hasher, OwnedTuple, Ref, Tuple, Value, Vec, VmError,
 };
-use crate::{docstring, vm_try, ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 /// The [`Tuple`] fixed collection.
 ///
@@ -120,7 +120,7 @@ fn is_empty(this: &Tuple) -> bool {
 /// assert_eq!(None, v.get(0..4));
 /// ```
 #[rune::function(instance)]
-fn get(this: &Tuple, index: Value) -> VmResult<Option<Value>> {
+fn get(this: &Tuple, index: Value) -> Result<Option<Value>, VmError> {
     Vec::index_get(this, index)
 }
 
@@ -171,7 +171,7 @@ fn into_iter(this: Ref<Tuple>) -> Iter {
 /// assert!(tuple != (2, 3, 4));
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
-fn partial_eq(this: &Tuple, other: Value) -> VmResult<bool> {
+fn partial_eq(this: &Tuple, other: Value) -> Result<bool, VmError> {
     Vec::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 
@@ -188,8 +188,8 @@ fn partial_eq(this: &Tuple, other: Value) -> VmResult<bool> {
 /// assert!(!eq(tuple, (2, 3, 4)));
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
-fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
-    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller).into()
+fn eq(this: &Tuple, other: &Tuple) -> Result<bool, VmError> {
+    Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
 
 /// Perform a partial comparison check with this tuple.
@@ -203,8 +203,8 @@ fn eq(this: &Tuple, other: &Tuple) -> VmResult<bool> {
 /// assert!(tuple < (2, 2, 3));
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_CMP)]
-fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
-    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller).into()
+fn partial_cmp(this: &Tuple, other: &Tuple) -> Result<Option<Ordering>, VmError> {
+    Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
 /// Perform a total comparison check with this tuple.
@@ -221,8 +221,8 @@ fn partial_cmp(this: &Tuple, other: &Tuple) -> VmResult<Option<Ordering>> {
 /// assert_eq!(cmp(tuple, (2, 2, 3)), Ordering::Less);
 /// ```
 #[rune::function(keep, instance, protocol = CMP)]
-fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
-    Vec::cmp_with(this, other, &mut EnvProtocolCaller).into()
+fn cmp(this: &Tuple, other: &Tuple) -> Result<Ordering, VmError> {
+    Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
 /// Calculate a hash for a tuple.
@@ -237,7 +237,7 @@ fn cmp(this: &Tuple, other: &Tuple) -> VmResult<Ordering> {
 /// assert_eq!(hash((0, 2, 3)), hash([0, 2, 3]));
 /// ```
 #[rune::function(keep, instance, protocol = HASH)]
-fn hash(this: &Tuple, hasher: &mut Hasher) -> VmResult<()> {
+fn hash(this: &Tuple, hasher: &mut Hasher) -> Result<(), VmError> {
     Tuple::hash_with(this, hasher, &mut EnvProtocolCaller)
 }
 
@@ -258,8 +258,8 @@ fn hash(this: &Tuple, hasher: &mut Hasher) -> VmResult<()> {
 /// assert_eq!(c, (1, 2, 3));
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
-fn clone(this: &Tuple) -> VmResult<OwnedTuple> {
-    VmResult::Ok(vm_try!(this.clone_with(&mut EnvProtocolCaller)))
+fn clone(this: &Tuple) -> Result<OwnedTuple, VmError> {
+    Ok(this.clone_with(&mut EnvProtocolCaller)?)
 }
 
 /// Write a debug representation of a tuple.
@@ -272,6 +272,6 @@ fn clone(this: &Tuple) -> VmResult<OwnedTuple> {
 /// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
-fn debug_fmt(this: &Tuple, f: &mut Formatter) -> VmResult<()> {
+fn debug_fmt(this: &Tuple, f: &mut Formatter) -> Result<(), VmError> {
     this.debug_fmt_with(f, &mut EnvProtocolCaller)
 }

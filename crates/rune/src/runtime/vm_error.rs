@@ -98,6 +98,24 @@ impl VmError {
             }
         }
     }
+
+    /// Add auxilliary errors if appropriate.
+    #[inline]
+    pub(crate) fn with_error<E>(mut self, error: E) -> Self
+    where
+        VmErrorKind: From<E>,
+    {
+        #[cfg(feature = "emit")]
+        let index = self.inner.stacktrace.len();
+
+        self.inner.chain.push(VmErrorAt {
+            #[cfg(feature = "emit")]
+            index,
+            kind: VmErrorKind::from(error),
+        });
+
+        self
+    }
 }
 
 impl fmt::Display for VmError {
@@ -306,30 +324,6 @@ impl<T> VmResult<T> {
         VmError: From<E>,
     {
         Self::Err(VmError::from(error))
-    }
-
-    /// Add auxilliary errors if appropriate.
-    #[inline]
-    pub(crate) fn with_error<E, O>(self, error: E) -> Self
-    where
-        E: FnOnce() -> O,
-        VmErrorKind: From<O>,
-    {
-        match self {
-            Self::Ok(ok) => Self::Ok(ok),
-            Self::Err(mut err) => {
-                #[cfg(feature = "emit")]
-                let index = err.inner.stacktrace.len();
-
-                err.inner.chain.push(VmErrorAt {
-                    #[cfg(feature = "emit")]
-                    index,
-                    kind: VmErrorKind::from(error()),
-                });
-
-                Self::Err(err)
-            }
-        }
     }
 }
 

@@ -1,5 +1,5 @@
 use rune::alloc::Vec;
-use rune::runtime::{Function, VmResult};
+use rune::runtime::{Function, VmError};
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{ContextError, Diagnostics, Module, Value, Vm};
 
@@ -51,7 +51,7 @@ fn module() -> Result<Module, ContextError> {
 
     m.function(
         "pass_along",
-        |func: Function, args: Vec<Value>| -> VmResult<Value> { func.call(args) },
+        |func: Function, args: Vec<Value>| -> Result<Value, VmError> { func.call(args) },
     )
     .build()?;
 

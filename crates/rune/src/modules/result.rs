@@ -216,9 +216,9 @@ fn unwrap_or(this: &Result<Value, Value>, default: Value) -> Value {
 /// assert_eq!(Err("foo").unwrap_or_else(count), 3);
 /// ```
 #[rune::function(instance)]
-fn unwrap_or_else(this: &Result<Value, Value>, default: Function) -> VmResult<Value> {
+fn unwrap_or_else(this: &Result<Value, Value>, default: Function) -> Result<Value, VmError> {
     match this {
-        Ok(value) => VmResult::Ok(value.clone()),
+        Ok(value) => Ok(value.clone()),
         Err(error) => default.call((error,)),
     }
 }

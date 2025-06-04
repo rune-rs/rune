@@ -289,14 +289,14 @@ impl Vm {
     /// // Looking up an item from the source.
     /// let dynamic_max = vm.lookup_function(["max"])?;
     ///
-    /// let value = dynamic_max.call::<i64>((10, 20)).into_result()?;
+    /// let value = dynamic_max.call::<i64>((10, 20))?;
     /// assert_eq!(value, 20);
     ///
     /// // Building an item buffer to lookup an `::std` item.
     /// let item = rune::item!(::std::i64::max);
     /// let max = vm.lookup_function(item)?;
     ///
-    /// let value = max.call::<i64>((10, 20)).into_result()?;
+    /// let value = max.call::<i64>((10, 20))?;
     /// assert_eq!(value, 20);
     /// # Ok::<_, rune::support::Error>(())
     /// ```

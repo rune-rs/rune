@@ -8,7 +8,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{
     ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, RuntimeError,
-    Value, VmResult,
+    Value, VmError, VmResult,
 };
 use crate::Any;
 use crate::{hash_in, vm_try, ContextError, Hash, Module};
@@ -407,9 +407,9 @@ fn unwrap_or(this: &Option<Value>, default: Value) -> Value {
 /// assert_eq!(None.unwrap_or_else(|| 2 * k), 20);
 /// ```
 #[rune::function(instance)]
-fn unwrap_or_else(this: &Option<Value>, default: Function) -> VmResult<Value> {
+fn unwrap_or_else(this: &Option<Value>, default: Function) -> Result<Value, VmError> {
     match this {
-        Some(value) => VmResult::Ok(value.clone()),
+        Some(value) => Ok(value.clone()),
         None => default.call(()),
     }
 }

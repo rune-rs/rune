@@ -69,13 +69,13 @@ pub type Values<'a> = hash_map::Values<'a, String, Value>;
 /// let mut object = rune::runtime::Object::new();
 /// assert!(object.is_empty());
 ///
-/// object.insert_value(String::try_from("foo")?, 42).into_result()?;
-/// object.insert_value(String::try_from("bar")?, true).into_result()?;
+/// object.insert_value(String::try_from("foo")?, 42)?;
+/// object.insert_value(String::try_from("bar")?, true)?;
 /// assert_eq!(2, object.len());
 ///
-/// assert_eq!(Some(42), object.get_value("foo").into_result()?);
-/// assert_eq!(Some(true), object.get_value("bar").into_result()?);
-/// assert_eq!(None::<bool>, object.get_value("baz").into_result()?);
+/// assert_eq!(Some(42), object.get_value("foo")?);
+/// assert_eq!(Some(true), object.get_value("bar")?);
+/// assert_eq!(None::<bool>, object.get_value("baz")?);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
 #[derive(Any, Default)]
@@ -167,7 +167,7 @@ impl Object {
     }
 
     /// Get the given value at the given index.
-    pub fn get_value<Q, T>(&self, k: &Q) -> VmResult<Option<T>>
+    pub fn get_value<Q, T>(&self, k: &Q) -> Result<Option<T>, VmError>
     where
         String: borrow::Borrow<Q>,
         Q: ?Sized + hash::Hash + cmp::Eq + cmp::Ord,
@@ -175,10 +175,10 @@ impl Object {
     {
         let value = match self.inner.get(k) {
             Some(value) => value.clone(),
-            None => return VmResult::Ok(None),
+            None => return Ok(None),
         };
 
-        VmResult::Ok(Some(vm_try!(T::from_value(value))))
+        Ok(Some(T::from_value(value)?))
     }
 
     /// Returns a mutable reference to the value corresponding to the key.
@@ -215,12 +215,12 @@ impl Object {
     /// Inserts a key-value pair into the dynamic object, converting it as
     /// necessary through the [`ToValue`] trait.
     #[inline]
-    pub fn insert_value<T>(&mut self, k: String, v: T) -> VmResult<()>
+    pub fn insert_value<T>(&mut self, k: String, v: T) -> Result<(), VmError>
     where
         T: ToValue,
     {
-        vm_try!(self.inner.try_insert(k, vm_try!(v.to_value())));
-        VmResult::Ok(())
+        self.inner.try_insert(k, v.to_value()?)?;
+        Ok(())
     }
 
     /// Inserts a key-value pair into the map.

@@ -13,7 +13,7 @@ use crate::compile::Named;
 use crate::runtime::{
     Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Panic, Range, RangeFrom,
     RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Repr, ToValue, TypeOf, Value,
-    VmErrorKind, VmResult,
+    VmError, VmErrorKind, VmResult,
 };
 use crate::{vm_try, vm_write, Any, ContextError, Module, TypeHash};
 
@@ -937,33 +937,33 @@ fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
 /// assert_eq!("cfg=foo=bar".split_once('='), Some(("cfg", "foo=bar")));
 /// ```
 #[rune::function(instance)]
-fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
+fn split_once(this: &str, value: Value) -> Result<Option<(String, String)>, VmError> {
     let outcome = match value.as_ref() {
         Repr::Inline(Inline::Char(pat)) => this.split_once(*pat),
         Repr::Inline(value) => {
-            return VmResult::err([
+            return Err(VmError::from([
                 VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
-            ]);
+            ]));
         }
         Repr::Dynamic(value) => {
-            return VmResult::err([
+            return Err(VmError::from([
                 VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
-            ]);
+            ]));
         }
         Repr::Any(value) => match value.type_hash() {
             String::HASH => {
-                let s = vm_try!(value.borrow_ref::<String>());
+                let s = value.borrow_ref::<String>()?;
                 this.split_once(s.as_str())
             }
             Function::HASH => {
-                let f = vm_try!(value.borrow_ref::<Function>());
+                let f = value.borrow_ref::<Function>()?;
                 let mut err = None;
 
                 let outcome = this.split_once(|c: char| match f.call::<bool>((c,)) {
-                    VmResult::Ok(b) => b,
-                    VmResult::Err(e) => {
+                    Ok(b) => b,
+                    Err(e) => {
                         if err.is_none() {
                             err = Some(e);
                         }
@@ -973,25 +973,25 @@ fn split_once(this: &str, value: Value) -> VmResult<Option<(String, String)>> {
                 });
 
                 if let Some(e) = err.take() {
-                    return VmResult::Err(e);
+                    return Err(e);
                 }
 
                 outcome
             }
             _ => {
-                return VmResult::err([
+                return Err(VmError::from([
                     VmErrorKind::expected::<String>(value.type_info()),
                     VmErrorKind::bad_argument(0),
-                ]);
+                ]));
             }
         },
     };
 
     let Some((a, b)) = outcome else {
-        return VmResult::Ok(None);
+        return Ok(None);
     };
 
-    VmResult::Ok(Some((vm_try!(a.try_to_owned()), vm_try!(b.try_to_owned()))))
+    Ok(Some((a.try_to_owned()?, b.try_to_owned()?)))
 }
 
 /// Returns a string slice with leading and trailing whitespace removed.

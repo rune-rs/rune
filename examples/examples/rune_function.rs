@@ -38,7 +38,7 @@ fn main() -> rune::support::Result<()> {
     let output = vm.call(["main"], ())?;
     let output: Function = rune::from_value(output)?;
 
-    println!("{}", output.call::<i64>((1, 3)).into_result()?);
-    println!("{}", output.call::<i64>((2, 6)).into_result()?);
+    println!("{}", output.call::<i64>((1, 3))?);
+    println!("{}", output.call::<i64>((2, 6))?);
     Ok(())
 }

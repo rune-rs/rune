@@ -1,7 +1,7 @@
 //! The cloning trait for Rune.
 
 use crate as rune;
-use crate::runtime::{Protocol, Value, VmResult};
+use crate::runtime::{Protocol, Value, VmError};
 use crate::{docstring, ContextError, Module};
 
 /// Cloning for Rune.
@@ -75,6 +75,6 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(c, 42);
 /// ```
 #[rune::function]
-fn clone(value: Value) -> VmResult<Value> {
+fn clone(value: Value) -> Result<Value, VmError> {
     value.clone_()
 }

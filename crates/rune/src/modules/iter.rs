@@ -7,7 +7,7 @@ use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
     FromValue, Function, Inline, InstAddress, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,
-    Value, Vec, VmErrorKind, VmResult,
+    Value, Vec, VmError, VmErrorKind, VmResult,
 };
 use crate::shared::Caller;
 use crate::{docstring, vm_try, Any, ContextError, Module, Params};
@@ -212,12 +212,12 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 move |iter: Value, mut n: usize| loop {
-                    let Some(value) = vm_try!(next.call((iter.clone(),))) else {
-                        break VmResult::Ok(None);
+                    let Some(value) = next.call((iter.clone(),))? else {
+                        break Ok(None);
                     };
 
                     if n == 0 {
-                        break VmResult::Ok(Some(value));
+                        break Ok::<_, VmError>(Some(value));
                     }
 
                     n -= 1;
@@ -235,8 +235,8 @@ pub fn module() -> Result<Module, ContextError> {
                     let mut n = 0usize;
 
                     loop {
-                        if vm_try!(next.call((iter.clone(),))).is_none() {
-                            break VmResult::Ok(n);
+                        if next.call((iter.clone(),))?.is_none() {
+                            break Ok::<_, VmError>(n);
                         };
 
                         n += 1;
@@ -249,11 +249,11 @@ pub fn module() -> Result<Module, ContextError> {
 
                 cx.function("fold", move |iter: Value, mut acc: Value, f: Function| {
                     loop {
-                        let Some(value) = vm_try!(next.call((iter.clone(),))) else {
-                            break VmResult::Ok(acc);
+                        let Some(value) = next.call((iter.clone(),))? else {
+                            break Ok::<_, VmError>(acc);
                         };
 
-                        acc = vm_try!(f.call((acc, value)));
+                        acc = f.call((acc, value))?;
                     }
                 })?;
             }
@@ -262,15 +262,15 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 cx.function("reduce", move |iter: Value, f: Function| {
-                    let Some(mut acc) = vm_try!(next.call((iter.clone(),))) else {
-                        return VmResult::Ok(None);
+                    let Some(mut acc) = next.call((iter.clone(),))? else {
+                        return Ok::<_, VmError>(None);
                     };
 
-                    while let Some(value) = vm_try!(next.call((iter.clone(),))) {
-                        acc = vm_try!(f.call((acc, value)));
+                    while let Some(value) = next.call((iter.clone(),))? {
+                        acc = f.call((acc, value))?;
                     }
 
-                    VmResult::Ok(Some(acc))
+                    Ok(Some(acc))
                 })?;
             }
 
@@ -1692,19 +1692,19 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
             cx.raw_function("rev", |stack, addr, len, out| {
-                let [value] = vm_try!(stack.slice_at(addr, len)) else {
-                    return VmResult::err(VmErrorKind::BadArgumentCount {
+                let [value] = stack.slice_at(addr, len)? else {
+                    return Err(VmError::new(VmErrorKind::BadArgumentCount {
                         actual: len,
                         expected: 1,
-                    });
+                    }));
                 };
 
                 let rev = Rev {
                     value: value.clone(),
                 };
 
-                vm_try!(out.store(stack, || rune::to_value(rev)));
-                VmResult::Ok(())
+                out.store(stack, || rune::to_value(rev))?;
+                Ok(())
             })?;
 
             Ok(())
@@ -1933,7 +1933,7 @@ fn range(start: i64, end: i64) -> RangeIter<i64> {
 macro_rules! fuse {
     ($self:ident . $iter:ident . $($call:tt)+) => {
         match $self.$iter {
-            Some(ref mut iter) => match vm_try!(iter.$($call)+) {
+            Some(ref mut iter) => match iter.$($call)+? {
                 None => {
                     $self.$iter = None;
                     None
@@ -1950,7 +1950,7 @@ macro_rules! fuse {
 macro_rules! maybe {
     ($self:ident . $iter:ident . $($call:tt)+) => {
         match $self.$iter {
-            Some(ref mut iter) => vm_try!(iter.$($call)+),
+            Some(ref mut iter) => iter.$($call)+?,
             None => None,
         }
     };
@@ -1966,8 +1966,8 @@ struct Chain {
 impl Chain {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match fuse!(self.a.protocol_next()) {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        Ok(match fuse!(self.a.protocol_next()) {
             None => maybe!(self.b.protocol_next()),
             item => item,
         })
@@ -1975,8 +1975,8 @@ impl Chain {
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(match fuse!(self.b.protocol_next_back()) {
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        Ok(match fuse!(self.b.protocol_next_back()) {
             None => maybe!(self.a.protocol_next_back()),
             item => item,
         })
@@ -1984,14 +1984,14 @@ impl Chain {
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
         match self {
             Self {
                 a: Some(a),
                 b: Some(b),
             } => {
-                let (a_lower, a_upper) = vm_try!(a.protocol_size_hint());
-                let (b_lower, b_upper) = vm_try!(b.protocol_size_hint());
+                let (a_lower, a_upper) = a.protocol_size_hint()?;
+                let (b_lower, b_upper) = b.protocol_size_hint()?;
 
                 let lower = a_lower.saturating_add(b_lower);
 
@@ -2000,7 +2000,7 @@ impl Chain {
                     _ => None,
                 };
 
-                VmResult::Ok((lower, upper))
+                Ok((lower, upper))
             }
             Self {
                 a: Some(a),
@@ -2010,21 +2010,21 @@ impl Chain {
                 a: None,
                 b: Some(b),
             } => b.protocol_size_hint(),
-            Self { a: None, b: None } => VmResult::Ok((0, Some(0))),
+            Self { a: None, b: None } => Ok((0, Some(0))),
         }
     }
 
     #[rune::function(keep, protocol = LEN)]
     #[inline]
-    fn len(&self) -> VmResult<usize> {
+    fn len(&self) -> Result<usize, VmError> {
         match self {
             Self {
                 a: Some(a),
                 b: Some(b),
             } => {
-                let a_len = vm_try!(a.protocol_len());
-                let b_len = vm_try!(b.protocol_len());
-                VmResult::Ok(a_len.saturating_add(b_len))
+                let a_len = a.protocol_len()?;
+                let b_len = b.protocol_len()?;
+                Ok(a_len.saturating_add(b_len))
             }
             Self {
                 a: Some(a),
@@ -2034,7 +2034,7 @@ impl Chain {
                 a: None,
                 b: Some(b),
             } => b.protocol_len(),
-            Self { a: None, b: None } => VmResult::Ok(0),
+            Self { a: None, b: None } => Ok(0),
         }
     }
 }
@@ -2049,36 +2049,36 @@ struct Enumerate {
 impl Enumerate {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<(usize, Value)>> {
-        if let Some(value) = vm_try!(self.iter.protocol_next()) {
+    fn next(&mut self) -> Result<Option<(usize, Value)>, VmError> {
+        if let Some(value) = self.iter.protocol_next()? {
             let i = self.count;
             self.count += 1;
-            return VmResult::Ok(Some((i, value)));
+            return Ok(Some((i, value)));
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<(usize, Value)>> {
-        if let Some(value) = vm_try!(self.iter.protocol_next_back()) {
-            let len = vm_try!(self.iter.protocol_len());
-            return VmResult::Ok(Some((self.count + len, value)));
+    fn next_back(&mut self) -> Result<Option<(usize, Value)>, VmError> {
+        if let Some(value) = self.iter.protocol_next_back()? {
+            let len = self.iter.protocol_len()?;
+            return Ok(Some((self.count + len, value)));
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
         self.iter.protocol_size_hint()
     }
 
     #[rune::function(keep, protocol = LEN)]
     #[inline]
-    fn len(&self) -> VmResult<usize> {
+    fn len(&self) -> Result<usize, VmError> {
         self.iter.protocol_len()
     }
 }
@@ -2093,33 +2093,33 @@ struct Filter {
 impl Filter {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
-        while let Some(value) = vm_try!(self.iter.protocol_next()) {
-            if vm_try!(self.f.call::<bool>((value.clone(),))) {
-                return VmResult::Ok(Some(value));
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
+        while let Some(value) = self.iter.protocol_next()? {
+            if self.f.call::<bool>((value.clone(),))? {
+                return Ok(Some(value));
             }
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
-        while let Some(value) = vm_try!(self.iter.protocol_next_back()) {
-            if vm_try!(self.f.call::<bool>((value.clone(),))) {
-                return VmResult::Ok(Some(value));
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        while let Some(value) = self.iter.protocol_next_back()? {
+            if self.f.call::<bool>((value.clone(),))? {
+                return Ok(Some(value));
             }
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
-        let (_, hi) = vm_try!(self.iter.protocol_size_hint());
-        VmResult::Ok((0, hi))
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
+        let (_, hi) = self.iter.protocol_size_hint()?;
+        Ok((0, hi))
     }
 }
 
@@ -2133,29 +2133,29 @@ struct Map {
 impl Map {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         if let Some(value) = fuse!(self.iter.protocol_next()) {
-            return VmResult::Ok(Some(vm_try!(self.f.call::<Value>((value.clone(),)))));
+            return Ok(Some(self.f.call::<Value>((value.clone(),))?));
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         if let Some(value) = fuse!(self.iter.protocol_next_back()) {
-            return VmResult::Ok(Some(vm_try!(self.f.call::<Value>((value.clone(),)))));
+            return Ok(Some(self.f.call::<Value>((value.clone(),))?));
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
         let Some(iter) = &self.iter else {
-            return VmResult::Ok((0, Some(0)));
+            return Ok((0, Some(0)));
         };
 
         iter.protocol_size_hint()
@@ -2163,9 +2163,9 @@ impl Map {
 
     #[rune::function(keep, protocol = LEN)]
     #[inline]
-    fn len(&self) -> VmResult<usize> {
+    fn len(&self) -> Result<usize, VmError> {
         let Some(iter) = &self.iter else {
-            return VmResult::Ok(0);
+            return Ok(0);
         };
 
         iter.protocol_len()
@@ -2182,26 +2182,26 @@ struct FilterMap {
 impl FilterMap {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         while let Some(value) = fuse!(self.iter.protocol_next()) {
-            if let Some(value) = vm_try!(self.f.call::<Option<Value>>((value.clone(),))) {
-                return VmResult::Ok(Some(value));
+            if let Some(value) = self.f.call::<Option<Value>>((value.clone(),))? {
+                return Ok(Some(value));
             }
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         while let Some(value) = fuse!(self.iter.protocol_next_back()) {
-            if let Some(value) = vm_try!(self.f.call::<Option<Value>>((value.clone(),))) {
-                return VmResult::Ok(Some(value));
+            if let Some(value) = self.f.call::<Option<Value>>((value.clone(),))? {
+                return Ok(Some(value));
             }
         }
 
-        VmResult::Ok(None)
+        Ok(None)
     }
 }
 
@@ -2216,45 +2216,45 @@ struct FlatMap {
 impl FlatMap {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         loop {
             if let Some(iter) = &mut self.frontiter {
-                match vm_try!(iter.protocol_next()) {
+                match iter.protocol_next()? {
                     None => self.frontiter = None,
-                    item @ Some(_) => return VmResult::Ok(item),
+                    item @ Some(_) => return Ok(item),
                 }
             }
 
-            let Some(value) = vm_try!(self.map.next()) else {
-                return VmResult::Ok(match &mut self.backiter {
-                    Some(backiter) => vm_try!(backiter.protocol_next()),
+            let Some(value) = self.map.next()? else {
+                return Ok(match &mut self.backiter {
+                    Some(backiter) => backiter.protocol_next()?,
                     None => None,
                 });
             };
 
-            self.frontiter = Some(vm_try!(value.protocol_into_iter()))
+            self.frontiter = Some(value.protocol_into_iter()?)
         }
     }
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         loop {
             if let Some(ref mut iter) = self.backiter {
-                match vm_try!(iter.protocol_next_back()) {
+                match iter.protocol_next_back()? {
                     None => self.backiter = None,
-                    item @ Some(_) => return VmResult::Ok(item),
+                    item @ Some(_) => return Ok(item),
                 }
             }
 
-            let Some(value) = vm_try!(self.map.next_back()) else {
-                return VmResult::Ok(match &mut self.frontiter {
-                    Some(frontiter) => vm_try!(frontiter.protocol_next_back()),
+            let Some(value) = self.map.next_back()? else {
+                return Ok(match &mut self.frontiter {
+                    Some(frontiter) => frontiter.protocol_next_back()?,
                     None => None,
                 });
             };
 
-            self.backiter = Some(vm_try!(value.protocol_into_iter()));
+            self.backiter = Some(value.protocol_into_iter()?);
         }
     }
 
@@ -2399,15 +2399,15 @@ struct Skip {
 impl Skip {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         if self.n > 0 {
             let old_n = self.n;
             self.n = 0;
 
             for _ in 0..old_n {
-                match vm_try!(self.iter.protocol_next()) {
+                match self.iter.protocol_next()? {
                     Some(..) => (),
-                    None => return VmResult::Ok(None),
+                    None => return Ok(None),
                 }
             }
         }
@@ -2417,9 +2417,9 @@ impl Skip {
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
-        VmResult::Ok(if vm_try!(self.len()) > 0 {
-            vm_try!(self.iter.protocol_next_back())
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
+        Ok(if self.len()? > 0 {
+            self.iter.protocol_next_back()?
         } else {
             None
         })
@@ -2427,18 +2427,18 @@ impl Skip {
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
-        let (lower, upper) = vm_try!(self.iter.protocol_size_hint());
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
+        let (lower, upper) = self.iter.protocol_size_hint()?;
         let lower = lower.saturating_sub(self.n);
         let upper = upper.map(|x| x.saturating_sub(self.n));
-        VmResult::Ok((lower, upper))
+        Ok((lower, upper))
     }
 
     #[rune::function(keep, protocol = LEN)]
     #[inline]
-    fn len(&self) -> VmResult<usize> {
-        let len = vm_try!(self.iter.protocol_len());
-        VmResult::Ok(len.saturating_sub(self.n))
+    fn len(&self) -> Result<usize, VmError> {
+        let len = self.iter.protocol_len()?;
+        Ok(len.saturating_sub(self.n))
     }
 }
 
@@ -2452,9 +2452,9 @@ struct Take {
 impl Take {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         if self.n == 0 {
-            return VmResult::Ok(None);
+            return Ok(None);
         }
 
         self.n -= 1;
@@ -2463,25 +2463,25 @@ impl Take {
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         if self.n == 0 {
-            VmResult::Ok(None)
+            Ok(None)
         } else {
             let n = self.n;
             self.n -= 1;
-            let len = vm_try!(self.iter.protocol_len());
+            let len = self.iter.protocol_len()?;
             self.iter.protocol_nth_back(len.saturating_sub(n))
         }
     }
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
         if self.n == 0 {
-            return VmResult::Ok((0, Some(0)));
+            return Ok((0, Some(0)));
         }
 
-        let (lower, upper) = vm_try!(self.iter.protocol_size_hint());
+        let (lower, upper) = self.iter.protocol_size_hint()?;
 
         let lower = lower.min(self.n);
 
@@ -2490,18 +2490,18 @@ impl Take {
             _ => Some(self.n),
         };
 
-        VmResult::Ok((lower, upper))
+        Ok((lower, upper))
     }
 
     #[rune::function(keep, protocol = LEN)]
     #[inline]
-    fn len(&self) -> VmResult<usize> {
+    fn len(&self) -> Result<usize, VmError> {
         if self.n == 0 {
-            return VmResult::Ok(0);
+            return Ok(0);
         }
 
-        let len = vm_try!(self.iter.protocol_len());
-        VmResult::Ok(len.min(self.n))
+        let len = self.iter.protocol_len()?;
+        Ok(len.min(self.n))
     }
 }
 
@@ -2514,25 +2514,25 @@ struct Rev {
 impl Rev {
     #[rune::function(keep, protocol = NEXT)]
     #[inline]
-    fn next(&mut self) -> VmResult<Option<Value>> {
+    fn next(&mut self) -> Result<Option<Value>, VmError> {
         self.value.protocol_next_back()
     }
 
     #[rune::function(keep, protocol = NEXT_BACK)]
     #[inline]
-    fn next_back(&mut self) -> VmResult<Option<Value>> {
+    fn next_back(&mut self) -> Result<Option<Value>, VmError> {
         self.value.protocol_next()
     }
 
     #[rune::function(keep, protocol = SIZE_HINT)]
     #[inline]
-    fn size_hint(&self) -> VmResult<(usize, Option<usize>)> {
+    fn size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
         self.value.protocol_size_hint()
     }
 
     #[rune::function(keep, protocol = LEN)]
     #[inline]
-    fn len(&self) -> VmResult<usize> {
+    fn len(&self) -> Result<usize, VmError> {
         self.value.protocol_len()
     }
 }
