@@ -8,8 +8,8 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, AnyTypeInfo, FromValue, InstAddress, MaybeTypeOf, Memory, Output, RuntimeError, ToReturn,
-    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
+    self, AnyTypeInfo, FromValue, InstAddress, IntoReturn, MaybeTypeOf, Memory, Output,
+    RuntimeError, TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 // Expand to function variable bindings.
@@ -233,7 +233,7 @@ macro_rules! impl_function_traits {
         impl<T, U, $($ty,)*> Function<($($place,)*), Plain> for T
         where
             T: 'static + Send + Sync + Fn($($($mut)* $ty),*) -> U,
-            U: ToReturn,
+            U: IntoReturn,
             $($ty: $($trait)*,)*
         {
             type Return = U;
@@ -249,7 +249,7 @@ macro_rules! impl_function_traits {
                 let ret = self($($var.0),*);
                 $(drop($var.1);)*
 
-                let value = ToReturn::to_return(ret)?;
+                let value = IntoReturn::into_return(ret)?;
                 out.store(memory, value)?;
                 Ok(())
             }
@@ -258,8 +258,7 @@ macro_rules! impl_function_traits {
         impl<T, U, $($ty,)*> Function<($($place,)*), Async> for T
         where
             T: 'static + Send + Sync + Fn($($($mut)* $ty),*) -> U,
-            U: 'static + Future,
-            U::Output: ToReturn,
+            U: 'static + Future<Output: IntoReturn>,
             $($ty: $($trait)*,)*
         {
             type Return = U::Output;
@@ -278,7 +277,7 @@ macro_rules! impl_function_traits {
                 $(drop($var.1);)*
 
                 let ret = runtime::Future::new(async move {
-                    ToReturn::to_return(fut.await)
+                    IntoReturn::into_return(fut.await)
                 })?;
 
                 let value = Value::try_from(ret)?;

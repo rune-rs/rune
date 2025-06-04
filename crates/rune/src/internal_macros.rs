@@ -99,12 +99,12 @@ macro_rules! __vm_error {
             }
         }
 
-        impl<T> $crate::runtime::ToReturn for Result<T, $ty>
+        impl<T> $crate::runtime::IntoReturn for Result<T, $ty>
         where
             T: $crate::runtime::ToValue,
         {
             #[inline]
-            fn to_return(self) -> Result<$crate::runtime::Value, $crate::runtime::VmError> {
+            fn into_return(self) -> Result<$crate::runtime::Value, $crate::runtime::VmError> {
                 match self {
                     Ok(value) => Ok(value.to_value()?),
                     Err(error) => Err($crate::runtime::VmError::from(error)),

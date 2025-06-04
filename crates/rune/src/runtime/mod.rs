@@ -153,7 +153,7 @@ pub use self::stream::Stream;
 mod to_value;
 #[doc(hidden)]
 pub use self::to_value::ToValue;
-pub use self::to_value::{to_value, ToReturn, UnsafeToValue};
+pub use self::to_value::{to_value, IntoReturn, UnsafeToValue};
 
 mod tuple;
 pub use self::tuple::{OwnedTuple, Tuple};
