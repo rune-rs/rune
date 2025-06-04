@@ -4,7 +4,7 @@ use core::iter;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome, VmResult,
+    GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
 };
 use crate::{vm_try, Any};
 
@@ -61,13 +61,13 @@ impl Generator {
     }
 
     /// Resume the generator with a value and get the next [`GeneratorState`].
-    pub fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let execution = vm_try!(self
+    pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let execution = self
             .execution
             .as_mut()
-            .ok_or(VmErrorKind::GeneratorComplete));
+            .ok_or(VmErrorKind::GeneratorComplete)?;
 
-        let outcome = vm_try!(execution.resume().with_value(value).complete());
+        let outcome = execution.resume().with_value(value).complete()?;
 
         match outcome {
             VmOutcome::Complete(value) => {
@@ -107,7 +107,7 @@ pub struct Iter {
 
 impl Iter {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
+    pub(crate) fn next(&mut self) -> Result<Option<Value>, VmError> {
         self.generator.next()
     }
 }
@@ -120,7 +120,7 @@ impl iter::Iterator for Iter {
         match Iter::next(self) {
             Ok(Some(value)) => Some(Ok(value)),
             Ok(None) => None,
-            VmResult::Err(error) => Some(Err(error)),
+            Err(error) => Some(Err(error)),
         }
     }
 }

@@ -1,13 +1,12 @@
 //! Overloadable operators and associated types.
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::generator::Iter;
-use crate::runtime::{
-    EnvProtocolCaller, Formatter, Generator, GeneratorState, Value, VmError, VmResult,
-};
-use crate::{docstring, vm_try, vm_write, ContextError, Module};
+use crate::runtime::{EnvProtocolCaller, Formatter, Generator, GeneratorState, Value, VmError};
+use crate::{docstring, ContextError, Module};
 
 /// Types related to generators.
 #[rune::module(::std::ops::generator)]
@@ -69,7 +68,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(g.next(), None);
 /// ``
 #[rune::function(keep, instance, path = next)]
-fn generator_next(this: &mut Generator) -> VmResult<Option<Value>> {
+fn generator_next(this: &mut Generator) -> Result<Option<Value>, VmError> {
     this.next()
 }
 
@@ -116,7 +115,7 @@ fn generator_next(this: &mut Generator) -> VmResult<Option<Value>> {
 /// assert_eq!(g.resume(()), GeneratorState::Complete(()));
 /// ``
 #[rune::function(keep, instance, path = resume)]
-fn generator_resume(this: &mut Generator, value: Value) -> VmResult<GeneratorState> {
+fn generator_resume(this: &mut Generator, value: Value) -> Result<GeneratorState, VmError> {
     this.resume(value)
 }
 
@@ -182,8 +181,8 @@ fn generator_into_iter(this: Generator) -> Iter {
 /// println!("{a:?}");
 /// ``
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-fn generator_debug(this: &Generator, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{this:?}")
+fn generator_debug(this: &Generator, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{this:?}")
 }
 
 /// Clone a generator.
@@ -212,8 +211,8 @@ fn generator_debug(this: &Generator, f: &mut Formatter) -> VmResult<()> {
 /// assert_eq!(b.resume(()), GeneratorState::Complete(()));
 /// ``
 #[rune::function(keep, instance, protocol = CLONE)]
-fn generator_clone(this: &Generator) -> VmResult<Generator> {
-    VmResult::Ok(vm_try!(this.try_clone()))
+fn generator_clone(this: &Generator) -> alloc::Result<Generator> {
+    this.try_clone()
 }
 
 /// Test for partial equality over a generator state.
@@ -235,7 +234,10 @@ fn generator_clone(this: &Generator) -> VmResult<Generator> {
 /// assert_eq!(g.resume(()), GeneratorState::Complete(()));
 /// ``
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
-fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
+fn generator_state_partial_eq(
+    this: &GeneratorState,
+    other: &GeneratorState,
+) -> Result<bool, VmError> {
     this.partial_eq_with(other, &mut EnvProtocolCaller)
 }
 
@@ -259,7 +261,7 @@ fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> 
 /// assert!(eq(g.resume(()), GeneratorState::Complete(())));
 /// ``
 #[rune::function(keep, instance, protocol = EQ)]
-fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
+fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> Result<bool, VmError> {
     this.eq_with(other, &mut EnvProtocolCaller)
 }
 
@@ -280,18 +282,18 @@ fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult
 fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> Result<(), VmError> {
     match this {
         GeneratorState::Yielded(value) => {
-            vm_try!(write!(f, "Yielded("));
-            vm_try!(value.debug_fmt_with(f, &mut EnvProtocolCaller));
-            vm_try!(write!(f, ")"));
+            write!(f, "Yielded(")?;
+            value.debug_fmt_with(f, &mut EnvProtocolCaller)?;
+            write!(f, ")")?;
         }
         GeneratorState::Complete(value) => {
-            vm_try!(write!(f, "Complete("));
-            vm_try!(value.debug_fmt_with(f, &mut EnvProtocolCaller));
-            vm_try!(write!(f, ")"));
+            write!(f, "Complete(")?;
+            value.debug_fmt_with(f, &mut EnvProtocolCaller)?;
+            write!(f, ")")?;
         }
     }
 
-    VmResult::Ok(())
+    Ok(())
 }
 
 /// Clone a generator state.
@@ -307,6 +309,6 @@ fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> Result<(),
 /// assert_eq!(a, b);
 /// ``
 #[rune::function(keep, instance, protocol = CLONE)]
-fn generator_state_clone(this: &GeneratorState) -> VmResult<GeneratorState> {
-    VmResult::Ok(vm_try!(this.try_clone()))
+fn generator_state_clone(this: &GeneratorState) -> alloc::Result<GeneratorState> {
+    this.try_clone()
 }
