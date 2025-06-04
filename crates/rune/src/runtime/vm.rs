@@ -2450,11 +2450,11 @@ impl Vm {
                     match value.type_hash() {
                         Result::<Value, Value>::HASH => {
                             let result = value.borrow_ref::<Result<Value, Value>>()?;
-                            break 'out result::result_try(&result).into_result()?;
+                            break 'out result::result_try(&result)?;
                         }
                         Option::<Value>::HASH => {
                             let option = value.borrow_ref::<Option<Value>>()?;
-                            break 'out option::option_try(&option).into_result()?;
+                            break 'out option::option_try(&option)?;
                         }
                         _ => {}
                     }

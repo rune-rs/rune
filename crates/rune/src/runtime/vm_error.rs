@@ -423,6 +423,8 @@ impl From<Panic> for VmErrorKind {
     }
 }
 
+vm_error!(RuntimeError);
+
 /// An opaque simple runtime error.
 #[cfg_attr(test, derive(PartialEq))]
 pub struct RuntimeError {
