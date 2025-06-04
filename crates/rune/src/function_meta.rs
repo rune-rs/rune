@@ -79,18 +79,16 @@ impl FunctionData {
     }
 
     #[inline]
-    pub(crate) fn new<F, A, N, K>(name: N, f: F) -> alloc::Result<Self>
+    pub(crate) fn new<N, F, A, K>(name: N, f: F) -> alloc::Result<Self>
     where
-        F: Function<A, K, Return: MaybeTypeOf>,
         N: IntoComponent,
+        F: Function<A, K, Return: MaybeTypeOf>,
         A: FunctionArgs,
         K: FunctionKind,
     {
         Ok(Self {
             item: ItemBuf::with_item([name])?,
-            handler: Arc::new(move |stack, addr, args, output| {
-                f.fn_call(stack, addr, args, output)
-            }),
+            handler: Arc::new(move |stack, addr, args, output| f.call(stack, addr, args, output)),
             #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
@@ -117,8 +115,7 @@ impl FunctionMacroData {
             + Send
             + Sync
             + Fn(&mut MacroContext<'_, '_, '_>, &TokenStream) -> compile::Result<TokenStream>,
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoIterator<Item: IntoComponent>,
     {
         Ok(Self {
             item: ItemBuf::with_item(name)?,
@@ -145,8 +142,7 @@ impl AttributeMacroData {
                 &TokenStream,
                 &TokenStream,
             ) -> compile::Result<TokenStream>,
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoIterator<Item: IntoComponent>,
     {
         Ok(Self {
             item: ItemBuf::with_item(name)?,
@@ -297,9 +293,7 @@ impl AssociatedFunctionData {
     {
         Ok(Self {
             associated,
-            handler: Arc::new(move |stack, addr, args, output| {
-                f.fn_call(stack, addr, args, output)
-            }),
+            handler: Arc::new(move |stack, addr, args, output| f.call(stack, addr, args, output)),
             #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
@@ -320,9 +314,7 @@ impl AssociatedFunctionData {
     {
         Ok(Self {
             associated: Associated::from_type::<F::Instance>(name)?,
-            handler: Arc::new(move |stack, addr, args, output| {
-                f.fn_call(stack, addr, args, output)
-            }),
+            handler: Arc::new(move |stack, addr, args, output| f.call(stack, addr, args, output)),
             #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
@@ -462,8 +454,7 @@ impl MacroMetaKind {
             + Send
             + Sync
             + Fn(&mut MacroContext<'_, '_, '_>, &TokenStream) -> compile::Result<TokenStream>,
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoIterator<Item: IntoComponent>,
     {
         Ok(Self::Function(FunctionMacroData::new(name, f)?))
     }
@@ -480,8 +471,7 @@ impl MacroMetaKind {
                 &TokenStream,
                 &TokenStream,
             ) -> compile::Result<TokenStream>,
-        N: IntoIterator,
-        N::Item: IntoComponent,
+        N: IntoIterator<Item: IntoComponent>,
     {
         Ok(Self::Attribute(AttributeMacroData::new(name, f)?))
     }

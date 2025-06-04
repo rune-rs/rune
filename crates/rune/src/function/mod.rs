@@ -80,7 +80,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
 
     /// Perform the vm call.
     #[doc(hidden)]
-    fn fn_call(
+    fn call(
         &self,
         memory: &mut dyn Memory,
         addr: InstAddress,
@@ -110,7 +110,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
 
     /// Perform the vm call.
     #[doc(hidden)]
-    fn fn_call(
+    fn call(
         &self,
         memory: &mut dyn Memory,
         addr: InstAddress,
@@ -132,8 +132,8 @@ macro_rules! impl_instance_function_traits {
             const ARGS: usize  = <T as Function<(Instance, $($ty,)*), Kind>>::ARGS;
 
             #[inline]
-            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
-                Function::fn_call(self, memory, addr, args, out)
+            fn call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+                Function::call(self, memory, addr, args, out)
             }
         }
     };
@@ -241,7 +241,7 @@ macro_rules! impl_function_traits {
             const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+            fn call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
                 access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to memory, so we can guarantee
@@ -267,7 +267,7 @@ macro_rules! impl_function_traits {
             const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
-            fn fn_call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+            fn call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
                 access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);

@@ -118,7 +118,7 @@ impl Function {
         Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {
                 handler: Arc::new(move |stack, addr, args, output| {
-                    f.fn_call(stack, addr, args, output)
+                    f.call(stack, addr, args, output)
                 }),
                 hash: Hash::EMPTY,
             }),

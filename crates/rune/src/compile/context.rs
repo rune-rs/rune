@@ -147,7 +147,7 @@ impl TraitContext<'_> {
         F: Function<A, Plain>,
     {
         let handler: Arc<FunctionHandler> =
-            Arc::new(move |memory, addr, len, out| handler.fn_call(memory, addr, len, out));
+            Arc::new(move |memory, addr, len, out| handler.call(memory, addr, len, out));
         self.function_handler(name, &handler)?;
         Ok(handler)
     }

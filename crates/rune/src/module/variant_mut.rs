@@ -72,9 +72,8 @@ where
             });
         }
 
-        let handler: Arc<FunctionHandler> = Arc::new(move |stack, addr, args, output| {
-            constructor.fn_call(stack, addr, args, output)
-        });
+        let handler: Arc<FunctionHandler> =
+            Arc::new(move |stack, addr, args, output| constructor.call(stack, addr, args, output));
 
         *self.constructor = Some(TypeConstructor {
             handler,
