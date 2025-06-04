@@ -7,8 +7,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{
-    ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, RuntimeError,
-    Value, VmError,
+    ControlFlow, EnvProtocolCaller, Formatter, Function, Hasher, Panic, Protocol, Value, VmError,
 };
 use crate::Any;
 use crate::{hash_in, ContextError, Hash, Module};
@@ -44,7 +43,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.index_function(&Protocol::GET, 0, |this: &Option<Value>| match this {
         Option::Some(value) => Ok(value.clone()),
-        _ => Err(RuntimeError::__rune_macros__unsupported_tuple_index_get(
+        _ => Err(crate::__priv::e::unsupported_tuple_index_get(
             <Option<Value> as Any>::ANY_TYPE_INFO,
             0,
         )),

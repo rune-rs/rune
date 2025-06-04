@@ -373,13 +373,12 @@ fn expand_enum_install_with(
     args: &crate::hash::Arguments,
 ) -> Result<(), ()> {
     let Tokens {
-        protocol,
-        runtime_error,
-        to_value,
-        vm_result,
         any_t,
         hash,
-        vm_try,
+        protocol,
+        result,
+        to_value,
+        errors,
         ..
     } = tokens;
 
@@ -443,7 +442,7 @@ fn expand_enum_install_with(
                             let field_name = field_ident.to_string();
                             let fields = field_fns.entry(field_name).or_default();
                             let access = attrs.clone_with.decorate(tokens, quote!(#field_ident));
-                            fields.push(quote!(#ident::#variant_ident { #field_ident, .. } => #vm_result::Ok(#vm_try!(#to_value::to_value(#access)))));
+                            fields.push(quote!(#ident::#variant_ident { #field_ident, .. } => #result::Ok(#to_value::to_value(#access)?)));
                         }
                     }
 
@@ -476,7 +475,7 @@ fn expand_enum_install_with(
                             let n = syn::LitInt::new(&n.to_string(), field.span());
 
                             let access = attrs.clone_with.decorate(tokens, quote!(value));
-                            fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #vm_result::Ok(#vm_try!(#to_value::to_value(#access)))));
+                            fields.push(quote!(#ident::#variant_ident { #n: value, .. } => #result::Ok(#to_value::to_value(#access)?)));
                         }
                     }
 
@@ -535,8 +534,8 @@ fn expand_enum_install_with(
             module.field_function(&#protocol::GET, #field, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::err(
-                        #runtime_error::__rune_macros__unsupported_object_field_get(
+                    _ => #result::Err(
+                        #errors::unsupported_object_field_get(
                             <Self as #any_t>::ANY_TYPE_INFO
                         )
                     ),
@@ -550,11 +549,8 @@ fn expand_enum_install_with(
             module.index_function(&#protocol::GET, #index, |this: &Self| {
                 match this {
                     #(#matches,)*
-                    _ => return #vm_result::err(
-                        #runtime_error::__rune_macros__unsupported_tuple_index_get(
-                            <Self as #any_t>::ANY_TYPE_INFO,
-                            #index
-                        )
+                    _ => return #result::Err(
+                        #errors::unsupported_tuple_index_get(<Self as #any_t>::ANY_TYPE_INFO, #index)
                     ),
                 }
             })?;

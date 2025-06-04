@@ -88,7 +88,7 @@ impl RangeFrom {
     /// range.iter()
     /// ```
     #[rune::function(keep)]
-    pub fn iter(&self) -> VmResult<Value> {
+    pub fn iter(&self) -> Result<Value, VmError> {
         let value = match self.start.as_ref() {
             Repr::Inline(Inline::Unsigned(start)) => {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
@@ -100,13 +100,13 @@ impl RangeFrom {
                 vm_try!(crate::to_value(RangeFromIter::new(*start..)))
             }
             start => {
-                return VmResult::err(VmErrorKind::UnsupportedIterRangeFrom {
+                return Err(VmError::new(VmErrorKind::UnsupportedIterRangeFrom {
                     start: start.type_info(),
-                })
+                }));
             }
         };
 
-        VmResult::Ok(value)
+        Ok(value)
     }
 
     /// Build an iterator over the range.
@@ -160,7 +160,7 @@ impl RangeFrom {
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
     pub fn partial_eq(&self, other: &Self) -> VmResult<bool> {
-        self.partial_eq_with(other, &mut EnvProtocolCaller).into()
+        self.partial_eq_with(other, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn partial_eq_with(
@@ -184,7 +184,7 @@ impl RangeFrom {
     /// ```
     #[rune::function(keep, protocol = EQ)]
     pub fn eq(&self, other: &Self) -> VmResult<bool> {
-        self.eq_with(other, &mut EnvProtocolCaller).into()
+        self.eq_with(other, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn eq_with(
@@ -207,7 +207,7 @@ impl RangeFrom {
     /// ```
     #[rune::function(keep, protocol = PARTIAL_CMP)]
     pub fn partial_cmp(&self, other: &Self) -> VmResult<Option<Ordering>> {
-        self.partial_cmp_with(other, &mut EnvProtocolCaller).into()
+        self.partial_cmp_with(other, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn partial_cmp_with(
@@ -231,7 +231,7 @@ impl RangeFrom {
     /// ```
     #[rune::function(keep, protocol = CMP)]
     pub fn cmp(&self, other: &Self) -> VmResult<Ordering> {
-        self.cmp_with(other, &mut EnvProtocolCaller).into()
+        self.cmp_with(other, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn cmp_with(

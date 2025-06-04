@@ -259,7 +259,7 @@ pub mod runtime;
 #[doc(inline)]
 pub use self::runtime::{
     from_const_value, from_value, to_const_value, to_value, FromConstValue, FromValue, Mut, Ref,
-    ToConstValue, ToValue, TypeHash, Unit, Value, Vm,
+    ToConstValue, ToValue, TypeHash, Unit, Value, Vm, VmError,
 };
 
 mod shared;
@@ -813,31 +813,77 @@ pub(crate) mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __priv {
-    #[doc(inline)]
     pub use crate::any::AnyMarker;
-    #[doc(inline)]
     pub use crate::function_meta::{
         FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
-    #[doc(inline)]
     pub use crate::item::{Item, ItemBuf};
-    #[doc(inline)]
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
-    #[doc(inline)]
     pub use crate::params::Params;
-    #[doc(inline)]
     pub use crate::runtime::{
         AnyTypeInfo, ConstConstruct, ConstValue, FromConstValue, FromValue, MaybeTypeOf, Object,
         OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue, ToValue, Tuple, TypeHash,
         TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue, Value, ValueMutGuard,
-        ValueRefGuard, VmResult,
+        ValueRefGuard, VmError,
     };
-    #[doc(inline)]
     pub use core::clone::Clone;
-    #[doc(inline)]
     pub use rust_alloc::boxed::Box;
-    #[doc(inline)]
     pub use rust_alloc::sync::Arc;
+
+    pub mod e {
+        use crate::alloc::borrow::TryToOwned;
+        use crate::runtime::{AnyTypeInfo, RuntimeError, TypeInfo, VmErrorKind};
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_struct_field(target: &'static str, name: &'static str) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::MissingStructField { target, name })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_variant(name: &str) -> RuntimeError {
+            match name.try_to_owned() {
+                Ok(name) => RuntimeError::new(VmErrorKind::MissingVariant { name }),
+                Err(error) => RuntimeError::from(error),
+            }
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn expected_variant(actual: TypeInfo) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::ExpectedVariant { actual })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_variant_name() -> RuntimeError {
+            RuntimeError::new(VmErrorKind::MissingVariantName)
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_tuple_index(target: &'static str, index: usize) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::MissingTupleIndex { target, index })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn unsupported_object_field_get(target: AnyTypeInfo) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::UnsupportedObjectFieldGet {
+                target: TypeInfo::from(target),
+            })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn unsupported_tuple_index_get(target: AnyTypeInfo, index: usize) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::UnsupportedTupleIndexGet {
+                target: TypeInfo::from(target),
+                index,
+            })
+        }
+    }
 }
 
 #[cfg(feature = "musli")]

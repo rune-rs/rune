@@ -9,10 +9,10 @@
 #[doc(hidden)]
 macro_rules! __vm_try {
     ($expr:expr) => {
-        match $crate::runtime::try_result($expr) {
-            $crate::runtime::VmResult::Ok(value) => value,
-            $crate::runtime::VmResult::Err(err) => {
-                return $crate::runtime::VmResult::Err(err);
+        match $expr {
+            Ok(value) => value,
+            Err(err) => {
+                return Err($crate::VmError::from(err));
             }
         }
     };
@@ -43,7 +43,7 @@ macro_rules! __vm_try {
 #[doc(hidden)]
 macro_rules! __vm_panic {
     ($expr:expr) => {{
-        return $crate::runtime::VmResult::panic($expr);
+        return Err($crate::runtime::VmError::panic($expr));
     }};
 }
 
@@ -56,8 +56,8 @@ macro_rules! __vm_panic {
 macro_rules! __vm_write {
     ($($tt:tt)*) => {
         match core::write!($($tt)*) {
-            Ok(()) => $crate::runtime::VmResult::Ok(()),
-            Err(err) => $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err)),
+            Ok(()) => Ok(()),
+            Err(err) => Err($crate::runtime::VmError::from(err)),
         }
     };
 }

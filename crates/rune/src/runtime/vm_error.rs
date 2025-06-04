@@ -5,16 +5,14 @@ use rust_alloc::boxed::Box;
 use rust_alloc::sync::Arc;
 
 use crate::alloc::error::CustomError;
-use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::compile::meta;
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::{vm_error, Any, Hash, ItemBuf};
 
 use super::{
-    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, AnyTypeInfo,
-    BoxedPanic, CallFrame, DynArgsUsed, ExecutionState, MaybeTypeOf, Panic, Protocol, SliceError,
-    StackError, StaticString, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, BoxedPanic,
+    CallFrame, DynArgsUsed, ExecutionState, Panic, Protocol, SliceError, StackError, StaticString,
+    TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 vm_error!(VmError);
@@ -137,61 +135,6 @@ impl fmt::Debug for VmError {
 
 impl core::error::Error for VmError {}
 
-pub mod sealed {
-    use crate::runtime::VmResult;
-    pub trait Sealed {}
-    impl<T> Sealed for VmResult<T> {}
-    impl<T, E> Sealed for Result<T, E> {}
-}
-
-/// Trait used to convert result types to [`VmResult`].
-#[doc(hidden)]
-pub trait TryFromResult: self::sealed::Sealed {
-    /// The ok type produced by the conversion.
-    type Ok;
-
-    /// The conversion method itself.
-    fn try_from_result(value: Self) -> VmResult<Self::Ok>;
-}
-
-/// Helper to coerce one result type into [`VmResult`].
-///
-/// Despite being public, this is actually private API (`#[doc(hidden)]`). Use
-/// at your own risk.
-#[doc(hidden)]
-#[inline(always)]
-#[allow(clippy::unit_arg)]
-pub fn try_result<T>(result: T) -> VmResult<T::Ok>
-where
-    T: TryFromResult,
-{
-    T::try_from_result(result)
-}
-
-impl<T> TryFromResult for VmResult<T> {
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        value
-    }
-}
-
-impl<T, E> TryFromResult for Result<T, E>
-where
-    VmError: From<E>,
-{
-    type Ok = T;
-
-    #[inline]
-    fn try_from_result(value: Self) -> VmResult<T> {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::Err(VmError::from(err)),
-        }
-    }
-}
-
 /// A single unit producing errors.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -242,122 +185,7 @@ pub(crate) struct VmErrorInner {
 }
 
 /// A result produced by the virtual machine.
-#[must_use]
-pub enum VmResult<T> {
-    /// A produced value.
-    Ok(T),
-    /// Multiple errors with locations included.
-    Err(VmError),
-}
-
-impl<T> VmResult<T> {
-    /// Construct a result containing a panic.
-    #[inline]
-    pub fn panic<D>(message: D) -> Self
-    where
-        D: 'static + BoxedPanic,
-    {
-        Self::err(Panic::custom(message))
-    }
-
-    /// Construct an expectation error. The actual type received is `actual`,
-    /// but we expected `E`.
-    #[inline]
-    pub fn expected<E>(actual: TypeInfo) -> Self
-    where
-        E: ?Sized + TypeOf,
-    {
-        Self::Err(VmError::expected::<E>(actual))
-    }
-
-    /// Test if the result is an ok.
-    #[inline]
-    pub fn is_ok(&self) -> bool {
-        matches!(self, Self::Ok(..))
-    }
-
-    /// Test if the result is an error.
-    #[inline]
-    pub fn is_err(&self) -> bool {
-        matches!(self, Self::Err(..))
-    }
-
-    /// Expect a value or panic.
-    #[inline]
-    #[track_caller]
-    pub fn expect(self, msg: &str) -> T {
-        self.into_result().expect(msg)
-    }
-
-    /// Unwrap the interior value.
-    #[inline]
-    #[track_caller]
-    pub fn unwrap(self) -> T {
-        self.into_result().unwrap()
-    }
-
-    /// Calls `op` if the result is [`VmResult::Ok`], otherwise returns the
-    /// [`VmResult::Err`] value of `self`.
-    pub fn and_then<U, F>(self, op: F) -> VmResult<U>
-    where
-        F: FnOnce(T) -> VmResult<U>,
-    {
-        match self {
-            Self::Ok(value) => op(value),
-            Self::Err(error) => VmResult::Err(error),
-        }
-    }
-
-    /// Convert a [`VmResult`] into a [`Result`].
-    #[inline]
-    pub fn into_result(self) -> Result<T, VmError> {
-        match self {
-            Self::Ok(value) => Ok(value),
-            Self::Err(error) => Err(error),
-        }
-    }
-
-    /// Construct a new error from a type that can be converted into a
-    /// [`VmError`].
-    pub fn err<E>(error: E) -> Self
-    where
-        VmError: From<E>,
-    {
-        Self::Err(VmError::from(error))
-    }
-}
-
-impl<T> MaybeTypeOf for VmResult<T>
-where
-    T: MaybeTypeOf,
-{
-    #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
-        T::maybe_type_of()
-    }
-}
-
-cfg_std! {
-    impl<T> ::std::process::Termination for VmResult<T> {
-        #[inline]
-        fn report(self) -> ::std::process::ExitCode {
-            match self {
-                VmResult::Ok(_) => ::std::process::ExitCode::SUCCESS,
-                VmResult::Err(_) => ::std::process::ExitCode::FAILURE,
-            }
-        }
-    }
-}
-
-impl<T> From<Result<T, VmError>> for VmResult<T> {
-    #[inline]
-    fn from(value: Result<T, VmError>) -> Self {
-        match value {
-            Ok(ok) => VmResult::Ok(ok),
-            Err(err) => VmResult::Err(err),
-        }
-    }
-}
+pub type VmResult<T> = Result<T, VmError>;
 
 impl<E> From<E> for VmError
 where
@@ -495,58 +323,6 @@ impl RuntimeError {
 
     pub(crate) fn expected_struct(actual: TypeInfo) -> Self {
         Self::new(VmErrorKind::ExpectedStruct { actual })
-    }
-}
-
-#[allow(non_snake_case)]
-impl RuntimeError {
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_struct_field(target: &'static str, name: &'static str) -> Self {
-        Self::new(VmErrorKind::MissingStructField { target, name })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_variant(name: &str) -> alloc::Result<Self> {
-        Ok(Self::new(VmErrorKind::MissingVariant {
-            name: name.try_to_owned()?,
-        }))
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__expected_variant(actual: TypeInfo) -> Self {
-        Self::new(VmErrorKind::ExpectedVariant { actual })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_variant_name() -> Self {
-        Self::new(VmErrorKind::MissingVariantName)
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__missing_tuple_index(target: &'static str, index: usize) -> Self {
-        Self::new(VmErrorKind::MissingTupleIndex { target, index })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__unsupported_object_field_get(target: AnyTypeInfo) -> Self {
-        Self::new(VmErrorKind::UnsupportedObjectFieldGet {
-            target: TypeInfo::from(target),
-        })
-    }
-
-    #[doc(hidden)]
-    #[inline]
-    pub fn __rune_macros__unsupported_tuple_index_get(target: AnyTypeInfo, index: usize) -> Self {
-        Self::new(VmErrorKind::UnsupportedTupleIndexGet {
-            target: TypeInfo::from(target),
-            index,
-        })
     }
 }
 

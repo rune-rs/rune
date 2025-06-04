@@ -4,7 +4,9 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::generator::Iter;
-use crate::runtime::{EnvProtocolCaller, Formatter, Generator, GeneratorState, Value, VmResult};
+use crate::runtime::{
+    EnvProtocolCaller, Formatter, Generator, GeneratorState, Value, VmError, VmResult,
+};
 use crate::{docstring, vm_try, vm_write, ContextError, Module};
 
 /// Types related to generators.
@@ -234,7 +236,7 @@ fn generator_clone(this: &Generator) -> VmResult<Generator> {
 /// ``
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.partial_eq_with(other, &mut EnvProtocolCaller).into()
+    this.partial_eq_with(other, &mut EnvProtocolCaller)
 }
 
 /// Test for total equality over a generator state.
@@ -258,7 +260,7 @@ fn generator_state_partial_eq(this: &GeneratorState, other: &GeneratorState) -> 
 /// ``
 #[rune::function(keep, instance, protocol = EQ)]
 fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult<bool> {
-    this.eq_with(other, &mut EnvProtocolCaller).into()
+    this.eq_with(other, &mut EnvProtocolCaller)
 }
 
 /// Debug print this generator state.
@@ -275,7 +277,7 @@ fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> VmResult
 /// println!("{b:?}");
 /// ``
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> VmResult<()> {
+fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> Result<(), VmError> {
     match this {
         GeneratorState::Yielded(value) => {
             vm_try!(write!(f, "Yielded("));

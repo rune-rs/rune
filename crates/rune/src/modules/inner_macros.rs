@@ -340,12 +340,12 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn wrapping_div(this: $ty, rhs: $ty) -> VmResult<$ty> {
+        fn wrapping_div(this: $ty, rhs: $ty) -> $crate::runtime::VmResult<$ty> {
             if rhs == 0 {
-                return VmResult::err(VmErrorKind::DivideByZero);
+                return Err($crate::runtime::VmError::new($crate::runtime::VmErrorKind::DivideByZero));
             }
 
-            VmResult::Ok(<$ty>::wrapping_div(this, rhs))
+            Ok(<$ty>::wrapping_div(this, rhs))
         }
 
         /// Wrapping (modular) multiplication. Computes `self * rhs`, wrapping around at
@@ -384,12 +384,12 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn wrapping_rem(this: $ty, rhs: $ty) -> VmResult<$ty> {
+        fn wrapping_rem(this: $ty, rhs: $ty) -> $crate::runtime::VmResult<$ty> {
             if rhs == 0 {
-                return VmResult::err(VmErrorKind::DivideByZero);
+                return Err($crate::runtime::VmError::new($crate::runtime::VmErrorKind::DivideByZero));
             }
 
-            VmResult::Ok(<$ty>::wrapping_rem(this, rhs))
+            Ok(<$ty>::wrapping_rem(this, rhs))
         }
 
         /// Saturating integer addition. Computes `self + rhs`, saturating at the
@@ -561,8 +561,8 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn to_string(this: $ty) -> VmResult<alloc::String> {
-            VmResult::Ok($crate::vm_try!(this.try_to_string()))
+        fn to_string(this: $ty) -> $crate::runtime::VmResult<alloc::String> {
+            Ok($crate::vm_try!(this.try_to_string()))
         }
     };
 }

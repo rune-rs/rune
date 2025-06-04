@@ -41,9 +41,9 @@ impl Generator {
     }
 
     /// Get the next value produced by this stream.
-    pub fn next(&mut self) -> VmResult<Option<Value>> {
+    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
         let Some(execution) = self.execution.as_mut() else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
         let state = vm_try!(execution.resume().complete());
@@ -51,12 +51,12 @@ impl Generator {
         match state {
             VmOutcome::Complete(_) => {
                 self.execution = None;
-                VmResult::Ok(None)
+                Ok(None)
             }
-            VmOutcome::Yielded(value) => VmResult::Ok(Some(value)),
-            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+            VmOutcome::Yielded(value) => Ok(Some(value)),
+            VmOutcome::Limited => Err(VmError::from(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
-            }),
+            })),
         }
     }
 
@@ -72,12 +72,12 @@ impl Generator {
         match outcome {
             VmOutcome::Complete(value) => {
                 self.execution = None;
-                VmResult::Ok(GeneratorState::Complete(value))
+                Ok(GeneratorState::Complete(value))
             }
-            VmOutcome::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
-            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+            VmOutcome::Yielded(value) => Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => Err(VmError::from(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
-            }),
+            })),
         }
     }
 }
@@ -118,8 +118,8 @@ impl iter::Iterator for Iter {
     #[inline]
     fn next(&mut self) -> Option<Result<Value, VmError>> {
         match Iter::next(self) {
-            VmResult::Ok(Some(value)) => Some(Ok(value)),
-            VmResult::Ok(None) => None,
+            Ok(Some(value)) => Some(Ok(value)),
+            Ok(None) => None,
             VmResult::Err(error) => Some(Err(error)),
         }
     }

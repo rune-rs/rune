@@ -519,44 +519,47 @@ pub fn module() -> Result<Module, ContextError> {
             macro_rules! ops {
                 ($ty:ty) => {{
                     cx.function(Params::new("product", [<$ty>::HASH]), |iter: Value| {
-                        let mut product = match vm_try!(iter.protocol_next()) {
-                            Some(init) => vm_try!(<$ty>::from_value(init)),
+                        let mut product = match iter.protocol_next()? {
+                            Some(init) => <$ty>::from_value(init)?,
                             None => <$ty>::ONE,
                         };
 
-                        while let Some(v) = vm_try!(iter.protocol_next()) {
-                            let v = vm_try!(<$ty>::from_value(v));
+                        while let Some(v) = iter.protocol_next()? {
+                            let v = <$ty>::from_value(v)?;
 
                             let Some(out) = product.checked_mul(v) else {
-                                return VmResult::err(VmErrorKind::Overflow);
+                                return Err(VmError::new(VmErrorKind::Overflow));
                             };
 
                             product = out;
                         }
 
-                        VmResult::Ok(product)
+                        Ok(product)
                     })?;
                 }
 
                 {
-                    cx.function(Params::new("sum", [<$ty>::HASH]), |iter: Value| {
-                        let mut sum = match vm_try!(iter.protocol_next()) {
-                            Some(init) => vm_try!(<$ty>::from_value(init)),
-                            None => <$ty>::ZERO,
-                        };
-
-                        while let Some(v) = vm_try!(iter.protocol_next()) {
-                            let v = vm_try!(<$ty>::from_value(v));
-
-                            let Some(out) = sum.checked_add(v) else {
-                                return VmResult::err(VmErrorKind::Overflow);
+                    cx.function(
+                        Params::new("sum", [<$ty>::HASH]),
+                        |iter: Value| -> Result<$ty, VmError> {
+                            let mut sum = match iter.protocol_next()? {
+                                Some(init) => <$ty>::from_value(init)?,
+                                None => <$ty>::ZERO,
                             };
 
-                            sum = out;
-                        }
+                            while let Some(v) = iter.protocol_next()? {
+                                let v = <$ty>::from_value(v)?;
 
-                        VmResult::Ok(sum)
-                    })?;
+                                let Some(out) = sum.checked_add(v) else {
+                                    return Err(VmError::new(VmErrorKind::Overflow));
+                                };
+
+                                sum = out;
+                            }
+
+                            Ok(sum)
+                        },
+                    )?;
                 }};
             }
 

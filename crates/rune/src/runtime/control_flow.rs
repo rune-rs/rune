@@ -60,7 +60,7 @@ impl ControlFlow {
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
     pub(crate) fn partial_eq(&self, other: &Self) -> VmResult<bool> {
-        Self::partial_eq_with(self, other, &mut EnvProtocolCaller).into()
+        Self::partial_eq_with(self, other, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn partial_eq_with(
@@ -99,7 +99,7 @@ impl ControlFlow {
     /// ```
     #[rune::function(keep, protocol = EQ)]
     pub(crate) fn eq(&self, other: &ControlFlow) -> VmResult<bool> {
-        self.eq_with(other, &mut EnvProtocolCaller).into()
+        self.eq_with(other, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn eq_with(
@@ -125,7 +125,7 @@ impl ControlFlow {
     /// ```
     #[rune::function(keep, protocol = DEBUG_FMT)]
     pub(crate) fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        Self::debug_fmt_with(self, f, &mut EnvProtocolCaller).into()
+        Self::debug_fmt_with(self, f, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn debug_fmt_with(

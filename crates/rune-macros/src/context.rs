@@ -31,15 +31,12 @@ pub(super) enum CloneWith {
 impl CloneWith {
     pub(super) fn decorate(&self, tokens: &Tokens, access: TokenStream) -> TokenStream {
         let Tokens {
-            try_clone,
-            clone,
-            vm_try,
-            ..
+            try_clone, clone, ..
         } = tokens;
 
         match self {
             Self::TryClone => {
-                quote!(#vm_try!(#try_clone::try_clone(#access)))
+                quote!(#try_clone::try_clone(#access)?)
             }
             Self::Clone => {
                 quote!(#clone::clone(#access))
@@ -51,7 +48,7 @@ impl CloneWith {
                 quote!(#path(#access))
             }
             Self::TryWith(path) => {
-                quote!(#vm_try!(#path(#access)))
+                quote!(#path(#access)?)
             }
         }
     }
@@ -560,7 +557,8 @@ impl Context {
                             } = g;
 
                             let Tokens {
-                                vm_result,
+                                result,
+                                runtime_error,
                                 ..
                             } = g.tokens;
 
@@ -570,7 +568,7 @@ impl Context {
                                     let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.field_function(&#protocol, #field_name, |s: &Self| #vm_result::Ok(#access))?;
+                                        module.field_function(&#protocol, #field_name, |s: &Self| #result::<_, #runtime_error>::Ok(#access))?;
                                     }
                                 }
                                 GenerateTarget::Numbered { field_index } => {
@@ -578,7 +576,7 @@ impl Context {
                                     let protocol = g.tokens.protocol(&Protocol::GET);
 
                                     quote_spanned! { g.field.span() =>
-                                        module.index_function(&#protocol, #field_index, |s: &Self| #vm_result::Ok(#access))?;
+                                        module.index_function(&#protocol, #field_index, |s: &Self| #result::<_, #runtime_error>::Ok(#access))?;
                                     }
                                 }
                             }
@@ -915,8 +913,9 @@ impl Context {
             const_construct_t: path(m, ["__priv", "ConstConstruct"]),
             const_value: path(m, ["__priv", "ConstValue"]),
             context_error: path(m, ["compile", "ContextError"]),
-            double_ended_iterator: path(core, ["iter", "DoubleEndedIterator"]),
             default: path(core, ["default", "Default"]),
+            double_ended_iterator: path(core, ["iter", "DoubleEndedIterator"]),
+            errors: path(m, ["__priv", "e"]),
             fmt: path(core, ["fmt"]),
             from_const_value_t: path(m, ["__priv", "FromConstValue"]),
             from_value: path(m, ["__priv", "FromValue"]),
@@ -962,8 +961,6 @@ impl Context {
             value_mut_guard: path(m, ["__priv", "ValueMutGuard"]),
             value_ref_guard: path(m, ["__priv", "ValueRefGuard"]),
             value: path(m, ["__priv", "Value"]),
-            vm_result: path(m, ["__priv", "VmResult"]),
-            vm_try: path(m, ["vm_try"]),
             write: path(core, ["write"]),
         }
     }
@@ -1009,8 +1006,9 @@ pub(crate) struct Tokens {
     pub(crate) const_construct_t: syn::Path,
     pub(crate) const_value: syn::Path,
     pub(crate) context_error: syn::Path,
-    pub(crate) double_ended_iterator: syn::Path,
     pub(crate) default: syn::Path,
+    pub(crate) double_ended_iterator: syn::Path,
+    pub(crate) errors: syn::Path,
     pub(crate) fmt: syn::Path,
     pub(crate) from_const_value_t: syn::Path,
     pub(crate) from_value: syn::Path,
@@ -1056,8 +1054,6 @@ pub(crate) struct Tokens {
     pub(crate) value_mut_guard: syn::Path,
     pub(crate) value_ref_guard: syn::Path,
     pub(crate) value: syn::Path,
-    pub(crate) vm_result: syn::Path,
-    pub(crate) vm_try: syn::Path,
     pub(crate) write: syn::Path,
 }
 

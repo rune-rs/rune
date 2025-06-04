@@ -4,7 +4,7 @@ use core::cmp::Ordering;
 use core::num::ParseFloatError;
 
 use crate as rune;
-use crate::runtime::{VmErrorKind, VmResult};
+use crate::runtime::{VmError, VmErrorKind};
 use crate::{ContextError, Module};
 
 /// Floating point numbers.
@@ -434,12 +434,15 @@ fn partial_eq(this: f64, rhs: f64) -> bool {
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
 #[inline]
-fn eq(this: f64, rhs: f64) -> VmResult<bool> {
+fn eq(this: f64, rhs: f64) -> Result<bool, VmError> {
     let Some(ordering) = this.partial_cmp(&rhs) else {
-        return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: this, rhs });
+        return Err(VmError::new(VmErrorKind::IllegalFloatComparison {
+            lhs: this,
+            rhs,
+        }));
     };
 
-    VmResult::Ok(matches!(ordering, Ordering::Equal))
+    Ok(matches!(ordering, Ordering::Equal))
 }
 
 /// Perform a partial ordered comparison between two floats.
@@ -475,10 +478,13 @@ fn partial_cmp(this: f64, rhs: f64) -> Option<Ordering> {
 /// ```
 #[rune::function(keep, instance, protocol = CMP)]
 #[inline]
-fn cmp(this: f64, rhs: f64) -> VmResult<Ordering> {
+fn cmp(this: f64, rhs: f64) -> Result<Ordering, VmError> {
     let Some(ordering) = this.partial_cmp(&rhs) else {
-        return VmResult::err(VmErrorKind::IllegalFloatComparison { lhs: this, rhs });
+        return Err(VmError::new(VmErrorKind::IllegalFloatComparison {
+            lhs: this,
+            rhs,
+        }));
     };
 
-    VmResult::Ok(ordering)
+    Ok(ordering)
 }

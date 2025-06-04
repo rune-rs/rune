@@ -1,8 +1,8 @@
 #[cfg(any(feature = "small_rng", feature = "std_rng"))]
 macro_rules! seedable_rng {
     ($m:ident, $ty:ident) => {{
-        use rune::runtime::{TypeHash, Value, VmResult};
-        use rune::{vm_panic, vm_try};
+        use rune::runtime::{TypeHash, Value, VmError};
+        use rune::vm_panic;
 
         $m.function_meta(from_rng)?;
         $m.function_meta(try_from_rng)?;
@@ -38,53 +38,45 @@ macro_rules! seedable_rng {
         ///
         /// [`rand`]: self
         #[rune::function(free, path = $ty::from_rng)]
-        fn from_rng(rng: Value) -> VmResult<$ty> {
+        fn from_rng(rng: Value) -> Result<$ty, VmError> {
             match rng.type_hash() {
                 #[cfg(feature = "small_rng")]
                 crate::rand::SmallRng::HASH => {
-                    let mut rng = vm_try!(rng.borrow_mut::<crate::rand::SmallRng>());
+                    let mut rng = rng.borrow_mut::<crate::rand::SmallRng>()?;
 
                     let inner = match rand::SeedableRng::try_from_rng(&mut rng.inner) {
                         Ok(inner) => inner,
-                        Err(error) => return VmResult::panic(error),
+                        Err(error) => return Err(VmError::panic(error)),
                     };
 
-                    VmResult::Ok($ty { inner })
+                    Ok($ty { inner })
                 }
                 #[cfg(feature = "std_rng")]
                 crate::rand::StdRng::HASH => {
-                    let mut rng = vm_try!(rng.borrow_mut::<crate::rand::StdRng>());
+                    let mut rng = rng.borrow_mut::<crate::rand::StdRng>()?;
 
                     let inner = match rand::SeedableRng::try_from_rng(&mut rng.inner) {
                         Ok(inner) => inner,
-                        Err(error) => return VmResult::panic(error),
+                        Err(error) => return Err(VmError::panic(error)),
                     };
 
-                    VmResult::Ok($ty { inner })
+                    Ok($ty { inner })
                 }
                 #[cfg(feature = "thread_rng")]
                 crate::rand::ThreadRng::HASH => {
-                    let mut rng = vm_try!(rng.borrow_mut::<crate::rand::ThreadRng>());
-
-                    let inner = match rand::SeedableRng::try_from_rng(&mut rng.inner) {
-                        Ok(inner) => inner,
-                        Err(error) => return VmResult::panic(error),
-                    };
-
-                    VmResult::Ok($ty { inner })
+                    let mut rng = rng.borrow_mut::<crate::rand::ThreadRng>()?;
+                    let inner =
+                        rand::SeedableRng::try_from_rng(&mut rng.inner).map_err(VmError::panic)?;
+                    Ok($ty { inner })
                 }
                 #[cfg(feature = "os_rng")]
                 crate::rand::OsRng::HASH => {
-                    let mut rng = vm_try!(rng.borrow_mut::<crate::rand::OsRng>());
-
-                    let inner = match rand::SeedableRng::try_from_rng(&mut rng.inner) {
-                        Ok(inner) => inner,
-                        Err(error) => return VmResult::panic(error),
-                    };
-
-                    VmResult::Ok($ty { inner })
+                    let mut rng = rng.borrow_mut::<crate::rand::OsRng>()?;
+                    let inner =
+                        rand::SeedableRng::try_from_rng(&mut rng.inner).map_err(VmError::panic)?;
+                    Ok($ty { inner })
                 }
-                _ => VmResult::panic("expected an rng source"),
+                _ => Err(VmError::panic("expected an rng source")),
             }
         }
 
@@ -142,11 +134,9 @@ macro_rules! seedable_rng {
         /// [`try_from_os_rng`]: StdRng::try_from_os_rng
         #[rune::function(free, path = $ty::from_os_rng)]
         #[cfg(feature = "os_rng")]
-        fn from_os_rng() -> VmResult<$ty> {
-            match rand::SeedableRng::try_from_os_rng() {
-                Ok(inner) => VmResult::Ok($ty { inner }),
-                Err(e) => VmResult::panic(e),
-            }
+        fn from_os_rng() -> Result<$ty, VmError> {
+            let inner = rand::SeedableRng::try_from_os_rng().map_err(VmError::panic)?;
+            Ok($ty { inner })
         }
 
         /// Creates a new instance of the RNG seeded via [`getrandom`] without
@@ -156,10 +146,8 @@ macro_rules! seedable_rng {
         #[rune::function(free, path = $ty::try_from_os_rng)]
         #[cfg(feature = "os_rng")]
         fn try_from_os_rng() -> Result<$ty, Error> {
-            match rand::SeedableRng::try_from_os_rng() {
-                Ok(inner) => Ok($ty { inner }),
-                Err(inner) => Err(Error { inner }),
-            }
+            let inner = rand::SeedableRng::try_from_os_rng()?;
+            Ok($ty { inner })
         }
 
         /// Create a new PRNG using the given seed.
@@ -249,8 +237,7 @@ macro_rules! random_ranges {
     ($m:ident, $ty:ty, $example:expr, $(($name:ident, $out:ty, $as:path, $range:expr)),* $(,)?) => {
         $(
             {
-                use rune::runtime::{Range, RangeInclusive, TypeHash, Value, VmResult};
-                use rune::vm_try;
+                use rune::runtime::{Range, RangeInclusive, TypeHash, Value, VmError};
 
                 #[doc = concat!(" Return a random `", stringify!($out), "` value via a standard uniform constrained with a range.")]
                 ///
@@ -264,31 +251,31 @@ macro_rules! random_ranges {
                 /// println!("{x}");
                 /// ```
                 #[rune::function(instance, path = random_range<$out>)]
-                fn $name(this: &mut $ty, range: Value) -> VmResult<$out> {
+                fn $name(this: &mut $ty, range: Value) -> Result<$out, VmError> {
                     let value = match range.as_any() {
                         Some(value) => match value.type_hash() {
                             RangeInclusive::HASH => {
-                                let range = vm_try!(value.borrow_ref::<RangeInclusive>());
-                                let start = vm_try!($as(&range.start));
-                                let end = vm_try!($as(&range.end));
+                                let range = value.borrow_ref::<RangeInclusive>()?;
+                                let start = $as(&range.start)?;
+                                let end = $as(&range.end)?;
                                 rand::Rng::random_range(&mut this.inner, start..=end)
                             }
                             Range::HASH => {
-                                let range = vm_try!(value.borrow_ref::<Range>());
-                                let start = vm_try!($as(&range.start));
-                                let end = vm_try!($as(&range.end));
+                                let range = value.borrow_ref::<Range>()?;
+                                let start = $as(&range.start)?;
+                                let end = $as(&range.end)?;
                                 rand::Rng::random_range(&mut this.inner, start..end)
                             }
                             _ => {
-                                return VmResult::panic("unsupported range");
+                                return Err(VmError::panic("unsupported range"));
                             }
                         },
                         _ => {
-                            return VmResult::panic("unsupported range");
+                            return Err(VmError::panic("unsupported range"));
                         }
                     };
 
-                    VmResult::Ok(value)
+                    Ok(value)
                 }
 
                 $m.function_meta($name)?;

@@ -23,7 +23,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::runtime::{InstAddress, Memory, Output, VmError, VmResult};
+use crate::runtime::{InstAddress, Memory, Output, VmError};
 use crate::{ContextError, Module, Value};
 
 /// I/O module capable of capturing what's been written to a buffer.
@@ -35,10 +35,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module
         .function("print", move |m: &str| {
-            match write!(o.inner.lock(), "{}", m) {
-                Ok(()) => VmResult::Ok(()),
-                Err(error) => VmResult::panic(error),
-            }
+            write!(o.inner.lock(), "{}", m).map_err(VmError::panic)
         })
         .build()?;
 
@@ -46,10 +43,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module
         .function("println", move |m: &str| {
-            match writeln!(o.inner.lock(), "{}", m) {
-                Ok(()) => VmResult::Ok(()),
-                Err(error) => VmResult::panic(error),
-            }
+            writeln!(o.inner.lock(), "{}", m).map_err(VmError::panic)
         })
         .build()?;
 

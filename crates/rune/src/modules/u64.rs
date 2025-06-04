@@ -6,7 +6,6 @@ use core::num::ParseIntError;
 use crate as rune;
 use crate::alloc;
 use crate::alloc::string::TryToString;
-use crate::runtime::{VmErrorKind, VmResult};
 use crate::{ContextError, Module};
 
 /// Unsigned integers.

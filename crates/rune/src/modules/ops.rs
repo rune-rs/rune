@@ -234,7 +234,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// ```
 #[rune::function(keep)]
 fn partial_eq(lhs: Value, rhs: Value) -> VmResult<bool> {
-    Value::partial_eq(&lhs, &rhs).into()
+    Value::partial_eq(&lhs, &rhs)
 }
 
 /// Perform a partial equality check over two values.
@@ -257,7 +257,7 @@ fn partial_eq(lhs: Value, rhs: Value) -> VmResult<bool> {
 /// ```
 #[rune::function(keep)]
 fn eq(lhs: Value, rhs: Value) -> VmResult<bool> {
-    Value::eq(&lhs, &rhs).into()
+    Value::eq(&lhs, &rhs)
 }
 
 /// Perform a partial comparison over two values.
@@ -284,7 +284,7 @@ fn eq(lhs: Value, rhs: Value) -> VmResult<bool> {
 /// ```
 #[rune::function(keep)]
 fn partial_cmp(lhs: Value, rhs: Value) -> VmResult<Option<Ordering>> {
-    Value::partial_cmp(&lhs, &rhs).into()
+    Value::partial_cmp(&lhs, &rhs)
 }
 
 /// Perform a total comparison over two values.
@@ -312,7 +312,7 @@ fn partial_cmp(lhs: Value, rhs: Value) -> VmResult<Option<Ordering>> {
 /// ```
 #[rune::function(keep)]
 fn cmp(lhs: Value, rhs: Value) -> VmResult<Ordering> {
-    Value::cmp(&lhs, &rhs).into()
+    Value::cmp(&lhs, &rhs)
 }
 
 /// Hashes the given function.

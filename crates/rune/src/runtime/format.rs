@@ -306,11 +306,11 @@ impl FormatSpec {
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return VmResult::err(VmErrorKind::IllegalFormat);
+                return Err(VmError::new(VmErrorKind::IllegalFormat));
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
@@ -321,11 +321,11 @@ impl FormatSpec {
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return VmResult::err(VmErrorKind::IllegalFormat);
+                return Err(VmError::new(VmErrorKind::IllegalFormat));
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     fn format_binary(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
@@ -336,11 +336,11 @@ impl FormatSpec {
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return VmResult::err(VmErrorKind::IllegalFormat);
+                return Err(VmError::new(VmErrorKind::IllegalFormat));
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     fn format_pointer(&self, value: &Value, f: &mut Formatter) -> VmResult<()> {
@@ -351,11 +351,11 @@ impl FormatSpec {
                 vm_try!(self.format_fill(f, align, fill, sign));
             }
             _ => {
-                return VmResult::err(VmErrorKind::IllegalFormat);
+                return Err(VmError::new(VmErrorKind::IllegalFormat));
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Format the given value to the out buffer `out`, using `buf` for
@@ -377,7 +377,7 @@ impl FormatSpec {
             Type::Pointer => vm_try!(self.format_pointer(value, f)),
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 }
 
