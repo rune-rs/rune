@@ -259,7 +259,7 @@ fn hash(this: &Tuple, hasher: &mut Hasher) -> Result<(), VmError> {
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
 fn clone(this: &Tuple) -> Result<OwnedTuple, VmError> {
-    Ok(this.clone_with(&mut EnvProtocolCaller)?)
+    this.clone_with(&mut EnvProtocolCaller)
 }
 
 /// Write a debug representation of a tuple.

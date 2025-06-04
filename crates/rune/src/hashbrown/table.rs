@@ -87,7 +87,7 @@ impl<V> Table<V> {
         }
 
         let hash = hash(&self.state, key, caller)?;
-        Ok(self.table.get(caller, hash, KeyEq::new(key))?)
+        self.table.get(caller, hash, KeyEq::new(key))
     }
 
     #[inline(always)]

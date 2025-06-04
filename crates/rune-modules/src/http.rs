@@ -51,9 +51,10 @@
 use core::cmp::Ordering;
 use core::hash::Hash;
 
+use rune::alloc;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::prelude::*;
-use rune::runtime::{Bytes, Formatter, Hasher, Ref, VmResult};
+use rune::runtime::{Bytes, Formatter, Hasher, Ref};
 use rune::{docstring, item, Any, ContextError, Module, ToConstValue, Value};
 
 /// A simple HTTP module for Rune.
@@ -1385,8 +1386,8 @@ impl From<reqwest::Error> for Error {
 impl Error {
     /// Write a display representation the error.
     #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -1737,8 +1738,8 @@ impl StatusCode {
     /// println!("{not_found:?}");
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 
     /// Write a display representation of the status code.
@@ -1753,8 +1754,8 @@ impl StatusCode {
     /// println!("{not_found}");
     /// ```
     #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -1920,8 +1921,8 @@ impl Version {
     /// println!("{:?}", http2);
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 

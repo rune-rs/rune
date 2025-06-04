@@ -448,7 +448,7 @@ impl Value {
             Repr::Any(..) => {}
         }
 
-        Ok(caller.call_protocol_fn(&Protocol::CLONE, self.clone(), &mut ())?)
+        caller.call_protocol_fn(&Protocol::CLONE, self.clone(), &mut ())
     }
 
     /// Debug format the value using the [`DEBUG_FMT`] protocol.

@@ -34,9 +34,9 @@
 
 use rune::alloc::clone::TryClone;
 use rune::alloc::fmt::TryWrite;
-use rune::alloc::Vec;
-use rune::runtime::{Bytes, Formatter, Mut, Value, VmResult};
-use rune::{vm_try, vm_write, Any, ContextError, Module};
+use rune::alloc::{self, Vec};
+use rune::runtime::{Bytes, Formatter, Mut, Value, VmError};
+use rune::{Any, ContextError, Module};
 
 use std::io;
 use tokio::process;
@@ -227,12 +227,12 @@ impl Command {
     /// let output = command.output().await?;
     /// ```
     #[rune::function(keep, instance)]
-    fn args(&mut self, args: &[Value]) -> VmResult<()> {
+    fn args(&mut self, args: &[Value]) -> Result<(), VmError> {
         for arg in args {
-            self.inner.arg(&*vm_try!(arg.borrow_string_ref()));
+            self.inner.arg(&*arg.borrow_string_ref()?);
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Sets executable argument.
@@ -425,8 +425,8 @@ impl Command {
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 }
 
@@ -617,8 +617,8 @@ impl Child {
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -645,8 +645,8 @@ struct Output {
 
 impl Output {
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 }
 
@@ -714,13 +714,13 @@ impl ExitStatus {
     }
 
     #[rune::function(keep, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -757,8 +757,8 @@ impl Stdio {
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -785,8 +785,8 @@ macro_rules! stdio_stream {
             }
 
             #[rune::function(keep, protocol = DEBUG_FMT)]
-            fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-                vm_write!(f, "{:?}", self.inner)
+            fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+                write!(f, "{:?}", self.inner)
             }
         }
     };
