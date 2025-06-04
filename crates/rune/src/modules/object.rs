@@ -1,11 +1,12 @@
 //! The dynamic [`Object`] container.
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::object::{RuneIter, RuneIterKeys, RuneValues};
-use crate::runtime::{EnvProtocolCaller, Formatter, Object, Protocol, Value, VmResult};
-use crate::{vm_try, vm_write, ContextError, Module};
+use crate::runtime::{EnvProtocolCaller, Formatter, Object, Protocol, Value, VmError};
+use crate::{ContextError, Module};
 
 /// The dynamic [`Object`] container.
 ///
@@ -40,10 +41,10 @@ pub fn module() -> Result<Module, ContextError> {
     m.ty::<Object>()?;
 
     m.function_meta(Object::new__meta)?;
-    m.function_meta(Object::rune_with_capacity)?;
+    m.function_meta(Object::with_capacity__meta)?;
     m.function_meta(Object::len__meta)?;
     m.function_meta(Object::is_empty__meta)?;
-    m.function_meta(Object::rune_insert)?;
+    m.function_meta(Object::insert__meta)?;
     m.function_meta(remove__meta)?;
     m.function_meta(Object::clear__meta)?;
     m.function_meta(contains_key__meta)?;
@@ -146,7 +147,7 @@ fn get(object: &Object, key: &str) -> Option<Value> {
 /// assert_ne!(b, a);
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
-fn partial_eq(this: &Object, other: &Object) -> VmResult<bool> {
+fn partial_eq(this: &Object, other: &Object) -> Result<bool, VmError> {
     Object::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 
@@ -165,8 +166,8 @@ fn partial_eq(this: &Object, other: &Object) -> VmResult<bool> {
 /// assert_eq!(eq(b, a), false);
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
-fn eq(this: &Object, other: &Object) -> VmResult<bool> {
-    Object::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller).into()
+fn eq(this: &Object, other: &Object) -> Result<bool, VmError> {
+    Object::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
 
 /// Clones an object.
@@ -182,8 +183,8 @@ fn eq(this: &Object, other: &Object) -> VmResult<bool> {
 /// assert_ne!(a, b);
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
-fn clone(this: &Object) -> VmResult<Object> {
-    VmResult::Ok(vm_try!(this.try_clone()))
+fn clone(this: &Object) -> alloc::Result<Object> {
+    this.try_clone()
 }
 
 /// Write a debug representation of an object.
@@ -197,6 +198,6 @@ fn clone(this: &Object) -> VmResult<Object> {
 /// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
-fn debug_fmt(this: &Object, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{this:?}")
+fn debug_fmt(this: &Object, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{this:?}")
 }

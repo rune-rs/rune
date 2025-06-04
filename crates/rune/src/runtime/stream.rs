@@ -1,13 +1,14 @@
 use core::fmt;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{
-    Formatter, GeneratorState, Mut, Value, Vm, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
-    VmResult,
+    Formatter, GeneratorState, Mut, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo,
+    VmOutcome,
 };
-use crate::{vm_try, vm_write, Any};
+use crate::Any;
 
 /// A stream produced by an async generator function.
 ///
@@ -43,41 +44,41 @@ impl Stream {
     }
 
     /// Get the next value produced by this stream.
-    pub async fn next(&mut self) -> VmResult<Option<Value>> {
+    pub async fn next(&mut self) -> Result<Option<Value>, VmError> {
         let Some(execution) = self.execution.as_mut() else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
-        match vm_try!(execution.resume().await) {
+        match execution.resume().await? {
             VmOutcome::Complete(..) => {
                 self.execution = None;
-                VmResult::Ok(None)
+                Ok(None)
             }
-            VmOutcome::Yielded(value) => VmResult::Ok(Some(value)),
-            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+            VmOutcome::Yielded(value) => Ok(Some(value)),
+            VmOutcome::Limited => Err(VmError::new(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
-            }),
+            })),
         }
     }
 
     /// Resume the stream with a value and return the next [`GeneratorState`].
-    pub async fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let execution = vm_try!(self
+    pub async fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let execution = self
             .execution
             .as_mut()
-            .ok_or(VmErrorKind::GeneratorComplete));
+            .ok_or(VmError::new(VmErrorKind::GeneratorComplete))?;
 
-        let outcome = vm_try!(execution.resume().with_value(value).await);
+        let outcome = execution.resume().with_value(value).await?;
 
         match outcome {
             VmOutcome::Complete(value) => {
                 self.execution = None;
-                VmResult::Ok(GeneratorState::Complete(value))
+                Ok(GeneratorState::Complete(value))
             }
-            VmOutcome::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
-            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+            VmOutcome::Yielded(value) => Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => Err(VmError::new(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
-            }),
+            })),
         }
     }
 }
@@ -108,7 +109,7 @@ impl Stream {
     /// assert_eq!(g.next().await, None);
     /// ``
     #[rune::function(keep, instance, path = Self::next)]
-    pub(crate) async fn next_shared(mut this: Mut<Stream>) -> VmResult<Option<Value>> {
+    pub(crate) async fn next_shared(mut this: Mut<Stream>) -> Result<Option<Value>, VmError> {
         this.next().await
     }
 
@@ -158,7 +159,7 @@ impl Stream {
     pub(crate) async fn resume_shared(
         mut this: Mut<Stream>,
         value: Value,
-    ) -> VmResult<GeneratorState> {
+    ) -> Result<GeneratorState, VmError> {
         this.resume(value).await
     }
 
@@ -179,8 +180,8 @@ impl Stream {
     /// println!("{a:?}");
     /// ``
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 
     /// Clone a stream.
@@ -209,8 +210,8 @@ impl Stream {
     /// assert_eq!(b.resume(()).await, GeneratorState::Complete(()));
     /// ``
     #[rune::function(keep, instance, protocol = CLONE)]
-    fn clone(&self) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(self.try_clone()))
+    fn clone(&self) -> alloc::Result<Self> {
+        self.try_clone()
     }
 }
 

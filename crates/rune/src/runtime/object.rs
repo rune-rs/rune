@@ -10,9 +10,9 @@ use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::runtime::{
-    FieldMap, FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError, VmResult,
+    FieldMap, FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError,
 };
-use crate::{vm_try, Any};
+use crate::Any;
 
 /// An owning iterator over the entries of a `Object`.
 ///
@@ -111,15 +111,8 @@ impl Object {
     /// object.insert("Hello", "World");
     /// ```
     #[inline]
-    #[rune::function(path = Self::with_capacity)]
-    pub(crate) fn rune_with_capacity(capacity: usize) -> VmResult<Self> {
-        VmResult::Ok(vm_try!(Self::with_capacity(capacity)))
-    }
-
-    /// Construct a new object with the given capacity.
+    #[rune::function(keep, path = Self::with_capacity)]
     pub fn with_capacity(capacity: usize) -> alloc::Result<Self> {
-        // BTreeMap doesn't support setting capacity on creation but we keep
-        // this here in case we want to switch store later.
         Ok(Self {
             inner: crate::runtime::new_field_hash_map_with_capacity(capacity)?,
         })
@@ -239,15 +232,7 @@ impl Object {
     /// assert_eq!(map["b"], 3);
     /// ```
     #[inline]
-    #[rune::function(path = Self::insert)]
-    pub(crate) fn rune_insert(&mut self, k: String, v: Value) -> VmResult<Option<Value>> {
-        VmResult::Ok(vm_try!(self.inner.try_insert(k, v)))
-    }
-
-    /// Inserts a key-value pair into the map.
-    ///
-    /// If the map did not have this key present, `None` is returned.
-    #[inline]
+    #[rune::function(keep, path = Self::insert)]
     pub fn insert(&mut self, k: String, v: Value) -> alloc::Result<Option<Value>> {
         self.inner.try_insert(k, v)
     }
@@ -362,22 +347,22 @@ impl Object {
         a: &Self,
         b: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         if a.len() != b.len() {
-            return VmResult::Ok(false);
+            return Ok(false);
         }
 
         for (k1, v1) in a.iter() {
             let Some(v2) = b.get(k1) else {
-                return VmResult::Ok(false);
+                return Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq_with(v1, v2, caller)) {
-                return VmResult::Ok(false);
+            if !Value::partial_eq_with(v1, v2, caller)? {
+                return Ok(false);
             }
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 
     pub(crate) fn eq_with(
@@ -459,15 +444,15 @@ pub struct RuneIter {
 
 impl RuneIter {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub fn next(&mut self) -> VmResult<Option<(String, Value)>> {
+    pub fn next(&mut self) -> Result<Option<(String, Value)>, VmError> {
         unsafe {
             let Some(bucket) = self.iter.next() else {
-                return VmResult::Ok(None);
+                return Ok(None);
             };
 
             let (key, value) = bucket.as_ref();
-            let key = vm_try!(key.try_clone());
-            VmResult::Ok(Some((key, value.clone())))
+            let key = key.try_clone()?;
+            Ok(Some((key, value.clone())))
         }
     }
 
@@ -488,9 +473,9 @@ impl iter::Iterator for RuneIter {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match RuneIter::next(self) {
-            VmResult::Ok(Some(value)) => Some(Ok(value)),
-            VmResult::Ok(None) => None,
-            VmResult::Err(err) => Some(Err(err)),
+            Ok(Some(value)) => Some(Ok(value)),
+            Ok(None) => None,
+            Err(err) => Some(Err(err)),
         }
     }
 }
@@ -505,15 +490,15 @@ pub struct RuneIterKeys {
 
 impl RuneIterKeys {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub fn next(&mut self) -> VmResult<Option<String>> {
+    pub fn next(&mut self) -> Result<Option<String>, VmError> {
         unsafe {
             let Some(bucket) = self.iter.next() else {
-                return VmResult::Ok(None);
+                return Ok(None);
             };
 
             let (key, _) = bucket.as_ref();
-            let key = vm_try!(key.try_clone());
-            VmResult::Ok(Some(key))
+            let key = key.try_clone()?;
+            Ok(Some(key))
         }
     }
 
@@ -534,9 +519,9 @@ impl iter::Iterator for RuneIterKeys {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match RuneIterKeys::next(self) {
-            VmResult::Ok(Some(value)) => Some(Ok(value)),
-            VmResult::Ok(None) => None,
-            VmResult::Err(err) => Some(Err(err)),
+            Ok(Some(value)) => Some(Ok(value)),
+            Ok(None) => None,
+            Err(err) => Some(Err(err)),
         }
     }
 }
@@ -551,14 +536,14 @@ pub struct RuneValues {
 
 impl RuneValues {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub fn next(&mut self) -> VmResult<Option<Value>> {
+    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
         unsafe {
             let Some(bucket) = self.iter.next() else {
-                return VmResult::Ok(None);
+                return Ok(None);
             };
 
             let (_, value) = bucket.as_ref();
-            VmResult::Ok(Some(value.clone()))
+            Ok(Some(value.clone()))
         }
     }
 
@@ -579,9 +564,9 @@ impl iter::Iterator for RuneValues {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match RuneValues::next(self) {
-            VmResult::Ok(Some(value)) => Some(Ok(value)),
-            VmResult::Ok(None) => None,
-            VmResult::Err(err) => Some(Err(err)),
+            Ok(Some(value)) => Some(Ok(value)),
+            Ok(None) => None,
+            Err(err) => Some(Err(err)),
         }
     }
 }
