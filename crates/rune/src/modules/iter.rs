@@ -550,6 +550,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("next")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<Option<Value>>()?
             .docs(docstring! {
                 /// Advances the iterator and returns the next value.
@@ -586,6 +587,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("nth")?
             .argument_types::<(Value, usize)>()?
+            .argument_names(["self", "n"])?
             .return_type::<Option<Value>>()?
             .docs(docstring! {
                 /// Returns the `n`th element of the iterator.
@@ -631,6 +633,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("size_hint")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<(usize, Option<usize>)>()?
             .docs(docstring! {
                 /// Returns the bounds on the remaining length of the iterator.
@@ -702,6 +705,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("count")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<usize>()?
             .docs(docstring! {
                 /// Consumes the iterator, counting the number of iterations and returning it.
@@ -737,6 +741,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("fold")?
             .argument_types::<(Value, Value, Function)>()?
+            .argument_names(["self", "init", "f"])?
             .return_type::<Value>()?
             .docs(docstring! {
                 /// Folds every element into an accumulator by applying an operation, returning
@@ -844,6 +849,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("reduce")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "f"])?
             .return_type::<Option<Value>>()?
             .docs(docstring! {
                 /// Reduces the elements to a single one, by repeatedly applying a reducing
@@ -873,6 +879,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("find")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "predicate"])?
             .return_type::<Option<Value>>()?
             .docs(docstring! {
                 /// Searches for an element of an iterator that satisfies a predicate.
@@ -920,6 +927,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("any")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "f"])?
             .return_type::<bool>()?
             .docs(docstring! {
                 /// Tests if any element of the iterator matches a predicate.
@@ -962,6 +970,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("all")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "f"])?
             .return_type::<bool>()?
             .docs(docstring! {
                 /// Tests if every element of the iterator matches a predicate.
@@ -1004,6 +1013,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("chain")?
             .argument_types::<(Value, Value)>()?
+            .argument_names(["self", "other"])?
             .return_type::<Chain>()?
             .docs(docstring! {
                 /// Takes two iterators and creates a new iterator over both in sequence.
@@ -1061,6 +1071,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("enumerate")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<Enumerate>()?
             .docs(docstring! {
                 /// Creates an iterator which gives the current iteration count as well as
@@ -1089,6 +1100,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("filter")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "filter"])?
             .return_type::<Filter>()?
             .docs(docstring! {
                 /// Creates an iterator which uses a closure to determine if an element
@@ -1111,6 +1123,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("map")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "f"])?
             .return_type::<Map>()?
             .docs(docstring! {
                 /// Takes a closure and creates an iterator which calls that closure on each
@@ -1161,6 +1174,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("filter_map")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "f"])?
             .return_type::<FilterMap>()?
             .docs(docstring! {
                 /// Creates an iterator that both filters and maps.
@@ -1202,6 +1216,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("flat_map")?
             .argument_types::<(Value, Function)>()?
+            .argument_names(["self", "f"])?
             .return_type::<FlatMap>()?
             .docs(docstring! {
                 /// Creates an iterator that works like map, but flattens nested
@@ -1238,6 +1253,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("peekable")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<Peekable>()?
             .docs(docstring! {
                 /// Creates an iterator which can use the [`peek`] method to
@@ -1282,6 +1298,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("skip")?
             .argument_types::<(Value, usize)>()?
+            .argument_names(["self", "n"])?
             .return_type::<Skip>()?
             .docs(docstring! {
                 /// Creates an iterator that skips the first `n` elements.
@@ -1308,6 +1325,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("take")?
             .argument_types::<(Value, usize)>()?
+            .argument_names(["self", "n"])?
             .return_type::<Take>()?
             .docs(docstring! {
                 /// Creates an iterator that yields the first `n` elements, or
@@ -1362,6 +1380,7 @@ pub fn module() -> Result<Module, ContextError> {
             ($ty:ty) => {
                 t.function(Params::new("sum", [<$ty>::HASH]))?
                     .argument_types::<(Value,)>()?
+                    .argument_names(["self"])?
                     .return_type::<$ty>()?
                     .docs(docstring! {
                         /// Sums the elements of an iterator.
@@ -1405,6 +1424,7 @@ pub fn module() -> Result<Module, ContextError> {
             ($ty:ty) => {
                 t.function(Params::new("product", [<$ty>::HASH]))?
                     .argument_types::<(Value,)>()?
+                    .argument_names(["self"])?
                     .return_type::<$ty>()?
                     .docs(docstring! {
                         /// Iterates over the entire iterator, multiplying all
@@ -1439,6 +1459,8 @@ pub fn module() -> Result<Module, ContextError> {
         }
 
         t.function(Params::new("collect", [Vec::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<Vec>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`Vec`].
@@ -1453,6 +1475,8 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
         t.function(Params::new("collect", [VecDeque::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<VecDeque>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`VecDeque`].
@@ -1467,6 +1491,8 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
         t.function(Params::new("collect", [HashSet::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<HashSet>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`HashSet`].
@@ -1484,6 +1510,8 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
         t.function(Params::new("collect", [HashMap::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<HashMap>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`HashMap`].
@@ -1506,6 +1534,8 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
         t.function(Params::new("collect", [Object::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<HashMap>()?
             .docs(docstring! {
                 /// Collect the iterator as an [`Object`].
@@ -1518,6 +1548,8 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
         t.function(Params::new("collect", [OwnedTuple::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<OwnedTuple>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`Tuple`].
@@ -1530,6 +1562,8 @@ pub fn module() -> Result<Module, ContextError> {
             })?;
 
         t.function(Params::new("collect", [String::HASH]))?
+            .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<String>()?
             .docs(docstring! {
                 /// Collect the iterator as a [`String`].
@@ -1545,6 +1579,7 @@ pub fn module() -> Result<Module, ContextError> {
             ($ty:ty) => {
                 t.function(Params::new("product", [<$ty>::HASH]))?
                     .argument_types::<(Value,)>()?
+                    .argument_names(["self"])?
                     .return_type::<$ty>()?
                     .docs(docstring! {
                         /// Iterates over the entire iterator, multiplying all
@@ -1677,6 +1712,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("next_back")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<Option<Value>>()?
             .docs(docstring! {
                 /// Removes and returns an element from the end of the iterator.
@@ -1705,6 +1741,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("nth_back")?
             .argument_types::<(Value, usize)>()?
+            .argument_names(["self", "n"])?
             .return_type::<Option<Value>>()?
             .docs(docstring! {
                 /// Returns the `n`th element from the end of the iterator.
@@ -1754,6 +1791,7 @@ pub fn module() -> Result<Module, ContextError> {
 
         t.function("rev")?
             .argument_types::<(Value,)>()?
+            .argument_names(["self"])?
             .return_type::<Rev>()?
             .docs(docstring! {
                 /// Reverses an iterator's direction.

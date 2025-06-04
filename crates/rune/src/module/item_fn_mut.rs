@@ -109,6 +109,19 @@ impl ItemFnMut<'_> {
 
         Ok(self)
     }
+
+    /// Set argument names.
+    pub fn argument_names(
+        self,
+        names: impl IntoIterator<Item: AsRef<str>>,
+    ) -> Result<Self, ContextError> {
+        #[cfg(feature = "doc")]
+        {
+            self.docs.set_arguments(names)?;
+        }
+
+        Ok(self)
+    }
 }
 
 impl fmt::Debug for ItemFnMut<'_> {
