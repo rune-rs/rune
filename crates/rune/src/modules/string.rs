@@ -5,17 +5,17 @@ use core::cmp::Ordering;
 use core::num::{ParseFloatError, ParseIntError};
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
-use crate::alloc::{String, Vec};
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Panic, Range, RangeFrom,
+    Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Range, RangeFrom,
     RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Repr, ToValue, TypeOf, Value,
-    VmError, VmErrorKind, VmResult,
+    VmError, VmErrorKind,
 };
-use crate::{vm_try, vm_write, Any, ContextError, Module, TypeHash};
+use crate::{Any, ContextError, Module, TypeHash};
 
 /// Strings.
 ///
@@ -62,7 +62,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(replace)?;
     m.function_meta(is_empty)?;
     m.function_meta(chars)?;
-    m.function_meta(get)?;
+    m.function_meta(get__meta)?;
     m.function_meta(parse_int)?;
     m.function_meta(parse_float)?;
     m.function_meta(parse_char)?;
@@ -164,9 +164,9 @@ pub fn module() -> Result<Module, ContextError> {
 /// [`&str`]: prim@str "&str"
 /// [`into_bytes`]: String::into_bytes
 #[rune::function(free, path = String::from_utf8)]
-fn from_utf8(bytes: &[u8]) -> VmResult<Result<String, FromUtf8Error>> {
-    let vec = vm_try!(Vec::try_from(bytes));
-    VmResult::Ok(String::from_utf8(vec))
+fn from_utf8(bytes: &[u8]) -> Result<Result<String, FromUtf8Error>, VmError> {
+    let vec = Vec::try_from(bytes)?;
+    Ok(String::from_utf8(vec))
 }
 
 /// Returns a byte slice of this `String`'s contents.
@@ -185,8 +185,8 @@ fn from_utf8(bytes: &[u8]) -> VmResult<Result<String, FromUtf8Error>> {
 /// assert!(is_readable(s));
 /// ```
 #[rune::function(instance)]
-fn as_bytes(s: &str) -> VmResult<Bytes> {
-    VmResult::Ok(Bytes::from_vec(vm_try!(Vec::try_from(s.as_bytes()))))
+fn as_bytes(s: &str) -> Result<Bytes, VmError> {
+    Ok(Bytes::from_vec(Vec::try_from(s.as_bytes())?))
 }
 
 /// Constructs a string from another string.
@@ -200,13 +200,13 @@ fn as_bytes(s: &str) -> VmResult<Bytes> {
 /// assert_eq!(s, "hello");
 /// ```
 #[rune::function(free, path = String::from)]
-fn string_from(value: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(String::try_from(value)))
+fn string_from(value: &str) -> Result<String, VmError> {
+    Ok(String::try_from(value)?)
 }
 
 #[rune::function(free, path = String::from_str, deprecated = "Use String::from instead")]
-fn string_from_str(value: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(String::try_from(value)))
+fn string_from_str(value: &str) -> Result<String, VmError> {
+    Ok(String::try_from(value)?)
 }
 
 /// Creates a new empty `String`.
@@ -270,8 +270,8 @@ fn string_new() -> String {
 /// s.push('a');
 /// ```
 #[rune::function(free, path = String::with_capacity)]
-fn string_with_capacity(capacity: usize) -> VmResult<String> {
-    VmResult::Ok(vm_try!(String::try_with_capacity(capacity)))
+fn string_with_capacity(capacity: usize) -> Result<String, VmError> {
+    Ok(String::try_with_capacity(capacity)?)
 }
 
 /// Returns the length of `self`.
@@ -428,9 +428,9 @@ fn contains(this: &str, other: &str) -> bool {
 /// assert_eq!("abc123", s);
 /// ```
 #[rune::function(instance)]
-fn push(this: &mut String, c: char) -> VmResult<()> {
-    vm_try!(this.try_push(c));
-    VmResult::Ok(())
+fn push(this: &mut String, c: char) -> Result<(), VmError> {
+    this.try_push(c)?;
+    Ok(())
 }
 
 /// Appends a given string slice onto the end of this `String`.
@@ -447,9 +447,9 @@ fn push(this: &mut String, c: char) -> VmResult<()> {
 /// assert_eq!("foobar", s);
 /// ```
 #[rune::function(instance)]
-fn push_str(this: &mut String, other: &str) -> VmResult<()> {
-    vm_try!(this.try_push_str(other));
-    VmResult::Ok(())
+fn push_str(this: &mut String, other: &str) -> Result<(), VmError> {
+    this.try_push_str(other)?;
+    Ok(())
 }
 
 /// Reserves capacity for at least `additional` bytes more than the current
@@ -493,9 +493,9 @@ fn push_str(this: &mut String, other: &str) -> VmResult<()> {
 /// assert_eq!(capacity, s.capacity());
 /// ```
 #[rune::function(instance)]
-fn reserve(this: &mut String, additional: usize) -> VmResult<()> {
-    vm_try!(this.try_reserve(additional));
-    VmResult::Ok(())
+fn reserve(this: &mut String, additional: usize) -> Result<(), VmError> {
+    this.try_reserve(additional)?;
+    Ok(())
 }
 
 /// Reserves the minimum capacity for at least `additional` bytes more than the
@@ -541,9 +541,8 @@ fn reserve(this: &mut String, additional: usize) -> VmResult<()> {
 /// assert_eq!(capacity, s.capacity());
 /// ```
 #[rune::function(instance)]
-fn reserve_exact(this: &mut String, additional: usize) -> VmResult<()> {
-    vm_try!(this.try_reserve_exact(additional));
-    VmResult::Ok(())
+fn reserve_exact(this: &mut String, additional: usize) -> alloc::Result<()> {
+    this.try_reserve_exact(additional)
 }
 
 /// Returns a byte slice of this `String`'s contents while moving the string.
@@ -635,8 +634,8 @@ fn char_at(s: &str, index: usize) -> Option<char> {
 /// assert_ne!(a, c);
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
-fn clone(this: &String) -> VmResult<String> {
-    VmResult::Ok(vm_try!(this.try_clone()))
+fn clone(this: &String) -> alloc::Result<String> {
+    this.try_clone()
 }
 
 /// Test two strings for partial equality.
@@ -743,8 +742,8 @@ fn hash(this: &str, hasher: &mut Hasher) {
 /// ```
 #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
 #[inline]
-fn display_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{this}")
+fn display_fmt(this: &str, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{this}")
 }
 
 /// Write a debug representation of a string.
@@ -756,8 +755,8 @@ fn display_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
 /// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 #[inline]
-fn debug_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{this:?}")
+fn debug_fmt(this: &str, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{this:?}")
 }
 
 /// Shrinks the capacity of this `String` to match its length.
@@ -776,9 +775,8 @@ fn debug_fmt(this: &str, f: &mut Formatter) -> VmResult<()> {
 /// assert_eq!(3, s.capacity());
 /// ```
 #[rune::function(instance)]
-fn shrink_to_fit(s: &mut String) -> VmResult<()> {
-    vm_try!(s.try_shrink_to_fit());
-    VmResult::Ok(())
+fn shrink_to_fit(s: &mut String) -> alloc::Result<()> {
+    s.try_shrink_to_fit()
 }
 
 /// An iterator over substrings of this string slice, separated by
@@ -888,39 +886,34 @@ fn shrink_to_fit(s: &mut String) -> VmResult<()> {
 ///
 /// [`split_whitespace`]: str::split_whitespace
 #[rune::function(instance, deprecated = "Use String::split instead")]
-fn split(this: Ref<str>, value: Value) -> VmResult<Value> {
+fn split(this: Ref<str>, value: Value) -> Result<Value, VmError> {
     match value.as_ref() {
-        Repr::Inline(Inline::Char(c)) => {
-            VmResult::Ok(vm_try!(rune::to_value(Split::new(this, *c))))
-        }
-        Repr::Inline(value) => VmResult::err([
+        Repr::Inline(Inline::Char(c)) => Ok(rune::to_value(Split::new(this, *c))?),
+        Repr::Inline(value) => Err(VmError::from([
             VmErrorKind::expected::<String>(value.type_info()),
             VmErrorKind::bad_argument(0),
-        ]),
-        Repr::Dynamic(value) => VmResult::err([
+        ])),
+        Repr::Dynamic(value) => Err(VmError::from([
             VmErrorKind::expected::<String>(value.type_info()),
             VmErrorKind::bad_argument(0),
-        ]),
+        ])),
         Repr::Any(value) => match value.type_hash() {
             String::HASH => {
-                let s = vm_try!(value.borrow_ref::<String>());
+                let s = value.borrow_ref::<String>()?;
 
-                let split = vm_try!(rune::to_value(Split::new(
-                    this,
-                    vm_try!(String::try_from(s.as_str()))
-                )));
+                let split = rune::to_value(Split::new(this, String::try_from(s.as_str())?))?;
 
-                VmResult::Ok(split)
+                Ok(split)
             }
             Function::HASH => {
-                let f = vm_try!(value.borrow_ref::<Function>());
-                let split = vm_try!(rune::to_value(Split::new(this, vm_try!(f.try_clone()))));
-                VmResult::Ok(split)
+                let f = value.borrow_ref::<Function>()?;
+                let split = rune::to_value(Split::new(this, f.try_clone()?))?;
+                Ok(split)
             }
-            _ => VmResult::err([
+            _ => Err(VmError::from([
                 VmErrorKind::expected::<String>(value.type_info()),
                 VmErrorKind::bad_argument(0),
-            ]),
+            ])),
         },
     }
 }
@@ -1009,8 +1002,8 @@ fn split_once(this: &str, value: Value) -> Result<Option<(String, String)>, VmEr
 /// assert_eq!("Hello\tworld", s.trim());
 /// ```
 #[rune::function(instance)]
-fn trim(this: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(this.trim().try_to_owned()))
+fn trim(this: &str) -> alloc::Result<String> {
+    this.trim().try_to_owned()
 }
 
 /// Returns a string slice with trailing whitespace removed.
@@ -1044,8 +1037,8 @@ fn trim(this: &str) -> VmResult<String> {
 /// assert!(Some('ת') == s.trim_end().chars().rev().next());
 /// ```
 #[rune::function(instance)]
-fn trim_end(this: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(this.trim_end().try_to_owned()))
+fn trim_end(this: &str) -> alloc::Result<String> {
+    this.trim_end().try_to_owned()
 }
 
 /// Returns `true` if `self` has a length of zero bytes.
@@ -1090,8 +1083,8 @@ fn is_empty(this: &str) -> bool {
 /// assert_eq!(s, s.replace("cookie monster", "little lamb"));
 /// ```
 #[rune::function(instance)]
-fn replace(a: &str, from: &str, to: &str) -> VmResult<String> {
-    VmResult::Ok(vm_try!(String::try_from(a.replace(from, to))))
+fn replace(this: &str, from: &str, to: &str) -> alloc::Result<String> {
+    alloc::str::replace(this, from, to)
 }
 
 /// Returns an iterator over the [`char`]s of a string slice.
@@ -1165,87 +1158,87 @@ fn chars(s: Ref<str>) -> Chars {
 /// // out of bounds
 /// assert!(v.get(..42).is_none());
 /// ```
-#[rune::function(instance)]
-fn get(this: &str, key: Value) -> VmResult<Option<String>> {
+#[rune::function(keep, instance)]
+fn get(this: &str, key: Value) -> Result<Option<String>, VmError> {
     use crate::runtime::TypeOf;
 
     let slice = match key.as_any() {
         Some(value) => match value.type_hash() {
             RangeFrom::HASH => {
-                let range = vm_try!(value.borrow_ref::<RangeFrom>());
-                let start = vm_try!(range.start.as_usize());
+                let range = value.borrow_ref::<RangeFrom>()?;
+                let start = range.start.as_usize()?;
                 this.get(start..)
             }
             RangeFull::HASH => {
-                _ = vm_try!(value.borrow_ref::<RangeFull>());
+                _ = value.borrow_ref::<RangeFull>()?;
                 this.get(..)
             }
             RangeInclusive::HASH => {
-                let range = vm_try!(value.borrow_ref::<RangeInclusive>());
-                let start = vm_try!(range.start.as_usize());
-                let end = vm_try!(range.end.as_usize());
+                let range = value.borrow_ref::<RangeInclusive>()?;
+                let start = range.start.as_usize()?;
+                let end = range.end.as_usize()?;
                 this.get(start..=end)
             }
             RangeToInclusive::HASH => {
-                let range = vm_try!(value.borrow_ref::<RangeToInclusive>());
-                let end = vm_try!(range.end.as_usize());
+                let range = value.borrow_ref::<RangeToInclusive>()?;
+                let end = range.end.as_usize()?;
                 this.get(..=end)
             }
             RangeTo::HASH => {
-                let range = vm_try!(value.borrow_ref::<RangeTo>());
-                let end = vm_try!(range.end.as_usize());
+                let range = value.borrow_ref::<RangeTo>()?;
+                let end = range.end.as_usize()?;
                 this.get(..end)
             }
             Range::HASH => {
-                let range = vm_try!(value.borrow_ref::<Range>());
-                let start = vm_try!(range.start.as_usize());
-                let end = vm_try!(range.end.as_usize());
+                let range = value.borrow_ref::<Range>()?;
+                let start = range.start.as_usize()?;
+                let end = range.end.as_usize()?;
                 this.get(start..end)
             }
             _ => {
-                return VmResult::err(VmErrorKind::UnsupportedIndexGet {
+                return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
                     target: String::type_info(),
                     index: value.type_info(),
-                })
+                }))
             }
         },
         _ => {
-            return VmResult::err(VmErrorKind::UnsupportedIndexGet {
+            return Err(VmError::from(VmErrorKind::UnsupportedIndexGet {
                 target: String::type_info(),
                 index: key.type_info(),
-            })
+            }))
         }
     };
 
     let Some(slice) = slice else {
-        return VmResult::Ok(None);
+        return Ok(None);
     };
 
-    VmResult::Ok(Some(vm_try!(slice.try_to_owned())))
+    Ok(Some(slice.try_to_owned()?))
 }
 
 /// The add operation for strings.
 #[rune::function(instance, protocol = ADD)]
-fn add(a: &str, b: &str) -> VmResult<String> {
-    let mut string = vm_try!(String::try_with_capacity(a.len() + b.len()));
-    vm_try!(string.try_push_str(a));
-    vm_try!(string.try_push_str(b));
-    VmResult::Ok(string)
+fn add(a: &str, b: &str) -> Result<String, VmError> {
+    let mut string = String::try_with_capacity(a.len() + b.len())?;
+    string.try_push_str(a)?;
+    string.try_push_str(b)?;
+    Ok(string)
 }
 
 /// The add assign operation for strings.
 #[rune::function(instance, protocol = ADD_ASSIGN)]
-fn add_assign(this: &mut String, other: &str) -> VmResult<()> {
-    vm_try!(this.try_push_str(other));
-    VmResult::Ok(())
+fn add_assign(this: &mut String, other: &str) -> Result<(), VmError> {
+    this.try_push_str(other)?;
+    Ok(())
 }
 
 /// Get a specific string index.
 #[rune::function(instance, protocol = INDEX_GET)]
-fn index_get(s: &str, key: Value) -> VmResult<String> {
-    match vm_try!(__rune_fn__get(s, key)) {
-        Some(slice) => VmResult::Ok(slice),
-        None => VmResult::err(Panic::custom("missing string slice")),
+fn index_get(s: &str, key: Value) -> Result<String, VmError> {
+    match get(s, key)? {
+        Some(slice) => Ok(slice),
+        None => Err(VmError::panic("missing string slice")),
     }
 }
 
@@ -1349,20 +1342,21 @@ fn parse_char(s: &str) -> Result<char, char::ParseCharError> {
 /// assert_eq!(new_year, new_year.to_lowercase());
 /// ```
 #[rune::function(instance)]
-fn to_lowercase(s: &str) -> VmResult<String> {
-    let mut lowercase = vm_try!(String::try_with_capacity(s.len()));
+fn to_lowercase(s: &str) -> Result<String, VmError> {
+    let mut lowercase = String::try_with_capacity(s.len())?;
+
     for (i, c) in s.char_indices() {
         // Inlined code to from std::str to handle upper-case sigma,
         // since it is the only Unicode character that is context-dependent
         // See https://github.com/rust-lang/rust/issues/26035 for more context
         if c == 'Σ' {
-            vm_try!(lowercase.try_push_str(map_uppercase_sigma(s, i)));
+            lowercase.try_push_str(map_uppercase_sigma(s, i))?;
         } else {
-            vm_try!(lowercase.try_extend(c.to_lowercase()));
+            lowercase.try_extend(c.to_lowercase())?;
         }
     }
 
-    return VmResult::Ok(lowercase);
+    return Ok(lowercase);
 
     fn map_uppercase_sigma(from: &str, i: usize) -> &'static str {
         // See https://www.unicode.org/versions/Unicode7.0.0/ch03.pdf#G33992
@@ -1419,10 +1413,10 @@ fn to_lowercase(s: &str) -> VmResult<String> {
 /// assert_eq!("TSCHÜSS", s.to_uppercase());
 /// ```
 #[rune::function(instance)]
-fn to_uppercase(s: &str) -> VmResult<String> {
-    let mut uppercase = vm_try!(String::try_with_capacity(s.len()));
-    vm_try!(uppercase.try_extend(s.chars().flat_map(|c| c.to_uppercase())));
-    VmResult::Ok(uppercase)
+fn to_uppercase(s: &str) -> Result<String, VmError> {
+    let mut uppercase = String::try_with_capacity(s.len())?;
+    uppercase.try_extend(s.chars().flat_map(|c| c.to_uppercase()))?;
+    Ok(uppercase)
 }
 
 #[derive(Any)]
@@ -1461,21 +1455,21 @@ impl Chars {
 }
 
 trait Pattern: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf {
-    fn test(&self, tail: &str) -> VmResult<(bool, usize)>;
+    fn test(&self, tail: &str) -> Result<(bool, usize), VmError>;
 
     fn is_empty(&self) -> bool;
 }
 
 impl Pattern for String {
-    fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
+    fn test(&self, tail: &str) -> Result<(bool, usize), VmError> {
         if tail.starts_with(self.as_str()) {
-            VmResult::Ok((true, self.len()))
+            Ok((true, self.len()))
         } else {
             let Some(c) = tail.chars().next() else {
-                return VmResult::Ok((false, 0));
+                return Ok((false, 0));
             };
 
-            VmResult::Ok((false, c.len_utf8()))
+            Ok((false, c.len_utf8()))
         }
     }
 
@@ -1486,12 +1480,12 @@ impl Pattern for String {
 }
 
 impl Pattern for char {
-    fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
+    fn test(&self, tail: &str) -> Result<(bool, usize), VmError> {
         let Some(c) = tail.chars().next() else {
-            return VmResult::Ok((false, 0));
+            return Ok((false, 0));
         };
 
-        VmResult::Ok((c == *self, c.len_utf8()))
+        Ok((c == *self, c.len_utf8()))
     }
 
     #[inline]
@@ -1501,12 +1495,12 @@ impl Pattern for char {
 }
 
 impl Pattern for Function {
-    fn test(&self, tail: &str) -> VmResult<(bool, usize)> {
+    fn test(&self, tail: &str) -> Result<(bool, usize), VmError> {
         let Some(c) = tail.chars().next() else {
-            return VmResult::Ok((false, 0));
+            return Ok((false, 0));
         };
 
-        VmResult::Ok((vm_try!(self.call::<bool>((c,))), c.len_utf8()))
+        Ok((self.call((c,))?, c.len_utf8()))
     }
 
     #[inline]
@@ -1541,27 +1535,27 @@ where
     }
 
     #[rune::function(keep, protocol = NEXT)]
-    fn next(&mut self) -> VmResult<Option<String>> {
+    fn next(&mut self) -> Result<Option<String>, VmError> {
         let Some(string) = &self.string else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
         if self.from == string.len() && self.from == self.to {
             self.string = None;
-            let out = vm_try!("".try_to_owned());
-            return VmResult::Ok(Some(out));
+            let out = "".try_to_owned()?;
+            return Ok(Some(out));
         }
 
         while self.to < string.len() {
             let Some(tail) = string.get(self.to..) else {
-                return VmResult::Ok(None);
+                return Ok(None);
             };
 
-            let (m, len) = vm_try!(self.pattern.test(tail));
+            let (m, len) = self.pattern.test(tail)?;
 
             if m {
                 let head = string.get(self.from..self.to).unwrap_or_default();
-                let out = vm_try!(head.try_to_owned());
+                let out = head.try_to_owned()?;
 
                 if len == 0 {
                     self.from = self.to;
@@ -1571,7 +1565,7 @@ where
                     self.from = self.to;
                 }
 
-                return VmResult::Ok(Some(out));
+                return Ok(Some(out));
             } else {
                 self.to += len;
             }
@@ -1579,13 +1573,13 @@ where
 
         let tail = string.get(self.from..self.to).unwrap_or_default();
         self.from = self.to;
-        let out = vm_try!(tail.try_to_owned());
+        let out = tail.try_to_owned()?;
 
         if !self.pattern.is_empty() {
             self.string = None;
         }
 
-        VmResult::Ok(Some(out))
+        Ok(Some(out))
     }
 
     #[rune::function(keep, protocol = INTO_ITER)]
