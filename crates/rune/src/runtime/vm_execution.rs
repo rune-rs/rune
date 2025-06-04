@@ -9,7 +9,7 @@ use rust_alloc::sync::Arc;
 use crate::alloc::prelude::*;
 use crate::async_vm_try;
 use crate::runtime::budget::Budget;
-use crate::runtime::{budget, Awaited, VmResult};
+use crate::runtime::{budget, Awaited};
 use crate::shared::AssertSend;
 
 use super::{
@@ -517,21 +517,12 @@ where
                 this.awaited = None;
             }
 
-            let result = vm
-                .run(match this.diagnostics {
-                    Some(ref mut value) => Some(&mut **value),
-                    None => None,
-                })
-                .with_vm(vm);
+            let result = vm.run(match this.diagnostics {
+                Some(ref mut value) => Some(&mut **value),
+                None => None,
+            });
 
-            let halt = match result {
-                VmResult::Ok(halt) => halt,
-                VmResult::Err(err) => {
-                    return Poll::Ready(Err(err));
-                }
-            };
-
-            match halt {
+            match async_vm_try!(VmError::with_vm(result, vm)) {
                 VmHalt::Exited(addr) => {
                     this.execution.state = ExecutionState::Exited(addr);
                 }

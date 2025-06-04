@@ -181,7 +181,7 @@ impl Function {
         addr: InstAddress,
         args: usize,
         out: Output,
-    ) -> VmResult<Option<VmHalt>> {
+    ) -> Result<Option<VmHalt>, VmError> {
         self.0.call_with_vm(vm, addr, args, out)
     }
 
@@ -593,50 +593,50 @@ where
         addr: InstAddress,
         args: usize,
         out: Output,
-    ) -> VmResult<Option<VmHalt>> {
+    ) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                vm_try!((handler.handler)(vm.stack_mut(), addr, args, out));
+                (handler.handler)(vm.stack_mut(), addr, args, out)?;
                 None
             }
             Inner::FnOffset(fn_offset) => {
-                if let Some(vm_call) = vm_try!(fn_offset.call_with_vm(vm, addr, args, (), out)) {
-                    return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
+                if let Some(vm_call) = fn_offset.call_with_vm(vm, addr, args, (), out)? {
+                    return Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
                 None
             }
             Inner::FnClosureOffset(closure) => {
-                let environment = vm_try!(closure.environment.try_clone());
-                let environment = vm_try!(OwnedTuple::try_from(environment));
+                let environment = closure.environment.try_clone()?;
+                let environment = OwnedTuple::try_from(environment)?;
 
                 if let Some(vm_call) =
-                    vm_try!(closure
+                    closure
                         .fn_offset
-                        .call_with_vm(vm, addr, args, (environment,), out))
+                        .call_with_vm(vm, addr, args, (environment,), out)?
                 {
-                    return VmResult::Ok(Some(VmHalt::VmCall(vm_call)));
+                    return Ok(Some(VmHalt::VmCall(vm_call)));
                 }
 
                 None
             }
             Inner::FnUnitStruct(empty) => {
-                vm_try!(check_args(args, 0));
-                vm_try!(out.store(vm.stack_mut(), || Value::empty_struct(empty.rtti.clone())));
+                check_args(args, 0)?;
+                out.store(vm.stack_mut(), || Value::empty_struct(empty.rtti.clone()))?;
                 None
             }
             Inner::FnTupleStruct(tuple) => {
-                vm_try!(check_args(args, tuple.args));
+                check_args(args, tuple.args)?;
 
-                let seq = vm_try!(vm.stack().slice_at(addr, args));
+                let seq = vm.stack().slice_at(addr, args)?;
                 let data = seq.iter().cloned();
-                let value = vm_try!(AnySequence::new(tuple.rtti.clone(), data));
-                vm_try!(out.store(vm.stack_mut(), value));
+                let value = AnySequence::new(tuple.rtti.clone(), data)?;
+                out.store(vm.stack_mut(), value)?;
                 None
             }
         };
 
-        VmResult::Ok(reason)
+        Ok(reason)
     }
 
     /// Create a function pointer from a handler.
@@ -865,28 +865,30 @@ impl FnOffset {
         args: usize,
         extra: impl Args,
         out: Output,
-    ) -> VmResult<Option<VmCall>> {
-        vm_try!(check_args(args.wrapping_add(extra.count()), self.args));
+    ) -> Result<Option<VmCall>, VmError> {
+        check_args(args.wrapping_add(extra.count()), self.args)?;
 
         let same_unit = matches!(self.call, Call::Immediate if vm.is_same_unit(&self.unit));
         let same_context =
             matches!(self.call, Call::Immediate if vm.is_same_context(&self.context));
 
-        vm_try!(vm.push_call_frame(self.offset, addr, args, Isolated::new(!same_context), out));
-        vm_try!(extra.into_stack(vm.stack_mut()));
+        vm.push_call_frame(self.offset, addr, args, Isolated::new(!same_context), out)?;
+        extra.into_stack(vm.stack_mut())?;
 
         // Fast path, just allocate a call frame and keep running.
         if same_context && same_unit {
             tracing::trace!("same context and unit");
-            return VmResult::Ok(None);
+            return Ok(None);
         }
 
-        VmResult::Ok(Some(VmCall::new(
+        let call = VmCall::new(
             self.call,
             (!same_context).then(|| self.context.clone()),
             (!same_unit).then(|| self.unit.clone()),
             out,
-        )))
+        );
+
+        Ok(Some(call))
     }
 }
 

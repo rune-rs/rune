@@ -306,22 +306,6 @@ impl<T> VmResult<T> {
         Self::Err(VmError::from(error))
     }
 
-    /// Apply the given frame to the current result.
-    pub(crate) fn with_vm(self, vm: &Vm) -> Self {
-        match self {
-            Self::Ok(ok) => Self::Ok(ok),
-            Self::Err(mut err) => {
-                err.inner.stacktrace.push(VmErrorLocation {
-                    unit: vm.unit().clone(),
-                    ip: vm.last_ip(),
-                    frames: vm.call_frames().to_vec(),
-                });
-
-                Self::Err(err)
-            }
-        }
-    }
-
     /// Add auxilliary errors if appropriate.
     #[inline]
     pub(crate) fn with_error<E, O>(self, error: E) -> Self
