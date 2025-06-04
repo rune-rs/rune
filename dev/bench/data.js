@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1748914238693,
+  "lastUpdate": 1749000646041,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -32413,6 +32413,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 348,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "77b73cc19dc60133844404d02bd0ba8cb806820a",
+          "message": "rune: Rewrite VmExecution with more shared impls (#936)\n\n* Rewrite VmExecution with more shared impls\n* Introduce VmOutcome for handling all resume operations\n* Remove move execution methods and refer to VmExecution::resume\n* Simplify Stream and Generator",
+          "timestamp": "2025-06-03T13:29:51Z",
+          "url": "https://github.com/rune-rs/rune/commit/77b73cc19dc60133844404d02bd0ba8cb806820a"
+        },
+        "date": 1749000644639,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10657346,
+            "range": "± 93837",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 3974635,
+            "range": "± 72504",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1750,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1314,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 163658,
+            "range": "± 2620",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 893993,
+            "range": "± 4925",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 81026731,
+            "range": "± 368393",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 199047828,
+            "range": "± 914826",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 491061,
+            "range": "± 2507",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 5446656,
+            "range": "± 12641",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 28021892,
+            "range": "± 278655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 4526235,
+            "range": "± 32007",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 212227,
+            "range": "± 1605",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2348170,
+            "range": "± 14918",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 361,
+            "range": "± 5",
             "unit": "ns/iter"
           }
         ]
