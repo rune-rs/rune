@@ -37,7 +37,7 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     /// use rune::runtime::VmResult;
     ///
     /// let mut m = Module::with_item(["module"])?;
-    /// m.raw_function("floob", |_, _, _, _| VmResult::Ok(())).build()?;
+    /// m.raw_function("floob", |_, _, _, _| Ok(())).build()?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
@@ -90,7 +90,7 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     ///
     /// let mut m = Module::default();
     /// m.ty::<Thing>()?;
-    /// m.raw_function("floob", |_, _, _, _| VmResult::Ok(())).build_associated::<Thing>()?;
+    /// m.raw_function("floob", |_, _, _, _| Ok(())).build_associated::<Thing>()?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     #[inline]
