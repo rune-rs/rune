@@ -24,13 +24,13 @@ pub fn module() -> Result<Module, ContextError> {
         .variant_mut(0)?
         .make_unnamed(1)?
         .constructor(Option::Some)?
-        .static_docs(&["A some value."])?;
+        .static_docs(&["Some value."])?;
 
     option
         .variant_mut(1)?
         .make_empty()?
         .constructor(|| Option::None)?
-        .static_docs(&["The empty value."])?;
+        .static_docs(&["No value."])?;
 
     m.associated_function(
         &Protocol::IS_VARIANT,
