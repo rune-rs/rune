@@ -1,13 +1,11 @@
-use rust_alloc::sync::Arc;
-
 use crate::compile::ContextError;
 use crate::function_meta::{
     Associated, AssociatedFunctionData, FunctionData, FunctionMetaKind, ToInstance,
 };
 use crate::item::IntoComponent;
 use crate::module::ItemFnMut;
-use crate::runtime::{FunctionHandler, TypeInfo, TypeOf};
-use crate::{Hash, ItemBuf};
+use crate::runtime::{FunctionHandler, InstAddress, Memory, Output, TypeInfo, TypeOf};
+use crate::{Hash, ItemBuf, VmError};
 
 use super::Module;
 
@@ -17,13 +15,19 @@ use super::Module;
 /// [`ModuleRawFunctionBuilder::build`] or statically associate the function
 /// with a type through [`ModuleRawFunctionBuilder::build_associated::<T>`].
 #[must_use = "Must call one of the build functions, like `build` or `build_associated`"]
-pub struct ModuleRawFunctionBuilder<'a, N> {
+pub struct ModuleRawFunctionBuilder<'a, N, F> {
     pub(super) module: &'a mut Module,
     pub(super) name: N,
-    pub(super) handler: Arc<FunctionHandler>,
+    pub(super) handler: F,
 }
 
-impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
+impl<'a, N, F> ModuleRawFunctionBuilder<'a, N, F>
+where
+    F: 'static
+        + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
+        + Send
+        + Sync,
+{
     /// Construct a regular function.
     ///
     /// This register the function as a free function in the module it's
@@ -45,10 +49,11 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
         N: IntoComponent,
     {
         let item = ItemBuf::with_item([self.name])?;
+        let handler = FunctionHandler::new(self.handler)?;
+
         self.module
             .function_from_meta_kind(FunctionMetaKind::Function(FunctionData::from_raw(
-                item,
-                self.handler,
+                item, handler,
             )))
     }
 
@@ -98,10 +103,11 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
         T: TypeOf,
     {
         let associated = Associated::from_type::<T>(self.name.to_instance()?)?;
+        let handler = FunctionHandler::new(self.handler)?;
 
         self.module
             .function_from_meta_kind(FunctionMetaKind::AssociatedFunction(
-                AssociatedFunctionData::from_raw(associated, self.handler),
+                AssociatedFunctionData::from_raw(associated, handler),
             ))
     }
 
@@ -132,9 +138,11 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
         N: ToInstance,
     {
         let associated = Associated::new(self.name.to_instance()?, container, container_type_info);
+        let handler = FunctionHandler::new(self.handler)?;
+
         self.module
             .function_from_meta_kind(FunctionMetaKind::AssociatedFunction(
-                AssociatedFunctionData::from_raw(associated, self.handler),
+                AssociatedFunctionData::from_raw(associated, handler),
             ))
     }
 }

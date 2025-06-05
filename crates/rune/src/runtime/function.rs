@@ -70,7 +70,7 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     ///
-    /// let function = Function::new(|value: u32| value + 1);
+    /// let function = Function::new(|value: u32| value + 1)?;
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
@@ -99,7 +99,7 @@ impl Function {
     /// let unit = rune::prepare(&mut sources).build()?;
     /// let mut vm = Vm::without_runtime(Arc::new(unit));
     ///
-    /// let function = Function::new(|value: u32| async move { value + 1 });
+    /// let function = Function::new(|value: u32| async move { value + 1 })?;
     ///
     /// assert_eq!(function.type_hash(), Hash::EMPTY);
     ///
@@ -110,19 +110,19 @@ impl Function {
     /// # })?;
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn new<F, A, K>(f: F) -> Self
+    pub fn new<F, A, K>(f: F) -> alloc::Result<Self>
     where
         F: function::Function<A, K>,
         K: function::FunctionKind,
     {
-        Self(FunctionImpl {
+        Ok(Self(FunctionImpl {
             inner: Inner::FnHandler(FnHandler {
-                handler: Arc::new(move |stack, addr, args, output| {
+                handler: FunctionHandler::new(move |stack, addr, args, output| {
                     f.call(stack, addr, args, output)
-                }),
+                })?,
                 hash: Hash::EMPTY,
             }),
-        })
+        }))
     }
 
     /// Perform an asynchronous call over the function which also implements
@@ -186,7 +186,7 @@ impl Function {
     }
 
     /// Create a function pointer from a handler.
-    pub(crate) fn from_handler(handler: Arc<FunctionHandler>, hash: Hash) -> Self {
+    pub(crate) fn from_handler(handler: FunctionHandler, hash: Hash) -> Self {
         Self(FunctionImpl::from_handler(handler, hash))
     }
 
@@ -527,7 +527,7 @@ where
                 let mut stack = Stack::with_capacity(size)?;
                 let _guard = unsafe { args.guarded_into_stack(&mut stack) }?;
                 stack.resize(size)?;
-                (handler.handler)(
+                handler.handler.call(
                     &mut stack,
                     InstAddress::ZERO,
                     count,
@@ -597,7 +597,7 @@ where
     ) -> Result<Option<VmHalt>, VmError> {
         let reason = match &self.inner {
             Inner::FnHandler(handler) => {
-                (handler.handler)(vm.stack_mut(), addr, args, out)?;
+                handler.handler.call(vm.stack_mut(), addr, args, out)?;
                 None
             }
             Inner::FnOffset(fn_offset) => {
@@ -641,7 +641,7 @@ where
     }
 
     /// Create a function pointer from a handler.
-    pub(crate) fn from_handler(handler: Arc<FunctionHandler>, hash: Hash) -> Self {
+    pub(crate) fn from_handler(handler: FunctionHandler, hash: Hash) -> Self {
         Self {
             inner: Inner::FnHandler(FnHandler { handler, hash }),
         }
@@ -750,7 +750,7 @@ impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0.inner {
             Inner::FnHandler(handler) => {
-                write!(f, "native function ({:p})", handler.handler.as_ref())?;
+                write!(f, "native function ({:p})", handler.handler)?;
             }
             Inner::FnOffset(offset) => {
                 write!(f, "{} function (at: 0x{:x})", offset.call, offset.offset)?;
@@ -813,7 +813,7 @@ where
 #[derive(Clone, TryClone)]
 struct FnHandler {
     /// The function handler.
-    handler: Arc<FunctionHandler>,
+    handler: FunctionHandler,
     /// Hash for the function type
     hash: Hash,
 }

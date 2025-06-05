@@ -1104,7 +1104,7 @@ impl Module {
     ///
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn raw_function<N, F>(&mut self, name: N, f: F) -> ModuleRawFunctionBuilder<'_, N>
+    pub fn raw_function<N, F>(&mut self, name: N, handler: F) -> ModuleRawFunctionBuilder<'_, N, F>
     where
         F: 'static
             + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
@@ -1114,7 +1114,7 @@ impl Module {
         ModuleRawFunctionBuilder {
             module: self,
             name,
-            handler: Arc::new(f),
+            handler,
         }
     }
 

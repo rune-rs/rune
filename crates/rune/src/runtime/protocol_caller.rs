@@ -83,7 +83,7 @@ impl ProtocolCaller for EnvProtocolCaller {
                 let addr = stack.addr();
                 stack.push(target)?;
                 args.push_to_stack(&mut stack)?;
-                handler(&mut stack, addr, count, addr.output())?;
+                handler.call(&mut stack, addr, count, addr.output())?;
                 let value = stack.at(addr).clone();
                 return Ok(CallResultOnly::Ok(value));
             }

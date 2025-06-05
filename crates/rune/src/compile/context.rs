@@ -68,10 +68,7 @@ impl TraitContext<'_> {
     /// Find the given protocol function for the current type.
     ///
     /// This requires that the function is defined.
-    pub fn find(
-        &mut self,
-        protocol: &'static Protocol,
-    ) -> Result<Arc<FunctionHandler>, ContextError> {
+    pub fn find(&mut self, protocol: &'static Protocol) -> Result<FunctionHandler, ContextError> {
         let name = protocol.to_instance()?;
 
         let hash = name
@@ -101,10 +98,7 @@ impl TraitContext<'_> {
     /// Try to find the given associated function.
     ///
     /// This does not require that the function is defined.
-    pub fn try_find(
-        &self,
-        name: impl ToInstance,
-    ) -> Result<Option<Arc<FunctionHandler>>, ContextError> {
+    pub fn try_find(&self, name: impl ToInstance) -> Result<Option<FunctionHandler>, ContextError> {
         let name = name.to_instance()?;
 
         let hash = name
@@ -120,7 +114,7 @@ impl TraitContext<'_> {
         &mut self,
         protocol: &'static Protocol,
         function: F,
-    ) -> Result<Arc<FunctionHandler>, ContextError>
+    ) -> Result<FunctionHandler, ContextError>
     where
         F: Function<A, Plain>,
     {
@@ -142,12 +136,13 @@ impl TraitContext<'_> {
         &mut self,
         name: impl ToInstance,
         handler: F,
-    ) -> Result<Arc<FunctionHandler>, ContextError>
+    ) -> Result<FunctionHandler, ContextError>
     where
         F: Function<A, Plain>,
     {
-        let handler: Arc<FunctionHandler> =
-            Arc::new(move |memory, addr, len, out| handler.call(memory, addr, len, out));
+        let handler = FunctionHandler::new(move |memory, addr, len, out| {
+            handler.call(memory, addr, len, out)
+        })?;
         self.function_handler(name, &handler)?;
         Ok(handler)
     }
@@ -157,14 +152,14 @@ impl TraitContext<'_> {
         &mut self,
         name: impl ToInstance,
         handler: F,
-    ) -> Result<Arc<FunctionHandler>, ContextError>
+    ) -> Result<FunctionHandler, ContextError>
     where
         F: 'static
             + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
             + Send
             + Sync,
     {
-        let handler: Arc<FunctionHandler> = Arc::new(handler);
+        let handler = FunctionHandler::new(handler)?;
         self.function_handler(name, &handler)?;
         Ok(handler)
     }
@@ -174,7 +169,7 @@ impl TraitContext<'_> {
     fn function_handler(
         &mut self,
         name: impl ToInstance,
-        handler: &Arc<FunctionHandler>,
+        handler: &FunctionHandler,
     ) -> Result<(), ContextError> {
         let name = name.to_instance()?;
         self.function_inner(name, handler)
@@ -183,7 +178,7 @@ impl TraitContext<'_> {
     fn function_inner(
         &mut self,
         name: AssociatedName,
-        handler: &Arc<FunctionHandler>,
+        handler: &FunctionHandler,
     ) -> Result<(), ContextError> {
         let function = ModuleFunction {
             handler: handler.clone(),
@@ -288,7 +283,7 @@ pub struct Context {
     /// Store item to hash mapping.
     item_to_hash: HashMap<ItemBuf, BTreeSet<Hash>>,
     /// Registered native function handlers.
-    functions: hash::Map<Arc<FunctionHandler>>,
+    functions: hash::Map<FunctionHandler>,
     /// Registered deprecation mesages for native functions.
     deprecations: hash::Map<String>,
     /// Information on associated types.
@@ -555,7 +550,7 @@ impl Context {
     }
 
     /// Lookup the given native function handler in the context.
-    pub(crate) fn lookup_function(&self, hash: Hash) -> Option<&Arc<FunctionHandler>> {
+    pub(crate) fn lookup_function(&self, hash: Hash) -> Option<&FunctionHandler> {
         self.functions.get(&hash)
     }
 
@@ -1200,7 +1195,7 @@ impl Context {
         &mut self,
         display: &dyn fmt::Display,
         hash: Hash,
-        handler: &Arc<FunctionHandler>,
+        handler: &FunctionHandler,
         deprecation: Option<&str>,
     ) -> Result<(), ContextError> {
         if self.functions.contains_key(&hash) {

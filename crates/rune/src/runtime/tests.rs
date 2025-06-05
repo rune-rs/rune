@@ -13,7 +13,7 @@ use crate::alloc::prelude::*;
 use crate::support::Result;
 use crate::Any;
 
-use super::{Access, AnyObj, Bytes, Tuple, TypeHash, Value};
+use super::{Access, AnyObj, Bytes, FunctionHandler, InstAddress, Output, Tuple, TypeHash, Value};
 
 #[derive(Debug, PartialEq, Eq, Any)]
 struct Thing(u32);
@@ -381,4 +381,37 @@ fn test_drop_boxed_tuple() {
         crate::alloc::Box::<[Value]>::try_from([Value::from(1u32), Value::from(2u64)]).unwrap();
     let boxed = Tuple::from_boxed(boxed);
     drop(boxed);
+}
+
+#[test]
+fn test_function_handler() {
+    use std::thread;
+
+    let handler = FunctionHandler::new(|m, _addr, _count, _out| {
+        *m.at_mut(InstAddress::ZERO).unwrap() = Value::from(42u32);
+        Ok(())
+    })
+    .unwrap();
+
+    let handler2 = handler.clone();
+
+    let t = thread::spawn(move || {
+        let mut memory = [Value::empty()];
+        handler
+            .call(&mut memory, InstAddress::ZERO, 0, Output::discard())
+            .unwrap();
+        let [value] = memory;
+        value.as_integer::<u32>().unwrap()
+    });
+
+    let mut memory = [Value::empty()];
+    handler2
+        .call(&mut memory, InstAddress::ZERO, 0, Output::discard())
+        .unwrap();
+    let [value] = memory;
+    assert_eq!(value.as_integer::<u32>().unwrap(), 42);
+
+    assert_eq!(t.join().unwrap(), 42);
+
+    drop(handler2);
 }
