@@ -8,10 +8,49 @@ use rune_macros::InstDisplay;
 use serde::{Deserialize, Serialize};
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::Hash;
 
 use super::{Call, FormatSpec, Memory, RuntimeError, Type, Value};
+
+/// An instruction in the virtual machine.
+#[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+pub struct Inst {
+    pub(crate) kind: Kind,
+}
+
+impl Inst {
+    #[inline]
+    pub(crate) fn new(kind: Kind) -> Self {
+        Self { kind }
+    }
+}
+
+impl fmt::Display for Inst {
+    #[inline]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(fmt)
+    }
+}
+
+impl fmt::Debug for Inst {
+    #[inline]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(fmt)
+    }
+}
+
+impl TryClone for Inst {
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(Self {
+            kind: self.kind.try_clone()?,
+        })
+    }
+}
 
 /// Pre-canned panic reasons.
 ///
@@ -21,23 +60,16 @@ use super::{Call, FormatSpec, Memory, RuntimeError, Type, Value};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-#[non_exhaustive]
-pub enum PanicReason {
-    /// Not implemented.
-    NotImplemented,
+pub(crate) enum PanicReason {
     /// A pattern didn't match where it unconditionally has to.
     UnmatchedPattern,
-    /// Tried to poll a future that has already been completed.
-    FutureCompleted,
 }
 
 impl PanicReason {
     /// The identifier of the panic.
     fn ident(&self) -> &'static str {
         match *self {
-            Self::NotImplemented => "not implemented",
             Self::UnmatchedPattern => "unmatched pattern",
-            Self::FutureCompleted => "future completed",
         }
     }
 }
@@ -45,11 +77,7 @@ impl PanicReason {
 impl fmt::Display for PanicReason {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Self::NotImplemented => write!(fmt, "functionality has not been implemented yet")?,
             Self::UnmatchedPattern => write!(fmt, "pattern did not match")?,
-            Self::FutureCompleted => {
-                write!(fmt, "tried to poll future that has already been completed")?
-            }
         }
 
         Ok(())
@@ -61,8 +89,7 @@ impl fmt::Display for PanicReason {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-#[non_exhaustive]
-pub enum TypeCheck {
+pub(crate) enum TypeCheck {
     /// Matches a unit type.
     Unit,
     /// Matches an anonymous tuple.
@@ -74,6 +101,7 @@ pub enum TypeCheck {
 }
 
 impl fmt::Display for TypeCheck {
+    #[inline]
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unit => write!(fmt, "Unit"),
@@ -84,12 +112,12 @@ impl fmt::Display for TypeCheck {
     }
 }
 
-/// An operation in the stack-based virtual machine.
+/// The kind of an instruction in the virtual machine.
 #[derive(Debug, TryClone, Clone, Copy, InstDisplay)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum Inst {
+pub(crate) enum Kind {
     /// Make sure that the memory region has `size` slots of memory available.
     Allocate {
         /// The size of the memory region to allocate.
@@ -106,7 +134,7 @@ pub enum Inst {
     /// ```
     Not {
         /// The operand to negate.
-        addr: InstAddress,
+        addr: Address,
         /// Whether the produced value from the not should be kept or not.
         out: Output,
     },
@@ -120,7 +148,7 @@ pub enum Inst {
     /// ```
     Neg {
         /// The operand to negate.
-        addr: InstAddress,
+        addr: Address,
         /// Whether the produced value from the negation should be kept or not.
         out: Output,
     },
@@ -138,7 +166,7 @@ pub enum Inst {
         /// The hash of the internally stored closure function.
         hash: Hash,
         /// Where to load captured values from.
-        addr: InstAddress,
+        addr: Address,
         /// The number of captured values to store in the environment.
         count: usize,
         /// Where to store the produced closure.
@@ -155,7 +183,7 @@ pub enum Inst {
         /// The calling convention to use.
         call: Call,
         /// The address where the arguments are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the return value should be kept or not.
@@ -173,7 +201,7 @@ pub enum Inst {
         /// The hash of the function to call.
         hash: Hash,
         /// The address of the arguments being passed.
-        addr: InstAddress,
+        addr: Address,
         /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the return value should be kept or not.
@@ -190,7 +218,7 @@ pub enum Inst {
         /// The hash of the name of the function to call.
         hash: Hash,
         /// The address of arguments being passed.
-        addr: InstAddress,
+        addr: Address,
         /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the return value should be kept or not.
@@ -202,7 +230,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     LoadInstanceFn {
         /// The address of the instance for which the function is being loaded.
-        addr: InstAddress,
+        addr: Address,
         /// The name hash of the instance function.
         hash: Hash,
         /// Where to store the loaded instance function.
@@ -220,9 +248,9 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     CallFn {
         /// The address of the function being called.
-        function: InstAddress,
+        function: Address,
         /// The address of the arguments being passed.
-        addr: InstAddress,
+        addr: Address,
         /// The number of arguments passed in at `addr`.
         args: usize,
         /// Whether the returned value from calling the function should be kept
@@ -241,9 +269,9 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     IndexGet {
         /// How the target is addressed.
-        target: InstAddress,
+        target: Address,
         /// How the index is addressed.
-        index: InstAddress,
+        index: Address,
         /// Whether the produced value should be kept or not.
         out: Output,
     },
@@ -259,11 +287,11 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     TupleIndexSet {
         /// The object being assigned to.
-        target: InstAddress,
+        target: Address,
         /// The index to set.
         index: usize,
         /// The value being assigned.
-        value: InstAddress,
+        value: Address,
     },
     /// Get the given index out of a tuple from the given variable slot.
     /// Errors if the item doesn't exist or the item is not a tuple.
@@ -276,7 +304,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     TupleIndexGetAt {
         /// The address where the tuple we are getting from is stored.
-        addr: InstAddress,
+        addr: Address,
         /// The index to fetch.
         index: usize,
         /// Whether the produced value should be kept or not.
@@ -298,11 +326,11 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     ObjectIndexSet {
         /// The object being assigned to.
-        target: InstAddress,
+        target: Address,
         /// The static string slot corresponding to the index to set.
         slot: usize,
         /// The value being assigned.
-        value: InstAddress,
+        value: Address,
     },
     /// Get the given index out of an object from the given variable slot.
     /// Errors if the item doesn't exist or the item is not an object.
@@ -318,7 +346,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     ObjectIndexGetAt {
         /// The address where the object is stored.
-        addr: InstAddress,
+        addr: Address,
         /// The static string slot corresponding to the index to fetch.
         slot: usize,
         /// Where to store the fetched value.
@@ -336,11 +364,11 @@ pub enum Inst {
     /// ```
     IndexSet {
         /// The object being assigned to.
-        target: InstAddress,
+        target: Address,
         /// The index to set.
-        index: InstAddress,
+        index: Address,
         /// The value being assigned.
-        value: InstAddress,
+        value: Address,
     },
     /// Await the future that is on the stack and push the value that it
     /// produces.
@@ -353,7 +381,7 @@ pub enum Inst {
     /// ```
     Await {
         /// Address of the future being awaited.
-        addr: InstAddress,
+        addr: Address,
         /// Whether the produced value from the await should be kept or not.
         out: Output,
     },
@@ -368,7 +396,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Select {
         /// The base address of futures being waited on.
-        addr: InstAddress,
+        addr: Address,
         /// The number of futures to poll.
         len: usize,
         /// Where to store the value produced by the future that completed.
@@ -409,7 +437,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Copy {
         /// Address of the value being copied.
-        addr: InstAddress,
+        addr: Address,
         /// Where the value is being copied to.
         out: Output,
     },
@@ -418,7 +446,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Move {
         /// Address of the value being moved.
-        addr: InstAddress,
+        addr: Address,
         /// Where the value is being moved to.
         out: Output,
     },
@@ -433,9 +461,9 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Swap {
         /// Offset to the first value.
-        a: InstAddress,
+        a: Address,
         /// Offset to the second value.
-        b: InstAddress,
+        b: Address,
     },
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
@@ -444,7 +472,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Return {
         /// The address of the value to return.
-        addr: InstAddress,
+        addr: Address,
     },
     /// Pop the current stack frame and restore the instruction pointer from it.
     ///
@@ -477,7 +505,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     JumpIf {
         /// The address of the condition for the jump.
-        cond: InstAddress,
+        cond: Address,
         /// Offset to jump to.
         jump: usize,
     },
@@ -492,7 +520,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     JumpIfNot {
         /// The address of the condition for the jump.
-        cond: InstAddress,
+        cond: Address,
         /// The offset to jump if the condition is true.
         jump: usize,
     },
@@ -503,7 +531,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Vec {
         /// Where the arguments to the vector are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The number of elements in the vector.
         count: usize,
         /// Where to store the produced vector.
@@ -517,7 +545,7 @@ pub enum Inst {
     Tuple1 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        addr: [InstAddress; 1],
+        addr: [Address; 1],
         /// Where to store the produced tuple.
         out: Output,
     },
@@ -529,7 +557,7 @@ pub enum Inst {
     Tuple2 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        addr: [InstAddress; 2],
+        addr: [Address; 2],
         /// Where to store the produced tuple.
         out: Output,
     },
@@ -541,7 +569,7 @@ pub enum Inst {
     Tuple3 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        addr: [InstAddress; 3],
+        addr: [Address; 3],
         /// Where to store the produced tuple.
         out: Output,
     },
@@ -553,7 +581,7 @@ pub enum Inst {
     Tuple4 {
         /// Tuple arguments.
         #[inst_display(display_with = DisplayArray::new)]
-        addr: [InstAddress; 4],
+        addr: [Address; 4],
         /// Where to store the produced tuple.
         out: Output,
     },
@@ -564,7 +592,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Tuple {
         /// Where the arguments to the tuple are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The number of elements in the tuple.
         count: usize,
         /// Where to store the produced tuple.
@@ -584,7 +612,7 @@ pub enum Inst {
     /// ```
     Environment {
         /// The tuple to push.
-        addr: InstAddress,
+        addr: Address,
         /// The expected size of the tuple.
         count: usize,
         /// Where to unpack the environment.
@@ -605,7 +633,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Object {
         /// Where the arguments to the tuple are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The static slot of the object keys.
         slot: usize,
         /// Where to store the produced tuple.
@@ -630,7 +658,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Struct {
         /// The address to load fields from.
-        addr: InstAddress,
+        addr: Address,
         /// The type of the struct to construct.
         hash: Hash,
         /// Where to write the constructed struct.
@@ -642,7 +670,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     ConstConstruct {
         /// Where constructor arguments are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The type of the struct to construct.
         hash: Hash,
         /// The number of constructor arguments.
@@ -692,7 +720,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     StringConcat {
         /// Where the strings to concatenate are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The number of items to pop from the stack.
         len: usize,
         /// The minimum string size used.
@@ -705,7 +733,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Format {
         /// Address of the value being formatted.
-        addr: InstAddress,
+        addr: Address,
         /// The format specification to use.
         spec: FormatSpec,
         /// Where to store the produced format.
@@ -721,7 +749,7 @@ pub enum Inst {
     /// ```
     IsUnit {
         /// The address of the value to test.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the output.
         out: Output,
     },
@@ -737,7 +765,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Try {
         /// Address of value to try.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the value in case there is a continuation.
         out: Output,
     },
@@ -752,7 +780,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     EqChar {
         /// Address of the value to compare.
-        addr: InstAddress,
+        addr: Address,
         /// The character to test against.
         #[inst_display(display_with = DisplayDebug::new)]
         value: char,
@@ -763,7 +791,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     EqSigned {
         /// Address of the value to compare.
-        addr: InstAddress,
+        addr: Address,
         /// The value to test against.
         value: i64,
         /// Where to store the result of the comparison.
@@ -773,7 +801,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     EqUnsigned {
         /// Address of the value to compare.
-        addr: InstAddress,
+        addr: Address,
         /// The value to test against.
         value: u64,
         /// Where to store the result of the comparison.
@@ -790,7 +818,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     EqBool {
         /// Address of the value to compare.
-        addr: InstAddress,
+        addr: Address,
         /// The value to test against.
         value: bool,
         /// Where to store the result of the comparison.
@@ -807,7 +835,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     EqString {
         /// Address of the value to compare.
-        addr: InstAddress,
+        addr: Address,
         /// The slot to test against.
         slot: usize,
         /// Where to store the result of the comparison.
@@ -824,7 +852,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     EqBytes {
         /// Address of the value to compare.
-        addr: InstAddress,
+        addr: Address,
         /// The slot to test against.
         slot: usize,
         /// Where to store the result of the comparison.
@@ -843,7 +871,7 @@ pub enum Inst {
         /// The type hash to match against.
         hash: Hash,
         /// The address of the value to test.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the output.
         out: Output,
     },
@@ -865,7 +893,7 @@ pub enum Inst {
         /// The type hash of the variant.
         variant_hash: Hash,
         /// The address of the value to test.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the output.
         out: Output,
     },
@@ -882,7 +910,7 @@ pub enum Inst {
         /// The type to check for.
         type_check: TypeCheck,
         /// The address of the value to test.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the output.
         out: Output,
     },
@@ -905,7 +933,7 @@ pub enum Inst {
         /// `false`.
         exact: bool,
         /// The address of the value to test.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the output.
         out: Output,
     },
@@ -926,7 +954,7 @@ pub enum Inst {
         /// `false`.
         exact: bool,
         /// The address of the value to test.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the output.
         out: Output,
     },
@@ -943,7 +971,7 @@ pub enum Inst {
     /// ```
     Yield {
         /// Address of the value being yielded.
-        addr: InstAddress,
+        addr: Address,
         /// Where to store the produced resume value.
         out: Output,
     },
@@ -974,7 +1002,7 @@ pub enum Inst {
     #[cfg_attr(feature = "musli", musli(packed))]
     Variant {
         /// Where the arguments to construct the variant are stored.
-        addr: InstAddress,
+        addr: Address,
         /// The kind of built-in variant to construct.
         variant: InstVariant,
         /// Where to store the variant.
@@ -986,9 +1014,9 @@ pub enum Inst {
         /// The kind of operation.
         op: InstOp,
         /// The address of the first argument.
-        a: InstAddress,
+        a: Address,
         /// The address of the second argument.
-        b: InstAddress,
+        b: Address,
         /// Whether the produced value from the operation should be kept or not.
         out: Output,
     },
@@ -998,9 +1026,9 @@ pub enum Inst {
         /// The kind of operation.
         op: InstArithmeticOp,
         /// The address of the first argument.
-        a: InstAddress,
+        a: Address,
         /// The address of the second argument.
-        b: InstAddress,
+        b: Address,
         /// Whether the produced value from the operation should be kept or not.
         out: Output,
     },
@@ -1010,9 +1038,9 @@ pub enum Inst {
         /// The kind of operation.
         op: InstBitwiseOp,
         /// The address of the first argument.
-        a: InstAddress,
+        a: Address,
         /// The address of the second argument.
-        b: InstAddress,
+        b: Address,
         /// Whether the produced value from the operation should be kept or not.
         out: Output,
     },
@@ -1022,9 +1050,9 @@ pub enum Inst {
         /// The kind of operation.
         op: InstShiftOp,
         /// The address of the first argument.
-        a: InstAddress,
+        a: Address,
         /// The address of the second argument.
-        b: InstAddress,
+        b: Address,
         /// Whether the produced value from the operation should be kept or not.
         out: Output,
     },
@@ -1036,7 +1064,7 @@ pub enum Inst {
         /// The target of the operation.
         target: InstTarget,
         /// The value being assigned.
-        rhs: InstAddress,
+        rhs: Address,
     },
     /// Instruction for assigned bitwise operations.
     #[cfg_attr(feature = "musli", musli(packed))]
@@ -1046,7 +1074,7 @@ pub enum Inst {
         /// The target of the operation.
         target: InstTarget,
         /// The value being assigned.
-        rhs: InstAddress,
+        rhs: Address,
     },
     /// Instruction for assigned shift operations.
     #[cfg_attr(feature = "musli", musli(packed))]
@@ -1056,13 +1084,13 @@ pub enum Inst {
         /// The target of the operation.
         target: InstTarget,
         /// The value being assigned.
-        rhs: InstAddress,
+        rhs: Address,
     },
     /// Advance an iterator at the given position.
     #[cfg_attr(feature = "musli", musli(packed))]
     IterNext {
         /// The address of the iterator to advance.
-        addr: InstAddress,
+        addr: Address,
         /// A relative jump to perform if the iterator could not be advanced.
         jump: usize,
         /// Where to store the produced value from the iterator.
@@ -1080,9 +1108,9 @@ pub enum Inst {
     },
 }
 
-impl Inst {
+impl Kind {
     /// Construct an instruction to push a unit.
-    pub fn unit(out: Output) -> Self {
+    pub(crate) fn unit(out: Output) -> Self {
         Self::Store {
             value: InstValue::Unit,
             out,
@@ -1090,7 +1118,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push a boolean.
-    pub fn bool(b: bool, out: Output) -> Self {
+    pub(crate) fn bool(b: bool, out: Output) -> Self {
         Self::Store {
             value: InstValue::Bool(b),
             out,
@@ -1098,7 +1126,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push a character.
-    pub fn char(c: char, out: Output) -> Self {
+    pub(crate) fn char(c: char, out: Output) -> Self {
         Self::Store {
             value: InstValue::Char(c),
             out,
@@ -1106,7 +1134,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push an integer.
-    pub fn signed(v: i64, out: Output) -> Self {
+    pub(crate) fn signed(v: i64, out: Output) -> Self {
         Self::Store {
             value: InstValue::Integer(v),
             out,
@@ -1114,7 +1142,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push an unsigned integer.
-    pub fn unsigned(v: u64, out: Output) -> Self {
+    pub(crate) fn unsigned(v: u64, out: Output) -> Self {
         Self::Store {
             value: InstValue::Unsigned(v),
             out,
@@ -1122,7 +1150,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push a float.
-    pub fn float(v: f64, out: Output) -> Self {
+    pub(crate) fn float(v: f64, out: Output) -> Self {
         Self::Store {
             value: InstValue::Float(v),
             out,
@@ -1130,7 +1158,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push a type.
-    pub fn ty(ty: Type, out: Output) -> Self {
+    pub(crate) fn ty(ty: Type, out: Output) -> Self {
         Self::Store {
             value: InstValue::Type(ty),
             out,
@@ -1138,7 +1166,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push an ordering.
-    pub fn ordering(ordering: Ordering, out: Output) -> Self {
+    pub(crate) fn ordering(ordering: Ordering, out: Output) -> Self {
         Self::Store {
             value: InstValue::Ordering(ordering),
             out,
@@ -1146,7 +1174,7 @@ impl Inst {
     }
 
     /// Construct an instruction to push a type hash.
-    pub fn hash(hash: Hash, out: Output) -> Self {
+    pub(crate) fn hash(hash: Hash, out: Output) -> Self {
         Self::Store {
             value: InstValue::Hash(hash),
             out,
@@ -1157,7 +1185,6 @@ impl Inst {
 /// What to do with the output of an instruction.
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash)]
 #[try_clone(copy)]
-#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
 pub struct Output {
@@ -1180,11 +1207,11 @@ impl Output {
 
     /// Check if the output is a keep.
     #[inline(always)]
-    pub(crate) fn as_addr(&self) -> Option<InstAddress> {
+    pub(crate) fn as_addr(&self) -> Option<Address> {
         if self.offset == usize::MAX {
             None
         } else {
-            Some(InstAddress::new(self.offset))
+            Some(Address::new(self.offset))
         }
     }
 
@@ -1199,10 +1226,10 @@ impl Output {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Output, Memory, ToValue, VmError, InstAddress};
+    /// use rune::runtime::{Output, Memory, ToValue, VmError, Address};
     /// use rune::vm_try;
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
     ///     for value in stack.slice_at(addr, args)? {
@@ -1284,16 +1311,16 @@ impl IntoOutput for Value {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
 #[try_clone(copy)]
-pub struct InstAddress {
+pub struct Address {
     offset: usize,
 }
 
-impl InstAddress {
+impl Address {
     /// The first possible address.
-    pub const ZERO: InstAddress = InstAddress { offset: 0 };
+    pub const ZERO: Address = Address { offset: 0 };
 
     /// An invalid address.
-    pub const INVALID: InstAddress = InstAddress { offset: usize::MAX };
+    pub const INVALID: Address = Address { offset: usize::MAX };
 
     /// Construct a new address.
     #[inline]
@@ -1314,7 +1341,7 @@ impl InstAddress {
     }
 }
 
-impl fmt::Display for InstAddress {
+impl fmt::Display for Address {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.offset == usize::MAX {
@@ -1325,7 +1352,7 @@ impl fmt::Display for InstAddress {
     }
 }
 
-impl fmt::Debug for InstAddress {
+impl fmt::Debug for Address {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
@@ -1337,38 +1364,37 @@ impl fmt::Debug for InstAddress {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-#[non_exhaustive]
-pub enum InstRange {
+pub(crate) enum InstRange {
     /// `start..`.
     RangeFrom {
         /// The start address of the range.
-        start: InstAddress,
+        start: Address,
     },
     /// `..`.
     RangeFull,
     /// `start..=end`.
     RangeInclusive {
         /// The start address of the range.
-        start: InstAddress,
+        start: Address,
         /// The end address of the range.
-        end: InstAddress,
+        end: Address,
     },
     /// `..=end`.
     RangeToInclusive {
         /// The end address of the range.
-        end: InstAddress,
+        end: Address,
     },
     /// `..end`.
     RangeTo {
         /// The end address of the range.
-        end: InstAddress,
+        end: Address,
     },
     /// `start..end`.
     Range {
         /// The start address of the range.
-        start: InstAddress,
+        start: Address,
         /// The end address of the range.
-        end: InstAddress,
+        end: Address,
     },
 }
 
@@ -1390,16 +1416,16 @@ impl fmt::Display for InstRange {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum InstTarget {
+pub(crate) enum InstTarget {
     /// Target is an offset to the current call frame.
     #[cfg_attr(feature = "musli", musli(packed))]
-    Address(InstAddress),
+    Address(Address),
     /// Target the field of an object.
     #[cfg_attr(feature = "musli", musli(packed))]
-    Field(InstAddress, usize),
+    Field(Address, usize),
     /// Target a tuple field.
     #[cfg_attr(feature = "musli", musli(packed))]
-    TupleField(InstAddress, usize),
+    TupleField(Address, usize),
 }
 
 impl fmt::Display for InstTarget {
@@ -1417,7 +1443,7 @@ impl fmt::Display for InstTarget {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum InstArithmeticOp {
+pub(crate) enum InstArithmeticOp {
     /// The add operation. `a + b`.
     Add,
     /// The sub operation. `a - b`.
@@ -1460,7 +1486,7 @@ impl fmt::Display for InstArithmeticOp {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum InstBitwiseOp {
+pub(crate) enum InstBitwiseOp {
     /// The bitwise and operation. `a & b`.
     BitAnd,
     /// The bitwise xor operation. `a ^ b`.
@@ -1493,7 +1519,7 @@ impl fmt::Display for InstBitwiseOp {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum InstShiftOp {
+pub(crate) enum InstShiftOp {
     /// The shift left operation. `a << b`.
     Shl,
     /// The shift right operation. `a << b`.
@@ -1521,7 +1547,7 @@ impl fmt::Display for InstShiftOp {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum InstOp {
+pub(crate) enum InstOp {
     /// Compare two values on the stack for lt and push the result as a
     /// boolean on the stack.
     Lt,
@@ -1612,6 +1638,7 @@ pub enum InstOp {
 }
 
 impl fmt::Display for InstOp {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Lt => {
@@ -1658,8 +1685,7 @@ impl fmt::Display for InstOp {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-#[non_exhaustive]
-pub enum InstValue {
+pub(crate) enum InstValue {
     /// An empty tuple.
     Unit,
     /// A boolean.
@@ -1693,7 +1719,7 @@ pub enum InstValue {
 
 impl InstValue {
     /// Convert into a value that can be pushed onto the stack.
-    pub fn into_value(self) -> Value {
+    pub(crate) fn into_value(self) -> Value {
         match self {
             Self::Unit => Value::unit(),
             Self::Bool(v) => Value::from(v),
@@ -1731,15 +1757,11 @@ impl fmt::Display for InstValue {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
-pub enum InstVariant {
+pub(crate) enum InstVariant {
     /// `Option::Some`, which uses one value.
     Some,
     /// `Option::None`, which uses no values.
     None,
-    /// `Result::Ok`, which uses one value.
-    Ok,
-    /// `Result::Err`, which uses one value.
-    Err,
 }
 
 impl fmt::Display for InstVariant {
@@ -1750,12 +1772,6 @@ impl fmt::Display for InstVariant {
             }
             Self::None => {
                 write!(f, "None")?;
-            }
-            Self::Ok => {
-                write!(f, "Ok")?;
-            }
-            Self::Err => {
-                write!(f, "Err")?;
             }
         }
 

@@ -12,7 +12,7 @@
 //! ```
 
 use crate as rune;
-use crate::runtime::{InstAddress, Memory, Output};
+use crate::runtime::{Address, Memory, Output};
 use crate::{ContextError, Module};
 
 /// I/O methods which will cause any output to be ignored.
@@ -26,7 +26,7 @@ pub fn module() -> Result<Module, ContextError> {
     module
         .raw_function(
             "dbg",
-            move |stack: &mut dyn Memory, _: InstAddress, _: usize, out: Output| {
+            move |stack: &mut dyn Memory, _: Address, _: usize, out: Output| {
                 out.store(stack, ())?;
                 Ok(())
             },

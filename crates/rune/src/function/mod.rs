@@ -8,8 +8,8 @@ use crate::alloc;
 use crate::compile::meta;
 use crate::hash::Hash;
 use crate::runtime::{
-    self, AnyTypeInfo, FromValue, InstAddress, IntoReturn, MaybeTypeOf, Memory, Output,
-    RuntimeError, TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
+    self, Address, AnyTypeInfo, FromValue, IntoReturn, MaybeTypeOf, Memory, Output, RuntimeError,
+    TypeHash, TypeOf, UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 // Expand to function variable bindings.
@@ -83,7 +83,7 @@ pub trait Function<A, K>: 'static + Send + Sync {
     fn call(
         &self,
         memory: &mut dyn Memory,
-        addr: InstAddress,
+        addr: Address,
         args: usize,
         out: Output,
     ) -> Result<(), VmError>;
@@ -113,7 +113,7 @@ pub trait InstanceFunction<A, K>: 'static + Send + Sync {
     fn call(
         &self,
         memory: &mut dyn Memory,
-        addr: InstAddress,
+        addr: Address,
         args: usize,
         out: Output,
     ) -> Result<(), VmError>;
@@ -132,7 +132,7 @@ macro_rules! impl_instance_function_traits {
             const ARGS: usize  = <T as Function<(Instance, $($ty,)*), Kind>>::ARGS;
 
             #[inline]
-            fn call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+            fn call(&self, memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
                 Function::call(self, memory, addr, args, out)
             }
         }
@@ -241,7 +241,7 @@ macro_rules! impl_function_traits {
             const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
-            fn call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+            fn call(&self, memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
                 access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 // Safety: We hold a reference to memory, so we can guarantee
@@ -266,7 +266,7 @@ macro_rules! impl_function_traits {
             const ARGS: usize = $count;
 
             #[allow(clippy::drop_non_drop)]
-            fn call(&self, memory: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+            fn call(&self, memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
                 access_memory!($count, 0, memory, addr, args, $($from_fn, $var, $num,)*);
 
                 let fut = self($($var.0),*);

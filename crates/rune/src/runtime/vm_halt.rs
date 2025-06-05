@@ -1,16 +1,16 @@
 use core::fmt;
 
-use crate::runtime::{Awaited, InstAddress, Output, VmCall};
+use crate::runtime::{Address, Awaited, Output, VmCall};
 
 /// The reason why the virtual machine execution stopped.
 #[derive(Debug)]
 pub(crate) enum VmHalt {
     /// The virtual machine exited by running out of call frames, returning the given value.
-    Exited(Option<InstAddress>),
+    Exited(Option<Address>),
     /// The virtual machine exited because it ran out of execution quota.
     Limited,
     /// The virtual machine yielded.
-    Yielded(Option<InstAddress>, Output),
+    Yielded(Option<Address>, Output),
     /// The virtual machine awaited on the given future.
     Awaited(Awaited),
     /// Call into a new virtual machine.

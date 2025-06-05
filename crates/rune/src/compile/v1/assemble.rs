@@ -11,10 +11,11 @@ use crate::compile::ir;
 use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
+use crate::runtime::inst;
 use crate::runtime::{
-    ConstValue, ConstValueKind, Inline, Inst, InstAddress, InstArithmeticOp, InstBitwiseOp, InstOp,
-    InstRange, InstShiftOp, InstTarget, InstValue, InstVariant, Label, Output, PanicReason,
-    Protocol, TypeCheck,
+    ConstValue, ConstValueKind, Inline, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
+    InstShiftOp, InstTarget, InstValue, InstVariant, Label, Output, PanicReason, Protocol,
+    TypeCheck,
 };
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
@@ -67,7 +68,7 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     /// Work buffer for select branches.
     pub(crate) select_branches: Vec<(Label, &'hir hir::ExprSelectBranch<'hir>)>,
     /// Values to drop.
-    pub(crate) drop: Vec<InstAddress>,
+    pub(crate) drop: Vec<inst::Address>,
 }
 
 impl<'hir> Ctxt<'_, 'hir, '_> {
@@ -83,7 +84,7 @@ impl<'hir> Ctxt<'_, 'hir, '_> {
         }
 
         if let Some(set) = drop_set.finish()? {
-            self.asm.push(Inst::Drop { set }, span)?;
+            self.asm.push(inst::Kind::Drop { set }, span)?;
         }
 
         Ok(())
@@ -247,7 +248,7 @@ pub(crate) fn fn_from_item_fn<'hir>(
         let mut needs = Any::ignore(&hir.body);
 
         if block_without_scope(cx, &hir.body, &mut needs)?.converging() {
-            cx.asm.push(Inst::ReturnUnit, hir)?;
+            cx.asm.push(inst::Kind::ReturnUnit, hir)?;
         }
     }
 
@@ -286,7 +287,7 @@ pub(crate) fn expr_closure_secondary<'hir>(
 
     if !hir.captures.is_empty() {
         cx.asm.push(
-            Inst::Environment {
+            inst::Kind::Environment {
                 addr: environment.addr(),
                 count: hir.captures.len(),
                 out: environment.addr().output(),
@@ -362,7 +363,7 @@ fn return_<'a, 'hir, T>(
     converge!(asm(cx, hir, &mut needs)?, free(needs));
 
     cx.asm.push(
-        Inst::Return {
+        inst::Kind::Return {
             addr: needs.addr()?.addr(),
         },
         span,
@@ -391,7 +392,7 @@ where
         cx.asm.jump(&match_label, span)?;
         cx.asm.label(&false_label)?;
         cx.asm.push(
-            Inst::Panic {
+            inst::Kind::Panic {
                 reason: PanicReason::UnmatchedPattern,
             },
             span,
@@ -605,9 +606,9 @@ fn pat_lit<'a, 'hir>(
 fn pat_lit_inst(
     cx: &mut Ctxt<'_, '_, '_>,
     hir: &hir::Expr<'_>,
-    addr: InstAddress,
-    cond: InstAddress,
-) -> compile::Result<Option<Inst>> {
+    addr: inst::Address,
+    cond: inst::Address,
+) -> compile::Result<Option<inst::Kind>> {
     let hir::ExprKind::Lit(lit) = hir.kind else {
         return Ok(None);
     };
@@ -615,20 +616,20 @@ fn pat_lit_inst(
     let out = cond.output();
 
     let inst = match lit {
-        hir::Lit::Char(value) => Inst::EqChar { addr, value, out },
-        hir::Lit::Str(string) => Inst::EqString {
+        hir::Lit::Char(value) => inst::Kind::EqChar { addr, value, out },
+        hir::Lit::Str(string) => inst::Kind::EqString {
             addr,
             slot: cx.q.unit.new_static_string(hir, string)?,
             out,
         },
-        hir::Lit::ByteStr(bytes) => Inst::EqBytes {
+        hir::Lit::ByteStr(bytes) => inst::Kind::EqBytes {
             addr,
             slot: cx.q.unit.new_static_bytes(hir, bytes)?,
             out,
         },
-        hir::Lit::Unsigned(value) => Inst::EqUnsigned { addr, value, out },
-        hir::Lit::Signed(value) => Inst::EqSigned { addr, value, out },
-        hir::Lit::Bool(value) => Inst::EqBool { addr, value, out },
+        hir::Lit::Unsigned(value) => inst::Kind::EqUnsigned { addr, value, out },
+        hir::Lit::Signed(value) => inst::Kind::EqSigned { addr, value, out },
+        hir::Lit::Bool(value) => inst::Kind::EqBool { addr, value, out },
         _ => return Ok(None),
     };
 
@@ -719,7 +720,7 @@ fn pat_sequence<'a, 'hir>(
         }
     ) {
         cx.asm.push(
-            Inst::IsUnit {
+            inst::Kind::IsUnit {
                 addr: addr.addr(),
                 out: cond.output(),
             },
@@ -735,7 +736,7 @@ fn pat_sequence<'a, 'hir>(
         for (index, p) in hir.items.iter().enumerate() {
             let mut load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| {
                 cx.asm.push(
-                    Inst::TupleIndexGetAt {
+                    inst::Kind::TupleIndexGetAt {
                         addr: addr.addr(),
                         index,
                         out: needs.alloc_output()?,
@@ -757,10 +758,14 @@ fn pat_sequence<'a, 'hir>(
     Ok(Asm::new(span, Pattern::Refutable))
 }
 
-fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out: Output) -> Inst {
+fn pat_sequence_kind_to_inst(
+    kind: hir::PatSequenceKind,
+    addr: inst::Address,
+    out: Output,
+) -> inst::Kind {
     match kind {
-        hir::PatSequenceKind::Type { hash } => Inst::MatchType { hash, addr, out },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn {
+        hir::PatSequenceKind::Type { hash } => inst::Kind::MatchType { hash, addr, out },
+        hir::PatSequenceKind::BuiltInVariant { type_check } => inst::Kind::MatchBuiltIn {
             type_check,
             addr,
             out,
@@ -768,7 +773,7 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out:
         hir::PatSequenceKind::Variant {
             enum_hash,
             variant_hash,
-        } => Inst::MatchVariant {
+        } => inst::Kind::MatchVariant {
             enum_hash,
             variant_hash,
             addr,
@@ -778,7 +783,7 @@ fn pat_sequence_kind_to_inst(kind: hir::PatSequenceKind, addr: InstAddress, out:
             type_check,
             count,
             is_open,
-        } => Inst::MatchSequence {
+        } => inst::Kind::MatchSequence {
             type_check,
             len: count,
             exact: !is_open,
@@ -814,12 +819,12 @@ fn pat_object<'a, 'hir>(
     }
 
     let inst = match hir.kind {
-        hir::PatSequenceKind::Type { hash } => Inst::MatchType {
+        hir::PatSequenceKind::Type { hash } => inst::Kind::MatchType {
             hash,
             addr: addr.addr(),
             out: cond.output(),
         },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => Inst::MatchBuiltIn {
+        hir::PatSequenceKind::BuiltInVariant { type_check } => inst::Kind::MatchBuiltIn {
             type_check,
             addr: addr.addr(),
             out: cond.output(),
@@ -827,7 +832,7 @@ fn pat_object<'a, 'hir>(
         hir::PatSequenceKind::Variant {
             enum_hash,
             variant_hash,
-        } => Inst::MatchVariant {
+        } => inst::Kind::MatchVariant {
             enum_hash,
             variant_hash,
             addr: addr.addr(),
@@ -838,7 +843,7 @@ fn pat_object<'a, 'hir>(
                 cx.q.unit
                     .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;
 
-            Inst::MatchObject {
+            inst::Kind::MatchObject {
                 slot: keys,
                 exact: !is_open,
                 addr: addr.addr(),
@@ -859,7 +864,7 @@ fn pat_object<'a, 'hir>(
                 let mut load =
                     move |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| {
                         cx.asm.push(
-                            Inst::ObjectIndexGetAt {
+                            inst::Kind::ObjectIndexGetAt {
                                 addr: addr.addr(),
                                 slot,
                                 out: needs.alloc_output()?,
@@ -883,7 +888,7 @@ fn pat_object<'a, 'hir>(
                 };
 
                 cx.asm.push(
-                    Inst::ObjectIndexGetAt {
+                    inst::Kind::ObjectIndexGetAt {
                         addr: addr.addr(),
                         slot,
                         out: binding.output()?,
@@ -972,7 +977,7 @@ fn block_without_scope<'a, 'hir>(
             diverge = Some(e);
         }
     } else if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), hir)?;
+        cx.asm.push(inst::Kind::unit(out), hir)?;
     }
 
     cx.contexts
@@ -1009,7 +1014,7 @@ fn builtin_format<'a, 'hir>(
 
     if let Some(addr) = needs.try_alloc_addr()? {
         cx.asm.push(
-            Inst::Format {
+            inst::Kind::Format {
                 addr: addr.addr(),
                 spec,
                 out: addr.output(),
@@ -1042,7 +1047,7 @@ fn builtin_template<'a, 'hir>(
             size_hint += s.len();
             let slot = cx.q.unit.new_static_string(span, s)?;
             cx.asm.push(
-                Inst::String {
+                inst::Kind::String {
                     slot,
                     out: addr.output(),
                 },
@@ -1067,7 +1072,7 @@ fn builtin_template<'a, 'hir>(
 
     if converge {
         cx.asm.push(
-            Inst::StringConcat {
+            inst::Kind::StringConcat {
                 addr: linear.addr(),
                 len: hir.exprs.len(),
                 size_hint,
@@ -1111,47 +1116,47 @@ fn const_<'a, 'hir>(
                 ));
             }
             Inline::Unit => {
-                cx.asm.push(Inst::unit(out), span)?;
+                cx.asm.push(inst::Kind::unit(out), span)?;
             }
             Inline::Char(v) => {
-                cx.asm.push(Inst::char(v, out), span)?;
+                cx.asm.push(inst::Kind::char(v, out), span)?;
             }
             Inline::Signed(v) => {
-                cx.asm.push(Inst::signed(v, out), span)?;
+                cx.asm.push(inst::Kind::signed(v, out), span)?;
             }
             Inline::Unsigned(v) => {
-                cx.asm.push(Inst::unsigned(v, out), span)?;
+                cx.asm.push(inst::Kind::unsigned(v, out), span)?;
             }
             Inline::Float(v) => {
-                cx.asm.push(Inst::float(v, out), span)?;
+                cx.asm.push(inst::Kind::float(v, out), span)?;
             }
             Inline::Bool(v) => {
-                cx.asm.push(Inst::bool(v, out), span)?;
+                cx.asm.push(inst::Kind::bool(v, out), span)?;
             }
             Inline::Type(v) => {
-                cx.asm.push(Inst::ty(v, out), span)?;
+                cx.asm.push(inst::Kind::ty(v, out), span)?;
             }
             Inline::Ordering(v) => {
-                cx.asm.push(Inst::ordering(v, out), span)?;
+                cx.asm.push(inst::Kind::ordering(v, out), span)?;
             }
             Inline::Hash(v) => {
-                cx.asm.push(Inst::hash(v, out), span)?;
+                cx.asm.push(inst::Kind::hash(v, out), span)?;
             }
         },
         ConstValueKind::String(ref s) => {
             let slot = cx.q.unit.new_static_string(span, s)?;
-            cx.asm.push(Inst::String { slot, out }, span)?;
+            cx.asm.push(inst::Kind::String { slot, out }, span)?;
         }
         ConstValueKind::Bytes(ref b) => {
             let slot = cx.q.unit.new_static_bytes(span, b)?;
-            cx.asm.push(Inst::Bytes { slot, out }, span)?;
+            cx.asm.push(inst::Kind::Bytes { slot, out }, span)?;
         }
         ConstValueKind::Option(ref option) => match option {
             Some(value) => {
                 const_(cx, value, span, addr)?;
 
                 cx.asm.push(
-                    Inst::Variant {
+                    inst::Kind::Variant {
                         variant: InstVariant::Some,
                         addr: addr.addr(),
                         out,
@@ -1161,7 +1166,7 @@ fn const_<'a, 'hir>(
             }
             None => {
                 cx.asm.push(
-                    Inst::Variant {
+                    inst::Kind::Variant {
                         variant: InstVariant::None,
                         addr: addr.addr(),
                         out,
@@ -1178,7 +1183,7 @@ fn const_<'a, 'hir>(
             }
 
             cx.asm.push(
-                Inst::Vec {
+                inst::Kind::Vec {
                     addr: linear.addr(),
                     count: vec.len(),
                     out,
@@ -1196,7 +1201,7 @@ fn const_<'a, 'hir>(
             }
 
             cx.asm.push(
-                Inst::Tuple {
+                inst::Kind::Tuple {
                     addr: linear.addr(),
                     count: tuple.len(),
                     out,
@@ -1221,7 +1226,7 @@ fn const_<'a, 'hir>(
                     .new_static_object_keys_iter(span, entries.iter().map(|e| e.0))?;
 
             cx.asm.push(
-                Inst::Object {
+                inst::Kind::Object {
                     addr: linear.addr(),
                     slot,
                     out,
@@ -1239,7 +1244,7 @@ fn const_<'a, 'hir>(
             }
 
             cx.asm.push(
-                Inst::ConstConstruct {
+                inst::Kind::ConstConstruct {
                     addr: linear.addr(),
                     hash,
                     count: values.len(),
@@ -1271,7 +1276,7 @@ fn expr<'a, 'hir>(
         hir::ExprKind::Type(ty) => {
             if let Some(out) = needs.try_alloc_output()? {
                 cx.asm.push(
-                    Inst::Store {
+                    inst::Kind::Store {
                         value: InstValue::Type(ty),
                         out,
                     },
@@ -1283,7 +1288,7 @@ fn expr<'a, 'hir>(
         }
         hir::ExprKind::Fn(hash) => {
             if let Some(out) = needs.try_alloc_output()? {
-                cx.asm.push(Inst::LoadFn { hash, out }, span)?;
+                cx.asm.push(inst::Kind::LoadFn { hash, out }, span)?;
             }
 
             Asm::new(span, ())
@@ -1364,7 +1369,7 @@ fn expr_assign<'a, 'hir>(
                         let slot = cx.q.unit.new_static_string(span, ident)?;
 
                         cx.asm.push(
-                            Inst::ObjectIndexSet {
+                            inst::Kind::ObjectIndexSet {
                                 target: target.addr(),
                                 slot,
                                 value: value.addr(),
@@ -1376,7 +1381,7 @@ fn expr_assign<'a, 'hir>(
                 hir::ExprField::Index(index) => {
                     if let Some([target, value]) = asm.into_converging() {
                         cx.asm.push(
-                            Inst::TupleIndexSet {
+                            inst::Kind::TupleIndexSet {
                                 target: target.addr(),
                                 index,
                                 value: value.addr(),
@@ -1411,7 +1416,7 @@ fn expr_assign<'a, 'hir>(
 
             if let Some([target, index, value]) = asm.into_converging() {
                 cx.asm.push(
-                    Inst::IndexSet {
+                    inst::Kind::IndexSet {
                         target: target.addr(),
                         index: index.addr(),
                         value: value.addr(),
@@ -1433,7 +1438,7 @@ fn expr_assign<'a, 'hir>(
     }
 
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), span)?;
+        cx.asm.push(inst::Kind::unit(out), span)?;
     }
 
     Ok(Asm::new(span, ()))
@@ -1451,7 +1456,7 @@ fn expr_await<'a, 'hir>(
     converge!(expr(cx, hir, &mut addr)?, free(addr));
 
     cx.asm.push(
-        Inst::Await {
+        inst::Kind::Await {
             addr: addr.addr()?.addr(),
             out: needs.alloc_output()?,
         },
@@ -1490,127 +1495,127 @@ fn expr_binary<'a, 'hir>(
         let out = needs.alloc_output()?;
 
         let inst = match hir.op {
-            ast::BinOp::Eq(..) => Inst::Op {
+            ast::BinOp::Eq(..) => inst::Kind::Op {
                 op: InstOp::Eq,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Neq(..) => Inst::Op {
+            ast::BinOp::Neq(..) => inst::Kind::Op {
                 op: InstOp::Neq,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Lt(..) => Inst::Op {
+            ast::BinOp::Lt(..) => inst::Kind::Op {
                 op: InstOp::Lt,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Gt(..) => Inst::Op {
+            ast::BinOp::Gt(..) => inst::Kind::Op {
                 op: InstOp::Gt,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Lte(..) => Inst::Op {
+            ast::BinOp::Lte(..) => inst::Kind::Op {
                 op: InstOp::Le,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Gte(..) => Inst::Op {
+            ast::BinOp::Gte(..) => inst::Kind::Op {
                 op: InstOp::Ge,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::As(..) => Inst::Op {
+            ast::BinOp::As(..) => inst::Kind::Op {
                 op: InstOp::As,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Is(..) => Inst::Op {
+            ast::BinOp::Is(..) => inst::Kind::Op {
                 op: InstOp::Is,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::IsNot(..) => Inst::Op {
+            ast::BinOp::IsNot(..) => inst::Kind::Op {
                 op: InstOp::IsNot,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::And(..) => Inst::Op {
+            ast::BinOp::And(..) => inst::Kind::Op {
                 op: InstOp::And,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Or(..) => Inst::Op {
+            ast::BinOp::Or(..) => inst::Kind::Op {
                 op: InstOp::Or,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Add(..) => Inst::Arithmetic {
+            ast::BinOp::Add(..) => inst::Kind::Arithmetic {
                 op: InstArithmeticOp::Add,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Sub(..) => Inst::Arithmetic {
+            ast::BinOp::Sub(..) => inst::Kind::Arithmetic {
                 op: InstArithmeticOp::Sub,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Div(..) => Inst::Arithmetic {
+            ast::BinOp::Div(..) => inst::Kind::Arithmetic {
                 op: InstArithmeticOp::Div,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Mul(..) => Inst::Arithmetic {
+            ast::BinOp::Mul(..) => inst::Kind::Arithmetic {
                 op: InstArithmeticOp::Mul,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Rem(..) => Inst::Arithmetic {
+            ast::BinOp::Rem(..) => inst::Kind::Arithmetic {
                 op: InstArithmeticOp::Rem,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::BitAnd(..) => Inst::Bitwise {
+            ast::BinOp::BitAnd(..) => inst::Kind::Bitwise {
                 op: InstBitwiseOp::BitAnd,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::BitXor(..) => Inst::Bitwise {
+            ast::BinOp::BitXor(..) => inst::Kind::Bitwise {
                 op: InstBitwiseOp::BitXor,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::BitOr(..) => Inst::Bitwise {
+            ast::BinOp::BitOr(..) => inst::Kind::Bitwise {
                 op: InstBitwiseOp::BitOr,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Shl(..) => Inst::Shift {
+            ast::BinOp::Shl(..) => inst::Kind::Shift {
                 op: InstShiftOp::Shl,
                 a,
                 b,
                 out,
             },
-            ast::BinOp::Shr(..) => Inst::Shift {
+            ast::BinOp::Shr(..) => inst::Kind::Shift {
                 op: InstShiftOp::Shr,
                 a,
                 b,
@@ -1720,52 +1725,52 @@ fn compile_assign_binop<'a, 'hir>(
     };
 
     let inst = match bin_op {
-        ast::BinOp::AddAssign(..) => Inst::AssignArithmetic {
+        ast::BinOp::AddAssign(..) => inst::Kind::AssignArithmetic {
             op: InstArithmeticOp::Add,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::SubAssign(..) => Inst::AssignArithmetic {
+        ast::BinOp::SubAssign(..) => inst::Kind::AssignArithmetic {
             op: InstArithmeticOp::Sub,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::MulAssign(..) => Inst::AssignArithmetic {
+        ast::BinOp::MulAssign(..) => inst::Kind::AssignArithmetic {
             op: InstArithmeticOp::Mul,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::DivAssign(..) => Inst::AssignArithmetic {
+        ast::BinOp::DivAssign(..) => inst::Kind::AssignArithmetic {
             op: InstArithmeticOp::Div,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::RemAssign(..) => Inst::AssignArithmetic {
+        ast::BinOp::RemAssign(..) => inst::Kind::AssignArithmetic {
             op: InstArithmeticOp::Rem,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::BitAndAssign(..) => Inst::AssignBitwise {
+        ast::BinOp::BitAndAssign(..) => inst::Kind::AssignBitwise {
             op: InstBitwiseOp::BitAnd,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::BitXorAssign(..) => Inst::AssignBitwise {
+        ast::BinOp::BitXorAssign(..) => inst::Kind::AssignBitwise {
             op: InstBitwiseOp::BitXor,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::BitOrAssign(..) => Inst::AssignBitwise {
+        ast::BinOp::BitOrAssign(..) => inst::Kind::AssignBitwise {
             op: InstBitwiseOp::BitOr,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::ShlAssign(..) => Inst::AssignShift {
+        ast::BinOp::ShlAssign(..) => inst::Kind::AssignShift {
             op: InstShiftOp::Shl,
             target,
             rhs: value.addr(),
         },
-        ast::BinOp::ShrAssign(..) => Inst::AssignShift {
+        ast::BinOp::ShrAssign(..) => inst::Kind::AssignShift {
             op: InstShiftOp::Shr,
             target,
             rhs: value.addr(),
@@ -1778,7 +1783,7 @@ fn compile_assign_binop<'a, 'hir>(
     cx.asm.push(inst, span)?;
 
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), span)?;
+        cx.asm.push(inst::Kind::unit(out), span)?;
     }
 
     value.free()?;
@@ -1808,7 +1813,7 @@ fn expr_async_block<'a, 'hir>(
     }
 
     cx.asm.push_with_comment(
-        Inst::Call {
+        inst::Kind::Call {
             hash: hir.hash,
             addr: linear.addr(),
             args: hir.captures.len(),
@@ -1880,7 +1885,7 @@ fn expr_break<'hir>(
         converge!(expr(cx, hir, &mut needs)?, free(needs));
         needs.free()?;
     } else if let Some(out) = output {
-        cx.asm.push(Inst::unit(out), span)?;
+        cx.asm.push(inst::Kind::unit(out), span)?;
     }
 
     let mut drop_set = cx.q.unit.drop_set();
@@ -1891,7 +1896,7 @@ fn expr_break<'hir>(
     }
 
     if let Some(set) = drop_set.finish()? {
-        cx.asm.push(Inst::Drop { set }, span)?;
+        cx.asm.push(inst::Kind::Drop { set }, span)?;
     }
 
     cx.asm.jump(&break_label, span)?;
@@ -1915,7 +1920,7 @@ fn expr_call<'a, 'hir>(
             let var = cx.scopes.get(&mut cx.q, span, name)?;
 
             cx.asm.push(
-                Inst::CallFn {
+                inst::Kind::CallFn {
                     function: var.addr,
                     addr: linear.addr(),
                     args: hir.args.len(),
@@ -1930,7 +1935,7 @@ fn expr_call<'a, 'hir>(
             let linear = converge!(exprs_2(cx, span, slice::from_ref(target), hir.args)?);
 
             cx.asm.push(
-                Inst::CallAssociated {
+                inst::Kind::CallAssociated {
                     hash,
                     addr: linear.addr(),
                     args: args + 1,
@@ -1945,7 +1950,7 @@ fn expr_call<'a, 'hir>(
             let linear = converge!(exprs(cx, span, hir.args)?);
 
             cx.asm.push(
-                Inst::Call {
+                inst::Kind::Call {
                     hash,
                     addr: linear.addr(),
                     args: hir.args.len(),
@@ -1962,7 +1967,7 @@ fn expr_call<'a, 'hir>(
             let linear = converge!(exprs(cx, span, hir.args)?, free(function));
 
             cx.asm.push(
-                Inst::CallFn {
+                inst::Kind::CallFn {
                     function: function.addr()?.addr(),
                     addr: linear.addr(),
                     args: hir.args.len(),
@@ -2111,7 +2116,7 @@ fn expr_call_closure<'a, 'hir>(
     }
 
     cx.asm.push(
-        Inst::Closure {
+        inst::Kind::Closure {
             hash: hir.hash,
             addr: linear.addr(),
             count: hir.captures.len(),
@@ -2172,7 +2177,7 @@ fn expr_field_access<'a, 'hir>(
         let var = cx.scopes.get(&mut cx.q, span, name)?;
 
         cx.asm.push_with_comment(
-            Inst::TupleIndexGetAt {
+            inst::Kind::TupleIndexGetAt {
                 addr: var.addr,
                 index,
                 out: needs.alloc_output()?,
@@ -2192,7 +2197,7 @@ fn expr_field_access<'a, 'hir>(
         match hir.expr_field {
             hir::ExprField::Index(index) => {
                 cx.asm.push(
-                    Inst::TupleIndexGetAt {
+                    inst::Kind::TupleIndexGetAt {
                         addr: addr.addr(),
                         index,
                         out: needs.alloc_output()?,
@@ -2204,7 +2209,7 @@ fn expr_field_access<'a, 'hir>(
                 let slot = cx.q.unit.new_static_string(span, field)?;
 
                 cx.asm.push(
-                    Inst::ObjectIndexGetAt {
+                    inst::Kind::ObjectIndexGetAt {
                         addr: addr.addr(),
                         slot,
                         out: needs.alloc_output()?,
@@ -2248,7 +2253,7 @@ fn expr_for<'a, 'hir>(
 
     // Copy the iterator, since CallAssociated will consume it.
     cx.asm.push_with_comment(
-        Inst::Copy {
+        inst::Kind::Copy {
             addr: iter.addr(),
             out: into_iter.output(),
         },
@@ -2257,7 +2262,7 @@ fn expr_for<'a, 'hir>(
     )?;
 
     cx.asm.push_with_comment(
-        Inst::CallAssociated {
+        inst::Kind::CallAssociated {
             addr: into_iter.addr(),
             hash: Protocol::INTO_ITER.hash,
             args: 1,
@@ -2272,7 +2277,7 @@ fn expr_for<'a, 'hir>(
         let offset = cx.scopes.alloc(&hir.iter)?.with_name("memoized next");
 
         cx.asm.push_with_comment(
-            Inst::LoadInstanceFn {
+            inst::Kind::LoadInstanceFn {
                 addr: into_iter.addr(),
                 hash: Protocol::NEXT.hash,
                 out: offset.output(),
@@ -2299,7 +2304,7 @@ fn expr_for<'a, 'hir>(
     let into_iter_copy = cx.scopes.alloc(span)?.with_name("into_iter_copy");
 
     cx.asm.push(
-        Inst::Copy {
+        inst::Kind::Copy {
             addr: into_iter.addr(),
             out: into_iter_copy.output(),
         },
@@ -2309,7 +2314,7 @@ fn expr_for<'a, 'hir>(
     // Use the memoized loop variable.
     if let Some(next_offset) = &next_offset {
         cx.asm.push(
-            Inst::CallFn {
+            inst::Kind::CallFn {
                 function: next_offset.addr(),
                 addr: into_iter_copy.addr(),
                 args: 1,
@@ -2319,7 +2324,7 @@ fn expr_for<'a, 'hir>(
         )?;
     } else {
         cx.asm.push_with_comment(
-            Inst::CallAssociated {
+            inst::Kind::CallAssociated {
                 addr: into_iter_copy.addr(),
                 hash: Protocol::NEXT.hash,
                 args: 1,
@@ -2375,13 +2380,13 @@ fn expr_for<'a, 'hir>(
     // the break statement is responsible for ensuring that active
     // iterators are dropped.
     if let Some(set) = drop_set.finish()? {
-        cx.asm.push(Inst::Drop { set }, span)?;
+        cx.asm.push(inst::Kind::Drop { set }, span)?;
     }
 
     cx.asm.label(&break_label)?;
 
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), span)?;
+        cx.asm.push(inst::Kind::unit(out), span)?;
     }
 
     if let Some(next_offset) = next_offset {
@@ -2444,7 +2449,7 @@ fn expr_if<'a, 'hir>(
     let asm = if let Some(b) = hir.fallback {
         block(cx, b, needs)?
     } else if let Some(out) = output_addr {
-        cx.asm.push(Inst::unit(out), span)?;
+        cx.asm.push(inst::Kind::unit(out), span)?;
         Asm::new(span, ())
     } else {
         Asm::new(span, ())
@@ -2466,7 +2471,7 @@ fn expr_if<'a, 'hir>(
 
             if asm.converging() {
                 if let Some(out) = output_addr {
-                    cx.asm.push(Inst::unit(out), span)?;
+                    cx.asm.push(inst::Kind::unit(out), span)?;
                 }
 
                 Asm::new(span, ())
@@ -2508,7 +2513,7 @@ fn expr_index<'a, 'hir>(
     .into_converging()
     {
         cx.asm.push(
-            Inst::IndexGet {
+            inst::Kind::IndexGet {
                 index: index.addr(),
                 target: target.addr(),
                 out: needs.alloc_output()?,
@@ -2538,7 +2543,7 @@ fn expr_let<'a, 'hir>(
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), hir)?;
+        cx.asm.push(inst::Kind::unit(out), hir)?;
     }
 
     Ok(Asm::new(hir, ()))
@@ -2635,7 +2640,7 @@ fn expr_match<'a, 'hir>(
 
     if !is_irrefutable {
         if let Some(out) = needs.try_alloc_output()? {
-            cx.asm.push(Inst::unit(out), span)?;
+            cx.asm.push(inst::Kind::unit(out), span)?;
         }
 
         cx.asm.jump(&end_label, span)?;
@@ -2677,7 +2682,7 @@ fn expr_object<'a, 'hir>(
         match hir.kind {
             hir::ExprObjectKind::Struct { hash } => {
                 cx.asm.push(
-                    Inst::Struct {
+                    inst::Kind::Struct {
                         addr: linear.addr(),
                         hash,
                         out: needs.alloc_output()?,
@@ -2689,7 +2694,7 @@ fn expr_object<'a, 'hir>(
                 reorder_field_assignments(cx, hir, linear.addr(), span)?;
 
                 cx.asm.push(
-                    Inst::Call {
+                    inst::Kind::Call {
                         hash,
                         addr: linear.addr(),
                         args,
@@ -2705,7 +2710,7 @@ fn expr_object<'a, 'hir>(
                     .new_static_object_keys_iter(span, hir.assignments.iter().map(|a| a.key.1))?;
 
                 cx.asm.push(
-                    Inst::Object {
+                    inst::Kind::Object {
                         addr: linear.addr(),
                         slot,
                         out: needs.alloc_output()?,
@@ -2726,7 +2731,7 @@ fn expr_object<'a, 'hir>(
 fn reorder_field_assignments<'hir>(
     cx: &mut Ctxt<'_, 'hir, '_>,
     hir: &hir::ExprObject<'hir>,
-    base: InstAddress,
+    base: inst::Address,
     span: &dyn Spanned,
 ) -> compile::Result<()> {
     let mut order = Vec::try_with_capacity(hir.assignments.len())?;
@@ -2763,9 +2768,9 @@ fn reorder_field_assignments<'hir>(
                 ));
             };
 
-            let a = InstAddress::new(a);
-            let b = InstAddress::new(b);
-            cx.asm.push(Inst::Swap { a, b }, span)?;
+            let a = inst::Address::new(a);
+            let b = inst::Address::new(b);
+            cx.asm.push(inst::Kind::Swap { a, b }, span)?;
         }
     }
 
@@ -2852,7 +2857,7 @@ fn expr_range<'a, 'hir>(
     };
 
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::Range { range, out }, span)?;
+        cx.asm.push(inst::Kind::Range { range, out }, span)?;
     }
 
     for var in vars.into_iter().flatten() {
@@ -2872,7 +2877,7 @@ fn expr_return<'hir>(
     if let Some(e) = hir {
         converge!(return_(cx, span, e, expr)?);
     } else {
-        cx.asm.push(Inst::ReturnUnit, span)?;
+        cx.asm.push(inst::Kind::ReturnUnit, span)?;
     }
 
     Ok(Asm::diverge(span))
@@ -2907,7 +2912,7 @@ fn expr_select_inner<'a, 'hir>(
     cx.asm.label(&select_label)?;
 
     cx.asm.push(
-        Inst::Select {
+        inst::Kind::Select {
             addr: linear.addr(),
             len: hir.exprs.len(),
             value: value_addr.output(),
@@ -2924,7 +2929,7 @@ fn expr_select_inner<'a, 'hir>(
     } else {
         if let Some(out) = needs.try_alloc_output()? {
             cx.asm.push(
-                Inst::Copy {
+                inst::Kind::Copy {
                     addr: value_addr.addr(),
                     out,
                 },
@@ -2970,7 +2975,7 @@ fn expr_select_inner<'a, 'hir>(
     }
 
     if let Some(set) = drop_set.finish()? {
-        cx.asm.push(Inst::Drop { set }, span)?;
+        cx.asm.push(inst::Kind::Drop { set }, span)?;
     }
 
     value_addr.free()?;
@@ -3010,7 +3015,7 @@ fn expr_try<'a, 'hir>(
     converge!(expr(cx, hir, &mut e)?);
 
     cx.asm.push(
-        Inst::Try {
+        inst::Kind::Try {
             addr: e.addr()?.addr(),
             out: needs.alloc_output()?,
         },
@@ -3038,7 +3043,7 @@ fn expr_tuple<'a, 'hir>(
             let [$($expr),*] = converge!(asm, free($($var),*));
 
             cx.asm.push(
-                Inst::$variant {
+                inst::Kind::$variant {
                     addr: [$($expr.addr(),)*],
                     out: needs.alloc_output()?,
                 },
@@ -3051,7 +3056,7 @@ fn expr_tuple<'a, 'hir>(
 
     match hir.items {
         [] => {
-            cx.asm.push(Inst::unit(needs.alloc_output()?), span)?;
+            cx.asm.push(inst::Kind::unit(needs.alloc_output()?), span)?;
         }
         [e1] => tuple!(Tuple1, v1, e1),
         [e1, e2] => tuple!(Tuple2, v1, e1, v2, e2),
@@ -3062,7 +3067,7 @@ fn expr_tuple<'a, 'hir>(
 
             if let Some(out) = needs.try_alloc_output()? {
                 cx.asm.push(
-                    Inst::Tuple {
+                    inst::Kind::Tuple {
                         addr: linear.addr(),
                         count: hir.items.len(),
                         out,
@@ -3095,7 +3100,7 @@ fn expr_unary<'a, 'hir>(
     match hir.op {
         ast::UnOp::Not(..) => {
             cx.asm.push(
-                Inst::Not {
+                inst::Kind::Not {
                     addr: addr.addr(),
                     out: needs.alloc_output()?,
                 },
@@ -3104,7 +3109,7 @@ fn expr_unary<'a, 'hir>(
         }
         ast::UnOp::Neg(..) => {
             cx.asm.push(
-                Inst::Neg {
+                inst::Kind::Neg {
                     addr: addr.addr(),
                     out: needs.alloc_output()?,
                 },
@@ -3140,7 +3145,7 @@ fn expr_vec<'a, 'hir>(
 
     if let Some(out) = needs.try_alloc_addr()? {
         cx.asm.push(
-            Inst::Vec {
+            inst::Kind::Vec {
                 addr: linear.addr(),
                 count,
                 out: out.output(),
@@ -3207,7 +3212,7 @@ fn expr_loop<'a, 'hir>(
     cx.asm.label(&end_label)?;
 
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), span)?;
+        cx.asm.push(inst::Kind::unit(out), span)?;
     }
 
     cx.asm.label(&break_label)?;
@@ -3232,7 +3237,7 @@ fn expr_yield<'a, 'hir>(
         converge!(expr(cx, e, &mut addr)?, free(addr));
 
         cx.asm.push(
-            Inst::Yield {
+            inst::Kind::Yield {
                 addr: addr.addr(),
                 out,
             },
@@ -3241,7 +3246,7 @@ fn expr_yield<'a, 'hir>(
 
         addr.free()?;
     } else {
-        cx.asm.push(Inst::YieldUnit { out }, span)?;
+        cx.asm.push(inst::Kind::YieldUnit { out }, span)?;
     }
 
     Ok(Asm::new(span, ()))
@@ -3266,27 +3271,27 @@ fn lit<'a, 'hir>(
 
     match hir {
         hir::Lit::Bool(v) => {
-            cx.asm.push(Inst::bool(v, out), span)?;
+            cx.asm.push(inst::Kind::bool(v, out), span)?;
         }
         hir::Lit::Char(v) => {
-            cx.asm.push(Inst::char(v, out), span)?;
+            cx.asm.push(inst::Kind::char(v, out), span)?;
         }
         hir::Lit::Unsigned(v) => {
-            cx.asm.push(Inst::unsigned(v, out), span)?;
+            cx.asm.push(inst::Kind::unsigned(v, out), span)?;
         }
         hir::Lit::Signed(v) => {
-            cx.asm.push(Inst::signed(v, out), span)?;
+            cx.asm.push(inst::Kind::signed(v, out), span)?;
         }
         hir::Lit::Float(v) => {
-            cx.asm.push(Inst::float(v, out), span)?;
+            cx.asm.push(inst::Kind::float(v, out), span)?;
         }
         hir::Lit::Str(string) => {
             let slot = cx.q.unit.new_static_string(span, string)?;
-            cx.asm.push(Inst::String { slot, out }, span)?;
+            cx.asm.push(inst::Kind::String { slot, out }, span)?;
         }
         hir::Lit::ByteStr(bytes) => {
             let slot = cx.q.unit.new_static_bytes(span, bytes)?;
-            cx.asm.push(Inst::Bytes { slot, out }, span)?;
+            cx.asm.push(inst::Kind::Bytes { slot, out }, span)?;
         }
     };
 
@@ -3309,7 +3314,7 @@ fn local<'a, 'hir>(
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if let Some(out) = needs.try_alloc_output()? {
-        cx.asm.push(Inst::unit(out), hir)?;
+        cx.asm.push(inst::Kind::unit(out), hir)?;
     }
 
     Ok(Asm::new(hir, ()))

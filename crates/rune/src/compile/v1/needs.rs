@@ -3,7 +3,8 @@ use core::mem::replace;
 
 use crate::ast::Spanned;
 use crate::compile;
-use crate::runtime::{Inst, InstAddress, Output};
+use crate::runtime::inst;
+use crate::runtime::Output;
 use crate::shared::{rune_diagnose, Backtrace};
 
 use super::{Ctxt, DisplayNamed, ScopeId, Scopes};
@@ -24,7 +25,7 @@ pub(super) trait Needs<'a, 'hir> {
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: inst::Address,
     ) -> compile::Result<()>;
 
     /// Allocate an output falling back to discarding if one is not available.
@@ -65,7 +66,7 @@ impl<'a, 'hir> Needs<'a, 'hir> for Any<'a, 'hir> {
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: inst::Address,
     ) -> compile::Result<()> {
         Any::assign_addr(self, cx, from)
     }
@@ -106,7 +107,7 @@ impl<'a, 'hir> Needs<'a, 'hir> for Address<'a, 'hir> {
     fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: inst::Address,
     ) -> compile::Result<()> {
         Address::assign_addr(self, cx, from)
     }
@@ -164,7 +165,7 @@ impl fmt::Display for AddressKind {
 pub(super) struct Address<'a, 'hir> {
     span: &'hir dyn Spanned,
     scopes: &'a Scopes<'hir>,
-    address: InstAddress,
+    address: inst::Address,
     kind: AddressKind,
     /// A diagnostical name for the address.
     name: Option<&'static str>,
@@ -179,7 +180,7 @@ impl<'a, 'hir> Address<'a, 'hir> {
     pub(super) fn local(
         span: &'hir dyn Spanned,
         scopes: &'a Scopes<'hir>,
-        addr: InstAddress,
+        addr: inst::Address,
     ) -> Self {
         Self {
             span,
@@ -197,7 +198,7 @@ impl<'a, 'hir> Address<'a, 'hir> {
     pub(super) fn assigned(
         span: &'hir dyn Spanned,
         scopes: &'a Scopes<'hir>,
-        addr: InstAddress,
+        addr: inst::Address,
     ) -> Self {
         Self {
             span,
@@ -215,7 +216,7 @@ impl<'a, 'hir> Address<'a, 'hir> {
     pub(super) fn dangling(
         span: &'hir dyn Spanned,
         scopes: &'a Scopes<'hir>,
-        addr: InstAddress,
+        addr: inst::Address,
     ) -> Self {
         Self {
             span,
@@ -235,7 +236,7 @@ impl<'a, 'hir> Address<'a, 'hir> {
     }
 
     #[inline]
-    pub(super) fn addr(&self) -> InstAddress {
+    pub(super) fn addr(&self) -> inst::Address {
         self.address
     }
 
@@ -261,11 +262,11 @@ impl<'a, 'hir> Address<'a, 'hir> {
     pub(super) fn assign_addr(
         &self,
         cx: &mut Ctxt<'_, '_, '_>,
-        from: InstAddress,
+        from: inst::Address,
     ) -> compile::Result<()> {
         if from != self.address {
             cx.asm.push(
-                Inst::Copy {
+                inst::Kind::Copy {
                     addr: from,
                     out: self.address.output(),
                 },
@@ -425,7 +426,7 @@ impl<'a, 'hir> Any<'a, 'hir> {
     pub(super) fn assigned(
         span: &'hir dyn Spanned,
         scopes: &'a Scopes<'hir>,
-        addr: InstAddress,
+        addr: inst::Address,
     ) -> Self {
         Self {
             span,
@@ -457,7 +458,7 @@ impl<'a, 'hir> Any<'a, 'hir> {
     pub(super) fn assign_addr(
         &mut self,
         cx: &mut Ctxt<'_, 'hir, '_>,
-        from: InstAddress,
+        from: inst::Address,
     ) -> compile::Result<()> {
         match &self.kind {
             AnyKind::Defer { scopes, name, .. } => {

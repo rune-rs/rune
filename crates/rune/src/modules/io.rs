@@ -12,7 +12,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 #[cfg(feature = "std")]
-use crate::runtime::{Formatter, InstAddress, Memory, Output, VmError};
+use crate::runtime::{Address, Formatter, Memory, Output, VmError};
 use crate::{docstring, ContextError, Module};
 
 /// I/O functions.
@@ -94,7 +94,7 @@ fn io_error_debug_fmt(error: &io::Error, f: &mut Formatter) -> alloc::Result<()>
 #[cfg(feature = "std")]
 fn dbg_impl(
     stack: &mut dyn Memory,
-    addr: InstAddress,
+    addr: Address,
     args: usize,
     out: Output,
 ) -> Result<(), VmError> {

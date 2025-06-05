@@ -3,7 +3,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 use crate::ast::Spanned;
 use crate::compile::{self, ErrorKind, WithSpan};
-use crate::runtime::{InstAddress, Label, Output};
+use crate::runtime::{Address, Label, Output};
 
 /// Loops we are inside.
 #[derive(TryClone)]
@@ -18,7 +18,7 @@ pub(crate) struct Break<'hir> {
     /// The end label of the break, used for `break`.
     pub(crate) break_label: Label,
     /// Locals to drop when breaking.
-    pub(crate) drop: Option<InstAddress>,
+    pub(crate) drop: Option<Address>,
 }
 
 pub(crate) struct Breaks<'hir> {
@@ -52,7 +52,7 @@ impl<'hir> Breaks<'hir> {
         &self,
         span: &dyn Spanned,
         expected: &str,
-        drop: &mut Vec<InstAddress>,
+        drop: &mut Vec<Address>,
     ) -> compile::Result<&Break<'hir>> {
         drop.clear();
         self.find_label_inner(span, expected, &mut |l| drop.try_extend(l.drop))

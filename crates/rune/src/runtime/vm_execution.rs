@@ -13,7 +13,7 @@ use crate::runtime::{budget, Awaited};
 use crate::shared::AssertSend;
 
 use super::{
-    GeneratorState, InstAddress, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics, VmError,
+    Address, GeneratorState, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics, VmError,
     VmErrorKind, VmHalt, VmHaltInfo,
 };
 
@@ -42,7 +42,7 @@ pub(crate) enum ExecutionState {
     /// Suspended execution.
     Suspended,
     /// Execution exited.
-    Exited(Option<InstAddress>),
+    Exited(Option<Address>),
 }
 
 impl fmt::Display for ExecutionState {

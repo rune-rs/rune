@@ -23,7 +23,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::runtime::{InstAddress, Memory, Output, VmError};
+use crate::runtime::{Address, Memory, Output, VmError};
 use crate::{ContextError, Module, Value};
 
 /// I/O module capable of capturing what's been written to a buffer.
@@ -108,7 +108,7 @@ impl CaptureIo {
 fn dbg_impl(
     o: &mut Vec<u8>,
     stack: &mut dyn Memory,
-    addr: InstAddress,
+    addr: Address,
     args: usize,
     out: Output,
 ) -> Result<(), VmError> {

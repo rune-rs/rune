@@ -16,9 +16,10 @@ use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, Location, Pool, Wi
 use crate::hash;
 use crate::query::QueryInner;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
+use crate::runtime::inst;
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Call, ConstValue, DebugInfo, DebugInst, Inst, InstAddress, Label, Protocol, Rtti, RttiKind,
+    Address, Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, RttiKind,
     StaticString, Unit, UnitFn,
 };
 use crate::{Context, Diagnostics, Hash, Item, SourceId};
@@ -73,9 +74,9 @@ pub(crate) struct UnitBuilder {
     /// Used to detect duplicates in the collection of static object keys.
     static_object_keys_rev: HashMap<Hash, usize>,
     /// A static string.
-    drop_sets: Vec<Arc<[InstAddress]>>,
+    drop_sets: Vec<Arc<[Address]>>,
     /// Reverse lookup for drop sets.
-    drop_sets_rev: HashMap<Vec<InstAddress>, usize>,
+    drop_sets_rev: HashMap<Vec<Address>, usize>,
     /// Runtime type information for types.
     rtti: hash::Map<Arc<Rtti>>,
     /// The current label count.
@@ -820,7 +821,7 @@ impl UnitBuilder {
         self.label_count = assembly.label_count;
 
         storage
-            .encode(Inst::Allocate { size })
+            .encode(Inst::new(inst::Kind::Allocate { size }))
             .with_span(location.span)?;
 
         let base = storage.extend_offsets(assembly.labels.len())?;
@@ -870,34 +871,36 @@ impl UnitBuilder {
                 AssemblyInst::Jump { label } => {
                     write!(comment, "label:{}", label)?;
                     let jump = build_label(label)?;
-                    storage.encode(Inst::Jump { jump }).with_span(span)?;
+                    storage
+                        .encode(Inst::new(inst::Kind::Jump { jump }))
+                        .with_span(span)?;
                 }
                 AssemblyInst::JumpIf { addr, label } => {
                     write!(comment, "label:{}", label)?;
                     let jump = build_label(label)?;
                     storage
-                        .encode(Inst::JumpIf { cond: addr, jump })
+                        .encode(Inst::new(inst::Kind::JumpIf { cond: addr, jump }))
                         .with_span(span)?;
                 }
                 AssemblyInst::JumpIfNot { addr, label } => {
                     write!(comment, "label:{}", label)?;
                     let jump = build_label(label)?;
                     storage
-                        .encode(Inst::JumpIfNot { cond: addr, jump })
+                        .encode(Inst::new(inst::Kind::JumpIfNot { cond: addr, jump }))
                         .with_span(span)?;
                 }
                 AssemblyInst::IterNext { addr, label, out } => {
                     write!(comment, "label:{}", label)?;
                     let jump = build_label(label)?;
                     storage
-                        .encode(Inst::IterNext { addr, jump, out })
+                        .encode(Inst::new(inst::Kind::IterNext { addr, jump, out }))
                         .with_span(span)?;
                 }
                 AssemblyInst::Raw { raw } => {
                     // Optimization to avoid performing lookups for recursive
                     // function calls.
-                    let inst = match raw {
-                        inst @ Inst::Call {
+                    let kind = match raw {
+                        inst @ inst::Kind::Call {
                             hash,
                             addr,
                             args,
@@ -906,7 +909,7 @@ impl UnitBuilder {
                             if let Some(UnitFn::Offset { offset, call, .. }) =
                                 self.functions.get(&hash)
                             {
-                                Inst::CallOffset {
+                                inst::Kind::CallOffset {
                                     offset: *offset,
                                     call: *call,
                                     addr,
@@ -917,10 +920,10 @@ impl UnitBuilder {
                                 inst
                             }
                         }
-                        inst => inst,
+                        kind => kind,
                     };
 
-                    storage.encode(inst).with_span(span)?;
+                    storage.encode(Inst::new(kind)).with_span(span)?;
                 }
             }
 
@@ -951,12 +954,12 @@ impl UnitBuilder {
 /// A set of addresses that should be dropped.
 pub(crate) struct DropSet<'a> {
     builder: &'a mut UnitBuilder,
-    addresses: Vec<InstAddress>,
+    addresses: Vec<Address>,
 }
 
 impl DropSet<'_> {
     /// Construct a new drop set.
-    pub(crate) fn push(&mut self, addr: InstAddress) -> alloc::Result<()> {
+    pub(crate) fn push(&mut self, addr: Address) -> alloc::Result<()> {
         self.addresses.try_push(addr)
     }
 

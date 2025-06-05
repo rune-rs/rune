@@ -7,7 +7,8 @@ use crate::ast::Spanned;
 use crate::compile::{self, Assembly, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
-use crate::runtime::{Inst, InstAddress, Output};
+use crate::runtime::inst;
+use crate::runtime::Output;
 use crate::SourceId;
 
 use super::{Address, Any, DisplayNamed, Linear, Slab, Slots};
@@ -85,8 +86,8 @@ impl fmt::Debug for ScopeId {
 /// which they are inserted.
 #[derive(Default)]
 struct Dangling {
-    addresses: Vec<Option<InstAddress>>,
-    address_to_index: HashMap<InstAddress, usize>,
+    addresses: Vec<Option<inst::Address>>,
+    address_to_index: HashMap<inst::Address, usize>,
 }
 
 impl Dangling {
@@ -95,7 +96,7 @@ impl Dangling {
         self.address_to_index.clear();
     }
 
-    fn insert(&mut self, addr: InstAddress) -> alloc::Result<()> {
+    fn insert(&mut self, addr: inst::Address) -> alloc::Result<()> {
         if self.address_to_index.contains_key(&addr) {
             return Ok(());
         }
@@ -107,7 +108,7 @@ impl Dangling {
         Ok(())
     }
 
-    fn remove(&mut self, addr: InstAddress) -> bool {
+    fn remove(&mut self, addr: inst::Address) -> bool {
         if let Some(index) = self.address_to_index.remove(&addr) {
             self.addresses[index] = None;
             true
@@ -118,7 +119,7 @@ impl Dangling {
 
     /// Iterate over addresses.
     #[inline]
-    fn addresses(&self) -> impl Iterator<Item = InstAddress> + '_ {
+    fn addresses(&self) -> impl Iterator<Item = inst::Address> + '_ {
         self.addresses.iter().filter_map(|addr| *addr)
     }
 }
@@ -159,7 +160,7 @@ impl<'hir> Scopes<'hir> {
     }
 
     /// Drain dangling addresses into a vector.
-    pub(crate) fn drain_dangling_into(&self, out: &mut Vec<InstAddress>) -> alloc::Result<()> {
+    pub(crate) fn drain_dangling_into(&self, out: &mut Vec<inst::Address>) -> alloc::Result<()> {
         let mut dangling = self.dangling.borrow_mut();
 
         for addr in dangling.addresses.drain(..).flatten() {
@@ -330,7 +331,7 @@ impl<'hir> Scopes<'hir> {
             return Err(compile::Error::msg(span, "Missing top scope"));
         };
 
-        let addr = InstAddress::new(self.slots.borrow_mut().insert()?);
+        let addr = inst::Address::new(self.slots.borrow_mut().insert()?);
         self.size.set(self.size.get().max(addr.offset() + 1));
         scope.locals.insert(addr).with_span(span)?;
         self.dangling.borrow_mut().remove(addr);
@@ -341,7 +342,11 @@ impl<'hir> Scopes<'hir> {
 
     /// Declare an anonymous variable.
     #[tracing::instrument(skip(self, span))]
-    pub(super) fn alloc_in(&self, span: &dyn Spanned, id: ScopeId) -> compile::Result<InstAddress> {
+    pub(super) fn alloc_in(
+        &self,
+        span: &dyn Spanned,
+        id: ScopeId,
+    ) -> compile::Result<inst::Address> {
         let mut scopes = self.scopes.borrow_mut();
 
         let Some(scope) = scopes.get_mut(id.index) else {
@@ -361,7 +366,7 @@ impl<'hir> Scopes<'hir> {
             ));
         }
 
-        let addr = InstAddress::new(self.slots.borrow_mut().insert()?);
+        let addr = inst::Address::new(self.slots.borrow_mut().insert()?);
         scope.locals.insert(addr).with_span(span)?;
         self.size.set(self.size.get().max(addr.offset() + 1));
         self.dangling.borrow_mut().remove(addr);
@@ -388,7 +393,7 @@ impl<'hir> Scopes<'hir> {
         let linear = match n {
             0 => Linear::empty(),
             1 => {
-                let addr = InstAddress::new(self.slots.borrow_mut().insert()?);
+                let addr = inst::Address::new(self.slots.borrow_mut().insert()?);
                 scope.locals.insert(addr).with_span(span)?;
                 dangling.remove(addr);
                 self.size.set(self.size.get().max(addr.offset() + 1));
@@ -399,7 +404,7 @@ impl<'hir> Scopes<'hir> {
                 let mut addresses = Vec::try_with_capacity(n).with_span(span)?;
 
                 for _ in 0..n {
-                    let addr = InstAddress::new(slots.push().with_span(span)?);
+                    let addr = inst::Address::new(slots.push().with_span(span)?);
                     scope.locals.insert(addr).with_span(span)?;
                     dangling.remove(addr);
                     addresses.try_push(Address::dangling(span, self, addr))?;
@@ -419,7 +424,7 @@ impl<'hir> Scopes<'hir> {
     pub(super) fn free_addr(
         &self,
         span: &dyn Spanned,
-        addr: InstAddress,
+        addr: inst::Address,
         name: Option<&'static str>,
         dangling: bool,
     ) -> compile::Result<()> {
@@ -587,7 +592,7 @@ pub(super) struct Var<'hir> {
     /// The name of the variable.
     name: hir::Variable,
     /// Address where the variable is currently live.
-    pub(super) addr: InstAddress,
+    pub(super) addr: inst::Address,
 }
 
 impl fmt::Debug for Var<'_> {
@@ -617,7 +622,7 @@ impl Var<'_> {
         out: Output,
     ) -> compile::Result<()> {
         asm.push_with_comment(
-            Inst::Copy {
+            inst::Kind::Copy {
                 addr: self.addr,
                 out,
             },
@@ -635,7 +640,7 @@ impl Var<'_> {
         out: Output,
     ) -> compile::Result<()> {
         asm.push_with_comment(
-            Inst::Move {
+            inst::Kind::Move {
                 addr: self.addr,
                 out,
             },
@@ -671,7 +676,7 @@ struct VarInner<'hir> {
     /// The name of the variable.
     name: hir::Variable,
     /// Offset from the current stack frame.
-    addr: InstAddress,
+    addr: inst::Address,
     /// Variable has been taken at the given position.
     moved_at: Cell<Option<&'hir dyn Spanned>>,
 }

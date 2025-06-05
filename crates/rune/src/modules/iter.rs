@@ -6,7 +6,7 @@ use crate::alloc::prelude::*;
 use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
-    FromValue, Function, Inline, InstAddress, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,
+    Address, FromValue, Function, Inline, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,
     Value, Vec, VmError, VmErrorKind,
 };
 use crate::shared::Caller;
@@ -1692,7 +1692,7 @@ pub fn module() -> Result<Module, ContextError> {
                 move |iterator: Value, mut n: usize| -> Result<Option<Value>, VmError> {
                     loop {
                         let mut memory = [iterator.clone()];
-                        next_back.call(&mut memory, InstAddress::ZERO, 1, Output::keep(0))?;
+                        next_back.call(&mut memory, Address::ZERO, 1, Output::keep(0))?;
                         let [value] = memory;
 
                         let Some(value) = Option::<Value>::from_value(value)? else {

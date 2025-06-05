@@ -20,7 +20,7 @@ use crate::module::{
     TypeSpecification,
 };
 use crate::runtime::{
-    AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory,
+    Address, AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, Memory,
     Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeCheck, TypeInfo, VmError,
 };
 use crate::{Hash, Item, ItemBuf};
@@ -155,7 +155,7 @@ impl TraitContext<'_> {
     ) -> Result<FunctionHandler, ContextError>
     where
         F: 'static
-            + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
+            + Fn(&mut dyn Memory, Address, usize, Output) -> Result<(), VmError>
             + Send
             + Sync,
     {

@@ -6,17 +6,11 @@ use crate::alloc;
 use crate::alloc::alloc::Global;
 use crate::alloc::clone::TryClone;
 use crate::alloc::sync::Arc;
-use crate::runtime::{InstAddress, Memory, Output, VmError};
+use crate::runtime::{Address, Memory, Output, VmError};
 
 /// The vtable for a function handler.
 struct FunctionHandlerVTable {
-    call: unsafe fn(
-        ptr: *const (),
-        &mut dyn Memory,
-        InstAddress,
-        usize,
-        Output,
-    ) -> Result<(), VmError>,
+    call: unsafe fn(ptr: *const (), &mut dyn Memory, Address, usize, Output) -> Result<(), VmError>,
     drop: unsafe fn(ptr: *const ()),
     clone: unsafe fn(ptr: *const ()) -> *const (),
 }
@@ -31,7 +25,7 @@ impl FunctionHandler {
     #[inline]
     pub(crate) fn new<F>(f: F) -> alloc::Result<Self>
     where
-        F: Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
+        F: Fn(&mut dyn Memory, Address, usize, Output) -> Result<(), VmError>
             + Send
             + Sync
             + 'static,
@@ -53,7 +47,7 @@ impl FunctionHandler {
     pub fn call(
         &self,
         memory: &mut dyn Memory,
-        addr: InstAddress,
+        addr: Address,
         count: usize,
         out: Output,
     ) -> Result<(), VmError> {
@@ -76,15 +70,12 @@ impl Drop for FunctionHandler {
 fn call_impl<F>(
     ptr: *const (),
     memory: &mut dyn Memory,
-    addr: InstAddress,
+    addr: Address,
     count: usize,
     out: Output,
 ) -> Result<(), VmError>
 where
-    F: Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
-        + Send
-        + Sync
-        + 'static,
+    F: Fn(&mut dyn Memory, Address, usize, Output) -> Result<(), VmError> + Send + Sync + 'static,
 {
     // SAFETY: We've ensured the interior value is a valid pointer to `F` due to construction.
     unsafe { (*ptr.cast::<F>())(memory, addr, count, out) }

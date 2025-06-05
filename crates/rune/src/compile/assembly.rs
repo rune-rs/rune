@@ -8,7 +8,8 @@ use crate::alloc::prelude::*;
 use crate::alloc::{hash_map, HashMap};
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, Location};
-use crate::runtime::{Inst, InstAddress, Label, Output};
+use crate::runtime::inst;
+use crate::runtime::{Address, Label, Output};
 use crate::{Hash, SourceId};
 
 #[derive(Debug, TryClone)]
@@ -17,20 +18,20 @@ pub(crate) enum AssemblyInst {
         label: Label,
     },
     JumpIf {
-        addr: InstAddress,
+        addr: Address,
         label: Label,
     },
     JumpIfNot {
-        addr: InstAddress,
+        addr: Address,
         label: Label,
     },
     IterNext {
-        addr: InstAddress,
+        addr: Address,
         label: Label,
         out: Output,
     },
     Raw {
-        raw: Inst,
+        raw: inst::Kind,
     },
 }
 
@@ -105,7 +106,7 @@ impl Assembly {
     /// Add a conditional jump to the given label.
     pub(crate) fn jump_if(
         &mut self,
-        addr: InstAddress,
+        addr: Address,
         label: &Label,
         span: &dyn Spanned,
     ) -> compile::Result<()> {
@@ -123,7 +124,7 @@ impl Assembly {
     /// Add jump-if-not instruction to a label.
     pub(crate) fn jump_if_not(
         &mut self,
-        addr: InstAddress,
+        addr: Address,
         label: &Label,
         span: &dyn Spanned,
     ) -> compile::Result<()> {
@@ -141,7 +142,7 @@ impl Assembly {
     /// Add an instruction that advanced an iterator.
     pub(crate) fn iter_next(
         &mut self,
-        addr: InstAddress,
+        addr: Address,
         label: &Label,
         span: &dyn Spanned,
         out: Output,
@@ -159,7 +160,7 @@ impl Assembly {
     }
 
     /// Push a raw instruction.
-    pub(crate) fn push(&mut self, raw: Inst, span: &dyn Spanned) -> compile::Result<()> {
+    pub(crate) fn push(&mut self, raw: inst::Kind, span: &dyn Spanned) -> compile::Result<()> {
         self.inner_push(AssemblyInst::Raw { raw }, span)?;
         Ok(())
     }
@@ -167,7 +168,7 @@ impl Assembly {
     /// Push a raw instruction.
     pub(crate) fn push_with_comment(
         &mut self,
-        raw: Inst,
+        raw: inst::Kind,
         span: &dyn Spanned,
         comment: &dyn fmt::Display,
     ) -> compile::Result<()> {
@@ -185,7 +186,7 @@ impl Assembly {
 
     fn inner_push(&mut self, inst: AssemblyInst, span: &dyn Spanned) -> compile::Result<()> {
         if let AssemblyInst::Raw {
-            raw: Inst::Call { hash, .. },
+            raw: inst::Kind::Call { hash, .. },
         } = &inst
         {
             self.required_functions

@@ -4,7 +4,7 @@ use crate::function_meta::{
 };
 use crate::item::IntoComponent;
 use crate::module::ItemFnMut;
-use crate::runtime::{FunctionHandler, InstAddress, Memory, Output, TypeInfo, TypeOf};
+use crate::runtime::{Address, FunctionHandler, Memory, Output, TypeInfo, TypeOf};
 use crate::{Hash, ItemBuf, VmError};
 
 use super::Module;
@@ -23,10 +23,7 @@ pub struct ModuleRawFunctionBuilder<'a, N, F> {
 
 impl<'a, N, F> ModuleRawFunctionBuilder<'a, N, F>
 where
-    F: 'static
-        + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
-        + Send
-        + Sync,
+    F: 'static + Fn(&mut dyn Memory, Address, usize, Output) -> Result<(), VmError> + Send + Sync,
 {
     /// Construct a regular function.
     ///
