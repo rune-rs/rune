@@ -121,6 +121,8 @@ pub mod iter;
 
 pub mod fmt;
 
+pub mod sync;
+
 mod option;
 
 pub(crate) mod hint;

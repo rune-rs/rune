@@ -562,6 +562,12 @@ impl<T: ?Sized, A: Allocator> Box<T, A> {
         let alloc = unsafe { ptr::read(&leaked.alloc) };
         (leaked.ptr.as_ptr(), alloc)
     }
+
+    #[inline]
+    pub(crate) fn into_unique_with_allocator(b: Self) -> (Unique<T>, A) {
+        let (ptr, alloc) = Box::into_raw_with_allocator(b);
+        unsafe { (Unique::from(&mut *ptr), alloc) }
+    }
 }
 
 impl<T, A: Allocator> Box<mem::MaybeUninit<T>, A> {
