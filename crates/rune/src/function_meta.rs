@@ -51,7 +51,7 @@ pub type MacroMeta = fn() -> alloc::Result<MacroMetaData>;
 /// Runtime data for a function.
 pub struct FunctionData {
     pub(crate) item: ItemBuf,
-    pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) handler: FunctionHandler,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
@@ -63,7 +63,7 @@ pub struct FunctionData {
 }
 
 impl FunctionData {
-    pub(crate) fn from_raw(item: ItemBuf, handler: Arc<FunctionHandler>) -> Self {
+    pub(crate) fn from_raw(item: ItemBuf, handler: FunctionHandler) -> Self {
         Self {
             item,
             handler,
@@ -88,7 +88,9 @@ impl FunctionData {
     {
         Ok(Self {
             item: ItemBuf::with_item([name])?,
-            handler: Arc::new(move |stack, addr, args, output| f.call(stack, addr, args, output)),
+            handler: FunctionHandler::new(move |stack, addr, args, output| {
+                f.call(stack, addr, args, output)
+            })?,
             #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
@@ -257,7 +259,7 @@ impl Associated {
 /// Runtime data for an associated function.
 pub struct AssociatedFunctionData {
     pub(crate) associated: Associated,
-    pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) handler: FunctionHandler,
     #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     #[cfg(feature = "doc")]
@@ -269,7 +271,7 @@ pub struct AssociatedFunctionData {
 }
 
 impl AssociatedFunctionData {
-    pub(crate) fn from_raw(associated: Associated, handler: Arc<FunctionHandler>) -> Self {
+    pub(crate) fn from_raw(associated: Associated, handler: FunctionHandler) -> Self {
         Self {
             associated,
             handler,
@@ -293,7 +295,9 @@ impl AssociatedFunctionData {
     {
         Ok(Self {
             associated,
-            handler: Arc::new(move |stack, addr, args, output| f.call(stack, addr, args, output)),
+            handler: FunctionHandler::new(move |stack, addr, args, output| {
+                f.call(stack, addr, args, output)
+            })?,
             #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]
@@ -314,7 +318,9 @@ impl AssociatedFunctionData {
     {
         Ok(Self {
             associated: Associated::from_type::<F::Instance>(name)?,
-            handler: Arc::new(move |stack, addr, args, output| f.call(stack, addr, args, output)),
+            handler: FunctionHandler::new(move |stack, addr, args, output| {
+                f.call(stack, addr, args, output)
+            })?,
             #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
             #[cfg(feature = "doc")]

@@ -616,7 +616,7 @@ impl Vm {
             self.stack.push(target)?;
             args.push_to_stack(&mut self.stack)?;
 
-            let result = handler(&mut self.stack, addr, count, out);
+            let result = handler.call(&mut self.stack, addr, count, out);
             self.stack.truncate(addr);
             result?;
             return Ok(CallResult::Ok(()));
@@ -2849,7 +2849,7 @@ impl Vm {
                 return Err(VmError::new(VmErrorKind::MissingFunction { hash }));
             };
 
-            handler(&mut self.stack, addr, args, out)?;
+            handler.call(&mut self.stack, addr, args, out)?;
             return Ok(());
         };
 
@@ -2920,7 +2920,7 @@ impl Vm {
 
         if let Some(handler) = self.context.function(&hash) {
             self.called_function_hook(hash)?;
-            handler(&mut self.stack, addr, args, out)?;
+            handler.call(&mut self.stack, addr, args, out)?;
             return Ok(());
         }
 

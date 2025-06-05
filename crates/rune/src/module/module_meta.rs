@@ -178,7 +178,7 @@ pub(crate) enum TypeSpecification {
 /// A type constructor.
 pub(crate) struct TypeConstructor {
     /// The handler for the constructor.
-    pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) handler: FunctionHandler,
     /// The number of arguments the constructor takes.
     pub(crate) args: usize,
 }
@@ -226,7 +226,7 @@ pub(crate) struct DocFunction {
 #[derive(TryClone)]
 pub(crate) struct ModuleFunction {
     /// The handler for the function.
-    pub(crate) handler: Arc<FunctionHandler>,
+    pub(crate) handler: FunctionHandler,
     /// If the function is associated with a trait, this is the hash of that trait.
     pub(crate) trait_hash: Option<Hash>,
     /// Documentation related to the function.

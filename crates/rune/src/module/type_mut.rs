@@ -1,8 +1,6 @@
 use core::fmt;
 use core::marker::PhantomData;
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc::prelude::*;
 use crate::compile::{ContextError, Docs};
 use crate::function::{Function, Plain};
@@ -127,8 +125,9 @@ where
             });
         }
 
-        let handler: Arc<FunctionHandler> =
-            Arc::new(move |stack, addr, args, output| constructor.call(stack, addr, args, output));
+        let handler: FunctionHandler = FunctionHandler::new(move |stack, addr, args, output| {
+            constructor.call(stack, addr, args, output)
+        })?;
 
         *self.constructor = Some(TypeConstructor {
             handler,

@@ -1692,8 +1692,7 @@ pub fn module() -> Result<Module, ContextError> {
                 move |iterator: Value, mut n: usize| -> Result<Option<Value>, VmError> {
                     loop {
                         let mut memory = [iterator.clone()];
-
-                        next_back(&mut memory, InstAddress::ZERO, 1, Output::keep(0))?;
+                        next_back.call(&mut memory, InstAddress::ZERO, 1, Output::keep(0))?;
                         let [value] = memory;
 
                         let Some(value) = Option::<Value>::from_value(value)? else {

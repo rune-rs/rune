@@ -5,12 +5,10 @@ use rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash;
-use crate::runtime::{ConstConstruct, ConstValue, InstAddress, Memory, Output, VmError};
+use crate::runtime::{ConstConstruct, ConstValue};
 use crate::Hash;
 
-/// A type-reduced function handler.
-pub(crate) type FunctionHandler =
-    dyn Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError> + Send + Sync;
+use super::FunctionHandler;
 
 /// Static run context visible to the virtual machine.
 ///
@@ -21,7 +19,7 @@ pub(crate) type FunctionHandler =
 #[derive(Default, TryClone)]
 pub struct RuntimeContext {
     /// Registered native function handlers.
-    functions: hash::Map<Arc<FunctionHandler>>,
+    functions: hash::Map<FunctionHandler>,
     /// Named constant values
     constants: hash::Map<ConstValue>,
     /// Constant constructors.
@@ -32,7 +30,7 @@ assert_impl!(RuntimeContext: Send + Sync);
 
 impl RuntimeContext {
     pub(crate) fn new(
-        functions: hash::Map<Arc<FunctionHandler>>,
+        functions: hash::Map<FunctionHandler>,
         constants: hash::Map<ConstValue>,
         construct: hash::Map<Arc<dyn ConstConstruct>>,
     ) -> Self {
@@ -45,7 +43,7 @@ impl RuntimeContext {
 
     /// Lookup the given native function handler in the context.
     #[inline]
-    pub fn function(&self, hash: &Hash) -> Option<&Arc<FunctionHandler>> {
+    pub fn function(&self, hash: &Hash) -> Option<&FunctionHandler> {
         self.functions.get(hash)
     }
 
