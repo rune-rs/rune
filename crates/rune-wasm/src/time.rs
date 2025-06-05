@@ -1,6 +1,5 @@
 use js_sys::Promise;
-use rune::runtime::VmResult;
-use rune::{Any, ContextError, Module};
+use rune::{Any, ContextError, Module, VmError};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
@@ -11,13 +10,12 @@ extern "C" {
 
 /// The wasm 'time' module.
 pub fn module() -> Result<Module, ContextError> {
-    let mut module = Module::with_crate("time")?;
-    module.ty::<Duration>()?;
-    module
-        .function("from_secs", Duration::from_secs)
+    let mut m = Module::with_crate("time")?;
+    m.ty::<Duration>()?;
+    m.function("from_secs", Duration::from_secs)
         .build_associated::<Duration>()?;
-    module.function("sleep", sleep).build()?;
-    Ok(module)
+    m.function("sleep", sleep).build()?;
+    Ok(m)
 }
 
 #[derive(Any)]
@@ -30,13 +28,13 @@ impl Duration {
     }
 }
 
-async fn sleep(duration: Duration) -> VmResult<()> {
+async fn sleep(duration: Duration) -> Result<(), VmError> {
     let promise = js_sleep(duration.0);
     let js_fut = JsFuture::from(promise);
 
     if js_fut.await.is_err() {
-        return VmResult::panic("Sleep errored");
+        return Err(VmError::panic("Sleep errored"));
     }
 
-    VmResult::Ok(())
+    Ok(())
 }

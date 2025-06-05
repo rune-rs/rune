@@ -1750,7 +1750,7 @@ impl<T, A: Allocator> Vec<T, A> {
     /// insufficient capacity. The caller should use [`try_reserve`] to ensure
     /// that there is enough capacity.
     ///
-    /// [`try_push`]: Vec::try?push
+    /// [`try_push`]: Vec::try_push
     /// [`try_reserve`]: Vec::try_reserve
     ///
     /// # Examples

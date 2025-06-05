@@ -16,15 +16,15 @@ mod no_std;
 use rust_alloc::sync::Arc;
 
 use crate::runtime::vm_diagnostics::VmDiagnosticsObj;
-use crate::runtime::{RuntimeContext, Unit, VmErrorKind, VmResult};
+use crate::runtime::{RuntimeContext, Unit, VmError, VmErrorKind};
 
 /// Access shared parts of the environment.
 ///
 /// This does not take ownership of the environment, so the environment can be
 /// recursively accessed.
-pub(crate) fn shared<F, T>(c: F) -> VmResult<T>
+pub(crate) fn shared<F, T>(c: F) -> Result<T, VmError>
 where
-    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>) -> VmResult<T>,
+    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>) -> Result<T, VmError>,
 {
     let env = self::no_std::rune_env_get();
 
@@ -34,7 +34,7 @@ where
         ..
     } = env
     else {
-        return VmResult::err(VmErrorKind::MissingInterfaceEnvironment);
+        return Err(VmError::new(VmErrorKind::MissingInterfaceEnvironment));
     };
 
     // Safety: context and unit can only be registered publicly through
@@ -50,9 +50,13 @@ where
 ///
 /// This takes ownership of the environment, so recursive calls are not
 /// supported.
-pub(crate) fn exclusive<F, T>(c: F) -> VmResult<T>
+pub(crate) fn exclusive<F, T>(c: F) -> Result<T, VmError>
 where
-    F: FnOnce(&Arc<RuntimeContext>, &Arc<Unit>, Option<&mut VmDiagnosticsObj>) -> VmResult<T>,
+    F: FnOnce(
+        &Arc<RuntimeContext>,
+        &Arc<Unit>,
+        Option<&mut VmDiagnosticsObj>,
+    ) -> Result<T, VmError>,
 {
     let guard = Guard {
         env: self::no_std::rune_env_replace(Env::null()),
@@ -64,7 +68,7 @@ where
         ..
     } = guard.env
     else {
-        return VmResult::err(VmErrorKind::MissingInterfaceEnvironment);
+        return Err(VmError::new(VmErrorKind::MissingInterfaceEnvironment));
     };
 
     // Safety: context and unit can only be registered publicly through

@@ -21,7 +21,7 @@ use crate::module::{
 };
 use crate::runtime::{
     AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, InstAddress, Memory,
-    Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeCheck, TypeInfo, VmResult,
+    Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeCheck, TypeInfo, VmError,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -146,9 +146,10 @@ impl TraitContext<'_> {
     where
         F: Function<A, Plain>,
     {
-        self.raw_function(name, move |memory, addr, len, out| {
-            handler.fn_call(memory, addr, len, out)
-        })
+        let handler: Arc<FunctionHandler> =
+            Arc::new(move |memory, addr, len, out| handler.call(memory, addr, len, out));
+        self.function_handler(name, &handler)?;
+        Ok(handler)
     }
 
     /// Define a new associated raw function for the current type.
@@ -158,7 +159,10 @@ impl TraitContext<'_> {
         handler: F,
     ) -> Result<Arc<FunctionHandler>, ContextError>
     where
-        F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
+        F: 'static
+            + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
+            + Send
+            + Sync,
     {
         let handler: Arc<FunctionHandler> = Arc::new(handler);
         self.function_handler(name, &handler)?;

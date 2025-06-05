@@ -34,9 +34,9 @@
 
 use rune::alloc::clone::TryClone;
 use rune::alloc::fmt::TryWrite;
-use rune::alloc::Vec;
-use rune::runtime::{Bytes, Formatter, Mut, Value, VmResult};
-use rune::{vm_try, vm_write, Any, ContextError, Module};
+use rune::alloc::{self, Vec};
+use rune::runtime::{Bytes, Formatter, Mut, Value, VmError};
+use rune::{nested_try, Any, ContextError, Module};
 
 use std::io;
 use tokio::process;
@@ -227,12 +227,12 @@ impl Command {
     /// let output = command.output().await?;
     /// ```
     #[rune::function(keep, instance)]
-    fn args(&mut self, args: &[Value]) -> VmResult<()> {
+    fn args(&mut self, args: &[Value]) -> Result<(), VmError> {
         for arg in args {
-            self.inner.arg(&*vm_try!(arg.borrow_string_ref()));
+            self.inner.arg(&*arg.borrow_string_ref()?);
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Sets executable argument.
@@ -425,8 +425,8 @@ impl Command {
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 }
 
@@ -603,22 +603,22 @@ impl Child {
     /// order to capture the output into this `Output` it is necessary to create
     /// new pipes between parent and child. Use `stdout(Stdio::piped())` or
     /// `stderr(Stdio::piped())`, respectively, when creating a `Command`.
-    #[rune::function(keep, vm_result, instance)]
-    async fn wait_with_output(self) -> io::Result<Output> {
-        let output = self.inner.wait_with_output().await?;
+    #[rune::function(keep, instance)]
+    async fn wait_with_output(self) -> alloc::Result<io::Result<Output>> {
+        let output = nested_try!(self.inner.wait_with_output().await);
 
-        Ok(Output {
+        Ok(Ok(Output {
             status: ExitStatus {
                 inner: output.status,
             },
-            stdout: Value::new(Bytes::from_vec(Vec::try_from(output.stdout).vm?)).vm?,
-            stderr: Value::new(Bytes::from_vec(Vec::try_from(output.stderr).vm?)).vm?,
-        })
+            stdout: Value::new(Bytes::from_vec(Vec::try_from(output.stdout)?))?,
+            stderr: Value::new(Bytes::from_vec(Vec::try_from(output.stderr)?))?,
+        }))
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -645,8 +645,8 @@ struct Output {
 
 impl Output {
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{self:?}")
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{self:?}")
     }
 }
 
@@ -714,13 +714,13 @@ impl ExitStatus {
     }
 
     #[rune::function(keep, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -757,8 +757,8 @@ impl Stdio {
     }
 
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -785,8 +785,8 @@ macro_rules! stdio_stream {
             }
 
             #[rune::function(keep, protocol = DEBUG_FMT)]
-            fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-                vm_write!(f, "{:?}", self.inner)
+            fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+                write!(f, "{:?}", self.inner)
             }
         }
     };

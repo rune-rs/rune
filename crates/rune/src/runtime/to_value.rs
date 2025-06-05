@@ -1,9 +1,8 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
 use crate::any::AnyMarker;
-use crate::vm_try;
 
-use super::{AnyObj, Object, RuntimeError, Value, VmResult};
+use super::{AnyObj, Object, RuntimeError, Value, VmError};
 
 /// Derive macro for the [`ToValue`] trait for converting types into the dynamic
 /// `Value` container.
@@ -113,31 +112,21 @@ pub trait ToValue: Sized {
 }
 
 /// Trait governing things that can be returned from native functions.
-pub trait ToReturn: Sized {
+pub trait IntoReturn
+where
+    Self: Sized,
+{
     /// Convert something into a return value.
-    fn to_return(self) -> VmResult<Value>;
+    fn into_return(self) -> Result<Value, VmError>;
 }
 
-impl<T> ToReturn for VmResult<T>
+impl<T> IntoReturn for T
 where
     T: ToValue,
 {
     #[inline]
-    fn to_return(self) -> VmResult<Value> {
-        match self {
-            VmResult::Ok(value) => VmResult::Ok(vm_try!(value.to_value())),
-            VmResult::Err(error) => VmResult::Err(error),
-        }
-    }
-}
-
-impl<T> ToReturn for T
-where
-    T: ToValue,
-{
-    #[inline]
-    fn to_return(self) -> VmResult<Value> {
-        VmResult::Ok(vm_try!(T::to_value(self)))
+    fn into_return(self) -> Result<Value, VmError> {
+        Ok(T::to_value(self)?)
     }
 }
 

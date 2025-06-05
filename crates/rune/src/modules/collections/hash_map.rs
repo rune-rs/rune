@@ -3,10 +3,10 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, KeysRef, Table, ValuesRef};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmErrorKind,
-    VmResult,
+    EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmError,
+    VmErrorKind,
 };
-use crate::{vm_try, Any, ContextError, Module};
+use crate::{Any, ContextError, Module};
 
 /// A dynamic hash map.
 #[rune::module(::std::collections::hash_map)]
@@ -171,9 +171,9 @@ impl HashMap {
     /// let map = HashMap::with_capacity(10);
     /// ```
     #[rune::function(keep, path = Self::with_capacity)]
-    pub(crate) fn with_capacity(capacity: usize) -> VmResult<Self> {
-        VmResult::Ok(Self {
-            table: vm_try!(Table::try_with_capacity(capacity)),
+    pub(crate) fn with_capacity(capacity: usize) -> Result<Self, VmError> {
+        Ok(Self {
+            table: Table::try_with_capacity(capacity)?,
         })
     }
 
@@ -253,9 +253,8 @@ impl HashMap {
     /// assert_eq!(map[37], "c");
     /// ```
     #[rune::function(keep)]
-    pub(crate) fn insert(&mut self, key: Value, value: Value) -> VmResult<Option<Value>> {
-        let mut caller = EnvProtocolCaller;
-        self.table.insert_with(key, value, &mut caller)
+    pub(crate) fn insert(&mut self, key: Value, value: Value) -> Result<Option<Value>, VmError> {
+        self.table.insert_with(key, value, &mut EnvProtocolCaller)
     }
 
     /// Returns the value corresponding to the [`Key`].
@@ -271,9 +270,11 @@ impl HashMap {
     /// assert_eq!(map.get(2), None);
     /// ```
     #[rune::function(keep)]
-    fn get(&self, key: Value) -> VmResult<Option<Value>> {
-        let mut caller = EnvProtocolCaller;
-        VmResult::Ok(vm_try!(self.table.get(&key, &mut caller)).map(|(_, v)| v.clone()))
+    fn get(&self, key: Value) -> Result<Option<Value>, VmError> {
+        Ok(self
+            .table
+            .get(&key, &mut EnvProtocolCaller)?
+            .map(|(_, v)| v.clone()))
     }
 
     /// Returns `true` if the map contains a value for the specified [`Key`].
@@ -289,9 +290,8 @@ impl HashMap {
     /// assert_eq!(map.contains_key(2), false);
     /// ```
     #[rune::function(keep)]
-    fn contains_key(&self, key: Value) -> VmResult<bool> {
-        let mut caller = EnvProtocolCaller;
-        VmResult::Ok(vm_try!(self.table.get(&key, &mut caller)).is_some())
+    fn contains_key(&self, key: Value) -> Result<bool, VmError> {
+        Ok(self.table.get(&key, &mut EnvProtocolCaller)?.is_some())
     }
 
     /// Removes a key from the map, returning the value at the [`Key`] if the
@@ -308,9 +308,8 @@ impl HashMap {
     /// assert_eq!(map.remove(1), None);
     /// ```
     #[rune::function(keep)]
-    fn remove(&mut self, key: Value) -> VmResult<Option<Value>> {
-        let mut caller = EnvProtocolCaller;
-        self.table.remove_with(&key, &mut caller)
+    fn remove(&mut self, key: Value) -> Result<Option<Value>, VmError> {
+        self.table.remove_with(&key, &mut EnvProtocolCaller)
     }
 
     /// Clears the map, removing all key-value pairs. Keeps the allocated memory
@@ -433,15 +432,15 @@ impl HashMap {
     /// ]);
     /// ```
     #[rune::function(keep)]
-    fn extend(&mut self, value: Value) -> VmResult<()> {
-        let mut it = vm_try!(value.into_iter());
+    fn extend(&mut self, value: Value) -> Result<(), VmError> {
+        let mut it = value.into_iter()?;
 
-        while let Some(value) = vm_try!(it.next()) {
-            let (key, value) = vm_try!(<(Value, Value)>::from_value(value));
-            vm_try!(self.insert(key, value));
+        while let Some(value) = it.next()? {
+            let (key, value) = <(Value, Value)>::from_value(value)?;
+            self.insert(key, value)?;
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Clone the map.
@@ -464,9 +463,9 @@ impl HashMap {
     /// assert_eq!(b.len(), 3);
     /// ```
     #[rune::function(keep, instance, path = Self::clone, protocol = CLONE)]
-    fn clone(this: &HashMap) -> VmResult<HashMap> {
-        VmResult::Ok(Self {
-            table: vm_try!(this.table.try_clone()),
+    fn clone(this: &HashMap) -> Result<HashMap, VmError> {
+        Ok(Self {
+            table: this.table.try_clone()?,
         })
     }
 
@@ -486,23 +485,22 @@ impl HashMap {
     /// assert_eq!(map.get("b"), Some(2));
     /// ```
     #[rune::function(keep, path = Self::from_iter)]
-    fn from_iter(it: Iterator) -> VmResult<HashMap> {
-        let mut caller = EnvProtocolCaller;
-        Self::from_iter_with(it, &mut caller)
+    fn from_iter(it: Iterator) -> Result<HashMap, VmError> {
+        Self::from_iter_with(it, &mut EnvProtocolCaller)
     }
 
     pub(crate) fn from_iter_with(
         mut it: Iterator,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Self> {
+    ) -> Result<Self, VmError> {
         let mut map = Self::new();
 
-        while let Some(value) = vm_try!(it.next()) {
-            let (key, value) = vm_try!(<(Value, Value)>::from_value(value));
-            vm_try!(map.table.insert_with(key, value, caller));
+        while let Some(value) = it.next()? {
+            let (key, value) = <(Value, Value)>::from_value(value)?;
+            map.table.insert_with(key, value, caller)?;
         }
 
-        VmResult::Ok(map)
+        Ok(map)
     }
 
     /// Inserts a key-value pair into the map.
@@ -524,9 +522,9 @@ impl HashMap {
     /// assert_eq!(map[37], "c");
     /// ```
     #[rune::function(keep, protocol = INDEX_SET)]
-    fn index_set(&mut self, key: Value, value: Value) -> VmResult<()> {
-        let _ = vm_try!(self.insert(key, value));
-        VmResult::Ok(())
+    fn index_set(&mut self, key: Value, value: Value) -> Result<(), VmError> {
+        let _ = self.insert(key, value)?;
+        Ok(())
     }
 
     /// Returns a the value corresponding to the key.
@@ -552,18 +550,16 @@ impl HashMap {
     /// assert_eq!(map[1], "a");
     /// ```
     #[rune::function(keep, protocol = INDEX_GET)]
-    fn index_get(&self, key: Value) -> VmResult<Value> {
+    fn index_get(&self, key: Value) -> Result<Value, VmError> {
         use crate::runtime::TypeOf;
 
-        let mut caller = EnvProtocolCaller;
-
-        let Some((_, value)) = vm_try!(self.table.get(&key, &mut caller)) else {
-            return VmResult::err(VmErrorKind::MissingIndexKey {
+        let Some((_, value)) = self.table.get(&key, &mut EnvProtocolCaller)? else {
+            return Err(VmError::from(VmErrorKind::MissingIndexKey {
                 target: Self::type_info(),
-            });
+            }));
         };
 
-        VmResult::Ok(value.clone())
+        Ok(value.clone())
     }
 
     /// Debug format the current map.
@@ -579,7 +575,7 @@ impl HashMap {
     /// assert_eq!(format!("{:?}", map), "{1: \"a\"}");
     /// ```
     #[rune::function(keep, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+    fn debug_fmt(&self, f: &mut Formatter) -> Result<(), VmError> {
         self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
@@ -587,23 +583,23 @@ impl HashMap {
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
-        vm_try!(write!(f, "{{"));
+    ) -> Result<(), VmError> {
+        write!(f, "{{")?;
 
         let mut it = self.table.iter().peekable();
 
         while let Some((key, value)) = it.next() {
-            vm_try!(key.debug_fmt_with(f, caller));
-            vm_try!(write!(f, ": "));
-            vm_try!(value.debug_fmt_with(f, caller));
+            key.debug_fmt_with(f, caller)?;
+            write!(f, ": ")?;
+            value.debug_fmt_with(f, caller)?;
 
             if it.peek().is_some() {
-                vm_try!(write!(f, ", "));
+                write!(f, ", ")?;
             }
         }
 
-        vm_try!(write!(f, "}}"));
-        VmResult::Ok(())
+        write!(f, "}}")?;
+        Ok(())
     }
 
     /// Perform a partial equality check over two maps.
@@ -633,26 +629,30 @@ impl HashMap {
     /// assert!(map1 != map2);
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
-    fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+    fn partial_eq(&self, other: &Self) -> Result<bool, VmError> {
         self.partial_eq_with(other, &mut EnvProtocolCaller)
     }
 
-    fn partial_eq_with(&self, other: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
+    fn partial_eq_with(
+        &self,
+        other: &Self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<bool, VmError> {
         if self.table.len() != other.table.len() {
-            return VmResult::Ok(false);
+            return Ok(false);
         }
 
         for (k, v1) in self.table.iter() {
-            let Some((_, v2)) = vm_try!(other.table.get(k, caller)) else {
-                return VmResult::Ok(false);
+            let Some((_, v2)) = other.table.get(k, caller)? else {
+                return Ok(false);
             };
 
-            if !vm_try!(Value::partial_eq_with(v1, v2, caller)) {
-                return VmResult::Ok(false);
+            if !Value::partial_eq_with(v1, v2, caller)? {
+                return Ok(false);
             }
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 
     /// Perform a total equality check over two maps.
@@ -678,26 +678,26 @@ impl HashMap {
     /// assert!(eq(map1, map2));
     /// ```
     #[rune::function(keep, protocol = EQ)]
-    fn eq(&self, other: &Self) -> VmResult<bool> {
+    fn eq(&self, other: &Self) -> Result<bool, VmError> {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
-    fn eq_with(&self, other: &Self, caller: &mut EnvProtocolCaller) -> VmResult<bool> {
+    fn eq_with(&self, other: &Self, caller: &mut EnvProtocolCaller) -> Result<bool, VmError> {
         if self.table.len() != other.table.len() {
-            return VmResult::Ok(false);
+            return Ok(false);
         }
 
         for (k, v1) in self.table.iter() {
-            let Some((_, v2)) = vm_try!(other.table.get(k, caller)) else {
-                return VmResult::Ok(false);
+            let Some((_, v2)) = other.table.get(k, caller)? else {
+                return Ok(false);
             };
 
-            if !vm_try!(Value::eq_with(v1, v2, caller)) {
-                return VmResult::Ok(false);
+            if !Value::eq_with(v1, v2, caller)? {
+                return Ok(false);
             }
         }
 
-        VmResult::Ok(true)
+        Ok(true)
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.

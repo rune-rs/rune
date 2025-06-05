@@ -1199,18 +1199,18 @@ impl Output {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{Output, Memory, ToValue, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Memory, ToValue, VmError, InstAddress};
     /// use rune::vm_try;
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
-    ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer::<i64>());
+    ///     for value in stack.slice_at(addr, args)? {
+    ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number);
-    ///     VmResult::Ok(())
+    ///     out.store(stack, number)?;
+    ///     Ok(())
     /// }
     #[inline(always)]
     pub fn store<M, O>(self, stack: &mut M, o: O) -> Result<(), RuntimeError>

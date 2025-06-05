@@ -19,7 +19,7 @@ pub fn test_bug_700() -> Result<()> {
     let value = vm.call(["main"], (42,))?;
     let function = from_value::<Function>(value)?;
 
-    let output: i64 = function.call(()).into_result()?;
+    let output: i64 = function.call(())?;
     assert_eq!(output, 42);
 
     // This should error, because the function is missing the environment variable.

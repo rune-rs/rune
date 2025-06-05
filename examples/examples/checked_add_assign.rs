@@ -1,4 +1,4 @@
-use rune::runtime::{VmError, VmResult};
+use rune::runtime::VmError;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, ContextError, Diagnostics, Module, Vm};
 
@@ -12,9 +12,12 @@ struct External {
 
 #[allow(clippy::unnecessary_lazy_evaluations)]
 impl External {
-    fn value_add_assign(&mut self, other: i64) -> VmResult<()> {
-        self.value = rune::vm_try!(self.value.checked_add(other).ok_or_else(VmError::overflow));
-        VmResult::Ok(())
+    fn value_add_assign(&mut self, other: i64) -> Result<(), VmError> {
+        self.value = self
+            .value
+            .checked_add(other)
+            .ok_or_else(VmError::overflow)?;
+        Ok(())
     }
 }
 

@@ -28,7 +28,6 @@ where
     ///
     /// ```
     /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
     ///
     /// let mut m = Module::with_item(["module"])?;
     /// m.constant("NAME", "Hello World").build()?;

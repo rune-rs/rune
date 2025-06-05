@@ -1,7 +1,8 @@
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{ProtocolCaller, Value, VmResult};
 use crate::Any;
+
+use super::{ProtocolCaller, Value, VmError};
 
 /// The state of a generator.
 ///
@@ -129,7 +130,7 @@ impl GeneratorState {
         &self,
         other: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         match (self, other) {
             (GeneratorState::Yielded(a), GeneratorState::Yielded(b)) => {
                 Value::partial_eq_with(a, b, caller)
@@ -137,11 +138,15 @@ impl GeneratorState {
             (GeneratorState::Complete(a), GeneratorState::Complete(b)) => {
                 Value::partial_eq_with(a, b, caller)
             }
-            _ => VmResult::Ok(false),
+            _ => Ok(false),
         }
     }
 
-    pub(crate) fn eq_with(&self, other: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(
+        &self,
+        other: &Self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<bool, VmError> {
         match (self, other) {
             (GeneratorState::Yielded(a), GeneratorState::Yielded(b)) => {
                 Value::eq_with(a, b, caller)
@@ -149,7 +154,7 @@ impl GeneratorState {
             (GeneratorState::Complete(a), GeneratorState::Complete(b)) => {
                 Value::eq_with(a, b, caller)
             }
-            _ => VmResult::Ok(false),
+            _ => Ok(false),
         }
     }
 }

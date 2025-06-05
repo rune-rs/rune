@@ -51,10 +51,11 @@
 use core::cmp::Ordering;
 use core::hash::Hash;
 
+use rune::alloc;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::prelude::*;
-use rune::runtime::{Bytes, Formatter, Hasher, Ref, VmResult};
-use rune::{docstring, item, Any, ContextError, Module, ToConstValue, Value};
+use rune::runtime::{Bytes, Formatter, Hasher, Ref};
+use rune::{docstring, item, nested_try, Any, ContextError, Module, ToConstValue, Value};
 
 /// A simple HTTP module for Rune.
 ///
@@ -1385,8 +1386,8 @@ impl From<reqwest::Error> for Error {
 impl Error {
     /// Write a display representation the error.
     #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -1417,12 +1418,12 @@ impl Response {
     ///
     /// let response = response.text().await?;
     /// ```
-    #[rune::function(keep, vm_result)]
-    async fn text(self) -> Result<String, Error> {
-        let text = self.response.text().await?;
+    #[rune::function(keep)]
+    async fn text(self) -> alloc::Result<Result<String, Error>> {
+        let text = nested_try!(self.response.text().await);
         // NB: We simply take ownership of the string here, raising an error in
         // case we reach a memory limit.
-        Ok(String::try_from(text).vm?)
+        Ok(Ok(String::try_from(text)?))
     }
 
     /// Get the response as a Rune value decoded from JSON.
@@ -1453,16 +1454,16 @@ impl Response {
     ///
     /// let response = response.bytes().await?;
     /// ```
-    #[rune::function(keep, vm_result)]
-    async fn bytes(mut self) -> Result<Bytes, Error> {
+    #[rune::function(keep)]
+    async fn bytes(mut self) -> alloc::Result<Result<Bytes, Error>> {
         let len = self.response.content_length().unwrap_or(0) as usize;
-        let mut bytes = Vec::try_with_capacity(len).vm?;
+        let mut bytes = Vec::try_with_capacity(len)?;
 
-        while let Some(chunk) = self.response.chunk().await? {
-            bytes.try_extend_from_slice(chunk.as_ref()).vm?;
+        while let Some(chunk) = nested_try!(self.response.chunk().await) {
+            bytes.try_extend_from_slice(chunk.as_ref())?;
         }
 
-        Ok(Bytes::from_vec(bytes))
+        Ok(Ok(Bytes::from_vec(bytes)))
     }
 
     /// Get the status code of the response.
@@ -1539,10 +1540,10 @@ impl StatusCode {
     /// let status = StatusCode::OK;
     /// assert_eq!(status.as_str(), "200");
     /// ```
-    #[rune::function(keep, instance, vm_result)]
+    #[rune::function(keep, instance)]
     #[inline]
-    fn as_str(&self) -> String {
-        self.inner.as_str().try_to_owned().vm?
+    fn as_str(&self) -> alloc::Result<String> {
+        self.inner.as_str().try_to_owned()
     }
 
     /// Get the standardised `reason-phrase` for this status code.
@@ -1737,8 +1738,8 @@ impl StatusCode {
     /// println!("{not_found:?}");
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 
     /// Write a display representation of the status code.
@@ -1753,8 +1754,8 @@ impl StatusCode {
     /// println!("{not_found}");
     /// ```
     #[rune::function(keep, instance, protocol = DISPLAY_FMT)]
-    fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{}", self.inner)
+    fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -1920,8 +1921,8 @@ impl Version {
     /// println!("{:?}", http2);
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 

@@ -4,7 +4,7 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{FromValue, RuntimeError, ToValue, Value, VmResult};
+use crate::runtime::{FromValue, RuntimeError, ToValue, Value};
 use crate::Any;
 
 /// Type for a full range expression `..`.
@@ -58,8 +58,8 @@ impl RangeFull {
     /// assert!(range is std::ops::RangeFull);
     /// ```
     #[rune::function(keep)]
-    pub(crate) fn contains(&self, _: Value) -> VmResult<bool> {
-        VmResult::Ok(true)
+    pub(crate) fn contains(&self, _: Value) -> bool {
+        true
     }
 
     /// Test the full range for partial equality.
@@ -71,8 +71,8 @@ impl RangeFull {
     /// assert!(range == ..);
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
-    pub fn partial_eq(&self, _: &Self) -> VmResult<bool> {
-        VmResult::Ok(true)
+    pub fn partial_eq(&self, _: &Self) -> bool {
+        true
     }
 
     /// Test the full range for total equality.
@@ -86,8 +86,8 @@ impl RangeFull {
     /// assert!(eq(range, ..));
     /// ```
     #[rune::function(keep, protocol = EQ)]
-    pub fn eq(&self, _: &Self) -> VmResult<bool> {
-        VmResult::Ok(true)
+    pub fn eq(&self, _: &Self) -> bool {
+        true
     }
 
     /// Test the full range for partial ordering.
@@ -99,8 +99,8 @@ impl RangeFull {
     /// assert!(!((..) > (..)));
     /// ```
     #[rune::function(keep, protocol = PARTIAL_CMP)]
-    pub fn partial_cmp(&self, _: &Self) -> VmResult<Option<Ordering>> {
-        VmResult::Ok(Some(Ordering::Equal))
+    pub fn partial_cmp(&self, _: &Self) -> Option<Ordering> {
+        Some(Ordering::Equal)
     }
 
     /// Test the full range for total ordering.
@@ -114,8 +114,8 @@ impl RangeFull {
     /// assert_eq!(cmp(.., ..), Ordering::Equal);
     /// ```
     #[rune::function(keep, protocol = CMP)]
-    pub fn cmp(&self, _: &Self) -> VmResult<Ordering> {
-        VmResult::Ok(Ordering::Equal)
+    pub fn cmp(&self, _: &Self) -> Ordering {
+        Ordering::Equal
     }
 }
 

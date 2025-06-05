@@ -160,7 +160,7 @@ fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function
     let mut warmup = 0;
 
     let elapsed = loop {
-        let value = f.call::<Value>(()).into_result()?;
+        let value = f.call::<Value>(())?;
         drop(hint::black_box(value));
         warmup += 1;
 
@@ -195,7 +195,7 @@ fn bench_fn(io: &mut Io<'_>, item: &dyn fmt::Display, args: &Flags, f: &Function
         }
 
         let start = Instant::now();
-        let value = f.call::<Value>(()).into_result()?;
+        let value = f.call::<Value>(())?;
         let duration = Instant::now().duration_since(start);
         collected.try_push(duration.as_nanos() as i128)?;
         drop(hint::black_box(value));

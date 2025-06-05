@@ -2,8 +2,8 @@ use core::marker::PhantomData;
 
 use rust_alloc::sync::Arc;
 
-use crate::runtime::{FixedArgs, FunctionHandler, InstAddress, Output, VmResult};
-use crate::{vm_try, FromValue};
+use crate::runtime::{FixedArgs, FunctionHandler, InstAddress, Output, VmError};
+use crate::FromValue;
 
 /// Helper struct to conveniently call native functions.
 ///
@@ -40,25 +40,20 @@ where
     }
 
     /// Perform a call.
-    pub(crate) fn call(&self, args: A) -> VmResult<T> {
+    pub(crate) fn call(&self, args: A) -> Result<T, VmError> {
         const {
             assert!(N > 0, "Must be used with non-zero arguments");
         }
 
-        let mut args = vm_try!(args.into_array());
+        let mut args = args.into_array()?;
 
-        vm_try!((self.handler)(
-            &mut args,
-            InstAddress::ZERO,
-            N,
-            Output::keep(0)
-        ));
+        (self.handler)(&mut args, InstAddress::ZERO, N, Output::keep(0))?;
 
         let Some(value) = args.into_iter().next() else {
             unreachable!();
         };
 
-        VmResult::Ok(vm_try!(T::from_value(value)))
+        Ok(T::from_value(value)?)
     }
 }
 

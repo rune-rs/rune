@@ -2,7 +2,7 @@
 
 use core::char::ParseCharError;
 
-use crate::runtime::{Value, VmErrorKind, VmResult};
+use crate::runtime::{Value, VmError, VmErrorKind};
 use crate::{ContextError, Module};
 
 use crate as rune;
@@ -35,17 +35,17 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert!(c.is_some());
 /// ```
 #[rune::function]
-fn from_i64(value: i64) -> VmResult<Option<Value>> {
+fn from_i64(value: i64) -> Result<Option<Value>, VmError> {
     if value < 0 {
-        VmResult::err(VmErrorKind::Underflow)
+        Err(VmError::new(VmErrorKind::Underflow))
     } else if value > u32::MAX as i64 {
-        VmResult::err(VmErrorKind::Overflow)
+        Err(VmError::new(VmErrorKind::Overflow))
     } else {
-        let Some(c) = core::char::from_u32(value as u32) else {
-            return VmResult::Ok(None);
+        let Some(c) = char::from_u32(value as u32) else {
+            return Ok(None);
         };
 
-        VmResult::Ok(Some(Value::from(c)))
+        Ok(Some(Value::from(c)))
     }
 }
 
@@ -58,8 +58,8 @@ fn from_i64(value: i64) -> VmResult<Option<Value>> {
 /// assert_eq!(c.to_i64(), 80);
 /// ```
 #[rune::function(instance)]
-fn to_i64(value: char) -> VmResult<i64> {
-    VmResult::Ok(value as i64)
+fn to_i64(value: char) -> i64 {
+    value as i64
 }
 
 /// Returns `true` if this `char` has the `Alphabetic` property.
@@ -312,10 +312,10 @@ fn is_whitespace(c: char) -> bool {
 /// ```
 #[rune::function(instance)]
 #[inline]
-fn to_digit(c: char, radix: u32) -> VmResult<Option<u32>> {
+fn to_digit(c: char, radix: u32) -> Result<Option<u32>, VmError> {
     if radix > 36 {
-        return VmResult::panic("to_digit: radix is too high (maximum 36)");
+        return Err(VmError::panic("to_digit: radix is too high (maximum 36)"));
     }
 
-    VmResult::Ok(char::to_digit(c, radix))
+    Ok(char::to_digit(c, radix))
 }

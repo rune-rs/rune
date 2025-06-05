@@ -5,12 +5,12 @@ use rust_alloc::sync::Arc;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash;
-use crate::runtime::{ConstConstruct, ConstValue, InstAddress, Memory, Output, VmResult};
+use crate::runtime::{ConstConstruct, ConstValue, InstAddress, Memory, Output, VmError};
 use crate::Hash;
 
 /// A type-reduced function handler.
 pub(crate) type FunctionHandler =
-    dyn Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync;
+    dyn Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError> + Send + Sync;
 
 /// Static run context visible to the virtual machine.
 ///

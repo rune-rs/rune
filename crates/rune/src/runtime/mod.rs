@@ -153,7 +153,7 @@ pub use self::stream::Stream;
 mod to_value;
 #[doc(hidden)]
 pub use self::to_value::ToValue;
-pub use self::to_value::{to_value, ToReturn, UnsafeToValue};
+pub use self::to_value::{to_value, IntoReturn, UnsafeToValue};
 
 mod tuple;
 pub use self::tuple::{OwnedTuple, Tuple};
@@ -197,7 +197,8 @@ pub(crate) use self::vm_diagnostics::VmDiagnosticsObj;
 mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;
-pub use self::vm_error::{try_result, RuntimeError, TryFromResult, VmError, VmResult};
+#[allow(deprecated)]
+pub use self::vm_error::{RuntimeError, VmError, VmResult};
 pub(crate) use self::vm_error::{VmErrorKind, VmIntegerRepr};
 
 mod vm_execution;

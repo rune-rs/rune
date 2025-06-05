@@ -33,14 +33,14 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
-use crate::{vm_try, Any, Hash, TypeHash};
+use crate::{Any, Hash, TypeHash};
 
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
     IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
-    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmErrorKind,
-    VmIntegerRepr, VmResult,
+    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmError,
+    VmErrorKind, VmIntegerRepr,
 };
 
 /// Defined guard for a reference value.
@@ -63,15 +63,6 @@ pub struct ValueMutGuard {
 pub struct RawValueGuard {
     #[allow(unused)]
     guard: RawAnyObjGuard,
-}
-
-// Small helper function to build errors.
-#[inline]
-fn err<T, E>(error: E) -> VmResult<T>
-where
-    VmErrorKind: From<E>,
-{
-    VmResult::err(error)
 }
 
 #[derive(Clone)]
@@ -205,7 +196,7 @@ impl Value {
     ///
     /// ```
     /// use rune::Any;
-    /// use rune::runtime::{Value, VmResult};
+    /// use rune::runtime::Value;
     ///
     /// #[derive(Any)]
     /// struct Foo(u32);
@@ -373,7 +364,7 @@ impl Value {
     /// This function errors if called outside of a virtual machine.
     ///
     /// [`DISPLAY_FMT`]: Protocol::DISPLAY_FMT
-    pub fn display_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+    pub fn display_fmt(&self, f: &mut Formatter) -> Result<(), VmError> {
         self.display_fmt_with(f, &mut EnvProtocolCaller)
     }
 
@@ -383,27 +374,27 @@ impl Value {
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         'fallback: {
             match self.as_ref() {
                 Repr::Inline(value) => match value {
                     Inline::Char(c) => {
-                        vm_try!(f.try_write_char(*c));
+                        f.try_write_char(*c)?;
                     }
                     Inline::Unsigned(byte) => {
                         let mut buffer = itoa::Buffer::new();
-                        vm_try!(f.try_write_str(buffer.format(*byte)));
+                        f.try_write_str(buffer.format(*byte))?;
                     }
                     Inline::Signed(integer) => {
                         let mut buffer = itoa::Buffer::new();
-                        vm_try!(f.try_write_str(buffer.format(*integer)));
+                        f.try_write_str(buffer.format(*integer))?;
                     }
                     Inline::Float(float) => {
                         let mut buffer = ryu::Buffer::new();
-                        vm_try!(f.try_write_str(buffer.format(*float)));
+                        f.try_write_str(buffer.format(*float))?;
                     }
                     Inline::Bool(bool) => {
-                        vm_try!(write!(f, "{bool}"));
+                        write!(f, "{bool}")?;
                     }
                     _ => {
                         break 'fallback;
@@ -414,16 +405,15 @@ impl Value {
                 }
             }
 
-            return VmResult::Ok(());
+            return Ok(());
         };
 
         let mut args = DynGuardedArgs::new((f,));
 
-        let result =
-            vm_try!(caller.call_protocol_fn(&Protocol::DISPLAY_FMT, self.clone(), &mut args));
+        let result = caller.call_protocol_fn(&Protocol::DISPLAY_FMT, self.clone(), &mut args)?;
 
-        vm_try!(<()>::from_value(result));
-        VmResult::Ok(())
+        <()>::from_value(result)?;
+        Ok(())
     }
 
     /// Perform a shallow clone of the value using the [`CLONE`] protocol.
@@ -438,31 +428,27 @@ impl Value {
     /// This function errors if called outside of a virtual machine.
     ///
     /// [`CLONE`]: Protocol::CLONE
-    pub fn clone_(&self) -> VmResult<Self> {
+    pub fn clone_(&self) -> Result<Self, VmError> {
         self.clone_with(&mut EnvProtocolCaller)
     }
 
-    pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> VmResult<Value> {
+    pub(crate) fn clone_with(&self, caller: &mut dyn ProtocolCaller) -> Result<Value, VmError> {
         match self.as_ref() {
             Repr::Inline(value) => {
-                return VmResult::Ok(Self {
+                return Ok(Self {
                     repr: Repr::Inline(*value),
                 });
             }
             Repr::Dynamic(value) => {
                 // TODO: This type of cloning should be deep, not shallow.
-                return VmResult::Ok(Self {
+                return Ok(Self {
                     repr: Repr::Dynamic(value.clone()),
                 });
             }
             Repr::Any(..) => {}
         }
 
-        VmResult::Ok(vm_try!(caller.call_protocol_fn(
-            &Protocol::CLONE,
-            self.clone(),
-            &mut ()
-        )))
+        caller.call_protocol_fn(&Protocol::CLONE, self.clone(), &mut ())
     }
 
     /// Debug format the value using the [`DEBUG_FMT`] protocol.
@@ -477,7 +463,7 @@ impl Value {
     /// This function errors if called outside of a virtual machine.
     ///
     /// [`DEBUG_FMT`]: Protocol::DEBUG_FMT
-    pub fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
+    pub fn debug_fmt(&self, f: &mut Formatter) -> Result<(), VmError> {
         self.debug_fmt_with(f, &mut EnvProtocolCaller)
     }
 
@@ -486,44 +472,40 @@ impl Value {
         &self,
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         match &self.repr {
             Repr::Inline(value) => {
-                vm_try!(write!(f, "{value:?}"));
+                write!(f, "{value:?}")?;
             }
             Repr::Dynamic(ref value) => {
-                vm_try!(value.debug_fmt_with(f, caller));
+                value.debug_fmt_with(f, caller)?;
             }
             Repr::Any(..) => {
                 // reborrow f to avoid moving it
                 let mut args = DynGuardedArgs::new((&mut *f,));
 
-                match vm_try!(caller.try_call_protocol_fn(
-                    &Protocol::DEBUG_FMT,
-                    self.clone(),
-                    &mut args
-                )) {
+                match caller.try_call_protocol_fn(&Protocol::DEBUG_FMT, self.clone(), &mut args)? {
                     CallResultOnly::Ok(value) => {
-                        vm_try!(<()>::from_value(value));
+                        <()>::from_value(value)?;
                     }
                     CallResultOnly::Unsupported(value) => match &value.repr {
                         Repr::Inline(value) => {
-                            vm_try!(write!(f, "{value:?}"));
+                            write!(f, "{value:?}")?;
                         }
                         Repr::Dynamic(value) => {
                             let ty = value.type_info();
-                            vm_try!(write!(f, "<{ty} object at {value:p}>"));
+                            write!(f, "<{ty} object at {value:p}>")?;
                         }
                         Repr::Any(value) => {
                             let ty = value.type_info();
-                            vm_try!(write!(f, "<{ty} object at {value:p}>"));
+                            write!(f, "<{ty} object at {value:p}>")?;
                         }
                     },
                 }
             }
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Convert value into an iterator using the [`Protocol::INTO_ITER`]
@@ -537,13 +519,16 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn into_iter(self) -> VmResult<Iterator> {
+    pub fn into_iter(self) -> Result<Iterator, VmError> {
         self.into_iter_with(&mut EnvProtocolCaller)
     }
 
-    pub(crate) fn into_iter_with(self, caller: &mut dyn ProtocolCaller) -> VmResult<Iterator> {
-        let value = vm_try!(caller.call_protocol_fn(&Protocol::INTO_ITER, self, &mut ()));
-        VmResult::Ok(Iterator::new(value))
+    pub(crate) fn into_iter_with(
+        self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<Iterator, VmError> {
+        let value = caller.call_protocol_fn(&Protocol::INTO_ITER, self, &mut ())?;
+        Ok(Iterator::new(value))
     }
 
     /// Retrieves a human readable type name for the current value.
@@ -560,29 +545,33 @@ impl Value {
     /// environment.
     ///
     /// [`Vm`]: crate::Vm
-    pub fn into_type_name(self) -> VmResult<String> {
+    pub fn into_type_name(self) -> Result<String, VmError> {
         let hash = Hash::associated_function(self.type_hash(), &Protocol::INTO_TYPE_NAME);
 
         crate::runtime::env::shared(|context, unit| {
             if let Some(name) = context.constant(&hash) {
                 match name.as_kind() {
-                    ConstValueKind::String(s) => {
-                        return VmResult::Ok(vm_try!(String::try_from(s.as_str())))
+                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_str())?),
+                    _ => {
+                        return Err(VmError::new(VmErrorKind::expected::<String>(
+                            name.type_info(),
+                        )))
                     }
-                    _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
             if let Some(name) = unit.constant(&hash) {
                 match name.as_kind() {
-                    ConstValueKind::String(s) => {
-                        return VmResult::Ok(vm_try!(String::try_from(s.as_str())))
+                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_str())?),
+                    _ => {
+                        return Err(VmError::new(VmErrorKind::expected::<String>(
+                            name.type_info(),
+                        )))
                     }
-                    _ => return err(VmErrorKind::expected::<String>(name.type_info())),
                 }
             }
 
-            VmResult::Ok(vm_try!(self.type_info().try_to_string()))
+            Ok(self.type_info().try_to_string()?)
         })
     }
 
@@ -614,30 +603,30 @@ impl Value {
     ///
     /// This consumes any live references of the value and accessing them in the
     /// future will result in an error.
-    pub(crate) fn drop(self) -> VmResult<()> {
+    pub(crate) fn drop(self) -> Result<(), VmError> {
         match self.repr {
             Repr::Dynamic(value) => {
-                vm_try!(value.drop());
+                value.drop()?;
             }
             Repr::Any(value) => {
-                vm_try!(value.drop());
+                value.drop()?;
             }
             _ => {}
         }
 
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Move the interior value.
-    pub(crate) fn move_(self) -> VmResult<Self> {
+    pub(crate) fn move_(self) -> Result<Self, VmError> {
         match self.repr {
-            Repr::Dynamic(value) => VmResult::Ok(Value {
-                repr: Repr::Dynamic(vm_try!(value.take())),
+            Repr::Dynamic(value) => Ok(Value {
+                repr: Repr::Dynamic(value.take()?),
             }),
-            Repr::Any(value) => VmResult::Ok(Value {
-                repr: Repr::Any(vm_try!(value.take())),
+            Repr::Any(value) => Ok(Value {
+                repr: Repr::Any(value.take()?),
             }),
-            repr => VmResult::Ok(Value { repr }),
+            repr => Ok(Value { repr }),
         }
     }
 
@@ -903,9 +892,7 @@ impl Value {
             repr => Value::from(repr),
         };
 
-        let value = EnvProtocolCaller
-            .call_protocol_fn(&Protocol::INTO_FUTURE, target, &mut ())
-            .into_result()?;
+        let value = EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_FUTURE, target, &mut ())?;
 
         Future::from_value(value)
     }
@@ -1147,7 +1134,7 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn partial_eq(a: &Value, b: &Value) -> VmResult<bool> {
+    pub fn partial_eq(a: &Value, b: &Value) -> Result<bool, VmError> {
         Self::partial_eq_with(a, b, &mut EnvProtocolCaller)
     }
 
@@ -1159,7 +1146,7 @@ impl Value {
         &self,
         b: &Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
+    ) -> Result<bool, VmError> {
         self.bin_op_with(
             b,
             caller,
@@ -1167,7 +1154,7 @@ impl Value {
             Inline::partial_eq,
             |lhs, rhs, caller| {
                 if lhs.0.variant_hash != rhs.0.variant_hash {
-                    return VmResult::Ok(false);
+                    return Ok(false);
                 }
 
                 Vec::eq_with(lhs.1, rhs.1, Value::partial_eq_with, caller)
@@ -1185,7 +1172,7 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn eq(&self, b: &Value) -> VmResult<bool> {
+    pub fn eq(&self, b: &Value) -> Result<bool, VmError> {
         self.eq_with(b, &mut EnvProtocolCaller)
     }
 
@@ -1193,10 +1180,14 @@ impl Value {
     ///
     /// This is the basis for the eq operation (`==`).
     #[cfg_attr(feature = "bench", inline(never))]
-    pub(crate) fn eq_with(&self, b: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
+    pub(crate) fn eq_with(
+        &self,
+        b: &Value,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<bool, VmError> {
         self.bin_op_with(b, caller, &Protocol::EQ, Inline::eq, |lhs, rhs, caller| {
             if lhs.0.variant_hash != rhs.0.variant_hash {
-                return VmResult::Ok(false);
+                return Ok(false);
             }
 
             Vec::eq_with(lhs.1, rhs.1, Value::eq_with, caller)
@@ -1213,7 +1204,7 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn partial_cmp(a: &Value, b: &Value) -> VmResult<Option<Ordering>> {
+    pub fn partial_cmp(a: &Value, b: &Value) -> Result<Option<Ordering>, VmError> {
         Value::partial_cmp_with(a, b, &mut EnvProtocolCaller)
     }
 
@@ -1225,7 +1216,7 @@ impl Value {
         &self,
         b: &Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
+    ) -> Result<Option<Ordering>, VmError> {
         self.bin_op_with(
             b,
             caller,
@@ -1235,7 +1226,7 @@ impl Value {
                 let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
 
                 if ord != Ordering::Equal {
-                    return VmResult::Ok(Some(ord));
+                    return Ok(Some(ord));
                 }
 
                 Vec::partial_cmp_with(lhs.1, rhs.1, caller)
@@ -1253,7 +1244,7 @@ impl Value {
     /// # Errors
     ///
     /// This function will error if called outside of a virtual machine context.
-    pub fn cmp(a: &Value, b: &Value) -> VmResult<Ordering> {
+    pub fn cmp(a: &Value, b: &Value) -> Result<Ordering, VmError> {
         Value::cmp_with(a, b, &mut EnvProtocolCaller)
     }
 
@@ -1265,7 +1256,7 @@ impl Value {
         &self,
         b: &Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Ordering> {
+    ) -> Result<Ordering, VmError> {
         self.bin_op_with(
             b,
             caller,
@@ -1275,7 +1266,7 @@ impl Value {
                 let ord = lhs.0.variant_hash.cmp(&rhs.0.variant_hash);
 
                 if ord != Ordering::Equal {
-                    return VmResult::Ok(ord);
+                    return Ok(ord);
                 }
 
                 Vec::cmp_with(lhs.1, rhs.1, caller)
@@ -1284,7 +1275,7 @@ impl Value {
     }
 
     /// Hash the current value.
-    pub fn hash(&self, hasher: &mut Hasher) -> VmResult<()> {
+    pub fn hash(&self, hasher: &mut Hasher) -> Result<(), VmError> {
         self.hash_with(hasher, &mut EnvProtocolCaller)
     }
 
@@ -1294,19 +1285,19 @@ impl Value {
         &self,
         hasher: &mut Hasher,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<()> {
+    ) -> Result<(), VmError> {
         match self.as_ref() {
             Repr::Inline(value) => {
-                vm_try!(value.hash(hasher));
-                return VmResult::Ok(());
+                value.hash(hasher)?;
+                return Ok(());
             }
             Repr::Any(value) => match value.type_hash() {
                 Vec::HASH => {
-                    let vec = vm_try!(value.borrow_ref::<Vec>());
+                    let vec = value.borrow_ref::<Vec>()?;
                     return Vec::hash_with(&vec, hasher, caller);
                 }
                 OwnedTuple::HASH => {
-                    let tuple = vm_try!(value.borrow_ref::<OwnedTuple>());
+                    let tuple = value.borrow_ref::<OwnedTuple>()?;
                     return Tuple::hash_with(&tuple, hasher, caller);
                 }
                 _ => {}
@@ -1317,16 +1308,16 @@ impl Value {
         let mut args = DynGuardedArgs::new((hasher,));
 
         if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(&Protocol::HASH, self.clone(), &mut args))
+            caller.try_call_protocol_fn(&Protocol::HASH, self.clone(), &mut args)?
         {
-            vm_try!(<()>::from_value(value));
-            return VmResult::Ok(());
+            <()>::from_value(value)?;
+            return Ok(());
         }
 
-        err(VmErrorKind::UnsupportedUnaryOperation {
+        Err(VmError::new(VmErrorKind::UnsupportedUnaryOperation {
             op: Protocol::HASH.name,
             operand: self.type_info(),
-        })
+        }))
     }
 
     fn bin_op_with<T>(
@@ -1339,53 +1330,51 @@ impl Value {
             (&Arc<Rtti>, &[Value]),
             (&Arc<Rtti>, &[Value]),
             &mut dyn ProtocolCaller,
-        ) -> VmResult<T>,
-    ) -> VmResult<T>
+        ) -> Result<T, VmError>,
+    ) -> Result<T, VmError>
     where
         T: FromValue,
     {
         match (self.as_ref(), b.as_ref()) {
-            (Repr::Inline(lhs), Repr::Inline(rhs)) => {
-                return VmResult::Ok(vm_try!(inline(lhs, rhs)))
-            }
+            (Repr::Inline(lhs), Repr::Inline(rhs)) => return Ok(inline(lhs, rhs)?),
             (Repr::Inline(lhs), rhs) => {
-                return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
+                return Err(VmError::new(VmErrorKind::UnsupportedBinaryOperation {
                     op: protocol.name,
                     lhs: lhs.type_info(),
                     rhs: rhs.type_info(),
-                });
+                }));
             }
             (Repr::Dynamic(lhs), Repr::Dynamic(rhs)) => {
                 let lhs_rtti = lhs.rtti();
                 let rhs_rtti = rhs.rtti();
 
-                let lhs = vm_try!(lhs.borrow_ref());
-                let rhs = vm_try!(rhs.borrow_ref());
+                let lhs = lhs.borrow_ref()?;
+                let rhs = rhs.borrow_ref()?;
 
                 if lhs_rtti.hash == rhs_rtti.hash {
                     return dynamic((lhs_rtti, &lhs), (rhs_rtti, &rhs), caller);
                 }
 
-                return VmResult::err(VmErrorKind::UnsupportedBinaryOperation {
+                return Err(VmError::new(VmErrorKind::UnsupportedBinaryOperation {
                     op: protocol.name,
                     lhs: lhs_rtti.clone().type_info(),
                     rhs: rhs_rtti.clone().type_info(),
-                });
+                }));
             }
             _ => {}
         }
 
         if let CallResultOnly::Ok(value) =
-            vm_try!(caller.try_call_protocol_fn(protocol, self.clone(), &mut Some((b.clone(),))))
+            caller.try_call_protocol_fn(protocol, self.clone(), &mut Some((b.clone(),)))?
         {
-            return VmResult::Ok(vm_try!(T::from_value(value)));
+            return Ok(T::from_value(value)?);
         }
 
-        err(VmErrorKind::UnsupportedBinaryOperation {
+        Err(VmError::new(VmErrorKind::UnsupportedBinaryOperation {
             op: protocol.name,
             lhs: self.type_info(),
             rhs: b.type_info(),
-        })
+        }))
     }
 
     /// Try to coerce the current value as the specified integer `T`.
@@ -1499,52 +1488,44 @@ impl Value {
         }
     }
 
-    pub(crate) fn protocol_into_iter(&self) -> VmResult<Value> {
+    pub(crate) fn protocol_into_iter(&self) -> Result<Value, VmError> {
         EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_ITER, self.clone(), &mut ())
     }
 
-    pub(crate) fn protocol_next(&self) -> VmResult<Option<Value>> {
+    pub(crate) fn protocol_next(&self) -> Result<Option<Value>, VmError> {
+        let value = EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT, self.clone(), &mut ())?;
+
+        Ok(FromValue::from_value(value)?)
+    }
+
+    pub(crate) fn protocol_next_back(&self) -> Result<Option<Value>, VmError> {
         let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT, self.clone(), &mut ()));
+            EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT_BACK, self.clone(), &mut ())?;
 
-        VmResult::Ok(vm_try!(FromValue::from_value(value)))
+        Ok(FromValue::from_value(value)?)
     }
 
-    pub(crate) fn protocol_next_back(&self) -> VmResult<Option<Value>> {
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
-            &Protocol::NEXT_BACK,
-            self.clone(),
-            &mut ()
-        ));
-
-        VmResult::Ok(vm_try!(FromValue::from_value(value)))
-    }
-
-    pub(crate) fn protocol_nth_back(&self, n: usize) -> VmResult<Option<Value>> {
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
+    pub(crate) fn protocol_nth_back(&self, n: usize) -> Result<Option<Value>, VmError> {
+        let value = EnvProtocolCaller.call_protocol_fn(
             &Protocol::NTH_BACK,
             self.clone(),
-            &mut Some((n,))
-        ));
+            &mut Some((n,)),
+        )?;
 
-        VmResult::Ok(vm_try!(FromValue::from_value(value)))
+        Ok(FromValue::from_value(value)?)
     }
 
-    pub(crate) fn protocol_len(&self) -> VmResult<usize> {
+    pub(crate) fn protocol_len(&self) -> Result<usize, VmError> {
+        let value = EnvProtocolCaller.call_protocol_fn(&Protocol::LEN, self.clone(), &mut ())?;
+
+        Ok(FromValue::from_value(value)?)
+    }
+
+    pub(crate) fn protocol_size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
         let value =
-            vm_try!(EnvProtocolCaller.call_protocol_fn(&Protocol::LEN, self.clone(), &mut ()));
+            EnvProtocolCaller.call_protocol_fn(&Protocol::SIZE_HINT, self.clone(), &mut ())?;
 
-        VmResult::Ok(vm_try!(FromValue::from_value(value)))
-    }
-
-    pub(crate) fn protocol_size_hint(&self) -> VmResult<(usize, Option<usize>)> {
-        let value = vm_try!(EnvProtocolCaller.call_protocol_fn(
-            &Protocol::SIZE_HINT,
-            self.clone(),
-            &mut ()
-        ));
-
-        VmResult::Ok(vm_try!(FromValue::from_value(value)))
+        Ok(FromValue::from_value(value)?)
     }
 }
 
@@ -1558,7 +1539,7 @@ impl fmt::Debug for Value {
                 let mut s = String::new();
                 let result = Formatter::format_with(&mut s, |f| self.debug_fmt(f));
 
-                if let Err(e) = result.into_result() {
+                if let Err(e) = result {
                     match &self.repr {
                         Repr::Inline(value) => {
                             write!(f, "<{value:?}: {e}>")?;

@@ -18,7 +18,7 @@ use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
     AnyTypeInfo, ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
-    TypeHash, TypeOf, VmResult,
+    TypeHash, TypeOf, VmError,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -1080,18 +1080,18 @@ impl Module {
     ///
     /// ```
     /// use rune::Module;
-    /// use rune::runtime::{Output, Memory, ToValue, VmResult, InstAddress};
+    /// use rune::runtime::{Output, Memory, ToValue, VmError, InstAddress};
     /// use rune::{docstring, vm_try};
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
-    ///     for value in vm_try!(stack.slice_at(addr, args)) {
-    ///         number += vm_try!(value.as_integer::<i64>());
+    ///     for value in stack.slice_at(addr, args)? {
+    ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number);
-    ///     VmResult::Ok(())
+    ///     out.store(stack, number)?;
+    ///     Ok(())
     /// }
     ///
     /// let mut module = Module::default();
@@ -1104,14 +1104,17 @@ impl Module {
     ///
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn raw_function<F, N>(&mut self, name: N, f: F) -> ModuleRawFunctionBuilder<'_, N>
+    pub fn raw_function<N, F>(&mut self, name: N, f: F) -> ModuleRawFunctionBuilder<'_, N>
     where
-        F: 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync,
+        F: 'static
+            + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
+            + Send
+            + Sync,
     {
         ModuleRawFunctionBuilder {
             module: self,
             name,
-            handler: Arc::new(move |stack, addr, args, output| f(stack, addr, args, output)),
+            handler: Arc::new(f),
         }
     }
 

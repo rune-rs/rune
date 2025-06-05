@@ -32,9 +32,10 @@
 use core::cmp::Ordering;
 use core::hash::Hash;
 
+use rune::alloc;
 use rune::alloc::fmt::TryWrite;
-use rune::runtime::{Formatter, Hasher, Mut, VmResult};
-use rune::{docstring, item, vm_panic, Any, ContextError, Module, ToConstValue};
+use rune::runtime::{Formatter, Hasher, Mut, VmError};
+use rune::{docstring, item, Any, ContextError, Module, ToConstValue};
 
 const NANOS_PER_SEC: u32 = 1_000_000_000;
 
@@ -385,12 +386,12 @@ impl Duration {
     /// let five_seconds = Duration::new(5, 0);
     /// ```
     #[rune::function(keep, path = Self::new)]
-    pub fn new(secs: u64, nanos: u32) -> VmResult<Self> {
+    pub fn new(secs: u64, nanos: u32) -> Result<Self, VmError> {
         if nanos >= NANOS_PER_SEC && secs.checked_add((nanos / NANOS_PER_SEC) as u64).is_none() {
-            vm_panic!("overflow in Duration::new");
+            return Err(VmError::panic("overflow in Duration::new"));
         }
 
-        VmResult::Ok(Self {
+        Ok(Self {
             inner: tokio::time::Duration::new(secs, nanos),
         })
     }
@@ -656,10 +657,10 @@ impl Duration {
     /// let duration = Duration::from_secs_f64(0.0);
     /// ```
     #[rune::function(keep, path = Self::from_secs_f64)]
-    pub fn from_secs_f64(secs: f64) -> VmResult<Self> {
+    pub fn from_secs_f64(secs: f64) -> Result<Self, VmError> {
         match tokio::time::Duration::try_from_secs_f64(secs) {
-            Ok(duration) => VmResult::Ok(Self { inner: duration }),
-            Err(e) => vm_panic!(e),
+            Ok(duration) => Ok(Self { inner: duration }),
+            Err(e) => Err(VmError::panic(e)),
         }
     }
 
@@ -677,12 +678,12 @@ impl Duration {
     /// ```
     #[rune::function(keep, instance, protocol = ADD)]
     #[inline]
-    fn add(&self, rhs: &Duration) -> VmResult<Self> {
+    fn add(&self, rhs: &Duration) -> Result<Self, VmError> {
         let Some(inner) = self.inner.checked_add(rhs.inner) else {
-            vm_panic!("overflow when adding durations")
+            return Err(VmError::panic("overflow when adding durations"));
         };
 
-        VmResult::Ok(Self { inner })
+        Ok(Self { inner })
     }
 
     /// Add a duration to this instant and return a new instant.
@@ -700,13 +701,13 @@ impl Duration {
     /// ```
     #[rune::function(keep, instance, protocol = ADD_ASSIGN)]
     #[inline]
-    fn add_assign(&mut self, rhs: &Duration) -> VmResult<()> {
+    fn add_assign(&mut self, rhs: &Duration) -> Result<(), VmError> {
         let Some(inner) = self.inner.checked_add(rhs.inner) else {
-            vm_panic!("overflow when adding duration to instant")
+            return Err(VmError::panic("overflow when adding duration to instant"));
         };
 
         self.inner = inner;
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Test two durations for partial equality.
@@ -842,8 +843,8 @@ impl Duration {
     /// println!("{second:?}");
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 
     /// Clone the current duration.
@@ -1129,12 +1130,12 @@ impl Instant {
     /// ```
     #[rune::function(keep, instance, protocol = ADD)]
     #[inline]
-    fn add(&self, rhs: &Duration) -> VmResult<Self> {
+    fn add(&self, rhs: &Duration) -> Result<Self, VmError> {
         let Some(inner) = self.inner.checked_add(rhs.inner) else {
-            vm_panic!("overflow when adding duration to instant")
+            return Err(VmError::panic("overflow when adding duration to instant"));
         };
 
-        VmResult::Ok(Self { inner })
+        Ok(Self { inner })
     }
 
     /// Add a duration to this instant and return a new instant.
@@ -1153,13 +1154,13 @@ impl Instant {
     /// ```
     #[rune::function(keep, instance, protocol = ADD_ASSIGN)]
     #[inline]
-    fn add_assign(&mut self, rhs: &Duration) -> VmResult<()> {
+    fn add_assign(&mut self, rhs: &Duration) -> Result<(), VmError> {
         let Some(inner) = self.inner.checked_add(rhs.inner) else {
-            vm_panic!("overflow when adding duration to instant")
+            return Err(VmError::panic("overflow when adding duration to instant"));
         };
 
         self.inner = inner;
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Test two instants for partial equality.
@@ -1291,8 +1292,8 @@ impl Instant {
     /// println!("{now:?}");
     /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-    fn debug_fmt(&self, f: &mut Formatter) -> VmResult<()> {
-        rune::vm_write!(f, "{:?}", self.inner)
+    fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 
     /// Clone the current instant.

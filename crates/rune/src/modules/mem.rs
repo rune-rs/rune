@@ -1,9 +1,10 @@
 //! Working with memory.
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::fmt::TryWrite;
-use crate::runtime::{self, Formatter, Value, VmResult};
-use crate::{vm_try, vm_write, Any, ContextError, Module};
+use crate::runtime::{self, Formatter, Value, VmError};
+use crate::{Any, ContextError, Module};
 
 /// Working with memory.
 #[rune::module(::std::mem)]
@@ -157,13 +158,13 @@ impl Snapshot {
     }
 
     #[rune::function(protocol = DISPLAY_FMT)]
-    fn display(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{}", self.inner)
+    fn display(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{}", self.inner)
     }
 
     #[rune::function(protocol = DEBUG_FMT)]
-    fn debug(&self, f: &mut Formatter) -> VmResult<()> {
-        vm_write!(f, "{:?}", self.inner)
+    fn debug(&self, f: &mut Formatter) -> alloc::Result<()> {
+        write!(f, "{:?}", self.inner)
     }
 }
 
@@ -181,9 +182,8 @@ impl Snapshot {
 /// drop(v);
 /// ```
 #[rune::function]
-fn drop(value: Value) -> VmResult<()> {
-    vm_try!(value.drop());
-    VmResult::Ok(())
+fn drop(value: Value) -> Result<(), VmError> {
+    value.drop()
 }
 
 /// Get the usage snapshot of a value.

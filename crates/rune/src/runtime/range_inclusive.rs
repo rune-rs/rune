@@ -4,13 +4,12 @@ use core::ops;
 
 use crate as rune;
 use crate::alloc::clone::TryClone;
-use crate::runtime::{
-    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, Repr, RuntimeError, ToValue, Value,
-    VmErrorKind, VmResult,
-};
-use crate::{vm_try, Any};
+use crate::Any;
 
-use super::StepsBetween;
+use super::{
+    EnvProtocolCaller, FromValue, Inline, ProtocolCaller, Repr, RuntimeError, StepsBetween,
+    ToValue, Value, VmError, VmErrorKind,
+};
 
 /// Type for an inclusive range expression `start..=end`.
 ///
@@ -94,28 +93,28 @@ impl RangeInclusive {
     /// range.iter()
     /// ```
     #[rune::function(keep)]
-    pub fn iter(&self) -> VmResult<Value> {
+    pub fn iter(&self) -> Result<Value, VmError> {
         let value = match (self.start.as_ref(), self.end.as_ref()) {
             (Repr::Inline(Inline::Unsigned(start)), Repr::Inline(end)) => {
-                let end = vm_try!(end.as_integer::<u64>());
-                vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=end)))
+                let end = end.as_integer::<u64>()?;
+                rune::to_value(RangeInclusiveIter::new(*start..=end))?
             }
             (Repr::Inline(Inline::Signed(start)), Repr::Inline(end)) => {
-                let end = vm_try!(end.as_integer::<i64>());
-                vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=end)))
+                let end = end.as_integer::<i64>()?;
+                rune::to_value(RangeInclusiveIter::new(*start..=end))?
             }
             (Repr::Inline(Inline::Char(start)), Repr::Inline(Inline::Char(end))) => {
-                vm_try!(rune::to_value(RangeInclusiveIter::new(*start..=*end)))
+                rune::to_value(RangeInclusiveIter::new(*start..=*end))?
             }
             (start, end) => {
-                return VmResult::err(VmErrorKind::UnsupportedIterRangeInclusive {
+                return Err(VmError::new(VmErrorKind::UnsupportedIterRangeInclusive {
                     start: start.type_info(),
                     end: end.type_info(),
-                })
+                }))
             }
         };
 
-        VmResult::Ok(value)
+        Ok(value)
     }
 
     /// Iterate over the range.
@@ -143,7 +142,7 @@ impl RangeInclusive {
     /// }
     /// ```
     #[rune::function(keep, protocol = INTO_ITER)]
-    pub fn into_iter(&self) -> VmResult<Value> {
+    pub fn into_iter(&self) -> Result<Value, VmError> {
         self.iter()
     }
 
@@ -162,7 +161,7 @@ impl RangeInclusive {
     /// assert!((f64::NAN..=2.0) != (f64::NAN..=2.0));
     /// ```
     #[rune::function(keep, protocol = PARTIAL_EQ)]
-    pub fn partial_eq(&self, other: &Self) -> VmResult<bool> {
+    pub fn partial_eq(&self, other: &Self) -> Result<bool, VmError> {
         self.partial_eq_with(other, &mut EnvProtocolCaller)
     }
 
@@ -170,9 +169,9 @@ impl RangeInclusive {
         &self,
         b: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
-        if !vm_try!(Value::partial_eq_with(&self.start, &b.start, caller)) {
-            return VmResult::Ok(false);
+    ) -> Result<bool, VmError> {
+        if !Value::partial_eq_with(&self.start, &b.start, caller)? {
+            return Ok(false);
         }
 
         Value::partial_eq_with(&self.end, &b.end, caller)
@@ -190,13 +189,17 @@ impl RangeInclusive {
     /// assert!(!eq(range, 'b'..='e'));
     /// ```
     #[rune::function(keep, protocol = EQ)]
-    pub fn eq(&self, other: &Self) -> VmResult<bool> {
+    pub fn eq(&self, other: &Self) -> Result<bool, VmError> {
         self.eq_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn eq_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<bool> {
-        if !vm_try!(Value::eq_with(&self.start, &b.start, caller)) {
-            return VmResult::Ok(false);
+    pub(crate) fn eq_with(
+        &self,
+        b: &Self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<bool, VmError> {
+        if !Value::eq_with(&self.start, &b.start, caller)? {
+            return Ok(false);
         }
 
         Value::eq_with(&self.end, &b.end, caller)
@@ -213,7 +216,7 @@ impl RangeInclusive {
     /// assert!(!((f64::NAN..=2.0) < (f64::INFINITY..=2.0)));
     /// ```
     #[rune::function(keep, protocol = PARTIAL_CMP)]
-    pub fn partial_cmp(&self, other: &Self) -> VmResult<Option<Ordering>> {
+    pub fn partial_cmp(&self, other: &Self) -> Result<Option<Ordering>, VmError> {
         self.partial_cmp_with(other, &mut EnvProtocolCaller)
     }
 
@@ -221,10 +224,10 @@ impl RangeInclusive {
         &self,
         b: &Self,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<Ordering>> {
-        match vm_try!(Value::partial_cmp_with(&self.start, &b.start, caller)) {
+    ) -> Result<Option<Ordering>, VmError> {
+        match Value::partial_cmp_with(&self.start, &b.start, caller)? {
             Some(Ordering::Equal) => (),
-            other => return VmResult::Ok(other),
+            other => return Ok(other),
         }
 
         Value::partial_cmp_with(&self.end, &b.end, caller)
@@ -242,14 +245,18 @@ impl RangeInclusive {
     /// assert_eq!(cmp('c'..='e', 'b'..='e'), Ordering::Greater);
     /// ```
     #[rune::function(keep, protocol = CMP)]
-    pub fn cmp(&self, other: &Self) -> VmResult<Ordering> {
+    pub fn cmp(&self, other: &Self) -> Result<Ordering, VmError> {
         self.cmp_with(other, &mut EnvProtocolCaller)
     }
 
-    pub(crate) fn cmp_with(&self, b: &Self, caller: &mut dyn ProtocolCaller) -> VmResult<Ordering> {
-        match vm_try!(Value::cmp_with(&self.start, &b.start, caller)) {
+    pub(crate) fn cmp_with(
+        &self,
+        b: &Self,
+        caller: &mut dyn ProtocolCaller,
+    ) -> Result<Ordering, VmError> {
+        match Value::cmp_with(&self.start, &b.start, caller)? {
             Ordering::Equal => (),
-            other => return VmResult::Ok(other),
+            other => return Ok(other),
         }
 
         Value::cmp_with(&self.end, &b.end, caller)
@@ -272,7 +279,7 @@ impl RangeInclusive {
     /// assert!(range is std::ops::RangeInclusive);
     /// ```
     #[rune::function(keep)]
-    pub(crate) fn contains(&self, value: Value) -> VmResult<bool> {
+    pub(crate) fn contains(&self, value: Value) -> Result<bool, VmError> {
         self.contains_with(value, &mut EnvProtocolCaller)
     }
 
@@ -280,14 +287,14 @@ impl RangeInclusive {
         &self,
         value: Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<bool> {
-        match vm_try!(Value::partial_cmp_with(&self.start, &value, caller)) {
+    ) -> Result<bool, VmError> {
+        match Value::partial_cmp_with(&self.start, &value, caller)? {
             Some(Ordering::Less | Ordering::Equal) => {}
-            _ => return VmResult::Ok(false),
+            _ => return Ok(false),
         }
 
-        VmResult::Ok(matches!(
-            vm_try!(Value::partial_cmp_with(&self.end, &value, caller)),
+        Ok(matches!(
+            Value::partial_cmp_with(&self.end, &value, caller)?,
             Some(Ordering::Greater | Ordering::Equal)
         ))
     }
@@ -333,18 +340,18 @@ double_ended_range_iter!(RangeInclusive, RangeInclusiveIter<T>, {
 
     #[rune::function(instance, keep, protocol = LEN)]
     #[inline]
-    pub(crate) fn len(&self) -> VmResult<usize>
+    pub(crate) fn len(&self) -> Result<usize, VmError>
     where
         T: Copy + StepsBetween + fmt::Debug,
     {
         let Some(result) = T::steps_between(*self.iter.start(), *self.iter.end()) else {
-            return VmResult::panic(format!(
+            return Err(VmError::panic(format!(
                 "could not calculate length of range {:?}..={:?}",
                 self.iter.start(),
                 self.iter.end()
-            ));
+            )));
         };
 
-        VmResult::Ok(result)
+        Ok(result)
     }
 });

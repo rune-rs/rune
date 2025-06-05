@@ -5,12 +5,14 @@ use std::io::{self, Write as _};
 
 use crate as rune;
 #[cfg(feature = "std")]
+use crate::alloc;
+#[cfg(feature = "std")]
 use crate::alloc::fmt::TryWrite;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 #[cfg(feature = "std")]
-use crate::runtime::{Formatter, InstAddress, Memory, Output, Panic, VmResult};
+use crate::runtime::{Formatter, InstAddress, Memory, Output, VmError};
 use crate::{docstring, ContextError, Module};
 
 /// I/O functions.
@@ -79,27 +81,32 @@ pub fn module(
 
 #[rune::function(instance, protocol = DISPLAY_FMT)]
 #[cfg(feature = "std")]
-fn io_error_display_fmt(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
-    crate::vm_write!(f, "{error}")
+fn io_error_display_fmt(error: &io::Error, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{error}")
 }
 
 #[rune::function(instance, protocol = DEBUG_FMT)]
 #[cfg(feature = "std")]
-fn io_error_debug_fmt(error: &io::Error, f: &mut Formatter) -> VmResult<()> {
-    crate::vm_write!(f, "{error:?}")
+fn io_error_debug_fmt(error: &io::Error, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{error:?}")
 }
 
 #[cfg(feature = "std")]
-fn dbg_impl(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> VmResult<()> {
+fn dbg_impl(
+    stack: &mut dyn Memory,
+    addr: InstAddress,
+    args: usize,
+    out: Output,
+) -> Result<(), VmError> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    for value in crate::vm_try!(stack.slice_at(addr, args)) {
-        crate::vm_try!(writeln!(stdout, "{:?}", value).map_err(Panic::custom));
+    for value in stack.slice_at(addr, args)? {
+        writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
     }
 
-    crate::vm_try!(out.store(stack, ()));
-    VmResult::Ok(())
+    out.store(stack, ())?;
+    Ok(())
 }
 
 /// Debug print the given argument.
@@ -165,15 +172,11 @@ pub(crate) fn print_macro(
 /// ```
 #[rune::function(path = print)]
 #[cfg(feature = "std")]
-fn print_impl(m: &str) -> VmResult<()> {
+fn print_impl(m: &str) -> Result<(), VmError> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
-
-    if let Err(error) = write!(stdout, "{}", m) {
-        return VmResult::err(Panic::custom(error));
-    }
-
-    VmResult::Ok(())
+    write!(stdout, "{m}").map_err(VmError::panic)?;
+    Ok(())
 }
 
 /// Prints to output, with a newline.
@@ -211,13 +214,9 @@ pub(crate) fn println_macro(
 /// ```
 #[rune::function(path = println)]
 #[cfg(feature = "std")]
-fn println_impl(message: &str) -> VmResult<()> {
+fn println_impl(message: &str) -> Result<(), VmError> {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
-
-    if let Err(error) = writeln!(stdout, "{}", message) {
-        return VmResult::err(Panic::custom(error));
-    }
-
-    VmResult::Ok(())
+    writeln!(stdout, "{message}").map_err(VmError::panic)?;
+    Ok(())
 }

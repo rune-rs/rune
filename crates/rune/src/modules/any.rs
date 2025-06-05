@@ -2,9 +2,9 @@
 
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::String;
-use crate::runtime::{Formatter, Type, Value, VmResult};
-use crate::{docstring, vm_write, ContextError, Hash, Module};
+use crate::alloc::{self, String};
+use crate::runtime::{Formatter, Type, Value, VmError};
+use crate::{docstring, ContextError, Hash, Module};
 
 /// Dynamic typing and type reflection.
 ///
@@ -57,8 +57,8 @@ fn type_of_val(value: Value) -> Type {
 /// assert_eq!(format!("{}", any::Type::of_val(42)), "Type(0x1cad9186c9641c4f)");
 /// ```
 #[rune::function(instance, protocol = DISPLAY_FMT)]
-fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
-    vm_write!(f, "{ty:?}")
+fn format_type(ty: Type, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{ty:?}")
 }
 
 /// Get the type name of a value.
@@ -76,6 +76,6 @@ fn format_type(ty: Type, f: &mut Formatter) -> VmResult<()> {
 /// ```
 #[rune::function]
 #[inline]
-pub fn type_name_of_val(value: Value) -> VmResult<String> {
+pub fn type_name_of_val(value: Value) -> Result<String, VmError> {
     value.into_type_name()
 }

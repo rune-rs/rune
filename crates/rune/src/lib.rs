@@ -5,7 +5,7 @@
 //! <a href="https://docs.rs/rune"><img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-rune-66c2a5?style=for-the-badge&logoColor=white&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20"></a>
 //! <a href="https://discord.gg/v5AeNkT"><img alt="chat on discord" src="https://img.shields.io/discord/558644981137670144.svg?logo=discord&style=flat-square" height="20"></a>
 //! <br>
-//! Minimum support: Rust <b>1.82+</b>.
+//! Minimum support: Rust <b>1.87+</b>.
 //! <br>
 //! <br>
 //! <a href="https://rune-rs.github.io"><b>Visit the site 🌐</b></a>
@@ -186,11 +186,12 @@ pub mod no_std;
 
 #[macro_use]
 mod internal_macros;
-pub(crate) use self::internal_macros::async_vm_try;
+pub(crate) use self::internal_macros::{async_vm_try, vm_error};
 
 mod exported_macros;
 #[doc(inline)]
-pub use self::exported_macros::{docstring, vm_panic, vm_try, vm_write};
+#[allow(deprecated)]
+pub use self::exported_macros::{docstring, nested_try, vm_panic, vm_try, vm_write};
 
 #[macro_use]
 pub mod ast;
@@ -259,7 +260,7 @@ pub mod runtime;
 #[doc(inline)]
 pub use self::runtime::{
     from_const_value, from_value, to_const_value, to_value, FromConstValue, FromValue, Mut, Ref,
-    ToConstValue, ToValue, TypeHash, Unit, Value, Vm,
+    ToConstValue, ToValue, TypeHash, Unit, Value, Vm, VmError,
 };
 
 mod shared;
@@ -439,17 +440,19 @@ pub use rune_macros::attribute_macro;
 /// define a protocol externally, you can simply do this:
 ///
 /// ```rust
-/// # use rune::Any;
-/// # use rune::runtime::{Formatter, VmResult};
+/// use rune::Any;
+/// use rune::runtime::Formatter;
+/// use rune::alloc::fmt::TryWrite;
+/// use rune::alloc;
+///
 /// #[derive(Any)]
 /// struct Struct {
 ///     /* .. */
 /// }
 ///
 /// #[rune::function(instance, protocol = DISPLAY_FMT)]
-/// fn display_fmt(this: &Struct, f: &mut Formatter) -> VmResult<()> {
-///     /* .. */
-///     # todo!()
+/// fn display_fmt(this: &Struct, f: &mut Formatter) -> alloc::Result<()> {
+///     write!(f, "Struct {{ /* .. */ }}")
 /// }
 /// ```
 ///
@@ -502,9 +505,9 @@ pub use rune_macros::attribute_macro;
 ///
 /// ```
 /// use rune::{Any, Module, ContextError};
-/// use rune::vm_write;
-/// use rune::runtime::{Formatter, VmResult};
+/// use rune::runtime::Formatter;
 /// use rune::alloc::fmt::TryWrite;
+/// use rune::alloc;
 ///
 /// #[derive(Any)]
 /// struct String {
@@ -544,9 +547,8 @@ pub use rune_macros::attribute_macro;
 ///     /// assert_eq!(format!("{}", string), "hello");
 ///     /// ```
 ///     #[rune::function(protocol = DISPLAY_FMT)]
-///     fn display(&self, f: &mut Formatter) -> VmResult<()> {
-///         vm_write!(f, "{}", self.inner);
-///         VmResult::Ok(())
+///     fn display(&self, f: &mut Formatter) -> alloc::Result<()> {
+///         write!(f, "{}", self.inner)
 ///     }
 /// }
 ///
@@ -593,6 +595,11 @@ pub use rune_macros::attribute_macro;
 /// ```
 ///
 /// # Using `vm_result` and `<expr>.vm?`.
+///
+/// > **Deprecated:** This feature will be removed in a future version of Rune.
+/// > It is not recommended that you use a `Result<T, VmError>` return type
+/// > directly and make use of helpers like [`nested_try!`] for propagating
+/// > inner errors.
 ///
 /// In order to conveniently deal with virtual machine errors which require use
 /// [`VmResult`] this attribute macro supports the `vm_result` option.
@@ -656,6 +663,7 @@ pub use rune_macros::attribute_macro;
 ///
 /// [`vm_try!`]: crate::vm_try
 /// [`VmResult`]: crate::runtime::VmResult
+/// [`nested_try!`]: crate::nested_try
 #[doc(inline)]
 pub use rune_macros::function;
 
@@ -813,31 +821,77 @@ pub(crate) mod doc;
 /// Privately exported details.
 #[doc(hidden)]
 pub mod __priv {
-    #[doc(inline)]
     pub use crate::any::AnyMarker;
-    #[doc(inline)]
     pub use crate::function_meta::{
         FunctionMetaData, FunctionMetaKind, FunctionMetaStatics, MacroMetaData, MacroMetaKind,
     };
-    #[doc(inline)]
     pub use crate::item::{Item, ItemBuf};
-    #[doc(inline)]
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
-    #[doc(inline)]
     pub use crate::params::Params;
-    #[doc(inline)]
     pub use crate::runtime::{
         AnyTypeInfo, ConstConstruct, ConstValue, FromConstValue, FromValue, MaybeTypeOf, Object,
         OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue, ToValue, Tuple, TypeHash,
         TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue, Value, ValueMutGuard,
-        ValueRefGuard, VmResult,
+        ValueRefGuard, VmError,
     };
-    #[doc(inline)]
     pub use core::clone::Clone;
-    #[doc(inline)]
     pub use rust_alloc::boxed::Box;
-    #[doc(inline)]
     pub use rust_alloc::sync::Arc;
+
+    pub mod e {
+        use crate::alloc::borrow::TryToOwned;
+        use crate::runtime::{AnyTypeInfo, RuntimeError, TypeInfo, VmErrorKind};
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_struct_field(target: &'static str, name: &'static str) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::MissingStructField { target, name })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_variant(name: &str) -> RuntimeError {
+            match name.try_to_owned() {
+                Ok(name) => RuntimeError::new(VmErrorKind::MissingVariant { name }),
+                Err(error) => RuntimeError::from(error),
+            }
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn expected_variant(actual: TypeInfo) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::ExpectedVariant { actual })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_variant_name() -> RuntimeError {
+            RuntimeError::new(VmErrorKind::MissingVariantName)
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn missing_tuple_index(target: &'static str, index: usize) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::MissingTupleIndex { target, index })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn unsupported_object_field_get(target: AnyTypeInfo) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::UnsupportedObjectFieldGet {
+                target: TypeInfo::from(target),
+            })
+        }
+
+        #[doc(hidden)]
+        #[inline]
+        pub fn unsupported_tuple_index_get(target: AnyTypeInfo, index: usize) -> RuntimeError {
+            RuntimeError::new(VmErrorKind::UnsupportedTupleIndexGet {
+                target: TypeInfo::from(target),
+                index,
+            })
+        }
+    }
 }
 
 #[cfg(feature = "musli")]
@@ -942,3 +996,5 @@ rune_macros::binding! {
     #[type_of]
     impl ::std::any::Hash for crate::hash::Hash;
 }
+
+vm_error!(crate::alloc::Error);

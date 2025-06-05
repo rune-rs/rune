@@ -4,9 +4,9 @@ use core::iter;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome, VmResult,
+    GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
 };
-use crate::{vm_try, Any};
+use crate::Any;
 
 /// A generator produced by a generator function.
 ///
@@ -41,43 +41,43 @@ impl Generator {
     }
 
     /// Get the next value produced by this stream.
-    pub fn next(&mut self) -> VmResult<Option<Value>> {
+    pub fn next(&mut self) -> Result<Option<Value>, VmError> {
         let Some(execution) = self.execution.as_mut() else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
-        let state = vm_try!(execution.resume().complete());
+        let state = execution.resume().complete()?;
 
         match state {
             VmOutcome::Complete(_) => {
                 self.execution = None;
-                VmResult::Ok(None)
+                Ok(None)
             }
-            VmOutcome::Yielded(value) => VmResult::Ok(Some(value)),
-            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+            VmOutcome::Yielded(value) => Ok(Some(value)),
+            VmOutcome::Limited => Err(VmError::from(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
-            }),
+            })),
         }
     }
 
     /// Resume the generator with a value and get the next [`GeneratorState`].
-    pub fn resume(&mut self, value: Value) -> VmResult<GeneratorState> {
-        let execution = vm_try!(self
+    pub fn resume(&mut self, value: Value) -> Result<GeneratorState, VmError> {
+        let execution = self
             .execution
             .as_mut()
-            .ok_or(VmErrorKind::GeneratorComplete));
+            .ok_or(VmErrorKind::GeneratorComplete)?;
 
-        let outcome = vm_try!(execution.resume().with_value(value).complete());
+        let outcome = execution.resume().with_value(value).complete()?;
 
         match outcome {
             VmOutcome::Complete(value) => {
                 self.execution = None;
-                VmResult::Ok(GeneratorState::Complete(value))
+                Ok(GeneratorState::Complete(value))
             }
-            VmOutcome::Yielded(value) => VmResult::Ok(GeneratorState::Yielded(value)),
-            VmOutcome::Limited => VmResult::err(VmErrorKind::Halted {
+            VmOutcome::Yielded(value) => Ok(GeneratorState::Yielded(value)),
+            VmOutcome::Limited => Err(VmError::from(VmErrorKind::Halted {
                 halt: VmHaltInfo::Limited,
-            }),
+            })),
         }
     }
 }
@@ -107,7 +107,7 @@ pub struct Iter {
 
 impl Iter {
     #[rune::function(instance, keep, protocol = NEXT)]
-    pub(crate) fn next(&mut self) -> VmResult<Option<Value>> {
+    pub(crate) fn next(&mut self) -> Result<Option<Value>, VmError> {
         self.generator.next()
     }
 }
@@ -118,9 +118,9 @@ impl iter::Iterator for Iter {
     #[inline]
     fn next(&mut self) -> Option<Result<Value, VmError>> {
         match Iter::next(self) {
-            VmResult::Ok(Some(value)) => Some(Ok(value)),
-            VmResult::Ok(None) => None,
-            VmResult::Err(error) => Some(Err(error)),
+            Ok(Some(value)) => Some(Ok(value)),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
         }
     }
 }

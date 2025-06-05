@@ -15,13 +15,12 @@ use serde::ser;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
-use crate::runtime::VmResult;
 use crate::TypeHash as _;
-use crate::{vm_try, Any, FromValue};
+use crate::{Any, FromValue};
 
 use super::{
     IntoOutput, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-    RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value, VmErrorKind,
+    RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 /// A vector of bytes.
@@ -301,7 +300,7 @@ impl Bytes {
     ///    out of bounds.
     /// - If given a range, returns the subslice corresponding to that range, or
     ///   `None` if out of bounds.
-    pub(crate) fn index_get(&self, index: Value) -> VmResult<Option<Value>> {
+    pub(crate) fn index_get(&self, index: Value) -> Result<Option<Value>, VmError> {
         bytes_slice_index_get(&self.bytes, index)
     }
 
@@ -317,16 +316,16 @@ impl Bytes {
     /// assert_eq!(bytes, b"Abcd");
     /// # Ok::<_, rune::support::Error>(())
     /// ```
-    pub fn set(&mut self, index: usize, value: u8) -> VmResult<()> {
+    pub fn set(&mut self, index: usize, value: u8) -> Result<(), VmError> {
         let Some(v) = self.bytes.get_mut(index) else {
-            return VmResult::err(VmErrorKind::OutOfRange {
+            return Err(VmError::new(VmErrorKind::OutOfRange {
                 index: index.into(),
                 length: self.len().into(),
-            });
+            }));
         };
 
         *v = value;
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Get the first byte.
@@ -558,57 +557,58 @@ impl IntoOutput for &[u8] {
 }
 
 /// This is a common index get implementation that is helpfull for custom type to impl `INDEX_GET` protocol.
-pub fn bytes_slice_index_get(this: &[u8], index: Value) -> VmResult<Option<Value>> {
+pub fn bytes_slice_index_get(this: &[u8], index: Value) -> Result<Option<Value>, VmError> {
     let slice: Option<&[u8]> = 'out: {
         if let Some(value) = index.as_any() {
             match value.type_hash() {
                 RangeFrom::HASH => {
-                    let range = vm_try!(value.borrow_ref::<RangeFrom>());
-                    let start = vm_try!(range.start.as_usize());
+                    let range = value.borrow_ref::<RangeFrom>()?;
+                    let start = range.start.as_usize()?;
                     break 'out this.get(start..);
                 }
                 RangeFull::HASH => {
-                    _ = vm_try!(value.borrow_ref::<RangeFull>());
+                    _ = value.borrow_ref::<RangeFull>()?;
                     break 'out this.get(..);
                 }
                 RangeInclusive::HASH => {
-                    let range = vm_try!(value.borrow_ref::<RangeInclusive>());
-                    let start = vm_try!(range.start.as_usize());
-                    let end = vm_try!(range.end.as_usize());
+                    let range = value.borrow_ref::<RangeInclusive>()?;
+                    let start = range.start.as_usize()?;
+                    let end = range.end.as_usize()?;
                     break 'out this.get(start..=end);
                 }
                 RangeToInclusive::HASH => {
-                    let range = vm_try!(value.borrow_ref::<RangeToInclusive>());
-                    let end = vm_try!(range.end.as_usize());
+                    let range = value.borrow_ref::<RangeToInclusive>()?;
+                    let end = range.end.as_usize()?;
                     break 'out this.get(..=end);
                 }
                 RangeTo::HASH => {
-                    let range = vm_try!(value.borrow_ref::<RangeTo>());
-                    let end = vm_try!(range.end.as_usize());
+                    let range = value.borrow_ref::<RangeTo>()?;
+                    let end = range.end.as_usize()?;
                     break 'out this.get(..end);
                 }
                 Range::HASH => {
-                    let range = vm_try!(value.borrow_ref::<Range>());
-                    let start = vm_try!(range.start.as_usize());
-                    let end = vm_try!(range.end.as_usize());
+                    let range = value.borrow_ref::<Range>()?;
+                    let start = range.start.as_usize()?;
+                    let end = range.end.as_usize()?;
                     break 'out this.get(start..end);
                 }
                 _ => {}
             }
         };
 
-        let index = vm_try!(usize::from_value(index));
+        let index = usize::from_value(index)?;
+
         let Some(value) = this.get(index) else {
-            return VmResult::Ok(None);
+            return Ok(None);
         };
 
-        return VmResult::Ok(Some((*value).into()));
+        return Ok(Some((*value).into()));
     };
 
     let Some(values) = slice else {
-        return VmResult::Ok(None);
+        return Ok(None);
     };
 
-    let bytes = vm_try!(Bytes::try_from(values));
-    VmResult::Ok(Some(vm_try!(bytes.try_into())))
+    let bytes = Bytes::try_from(values)?;
+    Ok(Some(bytes.try_into()?))
 }

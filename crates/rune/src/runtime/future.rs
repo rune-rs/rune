@@ -6,14 +6,14 @@ use core::task::{Context, Poll};
 
 use crate::alloc::alloc::Global;
 use crate::alloc::{self, Box};
-use crate::runtime::{ToValue, Value, VmErrorKind, VmResult};
+use crate::runtime::{ToValue, Value, VmError, VmErrorKind};
 use crate::Any;
 
 use pin_project::pin_project;
 
 /// A virtual table for a type-erased future.
 struct Vtable {
-    poll: unsafe fn(*mut (), cx: &mut Context<'_>) -> Poll<VmResult<Value>>,
+    poll: unsafe fn(*mut (), cx: &mut Context<'_>) -> Poll<Result<Value, VmError>>,
     drop: unsafe fn(*mut ()),
 }
 
@@ -31,8 +31,7 @@ impl Future {
     /// Construct a new wrapped future.
     pub(crate) fn new<T, O>(future: T) -> alloc::Result<Self>
     where
-        T: 'static + future::Future,
-        VmResult<O>: From<T::Output>,
+        T: 'static + future::Future<Output = Result<O, VmError>>,
         O: ToValue,
     {
         let (future, Global) = Box::into_raw_with_allocator(Box::try_new(future)?);
@@ -45,12 +44,12 @@ impl Future {
                 poll: |future, cx| unsafe {
                     match Pin::new_unchecked(&mut *future.cast::<T>()).poll(cx) {
                         Poll::Pending => Poll::Pending,
-                        Poll::Ready(result) => match VmResult::from(result) {
-                            VmResult::Ok(result) => match result.to_value() {
-                                Ok(value) => Poll::Ready(VmResult::Ok(value)),
-                                Err(err) => Poll::Ready(VmResult::Err(err.into())),
+                        Poll::Ready(result) => match result {
+                            Ok(result) => match result.to_value() {
+                                Ok(value) => Poll::Ready(Ok(value)),
+                                Err(err) => Poll::Ready(Err(err.into())),
                             },
-                            VmResult::Err(err) => Poll::Ready(VmResult::Err(err)),
+                            Err(err) => Poll::Ready(Err(err)),
                         },
                     }
                 },
@@ -70,14 +69,14 @@ impl Future {
 }
 
 impl future::Future for Future {
-    type Output = VmResult<Value>;
+    type Output = Result<Value, VmError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<VmResult<Value>> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<Value, VmError>> {
         unsafe {
             let this = self.get_unchecked_mut();
 
             let Some(future) = this.future else {
-                return Poll::Ready(VmResult::err(VmErrorKind::FutureCompleted));
+                return Poll::Ready(Err(VmError::new(VmErrorKind::FutureCompleted)));
             };
 
             match (this.vtable.poll)(future.as_ptr(), cx) {
@@ -128,9 +127,9 @@ impl<T, F> SelectFuture<T, F> {
 impl<T, F> future::Future for SelectFuture<T, F>
 where
     T: Copy,
-    F: future::Future<Output = VmResult<Value>>,
+    F: future::Future<Output = Result<Value, VmError>>,
 {
-    type Output = VmResult<(T, Value)>;
+    type Output = Result<(T, Value), VmError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -138,8 +137,8 @@ where
 
         match result {
             Poll::Ready(result) => match result {
-                VmResult::Ok(value) => Poll::Ready(VmResult::Ok((*this.data, value))),
-                VmResult::Err(error) => Poll::Ready(VmResult::Err(error)),
+                Ok(value) => Poll::Ready(Ok((*this.data, value))),
+                Err(error) => Poll::Ready(Err(error)),
             },
             Poll::Pending => Poll::Pending,
         }

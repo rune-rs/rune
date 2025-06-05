@@ -1,7 +1,7 @@
 //! Testing and benchmarking.
 
 use crate as rune;
-use crate::alloc::{try_format, Vec};
+use crate::alloc::{self, try_format, Vec};
 use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
@@ -42,9 +42,9 @@ impl Bencher {
     }
 
     /// Run a benchmark using the given closure.
-    #[rune::function(vm_result)]
-    fn iter(&mut self, f: Function) {
-        self.fns.try_push(f).vm?;
+    #[rune::function]
+    fn iter(&mut self, f: Function) -> alloc::Result<()> {
+        self.fns.try_push(f)
     }
 }
 

@@ -3,12 +3,13 @@
 use core::cmp::Ordering;
 
 use crate as rune;
+use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmErrorKind, VmResult,
+    EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmError, VmErrorKind,
 };
-use crate::{docstring, vm_try, ContextError, Module};
+use crate::{docstring, ContextError, Module};
 
 /// The [`Vec`] dynamic vector.
 ///
@@ -159,8 +160,8 @@ fn vec_new() -> Vec {
 /// assert!(vec.capacity() >= 11);
 /// ```
 #[rune::function(free, path = Vec::with_capacity)]
-fn vec_with_capacity(capacity: usize) -> VmResult<Vec> {
-    VmResult::Ok(vm_try!(Vec::with_capacity(capacity)))
+fn vec_with_capacity(capacity: usize) -> alloc::Result<Vec> {
+    Vec::with_capacity(capacity)
 }
 
 /// Returns the number of elements in the vector, also referred to as its
@@ -230,7 +231,7 @@ fn capacity(vec: &Vec) -> usize {
 /// assert_eq!(None, v.get(0..4));
 /// ```
 #[rune::function(instance)]
-fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
+fn get(this: &Vec, index: Value) -> Result<Option<Value>, VmError> {
     Vec::index_get(this, index)
 }
 
@@ -245,12 +246,12 @@ fn get(this: &Vec, index: Value) -> VmResult<Option<Value>> {
 /// values.sort_by(|a, b| cmp(b, a))
 /// ```
 #[rune::function(instance)]
-fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
+fn sort_by(vec: &mut Vec, comparator: &Function) -> Result<(), VmError> {
     let mut error = None;
 
     vec.sort_by(|a, b| match comparator.call::<Ordering>((a, b)) {
-        VmResult::Ok(ordering) => ordering,
-        VmResult::Err(e) => {
+        Ok(ordering) => ordering,
+        Err(e) => {
             if error.is_none() {
                 error = Some(e);
             }
@@ -260,9 +261,9 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
     });
 
     if let Some(e) = error {
-        VmResult::Err(e)
+        Err(e)
     } else {
-        VmResult::Ok(())
+        Ok(())
     }
 }
 
@@ -302,15 +303,15 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> VmResult<()> {
 /// assert_eq!(values, [(1, 1), (2, 1), (3, 1)]);
 /// ```
 #[rune::function(instance)]
-fn sort(vec: &mut Vec) -> VmResult<()> {
+fn sort(vec: &mut Vec) -> Result<(), VmError> {
     let mut err = None;
 
     vec.sort_by(|a, b| {
-        let result: VmResult<Ordering> = Value::cmp(a, b);
+        let result: Result<Ordering, VmError> = Value::cmp(a, b);
 
         match result {
-            VmResult::Ok(cmp) => cmp,
-            VmResult::Err(e) => {
+            Ok(cmp) => cmp,
+            Err(e) => {
                 if err.is_none() {
                     err = Some(e);
                 }
@@ -322,10 +323,10 @@ fn sort(vec: &mut Vec) -> VmResult<()> {
     });
 
     if let Some(err) = err {
-        return VmResult::Err(err);
+        return Err(err);
     }
 
-    VmResult::Ok(())
+    Ok(())
 }
 
 /// Clears the vector, removing all values.
@@ -356,7 +357,7 @@ fn clear(vec: &mut Vec) {
 /// assert_eq!(vec, [1, 2, 3, 4, 5, 6, 7, 8]);
 /// ```
 #[rune::function(instance)]
-fn extend(this: &mut Vec, value: Value) -> VmResult<()> {
+fn extend(this: &mut Vec, value: Value) -> Result<(), VmError> {
     this.extend(value)
 }
 
@@ -394,9 +395,9 @@ fn pop(this: &mut Vec) -> Option<Value> {
 /// assert_eq!(vec, [1, 2, 3]);
 /// ```
 #[rune::function(instance)]
-fn push(this: &mut Vec, value: Value) -> VmResult<()> {
-    vm_try!(this.push(value));
-    VmResult::Ok(())
+fn push(this: &mut Vec, value: Value) -> Result<(), VmError> {
+    this.push(value)?;
+    Ok(())
 }
 
 /// Removes and returns the element at position `index` within the vector,
@@ -428,16 +429,16 @@ fn push(this: &mut Vec, value: Value) -> VmResult<()> {
 /// assert_eq!(v, [1, 3]);
 /// ```
 #[rune::function(instance)]
-fn remove(this: &mut Vec, index: usize) -> VmResult<Value> {
+fn remove(this: &mut Vec, index: usize) -> Result<Value, VmError> {
     if index >= this.len() {
-        return VmResult::err(VmErrorKind::OutOfRange {
+        return Err(VmError::new(VmErrorKind::OutOfRange {
             index: index.into(),
             length: this.len().into(),
-        });
+        }));
     }
 
     let value = this.remove(index);
-    VmResult::Ok(value)
+    Ok(value)
 }
 
 /// Inserts an element at position `index` within the vector, shifting all
@@ -457,16 +458,16 @@ fn remove(this: &mut Vec, index: usize) -> VmResult<Value> {
 /// assert_eq!(vec, [1, 4, 2, 3, 5]);
 /// ```
 #[rune::function(instance)]
-fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
+fn insert(this: &mut Vec, index: usize, value: Value) -> Result<(), VmError> {
     if index > this.len() {
-        return VmResult::err(VmErrorKind::OutOfRange {
+        return Err(VmError::new(VmErrorKind::OutOfRange {
             index: index.into(),
             length: this.len().into(),
-        });
+        }));
     }
 
-    vm_try!(this.insert(index, value));
-    VmResult::Ok(())
+    this.insert(index, value)?;
+    Ok(())
 }
 
 /// Clone the vector.
@@ -483,8 +484,8 @@ fn insert(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 /// assert_eq!(b, [1, 2, 3, 4]);
 /// ```
 #[rune::function(keep, instance, protocol = CLONE)]
-fn clone(this: &Vec) -> VmResult<Vec> {
-    VmResult::Ok(vm_try!(this.try_clone()))
+fn clone(this: &Vec) -> alloc::Result<Vec> {
+    this.try_clone()
 }
 
 /// Construct an iterator over the tuple.
@@ -536,14 +537,14 @@ fn into_iter(this: Ref<Vec>) -> Iter {
 /// assert_eq!([10, 40], v[0..2]);
 /// ```
 #[rune::function(instance, protocol = INDEX_GET)]
-fn index_get(this: &Vec, index: Value) -> VmResult<Value> {
-    let Some(value) = vm_try!(Vec::index_get(this, index)) else {
-        return VmResult::err(VmErrorKind::MissingIndex {
+fn index_get(this: &Vec, index: Value) -> Result<Value, VmError> {
+    let Some(value) = Vec::index_get(this, index)? else {
+        return Err(VmError::new(VmErrorKind::MissingIndex {
             target: Vec::type_info(),
-        });
+        }));
     };
 
-    VmResult::Ok(value)
+    Ok(value)
 }
 
 /// Inserts a value into the vector.
@@ -556,7 +557,7 @@ fn index_get(this: &Vec, index: Value) -> VmResult<Value> {
 /// assert_eq!(vec, ["a", 2, 3]);
 /// ```
 #[rune::function(instance, protocol = INDEX_SET)]
-fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
+fn index_set(this: &mut Vec, index: usize, value: Value) -> Result<(), VmError> {
     Vec::set(this, index, value)
 }
 
@@ -597,7 +598,7 @@ fn index_set(this: &mut Vec, index: usize, value: Value) -> VmResult<()> {
 /// assert_eq!(vec, [2, [1, 4], [1]]);
 /// ```
 #[rune::function(instance)]
-fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
+fn resize(this: &mut Vec, new_len: usize, value: Value) -> Result<(), VmError> {
     Vec::resize(this, new_len, value)
 }
 
@@ -613,7 +614,7 @@ fn resize(this: &mut Vec, new_len: usize, value: Value) -> VmResult<()> {
 /// assert_eq!(format!("{:?}", vec), "[1, 2, 3]");
 /// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
-fn debug_fmt(this: &Vec, f: &mut Formatter) -> VmResult<()> {
+fn debug_fmt(this: &Vec, f: &mut Formatter) -> Result<(), VmError> {
     Vec::debug_fmt_with(this, f, &mut EnvProtocolCaller)
 }
 
@@ -632,7 +633,7 @@ fn debug_fmt(this: &Vec, f: &mut Formatter) -> VmResult<()> {
 /// assert!(vec != [2, 3, 4]);
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
-fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
+fn partial_eq(this: &Vec, other: Value) -> Result<bool, VmError> {
     Vec::partial_eq_with(this, other, &mut EnvProtocolCaller)
 }
 
@@ -649,7 +650,7 @@ fn partial_eq(this: &Vec, other: Value) -> VmResult<bool> {
 /// assert!(!eq(vec, [2, 3, 4]));
 /// ```
 #[rune::function(keep, instance, protocol = EQ)]
-fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
+fn eq(this: &Vec, other: &Vec) -> Result<bool, VmError> {
     Vec::eq_with(this, other, Value::eq_with, &mut EnvProtocolCaller)
 }
 
@@ -664,7 +665,7 @@ fn eq(this: &Vec, other: &Vec) -> VmResult<bool> {
 /// assert!(vec < [2, 2, 3]);
 /// ```
 #[rune::function(keep, instance, protocol = PARTIAL_CMP)]
-fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
+fn partial_cmp(this: &Vec, other: &Vec) -> Result<Option<Ordering>, VmError> {
     Vec::partial_cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
@@ -682,7 +683,7 @@ fn partial_cmp(this: &Vec, other: &Vec) -> VmResult<Option<Ordering>> {
 /// assert_eq!(cmp(vec, [2, 2, 3]), Ordering::Less);
 /// ```
 #[rune::function(keep, instance, protocol = CMP)]
-fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
+fn cmp(this: &Vec, other: &Vec) -> Result<Ordering, VmError> {
     Vec::cmp_with(this, other, &mut EnvProtocolCaller)
 }
 
@@ -696,6 +697,6 @@ fn cmp(this: &Vec, other: &Vec) -> VmResult<Ordering> {
 /// assert_eq!(hash([0, 2, 3]), hash([0, 2, 3]));
 /// ```
 #[rune::function(instance, protocol = HASH)]
-fn hash(this: &Vec, hasher: &mut Hasher) -> VmResult<()> {
+fn hash(this: &Vec, hasher: &mut Hasher) -> Result<(), VmError> {
     Vec::hash_with(this, hasher, &mut EnvProtocolCaller)
 }

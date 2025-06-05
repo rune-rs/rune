@@ -2,8 +2,8 @@
 
 use crate as rune;
 use crate::alloc::Vec;
-use crate::runtime::{self, Future, Inline, Repr, SelectFuture, Value, VmErrorKind, VmResult};
-use crate::{vm_try, ContextError, Module, TypeHash};
+use crate::runtime::{self, Future, Inline, Repr, SelectFuture, Value, VmError, VmErrorKind};
+use crate::{ContextError, Module, TypeHash};
 
 /// Asynchronous computations.
 #[rune::module(::std::future)]
@@ -14,48 +14,48 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(module)
 }
 
-async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> VmResult<Value>
+async fn try_join_impl<'a, I, F>(values: I, len: usize, factory: F) -> Result<Value, VmError>
 where
     I: IntoIterator<Item = &'a Value>,
-    F: FnOnce(Vec<Value>) -> VmResult<Value>,
+    F: FnOnce(Vec<Value>) -> Result<Value, VmError>,
 {
     use futures_util::stream::StreamExt as _;
 
     let mut futures = futures_util::stream::FuturesUnordered::new();
-    let mut results = vm_try!(Vec::try_with_capacity(len));
+    let mut results = Vec::try_with_capacity(len)?;
 
     for (index, value) in values.into_iter().enumerate() {
         match value.as_ref() {
             Repr::Inline(value) => {
-                return VmResult::err([
+                return Err(VmError::from([
                     VmErrorKind::expected::<Future>(value.type_info()),
                     VmErrorKind::bad_argument(index),
-                ]);
+                ]));
             }
             Repr::Dynamic(value) => {
-                return VmResult::err([
+                return Err(VmError::from([
                     VmErrorKind::expected::<Future>(value.type_info()),
                     VmErrorKind::bad_argument(index),
-                ]);
+                ]));
             }
             Repr::Any(value) => match value.type_hash() {
                 Future::HASH => {
-                    let future = vm_try!(Value::from(value.clone()).into_future());
+                    let future = Value::from(value.clone()).into_future()?;
                     futures.push(SelectFuture::new(index, future));
-                    vm_try!(results.try_push(Value::empty()));
+                    results.try_push(Value::empty())?;
                 }
                 _ => {
-                    return VmResult::err([
+                    return Err(VmError::from([
                         VmErrorKind::expected::<Future>(value.type_info()),
                         VmErrorKind::bad_argument(index),
-                    ]);
+                    ]));
                 }
             },
         }
     }
 
     while !futures.is_empty() {
-        let (index, value) = vm_try!(futures.next().await.unwrap());
+        let (index, value) = futures.next().await.unwrap()?;
         *results.get_mut(index).unwrap() = value;
     }
 
@@ -97,42 +97,42 @@ where
 /// let [] = future::join([]).await;
 /// ```
 #[rune::function(keep)]
-async fn join(value: Value) -> VmResult<Value> {
+async fn join(value: Value) -> Result<Value, VmError> {
     match value.as_ref() {
         Repr::Inline(value) => match value {
-            Inline::Unit => VmResult::Ok(Value::unit()),
-            value => VmResult::err([
+            Inline::Unit => Ok(Value::unit()),
+            value => Err(VmError::from([
                 VmErrorKind::bad_argument(0),
                 VmErrorKind::expected::<runtime::Vec>(value.type_info()),
-            ]),
+            ])),
         },
-        Repr::Dynamic(value) => VmResult::err([
+        Repr::Dynamic(value) => Err(VmError::from([
             VmErrorKind::bad_argument(0),
             VmErrorKind::expected::<runtime::Vec>(value.type_info()),
-        ]),
+        ])),
         Repr::Any(value) => match value.type_hash() {
             runtime::Vec::HASH => {
-                let vec = vm_try!(value.borrow_ref::<runtime::Vec>());
+                let vec = value.borrow_ref::<runtime::Vec>()?;
                 let result = try_join_impl(vec.iter(), vec.len(), |vec| {
-                    VmResult::Ok(vm_try!(Value::vec(vec)))
+                    Value::vec(vec).map_err(VmError::from)
                 })
                 .await;
-                VmResult::Ok(vm_try!(result))
+                Ok(result?)
             }
             runtime::OwnedTuple::HASH => {
-                let tuple = vm_try!(value.borrow_ref::<runtime::OwnedTuple>());
+                let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
 
                 let result = try_join_impl(tuple.iter(), tuple.len(), |vec| {
-                    VmResult::Ok(vm_try!(Value::tuple(vec)))
+                    Value::tuple(vec).map_err(VmError::from)
                 })
                 .await;
 
-                VmResult::Ok(vm_try!(result))
+                Ok(result?)
             }
-            _ => VmResult::err([
+            _ => Err(VmError::from([
                 VmErrorKind::bad_argument(0),
                 VmErrorKind::expected::<runtime::Vec>(value.type_info()),
-            ]),
+            ])),
         },
     }
 }

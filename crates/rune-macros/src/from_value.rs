@@ -107,6 +107,7 @@ impl Expander<'_> {
             value,
             result,
             runtime_error,
+            errors,
             ..
         } = &self.tokens;
 
@@ -139,14 +140,14 @@ impl Expander<'_> {
 
         let missing = quote! {
             name => {
-                return #result::Err(#runtime_error::__rune_macros__missing_variant(name)?);
+                return #result::Err(#errors::missing_variant(name));
             }
         };
 
         let variant = quote! {
             #type_value::EmptyStruct(data) => {
                 let Some(name) = data.rtti().item().base_name() else {
-                    return #result::Err(#runtime_error::__rune_macros__missing_variant_name());
+                    return #result::Err(#errors::missing_variant_name());
                 };
 
                 match name {
@@ -155,7 +156,7 @@ impl Expander<'_> {
             }
             #type_value::TupleStruct(tuple) => {
                 let Some(name) = tuple.rtti().item().base_name() else {
-                    return #result::Err(#runtime_error::__rune_macros__missing_variant_name());
+                    return #result::Err(#errors::missing_variant_name());
                 };
 
                 match name {
@@ -164,7 +165,7 @@ impl Expander<'_> {
             }
             #type_value::Struct(object) => {
                 let Some(name) = object.rtti().item().base_name() else {
-                    return #result::Err(#runtime_error::__rune_macros__missing_variant_name());
+                    return #result::Err(#errors::missing_variant_name());
                 };
 
                 match name {
@@ -180,7 +181,7 @@ impl Expander<'_> {
                     match #value::as_type_value(&value)? {
                         #variant,
                         actual => {
-                            #result::Err(#runtime_error::__rune_macros__expected_variant(#type_value::type_info(&actual)))
+                            #result::Err(#errors::expected_variant(#type_value::type_info(&actual)))
                         }
                     }
                 }
@@ -211,7 +212,7 @@ impl Expander<'_> {
             result,
             type_name,
             try_clone,
-            runtime_error,
+            errors,
             ..
         } = &self.tokens;
 
@@ -225,7 +226,7 @@ impl Expander<'_> {
                         #from_value::from_value(value)?
                     }
                     None => {
-                        return #result::Err(#runtime_error::__rune_macros__missing_tuple_index(#type_name::<Self>(), #index));
+                        return #result::Err(#errors::missing_tuple_index(#type_name::<Self>(), #index));
                     }
                 }
             });
@@ -247,8 +248,8 @@ impl Expander<'_> {
             let Tokens {
                 from_value,
                 result,
-                runtime_error,
                 type_name,
+                errors,
                 ..
             } = &self.tokens;
 
@@ -257,7 +258,7 @@ impl Expander<'_> {
                 #ident: match object.get(#name) {
                     Some(value) => #from_value::from_value(value.clone())?,
                     None => {
-                        return #result::Err(#runtime_error::__rune_macros__missing_struct_field(#type_name::<Self>(), #name));
+                        return #result::Err(#errors::missing_struct_field(#type_name::<Self>(), #name));
                     }
                 }
             });

@@ -10,8 +10,7 @@ use crate::alloc;
 use crate::alloc::hashbrown::raw::{RawIter, RawTable};
 use crate::alloc::hashbrown::ErrorOrInsertSlot;
 use crate::alloc::prelude::*;
-use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError, VmResult};
-use crate::vm_try;
+use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError};
 
 pub(crate) struct Table<V> {
     table: RawTable<(Value, V)>,
@@ -56,8 +55,8 @@ impl<V> Table<V> {
         key: Value,
         value: V,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<V>> {
-        let hash = vm_try!(hash(&self.state, &key, caller));
+    ) -> Result<Option<V>, VmError> {
+        let hash = hash(&self.state, &key, caller)?;
 
         let existing = match self.table.find_or_find_insert_slot(
             caller,
@@ -72,23 +71,23 @@ impl<V> Table<V> {
                 }
                 None
             }
-            Err(ErrorOrInsertSlot::Error(error)) => return VmResult::err(error),
+            Err(ErrorOrInsertSlot::Error(error)) => return Err(VmError::from(error)),
         };
 
-        VmResult::Ok(existing)
+        Ok(existing)
     }
 
     pub(crate) fn get(
         &self,
         key: &Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<&(Value, V)>> {
+    ) -> Result<Option<&(Value, V)>, VmError> {
         if self.table.is_empty() {
-            return VmResult::Ok(None);
+            return Ok(None);
         }
 
-        let hash = vm_try!(hash(&self.state, key, caller));
-        VmResult::Ok(vm_try!(self.table.get(caller, hash, KeyEq::new(key))))
+        let hash = hash(&self.state, key, caller)?;
+        self.table.get(caller, hash, KeyEq::new(key))
     }
 
     #[inline(always)]
@@ -96,12 +95,12 @@ impl<V> Table<V> {
         &mut self,
         key: &Value,
         caller: &mut dyn ProtocolCaller,
-    ) -> VmResult<Option<V>> {
-        let hash = vm_try!(hash(&self.state, key, caller));
+    ) -> Result<Option<V>, VmError> {
+        let hash = hash(&self.state, key, caller)?;
 
         match self.table.remove_entry(caller, hash, KeyEq::new(key)) {
-            Ok(value) => VmResult::Ok(value.map(|(_, value)| value)),
-            Err(error) => VmResult::Err(error),
+            Ok(value) => Ok(value.map(|(_, value)| value)),
+            Err(error) => Err(error),
         }
     }
 
@@ -279,13 +278,13 @@ where
 }
 
 /// Convenience function to hash a value.
-fn hash<S>(state: &S, value: &Value, caller: &mut dyn ProtocolCaller) -> VmResult<u64>
+fn hash<S>(state: &S, value: &Value, caller: &mut dyn ProtocolCaller) -> Result<u64, VmError>
 where
     S: BuildHasher<Hasher = hash_map::Hasher>,
 {
     let mut hasher = Hasher::new_with(state);
-    vm_try!(value.hash_with(&mut hasher, caller));
-    VmResult::Ok(hasher.finish())
+    value.hash_with(&mut hasher, caller)?;
+    Ok(hasher.finish())
 }
 
 struct StateHasher<'a> {
@@ -302,7 +301,7 @@ impl<'a> StateHasher<'a> {
 impl<V> alloc::hashbrown::HasherFn<dyn ProtocolCaller, (Value, V), VmError> for StateHasher<'_> {
     #[inline]
     fn hash(&self, cx: &mut dyn ProtocolCaller, (key, _): &(Value, V)) -> Result<u64, VmError> {
-        hash(self.state, key, cx).into_result()
+        hash(self.state, key, cx)
     }
 }
 
@@ -322,6 +321,6 @@ impl<'a> KeyEq<'a> {
 impl<V> alloc::hashbrown::EqFn<dyn ProtocolCaller, (Value, V), VmError> for KeyEq<'_> {
     #[inline]
     fn eq(&self, cx: &mut dyn ProtocolCaller, (other, _): &(Value, V)) -> Result<bool, VmError> {
-        self.key.eq_with(other, cx).into_result()
+        self.key.eq_with(other, cx)
     }
 }

@@ -23,8 +23,8 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
-use crate::runtime::{InstAddress, Memory, Output, VmError, VmResult};
-use crate::{vm_try, ContextError, Module, Value};
+use crate::runtime::{InstAddress, Memory, Output, VmError};
+use crate::{ContextError, Module, Value};
 
 /// I/O module capable of capturing what's been written to a buffer.
 #[rune::module(::std::io)]
@@ -35,10 +35,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module
         .function("print", move |m: &str| {
-            match write!(o.inner.lock(), "{}", m) {
-                Ok(()) => VmResult::Ok(()),
-                Err(error) => VmResult::panic(error),
-            }
+            write!(o.inner.lock(), "{}", m).map_err(VmError::panic)
         })
         .build()?;
 
@@ -46,10 +43,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module
         .function("println", move |m: &str| {
-            match writeln!(o.inner.lock(), "{}", m) {
-                Ok(()) => VmResult::Ok(()),
-                Err(error) => VmResult::panic(error),
-            }
+            writeln!(o.inner.lock(), "{}", m).map_err(VmError::panic)
         })
         .build()?;
 
@@ -117,11 +111,11 @@ fn dbg_impl(
     addr: InstAddress,
     args: usize,
     out: Output,
-) -> VmResult<()> {
-    for value in vm_try!(stack.slice_at(addr, args)) {
-        vm_try!(writeln!(o, "{value:?}").map_err(VmError::panic));
+) -> Result<(), VmError> {
+    for value in stack.slice_at(addr, args)? {
+        writeln!(o, "{value:?}").map_err(VmError::panic)?;
     }
 
-    vm_try!(out.store(stack, Value::unit));
-    VmResult::Ok(())
+    out.store(stack, Value::unit)?;
+    Ok(())
 }

@@ -7,12 +7,37 @@
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
 #[doc(hidden)]
+#[deprecated = "Use `?` on `VmResult` instead of this macro."]
 macro_rules! __vm_try {
     ($expr:expr) => {
-        match $crate::runtime::try_result($expr) {
-            $crate::runtime::VmResult::Ok(value) => value,
-            $crate::runtime::VmResult::Err(err) => {
-                return $crate::runtime::VmResult::Err(err);
+        match $expr {
+            Ok(value) => value,
+            Err(err) => {
+                return Err($crate::VmError::from(err));
+            }
+        }
+    };
+}
+
+/// Helper to perform the try operation over an inner value of a
+/// `Result<Result<T, E>, U>`, this will check an error of type `Result<T, E>`
+/// and return it as `Ok(Err(E))` if it is.
+///
+/// This is useful because functions in Rune can return different kinds of
+/// errors. One is a critical error for the virtual machine, most typically
+/// `VmErro`. And another is a logical error that should be returned and handled
+/// by the program.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __nested_try {
+    ($expr:expr) => {
+        match $expr {
+            Ok(value) => value,
+            Err(err) => {
+                return Ok(Err(
+                    #[allow(clippy::useless_conversion)]
+                    ::core::convert::From::from(err),
+                ));
             }
         }
     };
@@ -43,7 +68,7 @@ macro_rules! __vm_try {
 #[doc(hidden)]
 macro_rules! __vm_panic {
     ($expr:expr) => {{
-        return $crate::runtime::VmResult::panic($expr);
+        return Err($crate::runtime::VmError::panic($expr));
     }};
 }
 
@@ -53,11 +78,12 @@ macro_rules! __vm_panic {
 /// [`VmResult`]: crate::runtime::VmResult
 #[macro_export]
 #[doc(hidden)]
+#[deprecated = "Convert any relevant errors to `VmError` instead of using this macro using for example `write!(..)?`."]
 macro_rules! __vm_write {
     ($($tt:tt)*) => {
         match core::write!($($tt)*) {
-            Ok(()) => $crate::runtime::VmResult::Ok(()),
-            Err(err) => $crate::runtime::VmResult::Err($crate::runtime::VmError::from(err)),
+            Ok(()) => Ok(()),
+            Err(err) => Err($crate::runtime::VmError::from(err)),
         }
     };
 }
@@ -85,8 +111,12 @@ macro_rules! __docstring {
 #[doc(inline)]
 pub use __docstring as docstring;
 #[doc(inline)]
+pub use __nested_try as nested_try;
+#[doc(inline)]
 pub use __vm_panic as vm_panic;
 #[doc(inline)]
+#[allow(deprecated)]
 pub use __vm_try as vm_try;
 #[doc(inline)]
+#[allow(deprecated)]
 pub use __vm_write as vm_write;

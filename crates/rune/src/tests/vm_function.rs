@@ -27,7 +27,7 @@ fn test_function() {
         Custom::A
     };
 
-    assert!(function.call::<Value>(()).into_result().is_err());
+    assert!(function.call::<Value>(()).is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(rune::from_value::<DynamicTuple>(value).is_ok());
 
@@ -37,7 +37,7 @@ fn test_function() {
         Custom
     };
 
-    assert!(function.call::<Value>(()).into_result().is_err());
+    assert!(function.call::<Value>(()).is_err());
     let value: Value = function.call((1i64,)).unwrap();
     assert!(crate::from_value::<DynamicTuple>(value).is_ok());
 
@@ -46,7 +46,7 @@ fn test_function() {
         |a, b| a + b
     };
 
-    assert!(function.call::<Value>((1i64,)).into_result().is_err());
+    assert!(function.call::<Value>((1i64,)).is_err());
     let value: Value = function.call((1i64, 2i64)).unwrap();
     assert_eq!(value.as_signed().unwrap(), 3);
 
@@ -59,7 +59,7 @@ fn test_function() {
     )
     .unwrap();
 
-    assert!(function.call::<Value>((1i64,)).into_result().is_err());
+    assert!(function.call::<Value>((1i64,)).is_err());
     let value: Value = function.call(()).unwrap();
     assert_eq!(value.as_signed().unwrap(), 3);
 }
