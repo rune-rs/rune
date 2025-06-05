@@ -34,8 +34,8 @@ use core::hash::Hash;
 
 use rune::alloc;
 use rune::alloc::fmt::TryWrite;
-use rune::runtime::{Formatter, Hasher, Mut, VmError, VmResult};
-use rune::{docstring, item, vm_panic, Any, ContextError, Module, ToConstValue};
+use rune::runtime::{Formatter, Hasher, Mut, VmError};
+use rune::{docstring, item, Any, ContextError, Module, ToConstValue};
 
 const NANOS_PER_SEC: u32 = 1_000_000_000;
 
@@ -1130,12 +1130,12 @@ impl Instant {
     /// ```
     #[rune::function(keep, instance, protocol = ADD)]
     #[inline]
-    fn add(&self, rhs: &Duration) -> VmResult<Self> {
+    fn add(&self, rhs: &Duration) -> Result<Self, VmError> {
         let Some(inner) = self.inner.checked_add(rhs.inner) else {
-            vm_panic!("overflow when adding duration to instant")
+            return Err(VmError::panic("overflow when adding duration to instant"));
         };
 
-        VmResult::Ok(Self { inner })
+        Ok(Self { inner })
     }
 
     /// Add a duration to this instant and return a new instant.
@@ -1154,13 +1154,13 @@ impl Instant {
     /// ```
     #[rune::function(keep, instance, protocol = ADD_ASSIGN)]
     #[inline]
-    fn add_assign(&mut self, rhs: &Duration) -> VmResult<()> {
+    fn add_assign(&mut self, rhs: &Duration) -> Result<(), VmError> {
         let Some(inner) = self.inner.checked_add(rhs.inner) else {
-            vm_panic!("overflow when adding duration to instant")
+            return Err(VmError::panic("overflow when adding duration to instant"));
         };
 
         self.inner = inner;
-        VmResult::Ok(())
+        Ok(())
     }
 
     /// Test two instants for partial equality.

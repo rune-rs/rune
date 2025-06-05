@@ -340,7 +340,7 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn wrapping_div(this: $ty, rhs: $ty) -> $crate::runtime::VmResult<$ty> {
+        fn wrapping_div(this: $ty, rhs: $ty) -> Result<$ty, $crate::runtime::VmError> {
             if rhs == 0 {
                 return Err($crate::runtime::VmError::new($crate::runtime::VmErrorKind::DivideByZero));
             }
@@ -384,7 +384,7 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn wrapping_rem(this: $ty, rhs: $ty) -> $crate::runtime::VmResult<$ty> {
+        fn wrapping_rem(this: $ty, rhs: $ty) -> Result<$ty, $crate::runtime::VmError> {
             if rhs == 0 {
                 return Err($crate::runtime::VmError::new($crate::runtime::VmErrorKind::DivideByZero));
             }

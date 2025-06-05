@@ -29,9 +29,9 @@
 //! }
 //! ```
 
-use rune::alloc::String;
+use rune::alloc::{self, String};
 use rune::runtime::{Bytes, Value};
-use rune::{ContextError, Module};
+use rune::{nested_try, ContextError, Module, VmError};
 
 /// Construct the `toml` module.
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
@@ -126,16 +126,16 @@ pub mod ser {
 }
 
 /// Convert bytes of TOML into a rune value.
-#[rune::function(vm_result)]
-fn from_bytes(bytes: &[u8]) -> Result<Value, Value> {
+#[rune::function]
+fn from_bytes(bytes: &[u8]) -> Result<Result<Value, Value>, VmError> {
     let bytes = match std::str::from_utf8(bytes) {
         Ok(bytes) => bytes,
-        Err(error) => return Err(rune::to_value(error).vm?),
+        Err(error) => return Ok(Err(rune::to_value(error)?)),
     };
 
     match toml::from_str(bytes).map_err(de::Error::from) {
-        Ok(value) => Ok(value),
-        Err(error) => Err(rune::to_value(error).vm?),
+        Ok(value) => Ok(Ok(value)),
+        Err(error) => Ok(Err(rune::to_value(error)?)),
     }
 }
 
@@ -146,14 +146,14 @@ fn from_string(string: &str) -> Result<Value, de::Error> {
 }
 
 /// Convert any value to a toml string.
-#[rune::function(vm_result)]
-fn to_string(value: Value) -> Result<String, ser::Error> {
-    Ok(String::try_from(toml::to_string(&value)?).vm?)
+#[rune::function]
+fn to_string(value: Value) -> alloc::Result<Result<String, ser::Error>> {
+    Ok(Ok(String::try_from(nested_try!(toml::to_string(&value)))?))
 }
 
 /// Convert any value to toml bytes.
-#[rune::function(vm_result)]
-fn to_bytes(value: Value) -> Result<Bytes, ser::Error> {
-    let string = String::try_from(toml::to_string(&value)?).vm?;
-    Ok(Bytes::from_vec(string.into_bytes()))
+#[rune::function]
+fn to_bytes(value: Value) -> alloc::Result<Result<Bytes, ser::Error>> {
+    let string = String::try_from(nested_try!(toml::to_string(&value)))?;
+    Ok(Ok(Bytes::from_vec(string.into_bytes())))
 }

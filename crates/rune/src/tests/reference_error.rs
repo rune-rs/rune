@@ -10,9 +10,7 @@ fn test_reference_error() -> Result<()> {
     }
 
     // NB: Calling this should error, since it's a mutable reference.
-    fn take_it(_: Ref<Foo>) -> VmResult<()> {
-        VmResult::Ok(())
-    }
+    fn take_it(_: Ref<Foo>) {}
 
     let mut module = Module::new();
     module.function("take_it", take_it).build()?;

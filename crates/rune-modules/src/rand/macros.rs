@@ -1,8 +1,8 @@
 #[cfg(any(feature = "small_rng", feature = "std_rng"))]
 macro_rules! seedable_rng {
     ($m:ident, $ty:ident) => {{
+        use rune::nested_try;
         use rune::runtime::{TypeHash, Value, VmError};
-        use rune::vm_panic;
 
         $m.function_meta(from_rng)?;
         $m.function_meta(try_from_rng)?;
@@ -83,36 +83,34 @@ macro_rules! seedable_rng {
         /// Create a new PRNG seeded from a potentially fallible `Rng`.
         ///
         /// See [`from_rng`][$ty::from_rng] docs for more information.
-        #[rune::function(free, vm_result, path = $ty::try_from_rng)]
-        fn try_from_rng(rng: Value) -> Result<$ty, TryFromRngError> {
+        #[rune::function(free, path = $ty::try_from_rng)]
+        fn try_from_rng(rng: Value) -> Result<Result<$ty, TryFromRngError>, VmError> {
             match rng.type_hash() {
                 #[cfg(feature = "small_rng")]
                 crate::rand::SmallRng::HASH => {
-                    let mut rng = rng.borrow_mut::<crate::rand::SmallRng>().vm?;
-                    let inner = rand::SeedableRng::try_from_rng(&mut rng.inner)?;
-                    Ok($ty { inner })
+                    let mut rng = rng.borrow_mut::<crate::rand::SmallRng>()?;
+                    let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
+                    Ok(Ok($ty { inner }))
                 }
                 #[cfg(feature = "std_rng")]
                 crate::rand::StdRng::HASH => {
-                    let mut rng = rng.borrow_mut::<crate::rand::StdRng>().vm?;
-                    let inner = rand::SeedableRng::try_from_rng(&mut rng.inner)?;
-                    Ok($ty { inner })
+                    let mut rng = rng.borrow_mut::<crate::rand::StdRng>()?;
+                    let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
+                    Ok(Ok($ty { inner }))
                 }
                 #[cfg(feature = "thread_rng")]
                 crate::rand::ThreadRng::HASH => {
-                    let mut rng = rng.borrow_mut::<crate::rand::ThreadRng>().vm?;
-                    let inner = rand::SeedableRng::try_from_rng(&mut rng.inner)?;
-                    Ok($ty { inner })
+                    let mut rng = rng.borrow_mut::<crate::rand::ThreadRng>()?;
+                    let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
+                    Ok(Ok($ty { inner }))
                 }
                 #[cfg(feature = "os_rng")]
                 crate::rand::OsRng::HASH => {
-                    let mut rng = rng.borrow_mut::<crate::rand::OsRng>().vm?;
-                    let inner = rand::SeedableRng::try_from_rng(&mut rng.inner)?;
-                    Ok($ty { inner })
+                    let mut rng = rng.borrow_mut::<crate::rand::OsRng>()?;
+                    let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
+                    Ok(Ok($ty { inner }))
                 }
-                _ => {
-                    vm_panic!("expected an rng source")
-                }
+                _ => Err(VmError::panic("expected an rng source")),
             }
         }
 

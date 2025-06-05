@@ -34,7 +34,6 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     ///
     /// ```
     /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
     ///
     /// let mut m = Module::with_item(["module"])?;
     /// m.raw_function("floob", |_, _, _, _| Ok(())).build()?;
@@ -83,7 +82,6 @@ impl<'a, N> ModuleRawFunctionBuilder<'a, N> {
     ///
     /// ```
     /// use rune::{Any, Module};
-    /// use rune::runtime::VmResult;
     ///
     /// #[derive(Any)]
     /// struct Thing;

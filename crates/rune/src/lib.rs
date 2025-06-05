@@ -191,7 +191,7 @@ pub(crate) use self::internal_macros::{async_vm_try, vm_error};
 mod exported_macros;
 #[doc(inline)]
 #[allow(deprecated)]
-pub use self::exported_macros::{docstring, vm_panic, vm_try, vm_write};
+pub use self::exported_macros::{docstring, nested_try, vm_panic, vm_try, vm_write};
 
 #[macro_use]
 pub mod ast;
@@ -440,17 +440,18 @@ pub use rune_macros::attribute_macro;
 /// define a protocol externally, you can simply do this:
 ///
 /// ```rust
-/// # use rune::Any;
-/// # use rune::runtime::{Formatter, VmResult};
+/// use rune::Any;
+/// use rune::runtime::Formatter;
+/// use rune::alloc;
+///
 /// #[derive(Any)]
 /// struct Struct {
 ///     /* .. */
 /// }
 ///
 /// #[rune::function(instance, protocol = DISPLAY_FMT)]
-/// fn display_fmt(this: &Struct, f: &mut Formatter) -> VmResult<()> {
-///     /* .. */
-///     # todo!()
+/// fn display_fmt(this: &Struct, f: &mut Formatter) -> alloc::Result<()> {
+///     write!(f, "Struct {{ /* .. */ }}")
 /// }
 /// ```
 ///
@@ -503,8 +504,7 @@ pub use rune_macros::attribute_macro;
 ///
 /// ```
 /// use rune::{Any, Module, ContextError};
-/// use rune::vm_write;
-/// use rune::runtime::{Formatter, VmResult};
+/// use rune::runtime::Formatter;
 /// use rune::alloc::fmt::TryWrite;
 /// use rune::alloc;
 ///

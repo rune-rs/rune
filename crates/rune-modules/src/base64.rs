@@ -1,11 +1,9 @@
 use base64::prelude::*;
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::{self, String, Vec};
-use rune::runtime::Bytes;
-use rune::runtime::Formatter;
-use rune::{vm_panic, ContextError, Module};
+use rune::runtime::{Bytes, Formatter, VmError};
+use rune::{nested_try, ContextError, Module};
 
-#[rune::module(::base64)]
 /// Correct and fast [base64] encoding based on the [`base64`] crate.
 ///
 /// [base64]: https://developer.mozilla.org/en-US/docs/Glossary/Base64
@@ -17,6 +15,7 @@ use rune::{vm_panic, ContextError, Module};
 /// let encoded = base64::encode(b"\xFF\xEC\x20\x55\0");
 /// assert_eq!(base64::decode(encoded), Ok(b"\xFF\xEC\x20\x55\0"));
 /// ```
+#[rune::module(::base64)]
 pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     let mut m = Module::from_meta(self::module__meta)?;
 
@@ -34,19 +33,21 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// ```rune
 /// assert_eq!(base64::decode("+uwgVQA=")?, b"\xFA\xEC\x20\x55\0");
 /// ```
-#[rune::function(vm_result)]
-fn decode(inp: &str) -> Result<Bytes, DecodeError> {
+#[rune::function]
+fn decode(inp: &str) -> alloc::Result<Result<Bytes, DecodeError>> {
     // estimate the max size
     let decoded_size = base64::decoded_len_estimate(inp.len());
 
     // try to allocate enough bytes
     let mut v = Vec::new();
-    v.try_resize(decoded_size, 0).vm?;
+
+    v.try_resize(decoded_size, 0)?;
 
     // decode
-    let len = BASE64_STANDARD.decode_slice(inp, &mut v)?;
+    let len = nested_try!(BASE64_STANDARD.decode_slice(inp, &mut v));
+
     v.truncate(len);
-    Ok(Bytes::from_vec(v))
+    Ok(Ok(Bytes::from_vec(v)))
 }
 
 /// Encode a data into a base64 String.
@@ -56,27 +57,24 @@ fn decode(inp: &str) -> Result<Bytes, DecodeError> {
 /// ```rune
 /// assert_eq!(base64::encode(b"\xFF\xEC\x20\x55\0"), "/+wgVQA=");
 /// ```
-#[rune::function(vm_result)]
-fn encode(bytes: &[u8]) -> String {
+#[rune::function]
+fn encode(bytes: &[u8]) -> Result<String, VmError> {
     let Some(encoded_size) = base64::encoded_len(bytes.len(), true) else {
-        vm_panic!("encoded input length overflows usize");
+        return Err(VmError::panic("encoded input length overflows usize"));
     };
 
     let mut buf = Vec::new();
-    buf.try_resize(encoded_size, 0).vm?;
+    buf.try_resize(encoded_size, 0)?;
 
     // this should never panic
     if let Err(e) = BASE64_STANDARD.encode_slice(bytes, &mut buf) {
-        vm_panic!(e);
+        return Err(VmError::panic(e));
     }
 
     // base64 should only return valid utf8 strings
-    let string = match String::from_utf8(buf) {
-        Ok(s) => s,
-        Err(e) => vm_panic!(e),
-    };
+    let string = String::from_utf8(buf).map_err(VmError::panic)?;
 
-    string
+    Ok(string)
 }
 
 /// Errors that can occur while decoding.

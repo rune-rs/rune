@@ -32,7 +32,7 @@
 use rune::alloc::fmt::TryWrite;
 use rune::alloc::{self, String, Vec};
 use rune::runtime::{Bytes, Formatter, Value};
-use rune::{Any, ContextError, Module};
+use rune::{nested_try, Any, ContextError, Module};
 
 #[rune::module(::json)]
 /// Module for processing JSON.
@@ -116,9 +116,11 @@ fn from_string(string: &str) -> Result<Value, Error> {
 /// let object = json::from_string(json::to_string(object)?)?;
 /// assert_eq!(object, #{"number": 42, "string": "Hello World"});
 /// ```
-#[rune::function(vm_result)]
-fn to_string(value: Value) -> Result<String, Error> {
-    Ok(String::try_from(serde_json::to_string(&value)?).vm?)
+#[rune::function]
+fn to_string(value: Value) -> alloc::Result<Result<String, Error>> {
+    Ok(Ok(String::try_from(nested_try!(serde_json::to_string(
+        &value
+    )))?))
 }
 
 /// Convert any value to json bytes.
@@ -130,9 +132,9 @@ fn to_string(value: Value) -> Result<String, Error> {
 /// let object = json::from_bytes(json::to_bytes(object)?)?;
 /// assert_eq!(object, #{"number": 42, "string": "Hello World"});
 /// ```
-#[rune::function(vm_result)]
-fn to_bytes(value: Value) -> Result<Bytes, Error> {
-    Ok(Bytes::from_vec(
-        Vec::try_from(serde_json::to_vec(&value)?).vm?,
-    ))
+#[rune::function]
+fn to_bytes(value: Value) -> alloc::Result<Result<Bytes, Error>> {
+    Ok(Ok(Bytes::from_vec(Vec::try_from(nested_try!(
+        serde_json::to_vec(&value)
+    ))?)))
 }

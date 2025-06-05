@@ -97,10 +97,10 @@ fn bug_344_async_function() -> Result<()> {
 #[test]
 fn bug_344_async_inst_fn() -> Result<()> {
     #[rune::function(instance)]
-    async fn function(s: Ref<GuardCheck>, check: Ref<GuardCheck>) -> VmResult<i64> {
+    async fn function(s: Ref<GuardCheck>, check: Ref<GuardCheck>) -> i64 {
         s.ensure_not_dropped("self argument");
         check.ensure_not_dropped("instance argument");
-        VmResult::Ok(42)
+        42
     }
 
     let mut context = Context::new();
