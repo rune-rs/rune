@@ -14,8 +14,8 @@ use crate::shared::AssertSend;
 use crate::{Any, Hash};
 
 use super::{
-    AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, GuardedArgs,
-    InstAddress, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
+    Address, AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler,
+    GuardedArgs, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
     VmCall, VmError, VmErrorKind, VmHalt,
 };
 
@@ -178,7 +178,7 @@ impl Function {
     pub(crate) fn call_with_vm(
         &self,
         vm: &mut Vm,
-        addr: InstAddress,
+        addr: Address,
         args: usize,
         out: Output,
     ) -> Result<Option<VmHalt>, VmError> {
@@ -527,13 +527,10 @@ where
                 let mut stack = Stack::with_capacity(size)?;
                 let _guard = unsafe { args.guarded_into_stack(&mut stack) }?;
                 stack.resize(size)?;
-                handler.handler.call(
-                    &mut stack,
-                    InstAddress::ZERO,
-                    count,
-                    InstAddress::ZERO.output(),
-                )?;
-                stack.at(InstAddress::ZERO).clone()
+                handler
+                    .handler
+                    .call(&mut stack, Address::ZERO, count, Address::ZERO.output())?;
+                stack.at(Address::ZERO).clone()
             }
             Inner::FnOffset(fn_offset) => fn_offset.call(args, ())?,
             Inner::FnClosureOffset(closure) => {
@@ -591,7 +588,7 @@ where
     pub(crate) fn call_with_vm(
         &self,
         vm: &mut Vm,
-        addr: InstAddress,
+        addr: Address,
         args: usize,
         out: Output,
     ) -> Result<Option<VmHalt>, VmError> {
@@ -862,7 +859,7 @@ impl FnOffset {
     fn call_with_vm(
         &self,
         vm: &mut Vm,
-        addr: InstAddress,
+        addr: Address,
         args: usize,
         extra: impl Args,
         out: Output,

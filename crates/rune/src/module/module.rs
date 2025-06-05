@@ -17,7 +17,7 @@ use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
-    AnyTypeInfo, ConstConstruct, InstAddress, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
+    Address, AnyTypeInfo, ConstConstruct, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
     TypeHash, TypeOf, VmError,
 };
 use crate::{Hash, Item, ItemBuf};
@@ -1080,10 +1080,10 @@ impl Module {
     ///
     /// ```
     /// use rune::Module;
-    /// use rune::runtime::{Output, Memory, ToValue, VmError, InstAddress};
+    /// use rune::runtime::{Output, Memory, ToValue, VmError, Address};
     /// use rune::{docstring, vm_try};
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
     ///     for value in stack.slice_at(addr, args)? {
@@ -1107,7 +1107,7 @@ impl Module {
     pub fn raw_function<N, F>(&mut self, name: N, handler: F) -> ModuleRawFunctionBuilder<'_, N, F>
     where
         F: 'static
-            + Fn(&mut dyn Memory, InstAddress, usize, Output) -> Result<(), VmError>
+            + Fn(&mut dyn Memory, Address, usize, Output) -> Result<(), VmError>
             + Send
             + Sync,
     {

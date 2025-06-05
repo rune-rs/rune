@@ -29,8 +29,8 @@ fn bug_344_function() -> Result<()> {
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function.call(&mut stack, InstAddress::new(0), 1, Output::keep(0))?;
-    assert_eq!(stack.at(InstAddress::new(0)).as_signed()?, 42);
+    function.call(&mut stack, Address::new(0), 1, Output::keep(0))?;
+    assert_eq!(stack.at(Address::new(0)).as_signed()?, 42);
     return Ok(());
 
     fn function(check: &GuardCheck) -> i64 {
@@ -63,9 +63,9 @@ fn bug_344_inst_fn() -> Result<()> {
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function.call(&mut stack, InstAddress::ZERO, 2, Output::keep(0))?;
+    function.call(&mut stack, Address::ZERO, 2, Output::keep(0))?;
 
-    assert_eq!(stack.at(InstAddress::ZERO).as_signed()?, 42);
+    assert_eq!(stack.at(Address::ZERO).as_signed()?, 42);
     Ok(())
 }
 
@@ -83,8 +83,8 @@ fn bug_344_async_function() -> Result<()> {
 
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function.call(&mut stack, InstAddress::ZERO, 1, Output::keep(0))?;
-    let future = stack.at(InstAddress::ZERO).clone().into_future()?;
+    function.call(&mut stack, Address::ZERO, 1, Output::keep(0))?;
+    let future = stack.at(Address::ZERO).clone().into_future()?;
     assert_eq!(block_on(future)?.as_signed()?, 42);
     return Ok(());
 
@@ -118,9 +118,9 @@ fn bug_344_async_inst_fn() -> Result<()> {
     let mut stack = Stack::new();
     stack.push(rune::to_value(GuardCheck::new())?)?;
     stack.push(rune::to_value(GuardCheck::new())?)?;
-    function.call(&mut stack, InstAddress::new(0), 2, Output::keep(0))?;
+    function.call(&mut stack, Address::new(0), 2, Output::keep(0))?;
 
-    let future = stack.at(InstAddress::new(0)).clone().into_future()?;
+    let future = stack.at(Address::new(0)).clone().into_future()?;
     assert_eq!(block_on(future)?.as_signed()?, 42);
 
     Ok(())

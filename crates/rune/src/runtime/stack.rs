@@ -7,7 +7,7 @@ use core::slice;
 use crate::alloc::alloc::Global;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
-use crate::runtime::{InstAddress, Output, Value, VmErrorKind};
+use crate::runtime::{Address, Output, Value, VmErrorKind};
 
 // This is a bit tricky. We know that `Value::empty()` is `Sync` but we can't
 // convince Rust that is the case.
@@ -21,7 +21,7 @@ static EMPTY: AssertSync<Value> = AssertSync(Value::empty());
 #[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
 pub struct StackError {
-    addr: InstAddress,
+    addr: Address,
 }
 
 impl From<Infallible> for StackError {
@@ -45,7 +45,7 @@ impl core::error::Error for StackError {}
 #[cfg_attr(test, derive(PartialEq))]
 #[non_exhaustive]
 pub struct SliceError {
-    addr: InstAddress,
+    addr: Address,
     len: usize,
     stack: usize,
 }
@@ -77,9 +77,9 @@ pub trait Memory {
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{InstAddress, Memory, Output, VmError};
+    /// use rune::runtime::{Address, Memory, Output, VmError};
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
     ///     for value in stack.slice_at(addr, args)? {
@@ -90,16 +90,16 @@ pub trait Memory {
     ///     Ok(())
     /// }
     /// ```
-    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError>;
+    fn slice_at(&self, addr: Address, len: usize) -> Result<&[Value], SliceError>;
 
     /// Access the given slice mutably.
     ///
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{InstAddress, Memory, Output, Value, VmError};
+    /// use rune::runtime::{Address, Memory, Output, Value, VmError};
     ///
-    /// fn drop_values(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn drop_values(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     for value in stack.slice_at_mut(addr, args)? {
     ///         *value = Value::empty();
     ///     }
@@ -108,16 +108,16 @@ pub trait Memory {
     ///     Ok(())
     /// }
     /// ```
-    fn slice_at_mut(&mut self, addr: InstAddress, len: usize) -> Result<&mut [Value], SliceError>;
+    fn slice_at_mut(&mut self, addr: Address, len: usize) -> Result<&mut [Value], SliceError>;
 
     /// Get a value mutable at the given index from the stack bottom.
     ///
     /// # Examples
     ///
     /// ```
-    /// use rune::runtime::{InstAddress, Memory, Output, VmError};
+    /// use rune::runtime::{Address, Memory, Output, VmError};
     ///
-    /// fn add_one(stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn add_one(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut value = stack.at_mut(addr)?;
     ///     let number = value.as_integer::<i64>()?;
     ///     *value = rune::to_value(number + 1)?;
@@ -125,10 +125,10 @@ pub trait Memory {
     ///     Ok(())
     /// }
     /// ```
-    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError>;
+    fn at_mut(&mut self, addr: Address) -> Result<&mut Value, StackError>;
 
     /// Get the slice at the given address with the given static length.
-    fn array_at<const N: usize>(&self, addr: InstAddress) -> Result<[&Value; N], SliceError>
+    fn array_at<const N: usize>(&self, addr: Address) -> Result<[&Value; N], SliceError>
     where
         Self: Sized,
     {
@@ -142,23 +142,23 @@ where
     M: Memory + ?Sized,
 {
     #[inline]
-    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+    fn slice_at(&self, addr: Address, len: usize) -> Result<&[Value], SliceError> {
         (**self).slice_at(addr, len)
     }
 
     #[inline]
-    fn slice_at_mut(&mut self, addr: InstAddress, len: usize) -> Result<&mut [Value], SliceError> {
+    fn slice_at_mut(&mut self, addr: Address, len: usize) -> Result<&mut [Value], SliceError> {
         (**self).slice_at_mut(addr, len)
     }
 
     #[inline]
-    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+    fn at_mut(&mut self, addr: Address) -> Result<&mut Value, StackError> {
         (**self).at_mut(addr)
     }
 }
 
 impl<const N: usize> Memory for [Value; N] {
-    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+    fn slice_at(&self, addr: Address, len: usize) -> Result<&[Value], SliceError> {
         if len == 0 {
             return Ok(&[]);
         }
@@ -176,7 +176,7 @@ impl<const N: usize> Memory for [Value; N] {
         Ok(values)
     }
 
-    fn slice_at_mut(&mut self, addr: InstAddress, len: usize) -> Result<&mut [Value], SliceError> {
+    fn slice_at_mut(&mut self, addr: Address, len: usize) -> Result<&mut [Value], SliceError> {
         if len == 0 {
             return Ok(&mut []);
         }
@@ -198,7 +198,7 @@ impl<const N: usize> Memory for [Value; N] {
     }
 
     #[inline]
-    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+    fn at_mut(&mut self, addr: Address) -> Result<&mut Value, StackError> {
         let Some(value) = self.get_mut(addr.offset()) else {
             return Err(StackError { addr });
         };
@@ -234,16 +234,16 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmError, InstAddress};
+    /// use rune::runtime::{Output, Stack, VmError, Address};
     ///
-    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn add_one(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let value = stack.at(addr).as_integer::<i64>()?;
     ///     out.store(stack, value + 1);
     ///     Ok(())
     /// }
     /// ```
     #[inline(always)]
-    pub fn at(&self, addr: InstAddress) -> &Value {
+    pub fn at(&self, addr: Address) -> &Value {
         self.top
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get(n))
@@ -257,9 +257,9 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmError, InstAddress};
+    /// use rune::runtime::{Output, Stack, VmError, Address};
     ///
-    /// fn add_one(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn add_one(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut value = stack.at_mut(addr)?;
     ///     let number = value.as_integer::<i64>()?;
     ///     *value = rune::to_value(number + 1)?;
@@ -267,7 +267,7 @@ impl Stack {
     ///     Ok(())
     /// }
     /// ```
-    pub fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+    pub fn at_mut(&mut self, addr: Address) -> Result<&mut Value, StackError> {
         self.top
             .checked_add(addr.offset())
             .and_then(|n| self.stack.get_mut(n))
@@ -281,9 +281,9 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, ToValue, VmError, InstAddress};
+    /// use rune::runtime::{Output, Stack, ToValue, VmError, Address};
     ///
-    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
     ///     for value in stack.slice_at(addr, args)? {
@@ -294,7 +294,7 @@ impl Stack {
     ///     Ok(())
     /// }
     /// ```
-    pub fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+    pub fn slice_at(&self, addr: Address, len: usize) -> Result<&[Value], SliceError> {
         let stack_len = self.stack.len();
 
         if let Some(slice) = inner_slice_at(&self.stack, self.top, addr, len) {
@@ -311,9 +311,9 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmError, InstAddress};
+    /// use rune::runtime::{Output, Stack, VmError, Address};
     ///
-    /// fn sum(stack: &mut Stack, addr: InstAddress, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     for value in stack.slice_at_mut(addr, args)? {
     ///         let number = value.as_integer::<i64>()?;
     ///         *value = rune::to_value(number + 1)?;
@@ -323,11 +323,7 @@ impl Stack {
     ///     Ok(())
     /// }
     /// ```
-    pub fn slice_at_mut(
-        &mut self,
-        addr: InstAddress,
-        len: usize,
-    ) -> Result<&mut [Value], SliceError> {
+    pub fn slice_at_mut(&mut self, addr: Address, len: usize) -> Result<&mut [Value], SliceError> {
         let stack_len = self.stack.len();
 
         if let Some(slice) = inner_slice_at_mut(&mut self.stack, self.top, addr, len) {
@@ -339,8 +335,8 @@ impl Stack {
 
     /// The current top address of the stack.
     #[inline]
-    pub(crate) const fn addr(&self) -> InstAddress {
-        InstAddress::new(self.stack.len().saturating_sub(self.top))
+    pub(crate) const fn addr(&self) -> Address {
+        Address::new(self.stack.len().saturating_sub(self.top))
     }
 
     /// Try to resize the stack with space for the given size.
@@ -385,7 +381,7 @@ impl Stack {
     }
 
     /// Truncate the stack at the given address.
-    pub(crate) fn truncate(&mut self, addr: InstAddress) {
+    pub(crate) fn truncate(&mut self, addr: Address) {
         if let Some(len) = self.top.checked_add(addr.offset()) {
             self.stack.truncate(len);
         }
@@ -419,7 +415,7 @@ impl Stack {
     }
 
     /// Swap the value at position a with the value at position b.
-    pub(crate) fn swap(&mut self, a: InstAddress, b: InstAddress) -> Result<(), StackError> {
+    pub(crate) fn swap(&mut self, a: Address, b: Address) -> Result<(), StackError> {
         if a == b {
             return Ok(());
         }
@@ -447,7 +443,7 @@ impl Stack {
     ///
     /// Returns the old stack top.
     #[tracing::instrument(skip_all)]
-    pub(crate) fn swap_top(&mut self, addr: InstAddress, len: usize) -> Result<usize, VmErrorKind> {
+    pub(crate) fn swap_top(&mut self, addr: Address, len: usize) -> Result<usize, VmErrorKind> {
         let old_len = self.stack.len();
 
         if len == 0 {
@@ -499,7 +495,7 @@ impl Stack {
     }
 
     /// Copy the value at the given address to the output.
-    pub(crate) fn copy(&mut self, from: InstAddress, out: Output) -> Result<(), StackError> {
+    pub(crate) fn copy(&mut self, from: Address, out: Output) -> Result<(), StackError> {
         let Some(to) = out.as_addr() else {
             return Ok(());
         };
@@ -513,7 +509,7 @@ impl Stack {
 
         if from.max(to) >= self.stack.len() {
             return Err(StackError {
-                addr: InstAddress::new(from.max(to).wrapping_sub(self.top)),
+                addr: Address::new(from.max(to).wrapping_sub(self.top)),
             });
         }
 
@@ -528,7 +524,7 @@ impl Stack {
     }
 
     /// Get a pair of addresses.
-    pub(crate) fn pair(&mut self, a: InstAddress, b: InstAddress) -> Result<Pair<'_>, StackError> {
+    pub(crate) fn pair(&mut self, a: Address, b: Address) -> Result<Pair<'_>, StackError> {
         if a == b {
             return Ok(Pair::Same(self.at_mut(a)?));
         }
@@ -556,23 +552,23 @@ impl Stack {
 
 impl Memory for Stack {
     #[inline]
-    fn slice_at(&self, addr: InstAddress, len: usize) -> Result<&[Value], SliceError> {
+    fn slice_at(&self, addr: Address, len: usize) -> Result<&[Value], SliceError> {
         Stack::slice_at(self, addr, len)
     }
 
     #[inline]
-    fn slice_at_mut(&mut self, addr: InstAddress, len: usize) -> Result<&mut [Value], SliceError> {
+    fn slice_at_mut(&mut self, addr: Address, len: usize) -> Result<&mut [Value], SliceError> {
         Stack::slice_at_mut(self, addr, len)
     }
 
     #[inline]
-    fn at_mut(&mut self, addr: InstAddress) -> Result<&mut Value, StackError> {
+    fn at_mut(&mut self, addr: Address) -> Result<&mut Value, StackError> {
         Stack::at_mut(self, addr)
     }
 }
 
 #[inline(always)]
-fn inner_slice_at(values: &[Value], top: usize, addr: InstAddress, len: usize) -> Option<&[Value]> {
+fn inner_slice_at(values: &[Value], top: usize, addr: Address, len: usize) -> Option<&[Value]> {
     if len == 0 {
         return Some(&[]);
     }
@@ -586,7 +582,7 @@ fn inner_slice_at(values: &[Value], top: usize, addr: InstAddress, len: usize) -
 fn inner_slice_at_mut(
     values: &mut [Value],
     top: usize,
-    addr: InstAddress,
+    addr: Address,
     len: usize,
 ) -> Option<&mut [Value]> {
     if len == 0 {
@@ -599,7 +595,7 @@ fn inner_slice_at_mut(
 }
 
 #[inline(always)]
-fn slice_error(stack: usize, bottom: usize, addr: InstAddress, len: usize) -> SliceError {
+fn slice_error(stack: usize, bottom: usize, addr: Address, len: usize) -> SliceError {
     SliceError {
         addr,
         len,

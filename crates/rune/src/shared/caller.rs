@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use crate::runtime::{FixedArgs, FunctionHandler, InstAddress, Output, VmError};
+use crate::runtime::{Address, FixedArgs, FunctionHandler, Output, VmError};
 use crate::FromValue;
 
 /// Helper struct to conveniently call native functions.
@@ -46,7 +46,7 @@ where
         let mut args = args.into_array()?;
 
         self.handler
-            .call(&mut args, InstAddress::ZERO, N, Output::keep(0))?;
+            .call(&mut args, Address::ZERO, N, Output::keep(0))?;
 
         let Some(value) = args.into_iter().next() else {
             unreachable!();

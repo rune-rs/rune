@@ -5,7 +5,7 @@ use core::slice;
 
 use crate::alloc::{vec, Vec};
 use crate::compile;
-use crate::runtime::InstAddress;
+use crate::runtime::inst;
 
 use super::Address;
 
@@ -42,10 +42,10 @@ impl<'a, 'hir> Linear<'a, 'hir> {
     }
 
     #[inline]
-    pub(super) fn addr(&self) -> InstAddress {
+    pub(super) fn addr(&self) -> inst::Address {
         match &self.addresses {
             Addresses::Single(address) => address.addr(),
-            Addresses::List(list) => list.first().map_or(InstAddress::INVALID, Address::addr),
+            Addresses::List(list) => list.first().map_or(inst::Address::INVALID, Address::addr),
         }
     }
 

@@ -24,7 +24,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
-use crate::runtime::{Call, ConstValue, DebugInfo, Inst, InstAddress, Rtti, StaticString};
+use crate::runtime::{Address, Call, ConstValue, DebugInfo, Inst, Rtti, StaticString};
 use crate::Hash;
 
 pub use self::storage::{ArrayUnit, EncodeError, UnitEncoder, UnitStorage};
@@ -85,7 +85,7 @@ pub struct Logic<S = DefaultStorage> {
     /// All keys are sorted with the default string sort.
     static_object_keys: Vec<Box<[String]>>,
     /// Drop sets.
-    drop_sets: Vec<Arc<[InstAddress]>>,
+    drop_sets: Vec<Arc<[Address]>>,
     /// Runtime information for types.
     rtti: hash::Map<Arc<Rtti>>,
     /// Named constants
@@ -111,7 +111,7 @@ impl<S> Unit<S> {
         static_strings: Vec<Arc<StaticString>>,
         static_bytes: Vec<Vec<u8>>,
         static_object_keys: Vec<Box<[String]>>,
-        drop_sets: Vec<Arc<[InstAddress]>>,
+        drop_sets: Vec<Arc<[Address]>>,
         rtti: hash::Map<Arc<Rtti>>,
         debug: Option<Box<DebugInfo>>,
         constants: hash::Map<ConstValue>,
@@ -166,7 +166,7 @@ impl<S> Unit<S> {
     /// Iterate over all available drop sets.
     #[cfg(feature = "cli")]
     #[inline]
-    pub(crate) fn iter_static_drop_sets(&self) -> impl Iterator<Item = &[InstAddress]> + '_ {
+    pub(crate) fn iter_static_drop_sets(&self) -> impl Iterator<Item = &[Address]> + '_ {
         self.logic.drop_sets.iter().map(|v| &**v)
     }
 
@@ -217,7 +217,7 @@ impl<S> Unit<S> {
     }
 
     #[inline]
-    pub(crate) fn lookup_drop_set(&self, set: usize) -> Option<&[InstAddress]> {
+    pub(crate) fn lookup_drop_set(&self, set: usize) -> Option<&[Address]> {
         Some(self.logic.drop_sets.get(set)?)
     }
 

@@ -83,10 +83,11 @@ pub use self::generator_state::GeneratorState;
 mod guarded_args;
 pub use self::guarded_args::GuardedArgs;
 
-mod inst;
-pub use self::inst::{
-    Inst, InstAddress, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget,
-    InstValue, InstVariant, IntoOutput, Output, PanicReason, TypeCheck,
+pub(crate) mod inst;
+pub use self::inst::{Address, Inst, IntoOutput, Output};
+pub(crate) use self::inst::{
+    InstArithmeticOp, InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget, InstValue,
+    InstVariant, PanicReason, TypeCheck,
 };
 
 mod iterator;
