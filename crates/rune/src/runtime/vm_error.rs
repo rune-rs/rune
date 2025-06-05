@@ -185,6 +185,7 @@ pub(crate) struct VmErrorInner {
 }
 
 /// A result produced by the virtual machine.
+#[deprecated = "Use `Result<T, VmError>` directly instead."]
 pub type VmResult<T> = Result<T, VmError>;
 
 impl<E> From<E> for VmError

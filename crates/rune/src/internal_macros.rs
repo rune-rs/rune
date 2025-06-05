@@ -63,13 +63,8 @@ macro_rules! assert_impl {
     };
 }
 
-/// Asynchronous helper to perform the try operation over [`VmResult`].
-///
-/// This can be used through [`rune::function`] by enabling the `vm_result`
-/// option and suffixing an expression with `<expr>.vm?`.
-///
-/// [`rune::function`]: macro@crate::function
-/// [`VmResult`]: crate::runtime::VmResult
+/// Asynchronous helper to perform the try operation over an asynchronous
+/// `Result`.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __async_vm_try {

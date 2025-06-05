@@ -197,6 +197,7 @@ pub(crate) use self::vm_diagnostics::VmDiagnosticsObj;
 mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;
+#[allow(deprecated)]
 pub use self::vm_error::{RuntimeError, VmError, VmResult};
 pub(crate) use self::vm_error::{VmErrorKind, VmIntegerRepr};
 
