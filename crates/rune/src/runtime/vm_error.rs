@@ -214,11 +214,8 @@ impl<const N: usize> From<[VmErrorKind; N]> for VmError {
     fn from(kinds: [VmErrorKind; N]) -> Self {
         let mut it = kinds.into_iter();
 
-        let first = match it.next() {
-            None => VmErrorKind::Panic {
-                reason: Panic::custom("Unknown error"),
-            },
-            Some(first) => first,
+        let Some(first) = it.next() else {
+            return VmError::panic("Cannot construct an empty collection of errors");
         };
 
         let mut chain = rust_alloc::vec::Vec::with_capacity(it.len());

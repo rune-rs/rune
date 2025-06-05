@@ -442,6 +442,7 @@ pub use rune_macros::attribute_macro;
 /// ```rust
 /// use rune::Any;
 /// use rune::runtime::Formatter;
+/// use rune::alloc::fmt::TryWrite;
 /// use rune::alloc;
 ///
 /// #[derive(Any)]
@@ -595,6 +596,11 @@ pub use rune_macros::attribute_macro;
 ///
 /// # Using `vm_result` and `<expr>.vm?`.
 ///
+/// > **Deprecated:** This feature will be removed in a future version of Rune.
+/// > It is not recommended that you use a `Result<T, VmError>` return type
+/// > directly and make use of helpers like [`nested_try!`] for propagating
+/// > inner errors.
+///
 /// In order to conveniently deal with virtual machine errors which require use
 /// [`VmResult`] this attribute macro supports the `vm_result` option.
 ///
@@ -657,6 +663,7 @@ pub use rune_macros::attribute_macro;
 ///
 /// [`vm_try!`]: crate::vm_try
 /// [`VmResult`]: crate::runtime::VmResult
+/// [`nested_try!`]: crate::nested_try
 #[doc(inline)]
 pub use rune_macros::function;
 

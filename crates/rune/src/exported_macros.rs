@@ -34,7 +34,10 @@ macro_rules! __nested_try {
         match $expr {
             Ok(value) => value,
             Err(err) => {
-                return Ok(Err(::core::convert::From::from(err)));
+                return Ok(Err(
+                    #[allow(clippy::useless_conversion)]
+                    ::core::convert::From::from(err),
+                ));
             }
         }
     };

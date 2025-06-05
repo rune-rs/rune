@@ -323,16 +323,18 @@ impl Function {
         let vm_result = VmResult::new();
 
         if attrs.vm_result {
-            let result = &vm_result.result;
+            let VmResult {
+                result, vm_error, ..
+            } = &vm_result;
 
             sig.output = match sig.output {
                 syn::ReturnType::Default => syn::ReturnType::Type(
                     <Token![->]>::default(),
-                    Box::new(syn::Type::Verbatim(quote!(#result<()>))),
+                    Box::new(syn::Type::Verbatim(quote!(#result<(), #vm_error>))),
                 ),
                 syn::ReturnType::Type(arrow, ty) => syn::ReturnType::Type(
                     arrow,
-                    Box::new(syn::Type::Verbatim(quote!(#result<#ty>))),
+                    Box::new(syn::Type::Verbatim(quote!(#result<#ty, #vm_error>))),
                 ),
             };
         }
@@ -421,6 +423,7 @@ fn expr_lit(ident: &syn::Ident) -> syn::Expr {
 struct VmResult {
     result: syn::Path,
     from: syn::Path,
+    vm_error: syn::Path,
 }
 
 impl VmResult {
@@ -428,6 +431,7 @@ impl VmResult {
         Self {
             result: syn::parse_quote!(::core::result::Result),
             from: syn::parse_quote!(::core::convert::From),
+            vm_error: syn::parse_quote!(rune::VmError),
         }
     }
 
@@ -486,7 +490,7 @@ impl VmResult {
     }
 
     fn expr(&self, ast: &mut syn::Expr) -> syn::Result<()> {
-        let Self { result, from } = self;
+        let Self { result, from, .. } = self;
 
         let outcome = 'outcome: {
             match ast {
@@ -609,18 +613,18 @@ impl VmResult {
 
                     self.expr(&mut expr.expr)?;
 
-                    break 'outcome if let Some((expr, ident)) = as_vm_expr(&mut expr.expr) {
-                        let vm_try = syn::Ident::new("nested_try", ident.span());
-                        quote_spanned!(span => rune::#vm_try!(#expr))
+                    break 'outcome if let Some(expr) = as_vm_expr(&mut expr.expr) {
+                        quote_spanned!(span => #expr?)
                     } else {
                         let value = &mut expr.expr;
-                        let from = quote_spanned!(expr.question_token.span() => #from::from);
 
                         quote_spanned! {
                             span =>
                             match #value {
                                 #result::Ok(value) => value,
-                                #result::Err(error) => return #result::Ok(#result::Err(#[allow(clippy::useless_conversion)] #from(error))),
+                                #result::Err(error) => {
+                                    return #result::Ok(#result::Err(#[allow(clippy::useless_conversion)] #from::from(error)));
+                                }
                             }
                         }
                     };
@@ -657,7 +661,7 @@ impl VmResult {
 }
 
 /// If this is a field expression like `<expr>.vm`.
-fn as_vm_expr(expr: &mut syn::Expr) -> Option<(&mut syn::Expr, &syn::Ident)> {
+fn as_vm_expr(expr: &mut syn::Expr) -> Option<&mut syn::Expr> {
     let syn::Expr::Field(expr) = expr else {
         return None;
     };
@@ -666,5 +670,5 @@ fn as_vm_expr(expr: &mut syn::Expr) -> Option<(&mut syn::Expr, &syn::Ident)> {
         return None;
     };
 
-    (ident == "vm").then_some((&mut expr.base, ident))
+    (ident == "vm").then_some(&mut expr.base)
 }
