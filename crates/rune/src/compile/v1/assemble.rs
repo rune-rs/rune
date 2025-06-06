@@ -746,15 +746,8 @@ fn pat_sequence_kind_to_inst(
     out: Output,
 ) -> compile::Result<inst::Kind> {
     let inst = match kind {
-        hir::PatSequenceKind::Type {
+        hir::PatSequenceKind::Type { hash, variant_hash } => inst::Kind::MatchType {
             hash,
-            variant_hash: Hash::EMPTY,
-        } => inst::Kind::MatchType { hash, addr, out },
-        hir::PatSequenceKind::Type {
-            hash: enum_hash,
-            variant_hash,
-        } => inst::Kind::MatchVariant {
-            enum_hash,
             variant_hash,
             addr,
             out,
@@ -814,19 +807,8 @@ fn pat_object<'a, 'hir>(
     }
 
     let inst = match hir.kind {
-        hir::PatSequenceKind::Type {
+        hir::PatSequenceKind::Type { hash, variant_hash } => inst::Kind::MatchType {
             hash,
-            variant_hash: Hash::EMPTY,
-        } => inst::Kind::MatchType {
-            hash,
-            addr: addr.addr(),
-            out: cond.output(),
-        },
-        hir::PatSequenceKind::Type {
-            hash: enum_hash,
-            variant_hash,
-        } => inst::Kind::MatchVariant {
-            enum_hash,
             variant_hash,
             addr: addr.addr(),
             out: cond.output(),
