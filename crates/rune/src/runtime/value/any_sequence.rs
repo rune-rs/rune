@@ -135,7 +135,7 @@ impl<H, T> AnySequence<H, T> {
 
     /// Borrow the interior data array by reference.
     #[inline]
-    pub(crate) fn borrow_ref(&self) -> Result<BorrowRef<[T]>, AccessError> {
+    pub(crate) fn borrow_ref(&self) -> Result<BorrowRef<'_, [T]>, AccessError> {
         // SAFETY: We know the layout is valid since it is reference counted.
         unsafe {
             let guard = self.shared.as_ref().access.shared()?;
@@ -147,7 +147,7 @@ impl<H, T> AnySequence<H, T> {
 
     /// Borrow the interior data array by mutable reference.
     #[inline]
-    pub(crate) fn borrow_mut(&self) -> Result<BorrowMut<[T]>, AccessError> {
+    pub(crate) fn borrow_mut(&self) -> Result<BorrowMut<'_, [T]>, AccessError> {
         // SAFETY: We know the layout is valid since it is reference counted.
         unsafe {
             let guard = self.shared.as_ref().access.exclusive()?;
