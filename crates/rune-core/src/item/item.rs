@@ -390,10 +390,10 @@ impl Item {
         Some(it.into_item())
     }
 
-    /// Display an unqalified variant of the item which does not include `::` if
+    /// Display an unqualified variant of the item which does not include `::` if
     /// a crate is present.
-    pub fn unqalified(&self) -> Unqalified {
-        Unqalified::new(self)
+    pub fn unqualified(&self) -> Unqualified<'_> {
+        Unqualified::new(self)
     }
 }
 
@@ -507,17 +507,17 @@ impl PartialEq<Iter<'_>> for &Item {
 }
 
 /// Display an unqalified path.
-pub struct Unqalified<'a> {
+pub struct Unqualified<'a> {
     item: &'a Item,
 }
 
-impl<'a> Unqalified<'a> {
+impl<'a> Unqualified<'a> {
     fn new(item: &'a Item) -> Self {
         Self { item }
     }
 }
 
-impl fmt::Display for Unqalified<'_> {
+impl fmt::Display for Unqualified<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut it = self.item.iter();
 
