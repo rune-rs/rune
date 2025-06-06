@@ -54,7 +54,9 @@ pub use self::const_value::ToConstValue;
 pub use self::const_value::{
     from_const_value, to_const_value, ConstConstruct, ConstValue, FromConstValue,
 };
-pub(crate) use self::const_value::{ConstContext, ConstValueKind, EmptyConstContext};
+pub(crate) use self::const_value::{
+    ConstContext, ConstInstance, ConstValueKind, EmptyConstContext,
+};
 
 pub mod debug;
 pub use self::debug::{DebugInfo, DebugInst};
@@ -201,7 +203,8 @@ mod vm_error;
 #[cfg(feature = "emit")]
 pub(crate) use self::vm_error::VmErrorAt;
 #[allow(deprecated)]
-pub use self::vm_error::{RuntimeError, VmError, VmResult};
+pub use self::vm_error::VmResult;
+pub use self::vm_error::{ExpectedType, RuntimeError, VmError};
 pub(crate) use self::vm_error::{VmErrorKind, VmIntegerRepr};
 
 mod vm_execution;

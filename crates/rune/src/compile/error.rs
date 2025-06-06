@@ -20,7 +20,9 @@ use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{AccessError, AnyObjError, RuntimeError, TypeInfo, TypeOf, VmError};
+use crate::runtime::{
+    AccessError, AnyObjError, ExpectedType, RuntimeError, TypeInfo, TypeOf, VmError,
+};
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, Item, ItemBuf, SourceId};
@@ -182,6 +184,16 @@ where
     }
 }
 
+impl From<ExpectedType> for ErrorKind {
+    #[inline]
+    fn from(error: ExpectedType) -> Self {
+        ErrorKind::ExpectedType {
+            actual: error.actual,
+            expected: error.expected,
+        }
+    }
+}
+
 impl From<alloc::Error> for rust_alloc::boxed::Box<ErrorKind> {
     #[inline]
     fn from(error: alloc::Error) -> Self {
@@ -274,6 +286,10 @@ pub(crate) enum ErrorKind {
     SourceError {
         path: PathBuf,
         error: source::FromPathError,
+    },
+    ExpectedType {
+        actual: TypeInfo,
+        expected: TypeInfo,
     },
     Expected {
         actual: Expectation,
@@ -718,6 +734,9 @@ impl fmt::Display for ErrorKind {
                     "Failed to load source at `{path}`: {error}",
                     path = path.display(),
                 )?;
+            }
+            ErrorKind::ExpectedType { actual, expected } => {
+                write!(f, "Expected type `{expected}` but found `{actual}`")?;
             }
             ErrorKind::Expected { actual, expected } => {
                 write!(f, "Expected {expected} but got {actual}")?;
