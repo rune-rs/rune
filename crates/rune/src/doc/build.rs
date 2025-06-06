@@ -1225,7 +1225,7 @@ fn serialize_item<S>(item: &Item, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    serializer.collect_str(&item.unqalified())
+    serializer.collect_str(&item.unqualified())
 }
 
 /// Helper to serialize a component ref.
