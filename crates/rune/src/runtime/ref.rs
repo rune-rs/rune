@@ -68,6 +68,7 @@ impl<T> From<Arc<T>> for Ref<T> {
     ///
     /// ```
     /// use std::sync::Arc;
+    ///
     /// use rune::Ref;
     ///
     /// let value: Ref<String> = Ref::from(Arc::new(String::from("hello world")));

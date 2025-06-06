@@ -1,7 +1,6 @@
 prelude!();
 
 use std::cmp::Ordering;
-use std::sync::Arc;
 
 #[test]
 fn struct_assign() -> Result<()> {
@@ -39,6 +38,7 @@ fn struct_assign() -> Result<()> {
 
             let mut context = Context::default();
             context.install(module)?;
+            let runtime = Arc::try_new(context.runtime()?)?;
 
             let mut sources = Sources::new();
             sources.insert(Source::new(
@@ -57,9 +57,8 @@ fn struct_assign() -> Result<()> {
                 .with_context(&context)
                 .build()?;
 
-            let unit = Arc::new(unit);
-
-            let vm = Vm::new(Arc::new(context.runtime()?), unit);
+            let unit = Arc::try_new(unit)?;
+            let vm = Vm::new(runtime, unit);
 
             {
                 let mut foo = External::default();
@@ -121,6 +120,7 @@ fn tuple_assign() -> Result<()> {
 
             let mut context = Context::default();
             context.install(module)?;
+            let runtime = Arc::try_new(context.runtime()?)?;
 
             let mut sources = Sources::new();
             sources.insert(Source::new(
@@ -139,9 +139,8 @@ fn tuple_assign() -> Result<()> {
                 .with_context(&context)
                 .build()?;
 
-            let unit = Arc::new(unit);
-
-            let vm = Vm::new(Arc::new(context.runtime()?), unit);
+            let unit = Arc::try_new(unit)?;
+            let vm = Vm::new(runtime, unit);
 
             {
                 let mut foo = External::default();
@@ -196,6 +195,7 @@ fn struct_binary() -> Result<()> {
 
             let mut context = Context::default();
             context.install(module)?;
+            let runtime = Arc::try_new(context.runtime()?)?;
 
             let source = format!("pub fn type(number) {{ number {op} {arg} }}", op = stringify!($($op)*), arg = stringify!($arg));
 
@@ -206,9 +206,8 @@ fn struct_binary() -> Result<()> {
                 .with_context(&context)
                 .build()?;
 
-            let unit = Arc::new(unit);
-
-            let mut vm = Vm::new(Arc::new(context.runtime()?), unit);
+            let unit = Arc::try_new(unit)?;
+            let mut vm = Vm::new(runtime, unit);
 
             let foo = External { value: $initial };
             let output = vm.call(["type"], (foo,))?;
@@ -255,6 +254,7 @@ fn struct_unary() -> Result<()> {
 
             let mut context = Context::default();
             context.install(module)?;
+            let runtime = Arc::try_new(context.runtime()?)?;
 
             let source = format!("pub fn type(value) {{ {op} value }}", op = stringify!($($op)*));
 
@@ -265,9 +265,8 @@ fn struct_unary() -> Result<()> {
                 .with_context(&context)
                 .build()?;
 
-            let unit = Arc::new(unit);
-
-            let mut vm = Vm::new(Arc::new(context.runtime()?), unit);
+            let unit = Arc::try_new(unit)?;
+            let mut vm = Vm::new(runtime, unit);
 
             let external = External { value: $initial };
 
@@ -310,6 +309,8 @@ fn ordering_struct() -> Result<()> {
             let mut context = Context::default();
             context.install(module)?;
 
+            let runtime = Arc::try_new(context.runtime()?)?;
+
             let mut sources = Sources::new();
             sources.insert(Source::new(
                 "test",
@@ -324,9 +325,8 @@ fn ordering_struct() -> Result<()> {
                 .with_context(&context)
                 .build()?;
 
-            let unit = Arc::new(unit);
-
-            let vm = Vm::new(Arc::new(context.runtime()?), unit);
+            let unit = Arc::try_new(unit)?;
+            let vm = Vm::new(runtime, unit);
 
             {
                 let mut foo = External::default();
@@ -379,6 +379,8 @@ fn eq_struct() -> Result<()> {
             let mut context = Context::default();
             context.install(module)?;
 
+            let runtime = Arc::try_new(context.runtime()?)?;
+
             let mut sources = Sources::new();
             sources.insert(Source::new(
                 "test",
@@ -391,9 +393,8 @@ fn eq_struct() -> Result<()> {
                 .with_context(&context)
                 .build()?;
 
-            let unit = Arc::new(unit);
-
-            let vm = Vm::new(Arc::new(context.runtime()?), unit);
+            let unit = Arc::try_new(unit)?;
+            let vm = Vm::new(runtime, unit);
 
             {
                 let mut foo = External::default();

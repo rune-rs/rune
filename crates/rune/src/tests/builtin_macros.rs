@@ -12,6 +12,8 @@ macro_rules! capture {
         let mut context = Context::with_config(false).context("building context")?;
         context.install(module).context("installing module")?;
 
+        let runtime = Arc::try_new(context.runtime()?)?;
+
         let source = Source::memory(stringify!($($tt)*)).context("building source")?;
 
         let mut sources = Sources::new();
@@ -33,14 +35,12 @@ macro_rules! capture {
             diagnostics.emit(&mut writer, &sources)?;
         }
 
-        let unit = Arc::new(unit.context("building unit")?);
+        let unit = unit?;
+        let unit = Arc::try_new(unit)?;
+        let mut vm = Vm::new(runtime, unit);
 
-        let context = context.runtime().context("constructing runtime context")?;
-        let context = Arc::new(context);
-
-        let mut vm = Vm::new(context, unit);
-        vm.call(Hash::EMPTY, ()).context("calling main")?;
-        capture.drain_utf8().context("draining utf-8 capture")?
+        vm.call(Hash::EMPTY, ())?;
+        capture.drain_utf8()?
     }};
 }
 

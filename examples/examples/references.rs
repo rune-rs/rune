@@ -1,8 +1,7 @@
 use rune::runtime::Protocol;
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Any, Diagnostics, Module, Vm};
-
-use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
 struct Foo {
@@ -24,7 +23,7 @@ fn main() -> rune::support::Result<()> {
     let mut context = rune_modules::default_context()?;
     context.install(module)?;
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -47,8 +46,9 @@ fn main() -> rune::support::Result<()> {
     }
 
     let unit = result?;
+    let unit = Arc::try_new(unit)?;
 
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let mut vm = Vm::new(runtime, unit);
 
     let mut foo = Foo::default();
     let _ = vm.call(["main"], (&mut foo,))?;

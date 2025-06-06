@@ -5,8 +5,6 @@
 
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, try_format, Box, HashMap, String, Vec};
@@ -22,6 +20,7 @@ use crate::runtime::{
     Address, Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, RttiKind,
     StaticString, Unit, UnitFn,
 };
+use crate::sync::Arc;
 use crate::{Context, Diagnostics, Hash, Item, SourceId};
 
 /// Errors that can be raised when linking units.
@@ -208,7 +207,7 @@ impl UnitBuilder {
         }
 
         let new_slot = self.static_strings.len();
-        self.static_strings.try_push(Arc::new(current))?;
+        self.static_strings.try_push(Arc::try_new(current)?)?;
         self.static_string_rev.try_insert(hash, new_slot)?;
         Ok(new_slot)
     }
@@ -329,13 +328,13 @@ impl UnitBuilder {
 
         match meta.kind {
             meta::Kind::Type { .. } => {
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Empty,
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
-                });
+                })?;
 
                 self.constants
                     .try_insert(
@@ -368,13 +367,13 @@ impl UnitBuilder {
                     DebugArgs::EmptyArgs,
                 );
 
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Empty,
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
-                });
+                })?;
 
                 if self
                     .rtti
@@ -418,13 +417,13 @@ impl UnitBuilder {
                 enum_hash,
                 ..
             } => {
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Empty,
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
-                });
+                })?;
 
                 if self
                     .rtti
@@ -478,13 +477,13 @@ impl UnitBuilder {
                     DebugArgs::TupleArgs(args),
                 );
 
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Tuple,
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
-                });
+                })?;
 
                 if self
                     .rtti
@@ -528,13 +527,13 @@ impl UnitBuilder {
                 enum_hash,
                 ..
             } => {
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Tuple,
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: HashMap::default(),
-                });
+                })?;
 
                 if self
                     .rtti
@@ -581,13 +580,13 @@ impl UnitBuilder {
                 enum_hash: Hash::EMPTY,
                 ..
             } => {
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Struct,
                     hash: meta.hash,
                     variant_hash: Hash::EMPTY,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
-                });
+                })?;
 
                 self.constants
                     .try_insert(
@@ -613,13 +612,13 @@ impl UnitBuilder {
                 enum_hash,
                 ..
             } => {
-                let rtti = Arc::new(Rtti {
+                let rtti = Arc::try_new(Rtti {
                     kind: RttiKind::Struct,
                     hash: enum_hash,
                     variant_hash: meta.hash,
                     item: pool.item(meta.item_meta.item).try_to_owned()?,
                     fields: named.to_fields()?,
-                });
+                })?;
 
                 if self
                     .rtti
@@ -979,7 +978,7 @@ impl DropSet<'_> {
             .try_insert(self.addresses.try_clone()?, set)?;
         self.builder
             .drop_sets
-            .try_push(Arc::from(&self.addresses[..]))?;
+            .try_push(Arc::copy_from_slice(&self.addresses[..])?)?;
         Ok(Some(set))
     }
 }

@@ -182,7 +182,7 @@ fn compile(mut sources: Sources) -> Result<Vm> {
     let mut context = Context::with_default_modules()?;
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
     let mut diagnostics = Diagnostics::new();
 
     let result = rune::prepare(&mut sources)
@@ -196,6 +196,6 @@ fn compile(mut sources: Sources) -> Result<Vm> {
     }
 
     let unit = result?;
-    let unit = Arc::new(unit);
+    let unit = Arc::try_new(unit)?;
     Ok(Vm::new(runtime, unit))
 }

@@ -380,8 +380,7 @@ pub trait AnyMarker: Any {}
 ///
 /// ```rust
 /// use rune::Any;
-///
-/// use std::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// #[derive(Any)]
 /// struct External {

@@ -2,8 +2,6 @@ use core::borrow::Borrow;
 use core::cmp::Ordering;
 use core::hash;
 
-use rust_alloc::sync::Arc;
-
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 #[cfg(feature = "serde")]
@@ -13,6 +11,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::HashMap;
 use crate::item::Item;
 use crate::runtime::{FieldMap, TypeInfo, Value};
+use crate::sync::Arc;
 use crate::{Hash, ItemBuf};
 
 /// Field accessor for a variant struct.
@@ -90,8 +89,8 @@ impl Rtti {
 
     /// Access the type information for the RTTI.
     #[inline]
-    pub fn type_info(self: Arc<Self>) -> TypeInfo {
-        TypeInfo::rtti(self)
+    pub fn type_info(this: Arc<Self>) -> TypeInfo {
+        TypeInfo::rtti(this)
     }
 }
 

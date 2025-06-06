@@ -2,8 +2,6 @@
 
 prelude!();
 
-use std::sync::Arc;
-
 use anyhow::{anyhow, bail, Context as _, Result};
 
 use rune::compile::Named;
@@ -43,7 +41,10 @@ fn make_native_module() -> Result<Module, ContextError> {
 fn compile(mut sources: Sources) -> Result<Vm> {
     let mut context = Context::with_default_modules()?;
     context.install(make_native_module()?)?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+
     let mut diagnostics = Diagnostics::default();
+
     let result = rune::prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
@@ -57,7 +58,8 @@ fn compile(mut sources: Sources) -> Result<Vm> {
     }
 
     let unit = result?;
-    Ok(Vm::new(Arc::new(context.runtime()?), Arc::new(unit)))
+    let unit = Arc::try_new(unit)?;
+    Ok(Vm::new(runtime, unit))
 }
 
 // This is similar to the generic test that existed before, but ensures that the

@@ -1,10 +1,9 @@
+use rune::sync::Arc;
 use rune::{Context, Vm};
-
-use std::sync::Arc;
 
 fn main() -> rune::support::Result<()> {
     let context = Context::with_default_modules()?;
-    let context = Arc::new(context.runtime()?);
+    let context = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -19,8 +18,7 @@ fn main() -> rune::support::Result<()> {
     };
 
     let unit = rune::prepare(&mut sources).build()?;
-    let unit = Arc::new(unit);
-
+    let unit = Arc::try_new(unit)?;
     let vm = Vm::new(context, unit);
 
     // Looking up an item from the source.

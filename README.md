@@ -76,10 +76,9 @@ The following is a complete example, including rich diagnostics using
 ```rust
 use rune::{Context, Diagnostics, Source, Sources, Vm};
 use rune::termcolor::{ColorChoice, StandardStream};
-use std::sync::Arc;
+use rune::sync::Arc;
 
 let context = Context::with_default_modules()?;
-let runtime = Arc::new(context.runtime()?);
 
 let mut sources = Sources::new();
 sources.insert(Source::memory("pub fn add(a, b) { a + b }")?);
@@ -89,15 +88,14 @@ let mut diagnostics = Diagnostics::new();
 let result = rune::prepare(&mut sources)
     .with_context(&context)
     .with_diagnostics(&mut diagnostics)
-    .build();
+    .build_vm();
 
 if !diagnostics.is_empty() {
     let mut writer = StandardStream::stderr(ColorChoice::Always);
     diagnostics.emit(&mut writer, &sources)?;
 }
 
-let unit = result?;
-let mut vm = Vm::new(runtime, Arc::new(unit));
+let mut vm = result?;
 
 let output = vm.call(["add"], (10i64, 20i64))?;
 let output: i64 = rune::from_value(output)?;

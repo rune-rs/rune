@@ -3,9 +3,7 @@ prelude!();
 #[derive(Any)]
 struct MyAny;
 
-fn get_vm() -> crate::support::Result<crate::Vm> {
-    use std::sync::Arc;
-
+fn get_vm() -> crate::support::Result<Vm> {
     let mut sources = crate::sources! {
         entry => {
             enum Enum {
@@ -19,7 +17,8 @@ fn get_vm() -> crate::support::Result<crate::Vm> {
     };
 
     let unit = crate::prepare(&mut sources).build()?;
-    Ok(crate::Vm::without_runtime(Arc::new(unit)))
+    let unit = Arc::try_new(unit)?;
+    Ok(Vm::without_runtime(unit)?)
 }
 
 #[test]

@@ -42,4 +42,50 @@
 //! [`RefCell`]: core::cell
 
 #[doc(inline)]
-pub use rune_alloc::*;
+pub use rune_alloc::abort;
+#[doc(inline)]
+pub use rune_alloc::alloc;
+#[doc(inline)]
+pub use rune_alloc::borrow;
+#[doc(inline)]
+pub use rune_alloc::clone;
+#[doc(inline)]
+pub use rune_alloc::fmt;
+#[doc(inline)]
+pub use rune_alloc::iter;
+#[doc(inline)]
+pub use rune_alloc::limit;
+#[doc(inline)]
+pub use rune_alloc::path;
+#[doc(inline)]
+pub use rune_alloc::str;
+#[doc(inline)]
+pub use rune_alloc::sync;
+#[doc(inline)]
+pub use rune_alloc::{boxed, Box};
+#[doc(inline)]
+pub use rune_alloc::{btree_map, BTreeMap};
+#[doc(inline)]
+pub use rune_alloc::{btree_set, BTreeSet};
+#[doc(inline)]
+pub use rune_alloc::{error, Error, Result};
+#[doc(inline)]
+pub use rune_alloc::{hash_map, HashMap};
+#[doc(inline)]
+pub use rune_alloc::{hash_set, HashSet};
+#[doc(inline)]
+pub use rune_alloc::{string, String};
+#[doc(inline)]
+pub use rune_alloc::{try_format, try_vec};
+#[doc(inline)]
+pub use rune_alloc::{vec, Vec};
+#[doc(inline)]
+pub use rune_alloc::{vec_deque, VecDeque};
+
+pub mod prelude {
+    //! Prelude for common traits used in combination with this crate which
+    //! matches the behavior of the std prelude.
+
+    #[doc(inline)]
+    pub use rune_alloc::prelude::*;
+}

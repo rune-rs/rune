@@ -5,8 +5,6 @@ use core::any;
 use core::cmp::Ordering;
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 #[cfg(feature = "musli")]
 use musli::{Decode, Encode};
 #[cfg(feature = "serde")]
@@ -16,7 +14,7 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::runtime;
 use crate::{self as rune};
-use crate::{hash_in, Hash, TypeHash};
+use crate::{declare_dyn_trait, hash_in, Hash, TypeHash};
 
 use super::{
     AnyTypeInfo, Bytes, ExpectedType, FromValue, Inline, Object, OwnedTuple, Repr, RuntimeError,
@@ -160,8 +158,8 @@ pub trait ToConstValue: Sized {
     /// Return the constant constructor for the given type.
     #[inline]
     #[doc(hidden)]
-    fn construct() -> Option<Arc<dyn ConstConstruct>> {
-        None
+    fn construct() -> alloc::Result<Option<ConstConstructImpl>> {
+        Ok(None)
     }
 }
 
@@ -713,30 +711,38 @@ macro_rules! impl_integer {
 
 impl_integer!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
-/// Implementation of a constant constructor.
-///
-/// Do not implement manually, this is provided when deriving [`ToConstValue`].
-///
-/// [`ToConstValue`]: derive@ToConstValue
-pub trait ConstConstruct: 'static + Send + Sync {
-    /// Construct from values.
-    #[doc(hidden)]
-    fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
+declare_dyn_trait! {
+    /// The vtable for constant constructors.
+    struct ConstConstructVtable;
 
-    /// Construct from values.
-    #[doc(hidden)]
-    fn runtime_construct(&self, fields: &mut [Value]) -> Result<Value, RuntimeError>;
+    /// The implementation wrapper for a constant constructor.
+    pub struct ConstConstructImpl;
+
+    /// Implementation of a constant constructor.
+    ///
+    /// Do not implement manually, this is provided when deriving [`ToConstValue`].
+    ///
+    /// [`ToConstValue`]: derive@ToConstValue
+    pub trait ConstConstruct {
+        /// Construct from values.
+        #[doc(hidden)]
+        fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
+
+        /// Construct from values.
+        #[doc(hidden)]
+        fn runtime_construct(&self, fields: &mut [Value]) -> Result<Value, RuntimeError>;
+    }
 }
 
 pub(crate) trait ConstContext {
-    fn get(&self, hash: Hash) -> Option<&dyn ConstConstruct>;
+    fn get(&self, hash: Hash) -> Option<&ConstConstructImpl>;
 }
 
 pub(crate) struct EmptyConstContext;
 
 impl ConstContext for EmptyConstContext {
     #[inline]
-    fn get(&self, _: Hash) -> Option<&dyn ConstConstruct> {
+    fn get(&self, _: Hash) -> Option<&ConstConstructImpl> {
         None
     }
 }

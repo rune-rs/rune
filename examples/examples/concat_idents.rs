@@ -2,10 +2,9 @@ use rune::ast;
 use rune::compile;
 use rune::macros::{quote, MacroContext, TokenStream};
 use rune::parse::Parser;
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, Diagnostics, Module, Vm, T};
-
-use std::sync::Arc;
 
 #[rune::macro_]
 fn concat_idents(
@@ -41,7 +40,7 @@ fn main() -> rune::support::Result<()> {
     let mut context = Context::new();
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -65,9 +64,9 @@ fn main() -> rune::support::Result<()> {
     }
 
     let unit = result?;
-    let unit = Arc::new(unit);
-
+    let unit = Arc::try_new(unit)?;
     let mut vm = Vm::new(runtime, unit);
+
     let value = vm.call(["main"], ())?;
     let value: u32 = rune::from_value(value)?;
 

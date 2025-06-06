@@ -4,9 +4,10 @@ use core::fmt;
 use core::hash;
 use core::iter;
 
+use rune_alloc::hashbrown::raw::RawIter;
+
 use crate as rune;
 use crate::alloc::hash_map;
-use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::runtime::{

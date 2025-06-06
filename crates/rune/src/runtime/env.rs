@@ -13,10 +13,10 @@ use core::ptr::NonNull;
 #[cfg_attr(feature = "std", path = "env/std.rs")]
 mod no_std;
 
-use rust_alloc::sync::Arc;
-
+use crate::alloc::alloc::Global;
 use crate::runtime::vm_diagnostics::VmDiagnosticsObj;
 use crate::runtime::{RuntimeContext, Unit, VmError, VmErrorKind};
+use crate::sync::Arc;
 
 /// Access shared parts of the environment.
 ///
@@ -40,8 +40,9 @@ where
     // Safety: context and unit can only be registered publicly through
     // [`Guard`], which makes sure that they are live for the duration of the
     // registration.
-    let context = unsafe { ManuallyDrop::new(Arc::from_raw(context.as_ptr().cast_const())) };
-    let unit = unsafe { ManuallyDrop::new(Arc::from_raw(unit.as_ptr().cast_const())) };
+    let context =
+        unsafe { ManuallyDrop::new(Arc::from_raw_in(context.as_ptr().cast_const(), Global)) };
+    let unit = unsafe { ManuallyDrop::new(Arc::from_raw_in(unit.as_ptr().cast_const(), Global)) };
     c(&context, &unit)
 }
 
@@ -74,8 +75,9 @@ where
     // Safety: context and unit can only be registered publicly through
     // [`Guard`], which makes sure that they are live for the duration of the
     // registration.
-    let context = unsafe { ManuallyDrop::new(Arc::from_raw(context.as_ptr().cast_const())) };
-    let unit = unsafe { ManuallyDrop::new(Arc::from_raw(unit.as_ptr().cast_const())) };
+    let context =
+        unsafe { ManuallyDrop::new(Arc::from_raw_in(context.as_ptr().cast_const(), Global)) };
+    let unit = unsafe { ManuallyDrop::new(Arc::from_raw_in(unit.as_ptr().cast_const(), Global)) };
     let diagnostics = match guard.env.diagnostics {
         Some(mut d) => Some(unsafe { d.as_mut() }),
         None => None,
@@ -94,15 +96,19 @@ impl Guard {
     /// # Safety
     ///
     /// The returned guard must be dropped before the pointed to elements are.
+    #[inline]
     pub(crate) fn new(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
         diagnostics: Option<NonNull<VmDiagnosticsObj>>,
     ) -> Guard {
+        let (context, Global) = Arc::into_raw_with_allocator(context);
+        let (unit, Global) = Arc::into_raw_with_allocator(unit);
+
         let env = unsafe {
             self::no_std::rune_env_replace(Env {
-                context: Some(NonNull::new_unchecked(Arc::into_raw(context).cast_mut())),
-                unit: Some(NonNull::new_unchecked(Arc::into_raw(unit).cast_mut())),
+                context: Some(NonNull::new_unchecked(context.cast_mut())),
+                unit: Some(NonNull::new_unchecked(unit.cast_mut())),
                 diagnostics,
             })
         };
@@ -112,16 +118,17 @@ impl Guard {
 }
 
 impl Drop for Guard {
+    #[inline]
     fn drop(&mut self) {
         let old_env = self::no_std::rune_env_replace(self.env);
 
         unsafe {
             if let Some(context) = old_env.context {
-                drop(Arc::from_raw(context.as_ptr().cast_const()));
+                drop(Arc::from_raw_in(context.as_ptr().cast_const(), Global));
             }
 
             if let Some(unit) = old_env.unit {
-                drop(Arc::from_raw(unit.as_ptr().cast_const()));
+                drop(Arc::from_raw_in(unit.as_ptr().cast_const(), Global));
             }
         }
     }

@@ -6,9 +6,10 @@ use core::marker::PhantomData;
 use core::mem;
 use core::ptr;
 
+use rune_alloc::hashbrown::raw::{RawIter, RawTable};
+use rune_alloc::hashbrown::ErrorOrInsertSlot;
+
 use crate::alloc;
-use crate::alloc::hashbrown::raw::{RawIter, RawTable};
-use crate::alloc::hashbrown::ErrorOrInsertSlot;
 use crate::alloc::prelude::*;
 use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError};
 
@@ -298,7 +299,9 @@ impl<'a> StateHasher<'a> {
     }
 }
 
-impl<V> alloc::hashbrown::HasherFn<dyn ProtocolCaller, (Value, V), VmError> for StateHasher<'_> {
+impl<V> rune_alloc::hashbrown::HasherFn<dyn ProtocolCaller, (Value, V), VmError>
+    for StateHasher<'_>
+{
     #[inline]
     fn hash(&self, cx: &mut dyn ProtocolCaller, (key, _): &(Value, V)) -> Result<u64, VmError> {
         hash(self.state, key, cx)
@@ -318,7 +321,7 @@ impl<'a> KeyEq<'a> {
     }
 }
 
-impl<V> alloc::hashbrown::EqFn<dyn ProtocolCaller, (Value, V), VmError> for KeyEq<'_> {
+impl<V> rune_alloc::hashbrown::EqFn<dyn ProtocolCaller, (Value, V), VmError> for KeyEq<'_> {
     #[inline]
     fn eq(&self, cx: &mut dyn ProtocolCaller, (other, _): &(Value, V)) -> Result<bool, VmError> {
         self.key.eq_with(other, cx)

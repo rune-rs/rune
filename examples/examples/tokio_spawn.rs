@@ -1,13 +1,12 @@
 use rune::alloc::prelude::*;
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Diagnostics, Vm};
-
-use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> rune::support::Result<()> {
     let context = rune_modules::default_context()?;
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -30,8 +29,8 @@ async fn main() -> rune::support::Result<()> {
     }
 
     let unit = result?;
-
-    let vm = Vm::new(runtime, Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let vm = Vm::new(runtime, unit);
 
     let execution = vm.try_clone()?.send_execute(["main"], (5u32,))?;
     let t1 = tokio::spawn(async move {

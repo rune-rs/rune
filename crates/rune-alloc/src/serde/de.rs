@@ -4,6 +4,7 @@ use core::marker::PhantomData;
 use serde::de::{Deserialize, Deserializer, Error, SeqAccess, Visitor};
 
 use crate::boxed::Box;
+use crate::sync::Arc;
 use crate::vec::Vec;
 
 mod size_hint {
@@ -66,6 +67,8 @@ macro_rules! forwarded_impl {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 forwarded_impl!(<T>, Box<T>, Box::try_new);
+#[cfg(any(feature = "std", feature = "alloc"))]
+forwarded_impl!(<T>, Arc<T>, Arc::try_new);
 
 impl<'de, T> Deserialize<'de> for Vec<T>
 where
@@ -165,6 +168,7 @@ impl<'de, T> Deserialize<'de> for Box<[T]>
 where
     T: Deserialize<'de>,
 {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -172,5 +176,19 @@ where
         Vec::<T>::deserialize(deserializer)?
             .try_into_boxed_slice()
             .map_err(D::Error::custom)
+    }
+}
+
+impl<'de, T> Deserialize<'de> for Arc<[T]>
+where
+    T: Deserialize<'de>,
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let vec = Vec::<T>::deserialize(deserializer)?;
+        Arc::try_from(vec).map_err(D::Error::custom)
     }
 }

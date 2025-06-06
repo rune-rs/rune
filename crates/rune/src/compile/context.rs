@@ -1,7 +1,5 @@
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeSet, Box, HashMap, HashSet, String, Vec};
@@ -20,23 +18,38 @@ use crate::module::{
     TypeSpecification,
 };
 use crate::runtime::{
-    Address, AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, Memory,
+    Address, AnyTypeInfo, ConstConstructImpl, ConstContext, ConstValue, FunctionHandler, Memory,
     Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeInfo, VmError,
 };
+use crate::sync::Arc;
 use crate::{Hash, Item, ItemBuf};
 
-/// A (type erased) macro handler.
-pub(crate) type MacroHandler =
-    dyn Fn(&mut MacroContext, &TokenStream) -> compile::Result<TokenStream> + Send + Sync;
+crate::declare_dyn_fn! {
+    struct MacroHandlerVtable;
 
-/// Invoked when types implement a trait.
-pub(crate) type TraitHandler =
-    dyn Fn(&mut TraitContext<'_>) -> Result<(), ContextError> + Send + Sync;
+    /// A (type erased) macro handler.
+    pub struct MacroHandler {
+        fn call(cx: &mut MacroContext<'_, '_, '_>, input: &TokenStream) -> compile::Result<TokenStream>;
+    }
+}
 
-/// A (type erased) attribute macro handler.
-pub(crate) type AttributeMacroHandler = dyn Fn(&mut MacroContext, &TokenStream, &TokenStream) -> compile::Result<TokenStream>
-    + Send
-    + Sync;
+crate::declare_dyn_fn! {
+    struct TraitHandlerVtable;
+
+    /// Invoked when types implement a trait.
+    pub struct TraitHandler {
+        fn call(cx: &mut TraitContext<'_>) -> Result<(), ContextError>;
+    }
+}
+
+crate::declare_dyn_fn! {
+    struct AttributeMacroHandlerVtable;
+
+    /// A (type erased) attribute macro handler.
+    pub struct AttributeMacroHandler {
+        fn call(cx: &mut MacroContext<'_, '_, '_>, input: &TokenStream, attributes: &TokenStream) -> compile::Result<TokenStream>;
+    }
+}
 
 /// Type used to install traits.
 pub struct TraitContext<'a> {
@@ -291,11 +304,11 @@ pub struct Context {
     #[cfg(feature = "doc")]
     implemented_traits: hash::Map<Vec<Hash>>,
     /// Registered native macro handlers.
-    macros: hash::Map<Arc<MacroHandler>>,
+    macros: hash::Map<MacroHandler>,
     /// Handlers for realising traits.
-    traits: hash::Map<Option<Arc<TraitHandler>>>,
+    traits: hash::Map<Option<TraitHandler>>,
     /// Registered native attribute macro handlers.
-    attribute_macros: hash::Map<Arc<AttributeMacroHandler>>,
+    attribute_macros: hash::Map<AttributeMacroHandler>,
     /// Registered types.
     types: hash::Map<ContextType>,
     /// All available names in the context.
@@ -305,7 +318,7 @@ pub struct Context {
     /// Constants visible in this context
     constants: hash::Map<ConstValue>,
     /// Constant constructor.
-    construct: hash::Map<Arc<dyn ConstConstruct>>,
+    construct: hash::Map<ConstConstructImpl>,
 }
 
 impl Context {
@@ -386,12 +399,12 @@ impl Context {
     ///
     /// ```no_run
     /// use rune::{Context, Vm, Unit};
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let context = Context::with_default_modules()?;
     ///
-    /// let runtime = Arc::new(context.runtime()?);
-    /// let unit = Arc::new(Unit::default());
+    /// let runtime = Arc::try_new(context.runtime()?)?;
+    /// let unit = Arc::try_new(Unit::default())?;
     ///
     /// let vm = Vm::new(runtime, unit);
     /// # Ok::<_, rune::support::Error>(())
@@ -575,12 +588,12 @@ impl Context {
     }
 
     /// Lookup the given macro handler.
-    pub(crate) fn lookup_macro(&self, hash: Hash) -> Option<&Arc<MacroHandler>> {
+    pub(crate) fn lookup_macro(&self, hash: Hash) -> Option<&MacroHandler> {
         self.macros.get(&hash)
     }
 
     /// Lookup the given attribute macro handler.
-    pub(crate) fn lookup_attribute_macro(&self, hash: Hash) -> Option<&Arc<AttributeMacroHandler>> {
+    pub(crate) fn lookup_attribute_macro(&self, hash: Hash) -> Option<&AttributeMacroHandler> {
         self.attribute_macros.get(&hash)
     }
 
@@ -775,13 +788,13 @@ impl Context {
                         self.install_type_info(ContextType {
                             item: item.try_clone()?,
                             hash,
-                            type_info: TypeInfo::rtti(Arc::new(Rtti {
+                            type_info: TypeInfo::rtti(Arc::try_new(Rtti {
                                 kind,
                                 hash: ty.hash,
                                 variant_hash: hash,
                                 item: item.try_clone()?,
                                 fields: fields.to_fields()?,
-                            })),
+                            })?),
                             type_parameters: Hash::EMPTY,
                         })?;
 
@@ -949,7 +962,7 @@ impl Context {
         };
 
         if let Some(handler) = handler {
-            handler(&mut TraitContext {
+            handler.call(&mut TraitContext {
                 cx: self,
                 item: &i.item,
                 hash: i.hash,
@@ -989,7 +1002,7 @@ impl Context {
         &mut self,
         hash: Hash,
         type_info: &AnyTypeInfo,
-        construct: &Arc<dyn ConstConstruct>,
+        construct: &ConstConstructImpl,
     ) -> Result<(), ContextError> {
         let old = self.construct.try_insert(hash, construct.clone())?;
 
@@ -1218,8 +1231,8 @@ impl fmt::Debug for Context {
 
 impl ConstContext for Context {
     #[inline]
-    fn get(&self, hash: Hash) -> Option<&dyn ConstConstruct> {
-        Some(&**self.construct.get(&hash)?)
+    fn get(&self, hash: Hash) -> Option<&ConstConstructImpl> {
+        self.construct.get(&hash)
     }
 }
 

@@ -76,10 +76,9 @@
 //! ```no_run
 //! use rune::{Context, Diagnostics, Source, Sources, Vm};
 //! use rune::termcolor::{ColorChoice, StandardStream};
-//! use std::sync::Arc;
+//! use rune::sync::Arc;
 //!
 //! let context = Context::with_default_modules()?;
-//! let runtime = Arc::new(context.runtime()?);
 //!
 //! let mut sources = Sources::new();
 //! sources.insert(Source::memory("pub fn add(a, b) { a + b }")?);
@@ -89,15 +88,14 @@
 //! let result = rune::prepare(&mut sources)
 //!     .with_context(&context)
 //!     .with_diagnostics(&mut diagnostics)
-//!     .build();
+//!     .build_vm();
 //!
 //! if !diagnostics.is_empty() {
 //!     let mut writer = StandardStream::stderr(ColorChoice::Always);
 //!     diagnostics.emit(&mut writer, &sources)?;
 //! }
 //!
-//! let unit = result?;
-//! let mut vm = Vm::new(runtime, Arc::new(unit));
+//! let mut vm = result?;
 //!
 //! let output = vm.call(["add"], (10i64, 20i64))?;
 //! let output: i64 = rune::from_value(output)?;
@@ -180,13 +178,15 @@ macro_rules! span {
 }
 
 pub mod alloc;
+#[doc(inline)]
+pub use rune_alloc::sync;
 
 /// Helper prelude for `#[no_std]` support.
 pub mod no_std;
 
 #[macro_use]
 mod internal_macros;
-pub(crate) use self::internal_macros::{async_vm_try, vm_error};
+pub(crate) use self::internal_macros::{async_vm_try, declare_dyn_fn, declare_dyn_trait, vm_error};
 
 mod exported_macros;
 #[doc(inline)]
@@ -829,14 +829,12 @@ pub mod __priv {
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
     pub use crate::runtime::{
-        AnyTypeInfo, ConstConstruct, ConstValue, FromConstValue, FromValue, MaybeTypeOf, Object,
-        OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue, ToValue, Tuple, TypeHash,
-        TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue, Value, ValueMutGuard,
-        ValueRefGuard, VmError,
+        AnyTypeInfo, ConstConstruct, ConstConstructImpl, ConstValue, FromConstValue, FromValue,
+        MaybeTypeOf, Object, OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue,
+        ToValue, Tuple, TypeHash, TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue,
+        Value, ValueMutGuard, ValueRefGuard, VmError,
     };
     pub use core::clone::Clone;
-    pub use rust_alloc::boxed::Box;
-    pub use rust_alloc::sync::Arc;
 
     pub mod e {
         use crate::alloc::borrow::TryToOwned;

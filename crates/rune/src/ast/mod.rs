@@ -13,8 +13,7 @@
 //! use rune::macros::{quote, MacroContext, TokenStream};
 //! use rune::parse::Parser;
 //! use rune::alloc::prelude::*;
-//!
-//! use std::sync::Arc;
+//! use rune::sync::Arc;
 //!
 //! #[rune::macro_]
 //! fn ident_to_string(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<TokenStream> {
@@ -31,7 +30,7 @@
 //! let mut context = Context::new();
 //! context.install(m)?;
 //!
-//! let runtime = Arc::new(context.runtime()?);
+//! let runtime = Arc::try_new(context.runtime()?)?;
 //!
 //! let mut sources = rune::sources! {
 //!     entry => {
@@ -45,7 +44,7 @@
 //!     .with_context(&context)
 //!     .build()?;
 //!
-//! let unit = Arc::new(unit);
+//! let unit = Arc::try_new(unit)?;
 //!
 //! let mut vm = Vm::new(runtime, unit);
 //! let value = vm.call(["main"], ())?;

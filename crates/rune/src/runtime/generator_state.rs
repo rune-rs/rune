@@ -9,10 +9,9 @@ use super::{ProtocolCaller, Value, VmError};
 /// # Examples
 ///
 /// ```
-/// use std::sync::Arc;
-///
 /// use rune::{Value, Vm};
 /// use rune::runtime::GeneratorState;
+/// use rune::sync::Arc;
 ///
 /// let mut sources = rune::sources! {
 ///     entry => {
@@ -25,8 +24,9 @@ use super::{ProtocolCaller, Value, VmError};
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let mut generator = vm.execute(["main"], ())?.into_generator();
 ///
 /// // Initial resume doesn't take a value.
@@ -57,9 +57,8 @@ use super::{ProtocolCaller, Value, VmError};
 /// An asynchronous generator, also known as a stream:
 ///
 /// ```
-/// use std::sync::Arc;
-///
 /// use rune::{Value, Vm};
+/// use rune::sync::Arc;
 /// use rune::runtime::GeneratorState;
 ///
 /// let mut sources = rune::sources! {
@@ -74,8 +73,9 @@ use super::{ProtocolCaller, Value, VmError};
 ///
 /// # futures_executor::block_on(async move {
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let mut stream = vm.execute(["main"], ())?.into_stream();
 ///
 /// // Initial resume doesn't take a value.

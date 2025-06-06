@@ -1,8 +1,6 @@
 use core::fmt;
 use core::future::Future;
 
-use rust_alloc::sync::Arc;
-
 use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -11,6 +9,7 @@ use crate::function;
 use crate::runtime;
 use crate::runtime::vm::Isolated;
 use crate::shared::AssertSend;
+use crate::sync::Arc;
 use crate::{Any, Hash};
 
 use super::{
@@ -57,7 +56,7 @@ impl Function {
     /// ```
     /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -68,7 +67,8 @@ impl Function {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
     ///
     /// let function = Function::new(|value: u32| value + 1)?;
     ///
@@ -85,7 +85,7 @@ impl Function {
     /// ```
     /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// # futures_executor::block_on(async move {
     /// let mut sources = rune::sources! {
@@ -97,7 +97,8 @@ impl Function {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
     ///
     /// let function = Function::new(|value: u32| async move { value + 1 })?;
     ///
@@ -142,7 +143,7 @@ impl Function {
     /// ```
     /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -155,7 +156,9 @@ impl Function {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let value = vm.call(["main"], ())?;
     ///
     /// let value: Function = rune::from_value(value)?;
@@ -243,9 +246,9 @@ impl Function {
     /// [Hash::type_hash].
     ///
     /// ```
-    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Hash, Vm};
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -256,7 +259,9 @@ impl Function {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let pony = vm.call(["main"], ())?;
     /// let pony: Function = rune::from_value(pony)?;
     ///
@@ -276,7 +281,7 @@ impl Function {
     /// ```
     /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -287,7 +292,9 @@ impl Function {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let pony = vm.call(["main"], ())?;
     /// let pony: Function = rune::from_value(pony)?;
     ///
@@ -303,9 +310,9 @@ impl Function {
     /// constant value.
     ///
     /// ```
-    /// use rune::{Hash, Vm};
     /// use rune::runtime::Function;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Hash, Vm};
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -324,7 +331,9 @@ impl Function {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let closure = vm.call(["main"], ())?;
     /// let closure: Function = rune::from_value(closure)?;
     ///
@@ -386,9 +395,9 @@ impl SyncFunction {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm};
     /// use rune::runtime::SyncFunction;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Hash, Vm};
     ///
     /// # futures_executor::block_on(async move {
     /// let mut sources = rune::sources! {
@@ -402,7 +411,9 @@ impl SyncFunction {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let add = vm.call(["main"], ())?;
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
@@ -424,9 +435,9 @@ impl SyncFunction {
     /// # Examples
     ///
     /// ```
-    /// use rune::{Hash, Vm};
     /// use rune::runtime::SyncFunction;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Hash, Vm};
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -439,7 +450,9 @@ impl SyncFunction {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let add = vm.call(["main"], ())?;
     /// let add: SyncFunction = rune::from_value(add)?;
     ///
@@ -461,9 +474,9 @@ impl SyncFunction {
     /// [Hash::type_hash].
     ///
     /// ```
-    /// use rune::{Hash, Vm};
     /// use rune::runtime::SyncFunction;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Hash, Vm};
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -474,7 +487,9 @@ impl SyncFunction {
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
+    ///
     /// let pony = vm.call(["main"], ())?;
     /// let pony: SyncFunction = rune::from_value(pony)?;
     ///

@@ -1,11 +1,10 @@
-use rust_alloc::sync::Arc;
-
 use crate::alloc::prelude::*;
 use crate::runtime::vm_execution::VmExecutionState;
 use crate::runtime::{
     Call, Future, Generator, Output, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmError,
     VmErrorKind, VmExecution,
 };
+use crate::sync::Arc;
 
 /// An instruction to push a virtual machine to the execution.
 #[derive(Debug)]

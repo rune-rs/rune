@@ -1,5 +1,5 @@
+use rune::sync::Arc;
 use rune::{BuildError, Context, Diagnostics, Source, Sources, Vm};
-use std::sync::Arc;
 
 pub(crate) fn vm(
     context: &Context,
@@ -11,8 +11,9 @@ pub(crate) fn vm(
         .with_diagnostics(diagnostics)
         .build()?;
 
-    let context = Arc::new(context.runtime()?);
-    Ok(Vm::new(context, Arc::new(unit)))
+    let context = Arc::try_new(context.runtime()?)?;
+    let unit = Arc::try_new(unit)?;
+    Ok(Vm::new(context, unit))
 }
 
 pub(crate) fn sources(source: &str) -> Sources {

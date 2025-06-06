@@ -3,10 +3,9 @@ use core::hash::Hash;
 use core::ops::Deref;
 
 use crate::alloc::{Box, Vec};
+use crate::sync::Arc;
 
 use super::{FromValue, Repr, Rtti, RttiKind, RuntimeError, Tuple, TypeInfo, Value};
-
-use rust_alloc::sync::Arc;
 
 /// A reference to a dynamically defined empty type.
 pub struct DynamicEmpty {
@@ -27,8 +26,9 @@ impl FromValue for DynamicEmpty {
 
 impl DynamicEmpty {
     /// Get human readable type information for the dynamic tuple.
+    #[inline]
     pub fn type_info(&self) -> TypeInfo {
-        self.rtti.clone().type_info()
+        Rtti::type_info(self.rtti.clone())
     }
 }
 
@@ -64,8 +64,9 @@ impl FromValue for DynamicTuple {
 
 impl DynamicTuple {
     /// Get human readable type information for the dynamic tuple.
+    #[inline]
     pub fn type_info(&self) -> TypeInfo {
-        self.rtti.clone().type_info()
+        Rtti::type_info(self.rtti.clone())
     }
 }
 
@@ -107,6 +108,7 @@ impl FromValue for DynamicStruct {
 
 impl DynamicStruct {
     /// Get a value from the dynamic struct.
+    #[inline]
     pub fn get<Q>(&self, key: &Q) -> Option<&Value>
     where
         Box<str>: Borrow<Q>,
@@ -117,7 +119,8 @@ impl DynamicStruct {
     }
 
     /// Get human readable type information for the dynamic struct.
+    #[inline]
     pub fn type_info(&self) -> TypeInfo {
-        self.rtti.clone().type_info()
+        Rtti::type_info(self.rtti.clone())
     }
 }

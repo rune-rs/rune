@@ -2,11 +2,11 @@ use core::convert::Infallible;
 use core::fmt;
 
 use rust_alloc::boxed::Box;
-use rust_alloc::sync::Arc;
 
 use crate::alloc::error::CustomError;
 use crate::alloc::{self, String};
 use crate::runtime::unit::{BadInstruction, BadJump};
+use crate::sync::Arc;
 use crate::{vm_error, Any, Hash, ItemBuf};
 
 use super::{

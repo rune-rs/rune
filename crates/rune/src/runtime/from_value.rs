@@ -14,8 +14,8 @@ use super::{Mut, RawAnyGuard, Ref, RuntimeError, Value};
 /// For structs, this will try to decode any struct-like data into the desired data type:
 ///
 /// ```rust
-/// use std::sync::Arc;
 /// use rune::{FromValue, Vm};
+/// use rune::sync::Arc;
 ///
 /// #[derive(Debug, PartialEq, FromValue)]
 /// struct Foo {
@@ -37,8 +37,9 @@ use super::{Mut, RawAnyGuard, Ref, RuntimeError, Value};
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let mut vm = Vm::without_runtime(unit)?;
 /// let foo = vm.call(["main"], ())?;
 /// let foo: Foo = rune::from_value(foo)?;
 ///
@@ -49,8 +50,8 @@ use super::{Mut, RawAnyGuard, Ref, RuntimeError, Value};
 /// For enums, the variant name of the rune-local variant is matched:
 ///
 /// ```rust
-/// use std::sync::Arc;
 /// use rune::{FromValue, Vm};
+/// use rune::sync::Arc;
 ///
 /// #[derive(Debug, PartialEq, FromValue)]
 /// enum Enum {
@@ -71,8 +72,9 @@ use super::{Mut, RawAnyGuard, Ref, RuntimeError, Value};
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
+/// let mut vm = Vm::without_runtime(unit)?;
 /// let foo = vm.call(["main"], ())?;
 /// let foo: Enum = rune::from_value(foo)?;
 ///
@@ -107,8 +109,8 @@ impl IntoValue for &Value {
 /// # Examples
 ///
 /// ```
+/// use rune::sync::Arc;
 /// use rune::{ToValue, Vm};
-/// use std::sync::Arc;
 ///
 /// #[derive(ToValue)]
 /// struct Foo {
@@ -124,8 +126,9 @@ impl IntoValue for &Value {
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(["main"], (Foo { field: 42 },))?;
 /// let foo: u64 = rune::from_value(foo)?;
 ///
@@ -144,8 +147,8 @@ where
 /// # Examples
 ///
 /// ```
+/// use rune::sync::Arc;
 /// use rune::{FromValue, Vm};
-/// use std::sync::Arc;
 ///
 /// #[derive(FromValue)]
 /// struct Foo {
@@ -161,8 +164,9 @@ where
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(["main"], ())?;
 /// let foo: Foo = rune::from_value(foo)?;
 ///

@@ -1,11 +1,10 @@
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Diagnostics, Vm};
 
-use std::sync::Arc;
-
 fn main() -> rune::support::Result<()> {
     let context = rune_modules::default_context()?;
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -28,8 +27,9 @@ fn main() -> rune::support::Result<()> {
     }
 
     let unit = result?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
-    let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.call(["calc"], ((1u32, 2u32),))?;
     let output: (i32, i32) = rune::from_value(output)?;
 

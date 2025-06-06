@@ -3,6 +3,7 @@ use core::hash::{BuildHasher, Hash};
 
 use crate::borrow::Cow;
 use crate::borrow::TryToOwned;
+use crate::sync::Arc;
 use crate::{BTreeMap, BTreeSet, Box, HashMap, HashSet, String, Vec, VecDeque};
 
 use musli::alloc::ToOwned;
@@ -100,26 +101,6 @@ where
         let cx = decoder.cx();
         decoder
             .decode::<String>()?
-            .try_into()
-            .map_err(|e| cx.custom(e))
-    }
-}
-
-impl<'de, M, A, T> Decode<'de, M, A> for Box<[T]>
-where
-    A: Allocator,
-    T: Decode<'de, M, A>,
-{
-    const IS_BITWISE_DECODE: bool = false;
-
-    #[inline]
-    fn decode<D>(decoder: D) -> Result<Self, D::Error>
-    where
-        D: Decoder<'de, Mode = M, Allocator = A>,
-    {
-        let cx = decoder.cx();
-        decoder
-            .decode::<Vec<T>>()?
             .try_into()
             .map_err(|e| cx.custom(e))
     }
@@ -765,6 +746,23 @@ macro_rules! smart_pointer {
                 }
             }
 
+            impl<'de, M, A, T> Decode<'de, M, A> for $ty<[T]>
+            where
+                A: Allocator,
+                T: Decode<'de, M, A>,
+            {
+                const IS_BITWISE_DECODE: bool = false;
+
+                #[inline]
+                fn decode<D>(decoder: D) -> Result<Self, D::Error>
+                where
+                    D: Decoder<'de, Mode = M, Allocator = A>,
+                {
+                    let cx = decoder.cx();
+                    $ty::try_from(Vec::<T>::decode(decoder)?).map_err(|e| cx.custom(e))
+                }
+            }
+
             impl<'de, M, A> DecodeBytes<'de, M, A> for $ty<[u8]>
             where
                 A: Allocator
@@ -784,7 +782,7 @@ macro_rules! smart_pointer {
     };
 }
 
-smart_pointer!(Box);
+smart_pointer!(Arc, Box);
 
 impl<M> EncodeBytes<M> for Vec<u8> {
     const ENCODE_BYTES_PACKED: bool = false;

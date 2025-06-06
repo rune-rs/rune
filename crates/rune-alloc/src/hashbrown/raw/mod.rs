@@ -434,7 +434,7 @@ impl<T> Bucket<T> {
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
     ///
-    /// use rune::alloc::hashbrown::raw::{Bucket, RawTable};
+    /// use rune_alloc::hashbrown::raw::{Bucket, RawTable};
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
@@ -595,7 +595,7 @@ impl<T> Bucket<T> {
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
     ///
-    /// use rune::alloc::hashbrown::raw::{Bucket, RawTable};
+    /// use rune_alloc::hashbrown::raw::{Bucket, RawTable};
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
@@ -649,7 +649,7 @@ impl<T> Bucket<T> {
     /// use core::hash::{BuildHasher, Hash};
     /// use core::convert::Infallible;
     ///
-    /// use rune::alloc::hashbrown::raw::{Bucket, RawTable};
+    /// use rune_alloc::hashbrown::raw::{Bucket, RawTable};
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///

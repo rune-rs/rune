@@ -3,9 +3,10 @@ mod path_reloader;
 
 use std::path::PathBuf;
 use std::pin::pin;
-use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
+
+use rune::sync::Arc;
 use rune::{Context, Vm};
 
 #[tokio::main(flavor = "current_thread")]
@@ -21,7 +22,7 @@ async fn main() -> Result<()> {
         &context
     )?);
 
-    let context = Arc::new(context.runtime()?);
+    let context = Arc::try_new(context.runtime()?)?;
 
     let mut events = Vec::new();
 

@@ -14,9 +14,9 @@ use core::ptr::NonNull;
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering::{Acquire, Relaxed, Release};
 
-use crate::abort;
 use crate::alloc::{AllocError, Allocator, Global};
-use crate::{Box, Result};
+use crate::clone::TryClone;
+use crate::{abort, Box, Result, Vec};
 
 fn is_dangling<T: ?Sized>(ptr: *const T) -> bool {
     (ptr.cast::<()>()).addr() == usize::MAX
@@ -81,7 +81,7 @@ macro_rules! acquire {
 ///    value without any cloning.
 ///
 /// ```
-/// use rune::alloc::sync::Arc;
+/// use rune::sync::Arc;
 /// use rune::alloc::try_vec;
 ///
 /// let mut data = Arc::try_new(try_vec![1, 2, 3])?;
@@ -144,7 +144,7 @@ macro_rules! acquire {
 /// [`Weak<T>`][Weak].
 ///
 /// ```
-/// use rune::alloc::sync::Arc;
+/// use rune::sync::Arc;
 /// use rune::alloc::try_vec;
 ///
 /// let foo = Arc::try_new(try_vec![1.0, 2.0, 3.0])?;
@@ -163,7 +163,7 @@ macro_rules! acquire {
 /// called using [fully qualified syntax]:
 ///
 /// ```
-/// use rune::alloc::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// let my_arc = Arc::try_new(())?;
 /// let my_weak = Arc::downgrade(&my_arc);
@@ -175,7 +175,7 @@ macro_rules! acquire {
 /// while others prefer using method-call syntax.
 ///
 /// ```
-/// use rune::alloc::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// let arc = Arc::try_new(())?;
 /// // Method-call syntax
@@ -207,7 +207,7 @@ macro_rules! acquire {
 /// ```
 /// use std::thread;
 ///
-/// use rune::alloc::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// let five = Arc::try_new(5)?;
 ///
@@ -229,7 +229,7 @@ macro_rules! acquire {
 /// use std::sync::atomic::{AtomicUsize, Ordering};
 /// use std::thread;
 ///
-/// use rune::alloc::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// let val = Arc::try_new(AtomicUsize::new(5))?;
 ///
@@ -274,6 +274,17 @@ where
 {
 }
 
+impl<T> Arc<[T]> {
+    /// Copy elements from slice into newly allocated `Arc<[T]>`
+    #[doc(hidden)]
+    pub fn copy_from_slice(v: &[T]) -> Result<Self, AllocError>
+    where
+        T: Copy,
+    {
+        Self::copy_from_slice_in(v, Global)
+    }
+}
+
 impl<T, A> Arc<[T], A>
 where
     A: Allocator,
@@ -293,9 +304,11 @@ where
     }
 
     /// Copy elements from slice into newly allocated `Arc<[T]>`
-    ///
-    /// Unsafe because the caller must either take ownership or bind `T: Copy`.
-    unsafe fn copy_from_slice_in(v: &[T], alloc: A) -> Result<Self, AllocError> {
+    #[doc(hidden)]
+    pub fn copy_from_slice_in(v: &[T], alloc: A) -> Result<Self, AllocError>
+    where
+        T: Copy,
+    {
         unsafe {
             let ptr = Self::try_allocate_for_slice_in(v.len(), &alloc)?;
             ptr::copy_nonoverlapping(v.as_ptr(), (&raw mut (*ptr).data) as *mut T, v.len());
@@ -362,7 +375,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -639,10 +652,32 @@ unsafe impl<T> Sync for ArcInner<T> where T: ?Sized + Sync + Send {}
 impl<T> Arc<T> {
     /// Constructs a new `Arc<T>`.
     ///
+    /// # Panics
+    ///
+    /// Panics if the allocation fails with an [`Error`][crate::error::Error].
+    ///
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
+    ///
+    /// let five = Arc::new(5);
+    /// ```
+    #[inline]
+    #[deprecated = "Use `Arc::try_new` instead, which uses checked allocations."]
+    pub fn new(data: T) -> Arc<T> {
+        match Self::try_new_in(data, Global) {
+            Ok(arc) => arc,
+            Err(err) => panic!("{err}"),
+        }
+    }
+
+    /// Constructs a new `Arc<T>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     /// # Ok::<_, rune::alloc::Error>(())
@@ -662,7 +697,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     /// use rune::alloc::alloc::Global;
     ///
     /// let five = Arc::try_new_in(5, Global)?;
@@ -710,7 +745,7 @@ where
     ///
     /// ```
     /// use rune::alloc::prelude::*;
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     /// use rune::alloc::alloc::Global;
     ///
     /// let x = Arc::try_new_in("hello".try_to_owned()?, Global)?;
@@ -738,7 +773,7 @@ where
     ///
     /// ```
     /// use rune::alloc::prelude::*;
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let x = Arc::try_new("hello".try_to_owned()?)?;
     /// let y = Arc::clone(&x);
@@ -794,7 +829,7 @@ where
     ///
     /// ```
     /// use rune::alloc::prelude::*;
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     /// use rune::alloc::alloc::Global;
     ///
     /// let x = Arc::try_new_in("hello".try_to_owned()?, Global)?;
@@ -815,7 +850,7 @@ where
     /// Convert a slice back into its original array:
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let original: &[u8] = &[1, 2, 3];
     /// let x: Arc<[u8]> = Arc::try_from(original)?;
@@ -844,7 +879,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     /// let same_five = Arc::clone(&five);
@@ -873,7 +908,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let mut x = Arc::try_new(3)?;
     /// *Arc::get_mut(&mut x).unwrap() = 4;
@@ -915,7 +950,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     /// use rune::alloc::String;
     ///
     /// let mut x = Arc::try_new(String::new())?;
@@ -931,7 +966,7 @@ where
     /// Other `Arc` pointers to the same allocation must be to the same type.
     ///
     /// ```no_run
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let x: Arc<str> = Arc::try_from("Hello, world!")?;
     /// let mut y: Arc<[u8]> = x.clone().try_into()?;
@@ -949,7 +984,7 @@ where
     /// type, including lifetimes.
     ///
     /// ```no_run
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let x: Arc<&str> = Arc::try_new("Hello, world!")?;
     ///
@@ -984,7 +1019,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let x = Arc::try_new(3)?;
     /// assert!(Arc::is_unique(&x));
@@ -1007,7 +1042,7 @@ where
     /// following code is valid, even though it would be UB if it used `Arc::get_mut`:
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let arc = Arc::try_new(5)?;
     /// let pointer: *const i32 = &*arc;
@@ -1061,7 +1096,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1203,7 +1238,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1245,6 +1280,17 @@ where
         }
 
         unsafe { Self::from_inner_in(self.ptr, self.alloc.clone()) }
+    }
+}
+
+impl<T, A> TryClone for Arc<T, A>
+where
+    T: ?Sized,
+    A: Allocator + Clone,
+{
+    #[inline]
+    fn try_clone(&self) -> Result<Self> {
+        Ok(self.clone())
     }
 }
 
@@ -1297,7 +1343,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// struct Foo;
     ///
@@ -1383,7 +1429,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1405,7 +1451,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1429,7 +1475,7 @@ impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
     /// ```
     /// use std::cmp::Ordering;
     ///
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1447,7 +1493,7 @@ impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1465,7 +1511,7 @@ impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1483,7 +1529,7 @@ impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1501,7 +1547,7 @@ impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let five = Arc::try_new(5)?;
     ///
@@ -1521,7 +1567,7 @@ impl<T: ?Sized + Ord, A: Allocator> Ord for Arc<T, A> {
     /// # Examples
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     /// use std::cmp::Ordering;
     ///
     /// let five = Arc::try_new(5)?;
@@ -1596,7 +1642,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let original: &[u8] = &[1, 2, 3];
     /// let shared: Arc<[u8]> = Arc::try_from(original)?;
@@ -1606,7 +1652,39 @@ where
     #[inline]
     fn try_from(v: &[u8]) -> Result<Self, Self::Error> {
         // SAFETY: `T` is Copy.
-        unsafe { Arc::copy_from_slice_in(v, A::default()) }
+        Arc::copy_from_slice_in(v, A::default())
+    }
+}
+
+impl<T, A: Allocator> TryFrom<Vec<T, A>> for Arc<[T], A> {
+    type Error = AllocError;
+
+    /// Allocates a reference-counted slice and moves `v`'s items into it.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use rune::sync::Arc;
+    /// use rune::alloc::{try_vec, Vec};
+    ///
+    /// let unique: Vec<i32> = try_vec![1, 2, 3];
+    /// let shared: Arc<[i32]> = Arc::try_from(unique)?;
+    /// assert_eq!(&[1, 2, 3], &shared[..]);
+    /// # Ok::<_, rune::alloc::Error>(())
+    /// ```
+    #[inline]
+    fn try_from(v: Vec<T, A>) -> Result<Arc<[T], A>, Self::Error> {
+        unsafe {
+            let (vec_ptr, len, cap, alloc) = v.into_raw_parts_with_alloc();
+
+            let rc_ptr = Self::try_allocate_for_slice_in(len, &alloc)?;
+            ptr::copy_nonoverlapping(vec_ptr, (&raw mut (*rc_ptr).data) as *mut T, len);
+
+            // Create a `Vec<T, &A>` with length 0, to deallocate the buffer
+            // without dropping its contents or the allocator
+            let _ = Vec::from_raw_parts_in(vec_ptr, 0, cap, &alloc);
+            Ok(Self::from_ptr_in(rc_ptr, alloc))
+        }
     }
 }
 
@@ -1621,7 +1699,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let shared: Arc<str> = Arc::try_from("eggplant")?;
     /// assert_eq!("eggplant", &shared[..]);
@@ -1644,7 +1722,7 @@ where
     /// # Example
     ///
     /// ```
-    /// use rune::alloc::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let string: Arc<str> = Arc::try_from("eggplant")?;
     /// let bytes: Arc<[u8]> = Arc::from(string);

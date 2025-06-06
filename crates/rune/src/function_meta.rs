@@ -1,7 +1,5 @@
 use core::marker::PhantomData;
 
-use rust_alloc::sync::Arc;
-
 use crate as rune;
 use crate::alloc;
 use crate::alloc::borrow::Cow;
@@ -106,7 +104,7 @@ impl FunctionData {
 /// Runtime data for a macro.
 pub struct FunctionMacroData {
     pub(crate) item: ItemBuf,
-    pub(crate) handler: Arc<MacroHandler>,
+    pub(crate) handler: MacroHandler,
 }
 
 impl FunctionMacroData {
@@ -121,7 +119,7 @@ impl FunctionMacroData {
     {
         Ok(Self {
             item: ItemBuf::with_item(name)?,
-            handler: Arc::new(f),
+            handler: MacroHandler::new(f)?,
         })
     }
 }
@@ -129,7 +127,7 @@ impl FunctionMacroData {
 /// Runtime data for an attribute macro.
 pub struct AttributeMacroData {
     pub(crate) item: ItemBuf,
-    pub(crate) handler: Arc<AttributeMacroHandler>,
+    pub(crate) handler: AttributeMacroHandler,
 }
 
 impl AttributeMacroData {
@@ -148,7 +146,7 @@ impl AttributeMacroData {
     {
         Ok(Self {
             item: ItemBuf::with_item(name)?,
-            handler: Arc::new(f),
+            handler: AttributeMacroHandler::new(f)?,
         })
     }
 }

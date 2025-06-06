@@ -4,13 +4,12 @@ use core::mem::{replace, take};
 use core::pin::{pin, Pin};
 use core::task::{ready, Context, Poll, RawWaker, RawWakerVTable, Waker};
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc::prelude::*;
 use crate::async_vm_try;
 use crate::runtime::budget::Budget;
 use crate::runtime::{budget, Awaited};
 use crate::shared::AssertSend;
+use crate::sync::Arc;
 
 use super::{
     Address, GeneratorState, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics, VmError,
@@ -114,7 +113,7 @@ where
     ///
     /// ```
     /// use rune::Vm;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -126,8 +125,9 @@ where
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
     ///
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let mut generator = vm.execute(["main"], ())?.into_generator();
     ///
     /// let mut n = 1i64;
@@ -149,7 +149,7 @@ where
     ///
     /// ```
     /// use rune::Vm;
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
     ///
     /// # futures_executor::block_on(async move {
     /// let mut sources = rune::sources! {
@@ -162,8 +162,9 @@ where
     /// };
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
+    /// let unit = Arc::try_new(unit)?;
+    /// let mut vm = Vm::without_runtime(unit)?;
     ///
-    /// let mut vm = Vm::without_runtime(Arc::new(unit));
     /// let mut stream = vm.execute(["main"], ())?.into_stream();
     ///
     /// let mut n = 1i64;

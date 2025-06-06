@@ -11,7 +11,7 @@ use super::{AnyObj, Object, RuntimeError, Value, VmError};
 ///
 /// ```
 /// use rune::{ToValue, Vm};
-/// use std::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// #[derive(ToValue)]
 /// struct Foo {
@@ -27,8 +27,9 @@ use super::{AnyObj, Object, RuntimeError, Value, VmError};
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let value = vm.call(["main"], (Foo { field: 42 },))?;
 /// let value: u64 = rune::from_value(value)?;
 ///
@@ -43,7 +44,7 @@ pub use rune_macros::ToValue;
 ///
 /// ```
 /// use rune::{ToValue, Vm};
-/// use std::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// #[derive(ToValue)]
 /// struct Foo {
@@ -59,8 +60,9 @@ pub use rune_macros::ToValue;
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(["main"], (Foo { field: 42 },))?;
 /// let foo: u64 = rune::from_value(foo)?;
 ///
@@ -77,7 +79,7 @@ pub fn to_value(value: impl ToValue) -> Result<Value, RuntimeError> {
 ///
 /// ```
 /// use rune::{ToValue, Vm};
-/// use std::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// #[derive(ToValue)]
 /// struct Foo {
@@ -93,8 +95,9 @@ pub fn to_value(value: impl ToValue) -> Result<Value, RuntimeError> {
 /// };
 ///
 /// let unit = rune::prepare(&mut sources).build()?;
+/// let unit = Arc::try_new(unit)?;
+/// let mut vm = Vm::without_runtime(unit)?;
 ///
-/// let mut vm = Vm::without_runtime(Arc::new(unit));
 /// let foo = vm.call(["main"], (Foo { field: 42 },))?;
 /// let foo: u64 = rune::from_value(foo)?;
 ///

@@ -1,11 +1,9 @@
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash;
-use crate::runtime::{ConstConstruct, ConstValue};
+use crate::runtime::{ConstConstructImpl, ConstValue};
 use crate::Hash;
 
 use super::FunctionHandler;
@@ -23,7 +21,7 @@ pub struct RuntimeContext {
     /// Named constant values
     constants: hash::Map<ConstValue>,
     /// Constant constructors.
-    construct: hash::Map<Arc<dyn ConstConstruct>>,
+    construct: hash::Map<ConstConstructImpl>,
 }
 
 assert_impl!(RuntimeContext: Send + Sync);
@@ -32,7 +30,7 @@ impl RuntimeContext {
     pub(crate) fn new(
         functions: hash::Map<FunctionHandler>,
         constants: hash::Map<ConstValue>,
-        construct: hash::Map<Arc<dyn ConstConstruct>>,
+        construct: hash::Map<ConstConstructImpl>,
     ) -> Self {
         Self {
             functions,
@@ -55,8 +53,8 @@ impl RuntimeContext {
 
     /// Read a constant constructor.
     #[inline]
-    pub(crate) fn construct(&self, hash: &Hash) -> Option<&dyn ConstConstruct> {
-        Some(&**self.construct.get(hash)?)
+    pub(crate) fn construct(&self, hash: &Hash) -> Option<&ConstConstructImpl> {
+        self.construct.get(hash)
     }
 }
 

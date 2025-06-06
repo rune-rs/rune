@@ -1,12 +1,12 @@
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
 use crate::runtime::{UnitStorage, VmError, VmExecution, VmOutcome};
+use crate::sync::Arc;
 use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
 mod cli {
@@ -243,7 +243,7 @@ pub(super) async fn run(
         }
     }
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let last = Instant::now();
 

@@ -1,7 +1,5 @@
 prelude!();
 
-use std::sync::Arc;
-
 use rune::{from_value, prepare, sources};
 use rune::{Any, Context, ContextError, Module, Vm};
 
@@ -39,7 +37,7 @@ fn construct_enum() -> rune::support::Result<()> {
 
     let mut context = Context::new();
     context.install(m)?;
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -56,8 +54,8 @@ fn construct_enum() -> rune::support::Result<()> {
     };
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
-
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     let output = vm.call(["main"], (Enum::First(42),))?;
     let output: Enum = from_value(output)?;
@@ -120,7 +118,7 @@ fn construct_struct() -> rune::support::Result<()> {
 
     let mut context = Context::new();
     context.install(m)?;
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -163,8 +161,8 @@ fn construct_struct() -> rune::support::Result<()> {
     };
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
-
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     for (req, rsp) in vec![
         (
