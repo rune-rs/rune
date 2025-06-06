@@ -8,7 +8,7 @@ use rust_alloc::sync::Arc;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
-use crate::modules::{option, result};
+use crate::modules::{cmp, option, result};
 use crate::runtime;
 
 mod ops;
@@ -2553,6 +2553,9 @@ impl Vm {
             }
 
             match value.as_ref() {
+                Repr::Inline(Inline::Ordering(ordering)) => {
+                    break 'out cmp::ordering_is_variant(*ordering, variant_hash);
+                }
                 Repr::Dynamic(value) => {
                     break 'out value.rtti().is(hash, variant_hash);
                 }
