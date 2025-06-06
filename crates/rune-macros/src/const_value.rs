@@ -135,14 +135,15 @@ where
 {
     pub(super) fn expand(self) -> TokenStream {
         let Tokens {
-            arc,
             const_construct_t,
+            const_construct_impl,
             const_value,
             option,
             result,
             runtime_error,
             to_const_value_t,
             value,
+            alloc,
             ..
         } = &self.tokens;
 
@@ -165,7 +166,7 @@ where
                 }
 
                 #[inline]
-                fn construct() -> #option<#arc<dyn #const_construct_t>> {
+                fn construct() -> #result<#option<#const_construct_impl>, #alloc::Error> {
                     struct #construct;
 
                     impl #const_construct_t for #construct {
@@ -196,7 +197,7 @@ where
                         }
                     }
 
-                    #option::Some(#arc::new(#construct))
+                    #result::Ok(#option::Some(#const_construct_impl::new(#construct)?))
                 }
             }
         }

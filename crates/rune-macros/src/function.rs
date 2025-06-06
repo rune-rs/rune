@@ -376,7 +376,7 @@ impl Function {
             #[automatically_derived]
             #attributes
             #[doc(hidden)]
-            pub(crate) fn #meta_fn #impl_generics() -> rune::alloc::Result<rune::__priv::FunctionMetaData>
+            pub(crate) fn #meta_fn #impl_generics() -> Result<rune::__priv::FunctionMetaData, rune::alloc::Error>
             #where_clause
             {
                 Ok(rune::__priv::FunctionMetaData {

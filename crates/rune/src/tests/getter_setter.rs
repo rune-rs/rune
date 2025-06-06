@@ -2,8 +2,6 @@ prelude!();
 
 use crate::alloc::String;
 
-use std::sync::Arc;
-
 #[derive(Any, Debug)]
 struct Foo {
     #[rune(get, set, copy)]
@@ -21,6 +19,7 @@ fn test_getter_setter() -> Result<()> {
 
     let mut context = Context::with_default_modules()?;
     context.install(module)?;
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -34,8 +33,8 @@ fn test_getter_setter() -> Result<()> {
     };
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
-
-    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     let mut foo = Foo {
         number: 42,

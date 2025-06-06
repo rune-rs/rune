@@ -2,8 +2,6 @@
 
 prelude!();
 
-use std::sync::Arc;
-
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
 use crate::diagnostics::Diagnostic;
@@ -78,17 +76,18 @@ fn check_diagnostic(context: &Context, diagnostic: &Diagnostic, msg: &str) {
 #[test]
 fn test_deprecation_warnings() -> Result<()> {
     let context = create_context()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
     let mut sources = create_sources()?;
     let mut diagnostics = Diagnostics::new();
 
-    let unit = Arc::new(
-        rune::prepare(&mut sources)
-            .with_context(&context)
-            .with_diagnostics(&mut diagnostics)
-            .build()?,
-    );
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()?;
 
-    let mut vm = Vm::new(Arc::new(context.runtime()?), unit.clone());
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit.clone());
+
     vm.call_with_diagnostics(["main"], (), &mut diagnostics)?;
 
     // print diagnostics - just for manual check
@@ -112,6 +111,8 @@ fn test_deprecation_warnings() -> Result<()> {
 #[tokio::test]
 async fn test_deprecation_warnings_async() -> Result<()> {
     let context = create_context()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+
     let mut sources = create_sources()?;
     let mut diagnostics = Diagnostics::new();
 
@@ -120,7 +121,9 @@ async fn test_deprecation_warnings_async() -> Result<()> {
         .with_diagnostics(&mut diagnostics)
         .build()?;
 
-    let vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let vm = Vm::new(runtime, unit);
+
     let future = vm.send_execute(["main"], ())?;
     let _ = future.complete_with_diagnostics(&mut diagnostics).await;
 

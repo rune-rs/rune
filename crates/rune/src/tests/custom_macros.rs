@@ -1,7 +1,5 @@
 prelude!();
 
-use std::sync::Arc;
-
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use macros::quote;
 use parse::Parser;
@@ -31,6 +29,7 @@ fn test_parse_in_macro() -> Result<()> {
 
     let mut context = Context::with_default_modules()?;
     context.install(m)?;
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -43,8 +42,9 @@ fn test_parse_in_macro() -> Result<()> {
     };
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
-    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
     let output = vm.call(["main"], ())?;
     let output: (u32, u32) = from_value(output)?;
 
@@ -72,6 +72,7 @@ fn conflicting_attribute_function() -> Result<()> {
 
     let mut context = Context::with_default_modules()?;
     context.install(m)?;
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -85,8 +86,9 @@ fn conflicting_attribute_function() -> Result<()> {
     };
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
-    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
     let output = vm.call(["main"], ())?;
     let output: u32 = from_value(output)?;
 
@@ -120,6 +122,7 @@ fn attribute_imports_builtin() -> Result<()> {
 
     let mut context = Context::with_default_modules()?;
     context.install(m)?;
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -152,8 +155,9 @@ fn attribute_imports_builtin() -> Result<()> {
     }
 
     let unit = result?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
-    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
     let output = vm.call(["main"], ())?;
     let output: u32 = from_value(output)?;
 

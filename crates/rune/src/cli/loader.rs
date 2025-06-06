@@ -1,14 +1,14 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
-use std::{path::Path, sync::Arc};
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context as _, Result};
 
 use crate::alloc::{Vec, VecDeque};
 use crate::cli::{visitor, Io, SharedFlags};
 use crate::compile::FileSourceLoader;
+use crate::sync::Arc;
 use crate::{Context, Diagnostics, Hash, ItemBuf, Options, Source, Sources, Unit};
 
 pub(super) struct Load {
@@ -43,7 +43,7 @@ pub(super) fn load(
         match musli::storage::from_slice::<Unit>(&f[..]) {
             Ok(unit) => {
                 tracing::trace!("Using cache: {}", bytecode_path.display());
-                Some(Arc::new(unit))
+                Some(Arc::try_new(unit)?)
             }
             Err(_error) => {
                 tracing::error!(
@@ -89,7 +89,7 @@ pub(super) fn load(
                 musli::storage::to_writer(f, &unit)?;
             }
 
-            (Arc::new(unit), functions.into_functions())
+            (Arc::try_new(unit)?, functions.into_functions())
         }
     };
 

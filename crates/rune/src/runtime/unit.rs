@@ -9,8 +9,6 @@ mod storage;
 
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 #[cfg(feature = "musli")]
 use musli::mode::Binary;
 #[cfg(feature = "musli")]
@@ -25,6 +23,7 @@ use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
 use crate::runtime::{Address, Call, ConstValue, DebugInfo, Inst, Rtti, StaticString};
+use crate::sync::Arc;
 use crate::Hash;
 
 pub use self::storage::{ArrayUnit, EncodeError, UnitEncoder, UnitStorage};

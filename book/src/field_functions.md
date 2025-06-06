@@ -102,8 +102,7 @@ This specified a custom method that should be used to clone the value.
 
 ```rust,noplaypen
 use rune::Any;
-
-use std::sync::Arc;
+use rune::sync::Arc;
 
 #[derive(Any)]
 struct External {

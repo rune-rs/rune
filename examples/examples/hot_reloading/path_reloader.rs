@@ -15,11 +15,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::pin::{pin, Pin};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
 use notify::Watcher;
 use pin_project::pin_project;
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
 use rune::{Context, Diagnostics, Source, Sources, Unit};
 use tokio::sync::mpsc;
@@ -200,7 +201,7 @@ impl Inner<'_> {
                         }
                     };
 
-                    let new = Arc::new(unit);
+                    let new = Arc::try_new(unit)?;
 
                     if let Some(old) = self
                         .scripts

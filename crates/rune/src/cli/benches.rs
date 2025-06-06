@@ -2,7 +2,6 @@ use std::fmt;
 use std::hint;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Instant;
 
 use crate::alloc::Vec;
@@ -11,6 +10,7 @@ use crate::modules::capture_io::CaptureIo;
 use crate::modules::test::Bencher;
 use crate::runtime::{Function, Unit, Value};
 use crate::support::Result;
+use crate::sync::Arc;
 use crate::{Context, Hash, ItemBuf, Sources, Vm};
 
 use super::{Color, Stream};
@@ -69,7 +69,7 @@ pub(super) async fn run(
     sources: &Sources,
     fns: &[(Hash, ItemBuf)],
 ) -> Result<ExitCode> {
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
     let mut vm = Vm::new(runtime, unit);
 
     if fns.is_empty() {

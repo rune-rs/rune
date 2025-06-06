@@ -1,7 +1,5 @@
 use core::marker::PhantomData;
 
-use rust_alloc::sync::Arc;
-
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, HashSet};
@@ -17,7 +15,7 @@ use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::DocFunction;
 use crate::runtime::{
-    Address, AnyTypeInfo, ConstConstruct, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
+    Address, AnyTypeInfo, ConstConstructImpl, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
     TypeHash, TypeOf, VmError,
 };
 use crate::{Hash, Item, ItemBuf};
@@ -71,7 +69,7 @@ pub struct Module {
     /// A re-export in the current module.
     pub(crate) reexports: Vec<ModuleReexport>,
     /// Constant constructors.
-    pub(crate) construct: Vec<(Hash, AnyTypeInfo, Arc<dyn ConstConstruct>)>,
+    pub(crate) construct: Vec<(Hash, AnyTypeInfo, ConstConstructImpl)>,
     /// Defines construct hashes.
     pub(crate) construct_hash: HashSet<Hash>,
     /// Module level metadata.
@@ -434,7 +432,7 @@ impl Module {
         V: TypeHash + TypeOf + ToConstValue,
     {
         if self.construct_hash.try_insert(V::HASH)? {
-            if let Some(construct) = V::construct() {
+            if let Some(construct) = V::construct()? {
                 self.construct
                     .try_push((V::HASH, V::STATIC_TYPE_INFO, construct))?;
             }
@@ -588,7 +586,7 @@ impl Module {
             return Err(ContextError::ConflictingMacroName { item, hash });
         }
 
-        let handler: Arc<MacroHandler> = Arc::new(f);
+        let handler = MacroHandler::new(f)?;
 
         self.items.try_push(ModuleItem {
             item,
@@ -652,7 +650,7 @@ impl Module {
             return Err(ContextError::ConflictingMacroName { item, hash });
         }
 
-        let handler: Arc<AttributeMacroHandler> = Arc::new(f);
+        let handler = AttributeMacroHandler::new(f)?;
 
         self.items.try_push(ModuleItem {
             item,

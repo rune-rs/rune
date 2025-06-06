@@ -13,9 +13,8 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use crate::alloc::callable::Callable;
-
 use pin_project::pin_project;
+use rune_alloc::callable::Callable;
 
 /// Wrapper for something being [budgeted].
 ///

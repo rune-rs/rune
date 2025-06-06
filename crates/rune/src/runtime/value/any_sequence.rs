@@ -4,8 +4,6 @@ use core::fmt;
 use core::mem::{align_of, needs_drop, replace, size_of, take};
 use core::ptr::{self, addr_of, addr_of_mut, NonNull};
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc;
 use crate::alloc::alloc::{Allocator, Global};
 use crate::alloc::fmt::TryWrite;
@@ -14,6 +12,7 @@ use crate::runtime::{
     Access, AccessError, BorrowMut, BorrowRef, Formatter, IntoOutput, ProtocolCaller, Rtti,
     RttiKind, RuntimeError, Snapshot, TypeInfo, Value, VmError,
 };
+use crate::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) enum AnySequenceTakeError {
@@ -342,7 +341,7 @@ impl<T> AnySequence<Arc<Rtti>, T> {
     /// Access type information on the dynamic value.
     #[inline]
     pub(crate) fn type_info(&self) -> TypeInfo {
-        self.rtti().clone().type_info()
+        Rtti::type_info(self.rtti().clone())
     }
 
     /// Access a field by name.

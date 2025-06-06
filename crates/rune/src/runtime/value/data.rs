@@ -2,10 +2,9 @@ use core::borrow::Borrow;
 use core::fmt;
 use core::hash;
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc::prelude::*;
 use crate::runtime::{BorrowRef, TypeInfo};
+use crate::sync::Arc;
 
 use super::{Rtti, Value};
 

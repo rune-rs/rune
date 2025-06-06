@@ -1,7 +1,5 @@
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
@@ -59,7 +57,7 @@ pub(crate) struct ModuleTrait {
     pub(crate) item: ItemBuf,
     pub(crate) hash: Hash,
     pub(crate) common: ModuleItemCommon,
-    pub(crate) handler: Option<Arc<TraitHandler>>,
+    pub(crate) handler: Option<TraitHandler>,
     pub(crate) functions: Vec<TraitFunction>,
 }
 
@@ -258,12 +256,12 @@ pub(crate) struct ModuleAssociated {
 
 /// Handle to a macro inserted into a module.
 pub(crate) struct ModuleMacro {
-    pub(crate) handler: Arc<MacroHandler>,
+    pub(crate) handler: MacroHandler,
 }
 
 /// Handle to an attribute macro inserted into a module.
 pub(crate) struct ModuleAttributeMacro {
-    pub(crate) handler: Arc<AttributeMacroHandler>,
+    pub(crate) handler: AttributeMacroHandler,
 }
 
 /// Handle to a trait function inserted into a module.

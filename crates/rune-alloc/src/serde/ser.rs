@@ -3,6 +3,7 @@ use serde::ser::{Serialize, Serializer};
 use crate::borrow::{Cow, TryToOwned};
 use crate::boxed::Box;
 use crate::btree::set::BTreeSet;
+use crate::sync::Arc;
 use crate::vec::Vec;
 
 macro_rules! deref_impl {
@@ -24,6 +25,7 @@ macro_rules! deref_impl {
 }
 
 deref_impl!(<T: ?Sized> Serialize for Box<T> where T: Serialize);
+deref_impl!(<T: ?Sized> Serialize for Arc<T> where T: Serialize);
 deref_impl!(<T: ?Sized> Serialize for Cow<'_, T> where T: Serialize + TryToOwned);
 
 macro_rules! seq_impl {

@@ -274,7 +274,7 @@ impl<T, A: Allocator> RawVec<T, A> {
     /// # Aborts
     ///
     /// Aborts on OOM.
-    pub(crate) fn try_shrink_to_fit(&mut self, cap: usize) -> Result<(), Error> {
+    pub(crate) fn try_shrink_to_fit(&mut self, cap: usize) -> Result<(), AllocError> {
         self.shrink(cap)
     }
 }
@@ -346,7 +346,7 @@ impl<T, A: Allocator> RawVec<T, A> {
         Ok(())
     }
 
-    fn shrink(&mut self, cap: usize) -> Result<(), Error> {
+    fn shrink(&mut self, cap: usize) -> Result<(), AllocError> {
         // See current_memory() why this assert is here
         assert!(mem::size_of::<T>() % mem::align_of::<T>() == 0);
         assert!(

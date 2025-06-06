@@ -3,13 +3,12 @@ use core::fmt;
 use core::mem::replace;
 use core::ptr::NonNull;
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{cmp, option, result};
 use crate::runtime;
+use crate::sync::Arc;
 
 mod ops;
 use self::ops::*;
@@ -146,8 +145,8 @@ impl Vm {
     /// Construct a vm with a default empty [RuntimeContext]. This is useful
     /// when the [Unit] was constructed with an empty
     /// [Context][crate::compile::Context].
-    pub fn without_runtime(unit: Arc<Unit>) -> Self {
-        Self::new(Default::default(), unit)
+    pub fn without_runtime(unit: Arc<Unit>) -> alloc::Result<Self> {
+        Ok(Self::new(Arc::try_new(RuntimeContext::default())?, unit))
     }
 
     /// Test if the virtual machine is the same context and unit as specified.
@@ -260,9 +259,8 @@ impl Vm {
     /// # Examples
     ///
     /// ```no_run
+    /// use rune::sync::Arc;
     /// use rune::{Context, Unit, Vm};
-    ///
-    /// use std::sync::Arc;
     ///
     /// let mut sources = rune::sources! {
     ///     entry => {
@@ -277,10 +275,10 @@ impl Vm {
     /// };
     ///
     /// let context = Context::with_default_modules()?;
-    /// let runtime = Arc::new(context.runtime()?);
+    /// let runtime = Arc::try_new(context.runtime()?)?;
     ///
     /// let unit = rune::prepare(&mut sources).build()?;
-    /// let unit = Arc::new(unit);
+    /// let unit = Arc::try_new(unit)?;
     ///
     /// let vm = Vm::new(runtime, unit);
     ///
@@ -339,11 +337,11 @@ impl Vm {
     /// # Examples
     ///
     /// ```no_run
-    /// use rune::{Context, Unit};
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Context, Unit, Vm};
     ///
-    /// let unit = Arc::new(Unit::default());
-    /// let mut vm = rune::Vm::without_runtime(unit);
+    /// let unit = Arc::try_new(Unit::default())?;
+    /// let mut vm = Vm::without_runtime(unit)?;
     ///
     /// let output = vm.execute(["main"], (33i64,))?.complete()?;
     /// let output: i64 = rune::from_value(output)?;
@@ -356,13 +354,13 @@ impl Vm {
     /// arguments.
     ///
     /// ```no_run
-    /// use rune::{Context, Unit};
-    /// use std::sync::Arc;
+    /// use rune::sync::Arc;
+    /// use rune::{Context, Unit, Vm};
     ///
     /// // Normally the unit would be created by compiling some source,
     /// // and since this one is empty it won't do anything.
-    /// let unit = Arc::new(Unit::default());
-    /// let mut vm = rune::Vm::without_runtime(unit);
+    /// let unit = Arc::try_new(Unit::default())?;
+    /// let mut vm = Vm::without_runtime(unit)?;
     ///
     /// let mut args = Vec::new();
     /// args.push(rune::to_value(1u32)?);

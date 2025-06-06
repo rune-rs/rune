@@ -52,7 +52,8 @@ mod const_value;
 #[doc(hidden)]
 pub use self::const_value::ToConstValue;
 pub use self::const_value::{
-    from_const_value, to_const_value, ConstConstruct, ConstValue, FromConstValue,
+    from_const_value, to_const_value, ConstConstruct, ConstConstructImpl, ConstValue,
+    FromConstValue,
 };
 pub(crate) use self::const_value::{
     ConstContext, ConstInstance, ConstValueKind, EmptyConstContext,
@@ -134,9 +135,6 @@ pub use self::range::Range;
 
 mod runtime_context;
 pub use self::runtime_context::RuntimeContext;
-
-mod function_handler;
-pub(crate) use self::function_handler::FunctionHandler;
 
 mod select;
 pub(crate) use self::select::Select;
@@ -222,6 +220,15 @@ pub use self::control_flow::ControlFlow;
 
 mod hasher;
 pub use self::hasher::Hasher;
+
+crate::declare_dyn_fn! {
+    struct FunctionHandlerVTable;
+
+    /// A function handler.
+    pub struct FunctionHandler {
+        fn call(memory: &mut dyn Memory, addr: Address, count: usize, out: Output) -> Result<(), VmError>;
+    }
+}
 
 pub(crate) type FieldMap<K, V> = crate::alloc::HashMap<K, V>;
 

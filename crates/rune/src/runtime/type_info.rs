@@ -5,9 +5,8 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::compile::Named;
 use crate::hash::Hash;
+use crate::sync::Arc;
 use crate::{Any, TypeHash};
-
-use rust_alloc::sync::Arc;
 
 use super::Rtti;
 

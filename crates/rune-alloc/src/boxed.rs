@@ -182,7 +182,11 @@ fn ensure_niche_size() {
 }
 
 /// A pointer type that uniquely owns a heap allocation of type `T`.
-pub struct Box<T: ?Sized, A: Allocator = Global> {
+pub struct Box<T, A = Global>
+where
+    T: ?Sized,
+    A: Allocator,
+{
     ptr: Unique<T>,
     alloc: A,
 }
@@ -265,7 +269,10 @@ impl<T: ?Sized> Box<T> {
     }
 }
 
-impl<T, A: Allocator> Box<T, A> {
+impl<T, A> Box<T, A>
+where
+    A: Allocator,
+{
     /// Allocates memory in the given allocator then places `x` into it,
     /// returning an error if the allocation fails
     ///
@@ -311,10 +318,7 @@ impl<T, A: Allocator> Box<T, A> {
     /// assert_eq!(*five, 5);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn try_new_uninit_in(alloc: A) -> Result<Box<mem::MaybeUninit<T>, A>, AllocError>
-    where
-        A: Allocator,
-    {
+    pub fn try_new_uninit_in(alloc: A) -> Result<Box<mem::MaybeUninit<T>, A>, AllocError> {
         let layout = Layout::new::<mem::MaybeUninit<T>>();
         let ptr = alloc.allocate(layout)?.cast();
         unsafe { Ok(Box::from_raw_in(ptr.as_ptr(), alloc)) }
@@ -341,7 +345,11 @@ impl<T, A: Allocator> Box<T, A> {
     }
 }
 
-impl<T: ?Sized, A: Allocator> Box<T, A> {
+impl<T, A> Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
     /// Consumes and leaks the `Box`, returning a mutable reference, `&'a mut
     /// T`. Note that the type `T` must outlive the chosen lifetime `'a`. If the
     /// type has only static references, or none at all, then this may be chosen
@@ -570,7 +578,10 @@ impl<T: ?Sized, A: Allocator> Box<T, A> {
     }
 }
 
-impl<T, A: Allocator> Box<mem::MaybeUninit<T>, A> {
+impl<T, A> Box<mem::MaybeUninit<T>, A>
+where
+    A: Allocator,
+{
     /// Converts to `Box<T, A>`.
     ///
     /// # Safety
@@ -608,7 +619,10 @@ impl<T, A: Allocator> Box<mem::MaybeUninit<T>, A> {
     }
 }
 
-impl<T, A: Allocator> Box<[T], A> {
+impl<T, A> Box<[T], A>
+where
+    A: Allocator,
+{
     /// Constructs a new boxed slice with uninitialized contents. Returns an error if
     /// the allocation fails
     ///
@@ -647,7 +661,10 @@ impl<T, A: Allocator> Box<[T], A> {
     }
 }
 
-impl<T, A: Allocator> Box<[mem::MaybeUninit<T>], A> {
+impl<T, A> Box<[mem::MaybeUninit<T>], A>
+where
+    A: Allocator,
+{
     /// Converts to `Box<[T], A>`.
     ///
     /// # Safety
@@ -686,9 +703,10 @@ impl<T, A: Allocator> Box<[mem::MaybeUninit<T>], A> {
     }
 }
 
-impl<T, A: Allocator + Clone> TryClone for Box<T, A>
+impl<T, A> TryClone for Box<T, A>
 where
     T: TryClone,
+    A: Allocator + Clone,
 {
     #[inline]
     fn try_clone(&self) -> Result<Self, Error> {
@@ -698,9 +716,10 @@ where
     }
 }
 
-impl<T, A: Allocator + Clone> TryClone for Box<[T], A>
+impl<T, A> TryClone for Box<[T], A>
 where
     T: TryClone,
+    A: Allocator + Clone,
 {
     #[inline]
     fn try_clone(&self) -> Result<Self, Error> {
@@ -710,7 +729,10 @@ where
     }
 }
 
-impl<A: Allocator + Clone> TryClone for Box<str, A> {
+impl<A> TryClone for Box<str, A>
+where
+    A: Allocator + Clone,
+{
     #[inline]
     fn try_clone(&self) -> Result<Self, Error> {
         let alloc = self.alloc.clone();
@@ -718,25 +740,45 @@ impl<A: Allocator + Clone> TryClone for Box<str, A> {
     }
 }
 
-impl<T: ?Sized, A: Allocator> Borrow<T> for Box<T, A> {
+impl<T, A> Borrow<T> for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
+    #[inline]
     fn borrow(&self) -> &T {
         self
     }
 }
 
-impl<T: ?Sized, A: Allocator> BorrowMut<T> for Box<T, A> {
+impl<T, A> BorrowMut<T> for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
+    #[inline]
     fn borrow_mut(&mut self) -> &mut T {
         self
     }
 }
 
-impl<T: ?Sized, A: Allocator> AsRef<T> for Box<T, A> {
+impl<T, A> AsRef<T> for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
+    #[inline]
     fn as_ref(&self) -> &T {
         self
     }
 }
 
-impl<T: ?Sized, A: Allocator> AsMut<T> for Box<T, A> {
+impl<T, A> AsMut<T> for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
+    #[inline]
     fn as_mut(&mut self) -> &mut T {
         self
     }
@@ -764,9 +806,19 @@ impl<T: ?Sized, A: Allocator> AsMut<T> for Box<T, A> {
  *  implementation of `Unpin` (where `T: Unpin`) would be valid/safe, and
  *  could have a method to project a Pin<T> from it.
  */
-impl<T: ?Sized, A: Allocator> Unpin for Box<T, A> where A: 'static {}
+impl<T, A> Unpin for Box<T, A>
+where
+    A: 'static,
+    T: ?Sized,
+    A: Allocator,
+{
+}
 
-impl<T: ?Sized, A: Allocator> Deref for Box<T, A> {
+impl<T, A> Deref for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
     type Target = T;
 
     #[inline]
@@ -775,14 +827,22 @@ impl<T: ?Sized, A: Allocator> Deref for Box<T, A> {
     }
 }
 
-impl<T: ?Sized, A: Allocator> DerefMut for Box<T, A> {
+impl<T, A> DerefMut for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         unsafe { self.ptr.as_mut() }
     }
 }
 
-impl<T: ?Sized, A: Allocator> Drop for Box<T, A> {
+impl<T, A> Drop for Box<T, A>
+where
+    T: ?Sized,
+    A: Allocator,
+{
     #[inline]
     fn drop(&mut self) {
         unsafe {
@@ -802,6 +862,7 @@ impl<T: ?Sized, A: Allocator> Drop for Box<T, A> {
 }
 
 impl Default for Box<str, Global> {
+    #[inline]
     fn default() -> Self {
         // SAFETY: The layout of `Box<[u8]>` is the same as `Box<str>`.
         unsafe {
@@ -813,6 +874,7 @@ impl Default for Box<str, Global> {
 }
 
 impl<T> Default for Box<[T], Global> {
+    #[inline]
     fn default() -> Self {
         Box {
             ptr: Unique::dangling_empty_slice(),
@@ -821,9 +883,10 @@ impl<T> Default for Box<[T], Global> {
     }
 }
 
-impl<T: ?Sized, A: Allocator> fmt::Display for Box<T, A>
+impl<T, A> fmt::Display for Box<T, A>
 where
-    T: fmt::Display,
+    T: ?Sized + fmt::Display,
+    A: Allocator,
 {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -831,9 +894,10 @@ where
     }
 }
 
-impl<T: ?Sized, A: Allocator> fmt::Debug for Box<T, A>
+impl<T, A> fmt::Debug for Box<T, A>
 where
-    T: fmt::Debug,
+    T: ?Sized + fmt::Debug,
+    A: Allocator,
 {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -841,7 +905,10 @@ where
     }
 }
 
-impl<A: Allocator> From<Box<str, A>> for Box<[u8], A> {
+impl<A> From<Box<str, A>> for Box<[u8], A>
+where
+    A: Allocator,
+{
     fn from(value: Box<str, A>) -> Self {
         // SAFETY: `[u8]` is layout compatible with `str` and there are no
         // checks needed.
@@ -852,27 +919,11 @@ impl<A: Allocator> From<Box<str, A>> for Box<[u8], A> {
     }
 }
 
-#[cfg(feature = "alloc")]
-impl<T> TryFrom<rust_alloc::boxed::Box<[T]>> for Box<[T]> {
-    type Error = Error;
-
-    #[inline]
-    fn try_from(values: rust_alloc::boxed::Box<[T]>) -> Result<Self, Error> {
-        let mut vec = Vec::try_with_capacity(values.len())?;
-
-        for value in rust_alloc::vec::Vec::from(values) {
-            vec.try_push(value)?;
-        }
-
-        vec.try_into_boxed_slice()
-    }
-}
-
 impl<T, const N: usize> TryFrom<[T; N]> for Box<[T]> {
     type Error = Error;
 
     #[inline]
-    fn try_from(values: [T; N]) -> Result<Self, Error> {
+    fn try_from(values: [T; N]) -> Result<Self, Self::Error> {
         let mut vec = Vec::try_with_capacity(values.len())?;
 
         for value in values {
@@ -888,9 +939,12 @@ impl<T, const N: usize> TryFrom<[T; N]> for Box<[T]> {
 /// # Safety
 ///
 /// `boxed_slice.len()` must be exactly `N`.
-unsafe fn boxed_slice_as_array_unchecked<T, A: Allocator, const N: usize>(
+unsafe fn boxed_slice_as_array_unchecked<T, A, const N: usize>(
     boxed_slice: Box<[T], A>,
-) -> Box<[T; N], A> {
+) -> Box<[T; N], A>
+where
+    A: Allocator,
+{
     debug_assert_eq!(boxed_slice.len(), N);
 
     let (ptr, alloc) = Box::into_raw_with_allocator(boxed_slice);
@@ -920,7 +974,10 @@ impl<T, const N: usize> TryFrom<Box<[T]>> for Box<[T; N]> {
     }
 }
 
-impl<T, A: Allocator> TryFrom<Vec<T, A>> for Box<[T], A> {
+impl<T, A> TryFrom<Vec<T, A>> for Box<[T], A>
+where
+    A: Allocator,
+{
     type Error = Error;
 
     #[inline]
@@ -929,7 +986,11 @@ impl<T, A: Allocator> TryFrom<Vec<T, A>> for Box<[T], A> {
     }
 }
 
-impl<A: Allocator> Box<[u8], A> {
+impl<A> Box<[u8], A>
+where
+    A: Allocator,
+{
+    #[inline]
     pub(crate) fn try_from_bytes_in(bytes: &[u8], alloc: A) -> Result<Self, Error> {
         let mut vec = Vec::<u8, A>::try_with_capacity_in(bytes.len(), alloc)?;
 
@@ -941,7 +1002,11 @@ impl<A: Allocator> Box<[u8], A> {
     }
 }
 
-impl<A: Allocator> Box<str, A> {
+impl<A> Box<str, A>
+where
+    A: Allocator,
+{
+    #[inline]
     pub(crate) fn try_from_string_in(string: &str, alloc: A) -> Result<Self, Error> {
         unsafe {
             let b = Box::try_from_bytes_in(string.as_bytes(), alloc)?;
@@ -951,7 +1016,11 @@ impl<A: Allocator> Box<str, A> {
     }
 }
 
-impl<A: Allocator> Box<Path, A> {
+impl<A> Box<Path, A>
+where
+    A: Allocator,
+{
+    #[inline]
     pub(crate) fn try_from_path_in(path: &Path, alloc: A) -> Result<Self, Error> {
         unsafe {
             const _: () = assert!(mem::size_of::<&Path>() == mem::size_of::<&[u8]>());
@@ -965,7 +1034,10 @@ impl<A: Allocator> Box<Path, A> {
     }
 }
 
-impl<A: Allocator + Clone> TryClone for Box<Path, A> {
+impl<A> TryClone for Box<Path, A>
+where
+    A: Allocator + Clone,
+{
     #[inline]
     fn try_clone(&self) -> Result<Self, Error> {
         let alloc = self.alloc.clone();
@@ -1030,7 +1102,7 @@ impl TryFrom<&[u8]> for Box<[u8]> {
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
-    fn try_from(values: &[u8]) -> Result<Self, Error> {
+    fn try_from(values: &[u8]) -> Result<Self, Self::Error> {
         Box::try_from_bytes_in(values, Global)
     }
 }
@@ -1058,7 +1130,11 @@ impl TryFrom<&Path> for Box<Path> {
     }
 }
 
-impl<T, A: Allocator> TryFromIteratorIn<T, A> for Box<[T], A> {
+impl<T, A> TryFromIteratorIn<T, A> for Box<[T], A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where
         I: IntoIterator<Item = T>,
@@ -1077,9 +1153,10 @@ unsafe fn for_value_raw<T: ?Sized>(t: *const T) -> Layout {
     Layout::from_size_align_unchecked(size, align)
 }
 
-impl<T: ?Sized, A: Allocator> Hash for Box<T, A>
+impl<T, A> Hash for Box<T, A>
 where
-    T: Hash,
+    T: ?Sized + Hash,
+    A: Allocator,
 {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -1087,9 +1164,10 @@ where
     }
 }
 
-impl<T: ?Sized, A: Allocator> From<Box<T, A>> for Pin<Box<T, A>>
+impl<T, A> From<Box<T, A>> for Pin<Box<T, A>>
 where
-    A: 'static,
+    T: ?Sized,
+    A: 'static + Allocator,
 {
     /// Converts a `Box<T>` into a `Pin<Box<T>>`. If `T` does not implement
     /// [`Unpin`], then `*boxed` will be pinned in memory and unable to be
@@ -1105,14 +1183,16 @@ where
     /// `From` implementation is useful if you already have a `Box<T>`, or you
     /// are constructing a (pinned) `Box` in a different way than with
     /// [`Box::try_new`].
+    #[inline]
     fn from(boxed: Box<T, A>) -> Self {
         Box::into_pin(boxed)
     }
 }
 
-impl<T: ?Sized, A: Allocator> PartialEq for Box<T, A>
+impl<T, A> PartialEq for Box<T, A>
 where
-    T: PartialEq,
+    T: ?Sized + PartialEq,
+    A: Allocator,
 {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -1120,11 +1200,17 @@ where
     }
 }
 
-impl<T: ?Sized, A: Allocator> Eq for Box<T, A> where T: Eq {}
-
-impl<T: ?Sized, A: Allocator> PartialOrd for Box<T, A>
+impl<T, A> Eq for Box<T, A>
 where
-    T: PartialOrd,
+    T: ?Sized + Eq,
+    A: Allocator,
+{
+}
+
+impl<T, A> PartialOrd for Box<T, A>
+where
+    T: ?Sized + PartialOrd,
+    A: Allocator,
 {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -1132,12 +1218,29 @@ where
     }
 }
 
-impl<T: ?Sized, A: Allocator> Ord for Box<T, A>
+impl<T, A> Ord for Box<T, A>
 where
-    T: Ord,
+    T: ?Sized + Ord,
+    A: Allocator,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         (**self).cmp(other)
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T> TryFrom<rust_alloc::boxed::Box<[T]>> for Box<[T]> {
+    type Error = Error;
+
+    #[inline]
+    fn try_from(values: rust_alloc::boxed::Box<[T]>) -> Result<Self, Self::Error> {
+        let mut vec = Vec::try_with_capacity(values.len())?;
+
+        for value in rust_alloc::vec::Vec::from(values) {
+            vec.try_push(value)?;
+        }
+
+        vec.try_into_boxed_slice()
     }
 }

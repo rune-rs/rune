@@ -74,13 +74,13 @@ The following is a complete example, including rich diagnostics using
 
 ```rust
 use rune::{Context, Diagnostics, Source, Sources, Vm};
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
-use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> rune::support::Result<()> {
     let context = Context::with_default_modules()?;
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = Sources::new();
 
@@ -106,7 +106,8 @@ async fn main() -> rune::support::Result<()> {
     }
 
     let unit = result?;
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     let output = vm.call(["add"], (10i64, 20i64))?;
     let output: i64 = rune::from_value(output)?;

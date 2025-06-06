@@ -2,7 +2,6 @@ use std::fmt;
 use std::io::Write;
 use std::mem::take;
 use std::slice;
-use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
@@ -19,6 +18,7 @@ use crate::compile::FileSourceLoader;
 use crate::doc::{TestKind, TestParams};
 use crate::modules::capture_io::CaptureIo;
 use crate::runtime::{Repr, Value, Vm, VmError, VmOutcome};
+use crate::sync::Arc;
 use crate::{Diagnostics, Hash, Item, ItemBuf, Source, Sources, TypeHash, Unit};
 
 mod cli {
@@ -187,8 +187,8 @@ where
 
         diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
-        let unit = Arc::new(unit?);
-        let sources = Arc::new(sources);
+        let unit = Arc::try_new(unit?)?;
+        let sources = Arc::try_new(sources)?;
 
         let mut cases = Vec::new();
 
@@ -261,7 +261,7 @@ where
         })?;
     }
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
     let mut failed = Vec::new();
 
     for batch in batches {
@@ -457,8 +457,8 @@ fn populate_doc_tests(
         diagnostics.emit(&mut io.stdout.lock(), &sources)?;
 
         if !test.params.no_run {
-            let unit = Arc::new(unit?);
-            let sources = Arc::new(sources);
+            let unit = Arc::try_new(unit?)?;
+            let sources = Arc::try_new(sources)?;
 
             cases.try_push(TestCase::new(
                 Hash::EMPTY,

@@ -590,7 +590,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                 idx: &mut idx,
             };
 
-            handler(&mut macro_context, &input_stream)?
+            handler.call(&mut macro_context, &input_stream)?
         };
 
         let inner_tree = crate::grammar::token_stream(&output_stream).root()?;

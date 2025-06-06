@@ -29,7 +29,6 @@
 #![allow(clippy::unused_unit)]
 
 use std::fmt;
-use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use gloo_utils::format::JsValueSerdeExt;
@@ -38,7 +37,9 @@ use rune::compile::LinkerError;
 use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use rune::modules::capture_io::CaptureIo;
 use rune::runtime::budget;
-use rune::{Context, ContextError, Options};
+use rune::sync::Arc;
+use rune::termcolor;
+use rune::{Context, ContextError, Options, Vm};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -174,6 +175,7 @@ async fn inner_compile(
     sources.insert(source)?;
 
     let context = setup_context(io)?;
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut options = Options::from_default_env()?;
 
@@ -256,7 +258,7 @@ async fn inner_compile(
         }
     }
 
-    let mut writer = rune::termcolor::Buffer::no_color();
+    let mut writer = termcolor::Buffer::no_color();
 
     if !config.suppress_text_warnings {
         d.emit(&mut writer, &sources)
@@ -264,7 +266,7 @@ async fn inner_compile(
     }
 
     let unit = match result {
-        Ok(unit) => Arc::new(unit),
+        Ok(unit) => Arc::try_new(unit)?,
         Err(error) => {
             return Ok(WasmCompileResult::from_error(
                 io,
@@ -277,7 +279,7 @@ async fn inner_compile(
     };
 
     let instructions = if config.instructions {
-        let mut out = rune::termcolor::Buffer::no_color();
+        let mut out = termcolor::Buffer::no_color();
         unit.emit_instructions(&mut out, &sources, false)
             .expect("dumping to string shouldn't fail");
         Some(diagnostics_output(out).context("Converting instructions to UTF-8")?)
@@ -285,7 +287,7 @@ async fn inner_compile(
         None
     };
 
-    let mut vm = rune::Vm::new(Arc::new(context.runtime()?), unit);
+    let mut vm = Vm::new(runtime, unit);
 
     let mut execution = match vm.execute(["main"], ()) {
         Ok(execution) => execution,
@@ -363,7 +365,7 @@ async fn inner_compile(
     ))
 }
 
-fn diagnostics_output(writer: rune::termcolor::Buffer) -> Option<String> {
+fn diagnostics_output(writer: termcolor::Buffer) -> Option<String> {
     let mut string = String::from_utf8(writer.into_inner()).ok()?;
     let new_len = string.trim_end().len();
     string.truncate(new_len);

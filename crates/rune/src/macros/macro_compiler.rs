@@ -52,7 +52,7 @@ impl MacroCompiler<'_, '_, '_> {
                 idx: self.idx,
             };
 
-            handler(&mut macro_context, input_stream)?
+            handler.call(&mut macro_context, input_stream)?
         };
 
         let mut parser = Parser::from_token_stream(&token_stream, span);
@@ -101,7 +101,7 @@ impl MacroCompiler<'_, '_, '_> {
             let mut item_stream = TokenStream::new();
             item.to_tokens(&mut macro_context, &mut item_stream)?;
 
-            handler(&mut macro_context, input_stream, &item_stream)?
+            handler.call(&mut macro_context, input_stream, &item_stream)?
         };
 
         let mut parser = Parser::from_token_stream(&token_stream, span);

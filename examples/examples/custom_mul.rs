@@ -2,9 +2,8 @@
 //! specific type `Foo`.
 
 use rune::runtime::Protocol;
+use rune::sync::Arc;
 use rune::{Any, ContextError, Diagnostics, Module, Vm};
-
-use std::sync::Arc;
 
 #[derive(Debug, Default, Any)]
 struct Foo {
@@ -25,7 +24,7 @@ fn main() -> rune::support::Result<()> {
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -37,12 +36,15 @@ fn main() -> rune::support::Result<()> {
 
     let mut diagnostics = Diagnostics::new();
 
-    let unit = rune::prepare(&mut sources)
+    let result = rune::prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
-        .build()?;
+        .build();
 
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let unit = result?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
+
     let output = vm.call(["main"], (Foo { field: 5 },))?;
     let output: Foo = rune::from_value(output)?;
 

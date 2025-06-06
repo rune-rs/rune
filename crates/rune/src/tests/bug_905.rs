@@ -29,7 +29,7 @@ fn enum_variants() -> Result<()> {
     let mut context = Context::with_default_modules()?;
     context.install(m)?;
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -62,7 +62,8 @@ fn enum_variants() -> Result<()> {
         .with_diagnostics(&mut diagnostics)
         .build()?;
 
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     let output = vm.call(["named"], ())?;
     let output: Enum = from_value(output)?;

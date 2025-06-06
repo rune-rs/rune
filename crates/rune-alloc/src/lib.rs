@@ -80,57 +80,60 @@ mod serde;
 
 #[macro_use]
 mod public_macros;
-
 #[macro_use]
 mod macros;
-
 pub use self::error::Error;
-pub mod error;
-
-pub mod str;
-
-pub(crate) mod raw_vec;
-
-pub use self::boxed::Box;
 pub mod boxed;
-
-pub use self::btree::{map as btree_map, map::BTreeMap};
-pub use self::btree::{set as btree_set, set::BTreeSet};
+pub mod error;
+pub(crate) mod raw_vec;
+pub mod str;
+#[doc(inline)]
+pub use self::boxed::Box;
 pub(crate) mod btree;
-
-pub use self::hashbrown::{map as hash_map, map::HashMap};
-pub use self::hashbrown::{set as hash_set, set::HashSet};
+#[doc(inline)]
+pub use self::btree::{map as btree_map, map::BTreeMap};
+#[doc(inline)]
+pub use self::btree::{set as btree_set, set::BTreeSet};
+#[doc(hidden)]
 pub mod hashbrown;
-
-pub use self::vec::Vec;
+#[doc(inline)]
+pub use self::hashbrown::{map as hash_map, map::HashMap};
+#[doc(inline)]
+pub use self::hashbrown::{set as hash_set, set::HashSet};
 pub mod vec;
-
-pub use self::vec_deque::VecDeque;
+#[doc(inline)]
+pub use self::vec::Vec;
 pub mod vec_deque;
-
-pub use self::string::String;
+#[doc(inline)]
+pub use self::vec_deque::VecDeque;
 pub mod string;
-
+#[doc(inline)]
+pub use self::string::String;
 pub mod alloc;
-
-pub mod clone;
-
 pub mod borrow;
-
-pub mod iter;
-
+pub mod clone;
 pub mod fmt;
-
+pub(crate) mod hint;
+pub mod iter;
+mod option;
+pub(crate) mod ptr;
 pub mod sync;
 
-mod option;
-
-pub(crate) mod hint;
-pub(crate) mod ptr;
+#[doc(hidden)]
+pub mod callable;
 #[doc(hidden)]
 pub mod slice;
 
-pub mod callable;
+#[cfg(feature = "musli")]
+mod musli;
+
+pub mod limit;
+
+#[cfg(test)]
+mod testing;
+
+#[cfg(test)]
+mod tests;
 
 pub mod prelude {
     //! Prelude for common traits used in combination with this crate which
@@ -145,14 +148,3 @@ pub mod prelude {
     pub use crate::vec::Vec;
     pub use crate::{try_format, try_vec};
 }
-
-#[cfg(feature = "musli")]
-mod musli;
-
-pub mod limit;
-
-#[cfg(test)]
-mod testing;
-
-#[cfg(test)]
-mod tests;

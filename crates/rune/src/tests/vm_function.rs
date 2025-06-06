@@ -1,10 +1,8 @@
 prelude!();
 
-use std::sync::Arc;
-
 #[test]
-fn test_function() {
-    let context = Arc::new(Context::with_default_modules().unwrap());
+fn test_function() -> Result<()> {
+    let context = Arc::try_new(Context::with_default_modules()?)?;
 
     // ptr to dynamic function.
     let function: Function = rune! {
@@ -56,10 +54,10 @@ fn test_function() {
         "pub fn main(a, b) { || a + b }",
         (1i64, 2i64),
         false,
-    )
-    .unwrap();
+    )?;
 
     assert!(function.call::<Value>((1i64,)).is_err());
     let value: Value = function.call(()).unwrap();
     assert_eq!(value.as_signed().unwrap(), 3);
+    Ok(())
 }

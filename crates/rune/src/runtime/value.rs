@@ -27,12 +27,11 @@ use core::fmt;
 use core::mem::replace;
 use core::ptr::NonNull;
 
-use rust_alloc::sync::Arc;
-
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
+use crate::sync::Arc;
 use crate::{Any, Hash, TypeHash};
 
 use super::{
@@ -1357,8 +1356,8 @@ impl Value {
 
                 return Err(VmError::new(VmErrorKind::UnsupportedBinaryOperation {
                     op: protocol.name,
-                    lhs: lhs_rtti.clone().type_info(),
-                    rhs: rhs_rtti.clone().type_info(),
+                    lhs: Rtti::type_info(lhs_rtti.clone()),
+                    rhs: Rtti::type_info(rhs_rtti.clone()),
                 }));
             }
             _ => {}

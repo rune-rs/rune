@@ -22,6 +22,7 @@ pub(crate) mod prelude {
         UnsafeToRef, VecTuple, VmErrorKind,
     };
     pub(crate) use crate::support::Result;
+    pub(crate) use crate::sync::Arc;
     pub(crate) use crate::tests::{eval, run};
     pub(crate) use crate::{
         from_value, prepare, sources, span, Any, Context, ContextError, Diagnostics, FromValue,
@@ -30,7 +31,6 @@ pub(crate) mod prelude {
     pub(crate) use futures_executor::block_on;
 
     pub(crate) use rust_alloc::string::{String, ToString};
-    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::vec::Vec;
 
     pub(crate) use anyhow::Context as AnyhowContext;
@@ -39,11 +39,11 @@ pub(crate) mod prelude {
 use core::fmt;
 
 use rust_alloc::string::String;
-use rust_alloc::sync::Arc;
 
 use anyhow::{Context as _, Error, Result};
 
 use crate::runtime::{Args, VmError};
+use crate::sync::Arc;
 use crate::{
     alloc, termcolor, BuildError, Context, Diagnostics, FromValue, Hash, Options, Source, Sources,
     Unit, Vm,
@@ -116,6 +116,8 @@ pub fn vm(
     diagnostics: &mut Diagnostics,
     script: bool,
 ) -> Result<Vm, TestError> {
+    let runtime = Arc::try_new(context.runtime()?)?;
+
     let mut options = Options::default();
 
     if script {
@@ -139,8 +141,8 @@ pub fn vm(
         return Err(TestError::Error(error));
     };
 
-    let context = Arc::new(context.runtime()?);
-    Ok(Vm::new(context, Arc::new(unit)))
+    let unit = Arc::try_new(unit)?;
+    Ok(Vm::new(runtime, unit))
 }
 
 /// Call the specified function in the given script sources.

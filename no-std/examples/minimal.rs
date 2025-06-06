@@ -36,8 +36,7 @@ pub extern "C" fn _Unwind_Resume() {}
 
 use core::ffi::c_int;
 
-use alloc::sync::Arc;
-
+use rune::sync::Arc;
 use rune::{Diagnostics, Vm};
 
 rune::no_std::static_env!();
@@ -66,6 +65,7 @@ extern "C" fn main(_argc: c_int, _argv: *const *const u8) -> c_int {
 
 fn inner_main() -> rune::support::Result<i32> {
     let context = rune::Context::with_default_modules()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -83,8 +83,9 @@ fn inner_main() -> rune::support::Result<i32> {
         .build();
 
     let unit = result?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
-    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
     let output = vm.execute(["main"], (33i64,))?.complete()?;
     let output: i32 = rune::from_value(output)?;
     Ok((output != 43).into())

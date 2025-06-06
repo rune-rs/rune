@@ -13,7 +13,8 @@ use crate::compile::{
 };
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
-use crate::{Context, Diagnostics, Item, SourceId, Sources};
+use crate::sync::Arc;
+use crate::{Context, Diagnostics, Item, SourceId, Sources, Vm};
 
 /// Error raised when we failed to load sources.
 ///
@@ -96,10 +97,10 @@ impl core::error::Error for BuildError {
 /// ```no_run
 /// use rune::termcolor::{ColorChoice, StandardStream};
 /// use rune::{Context, Source, Vm};
-/// use std::sync::Arc;
+/// use rune::sync::Arc;
 ///
 /// let context = Context::with_default_modules()?;
-/// let runtime = Arc::new(context.runtime()?);
+/// let runtime = Arc::try_new(context.runtime()?)?;
 ///
 /// let mut sources = rune::Sources::new();
 ///
@@ -122,7 +123,7 @@ impl core::error::Error for BuildError {
 /// }
 ///
 /// let unit = result?;
-/// let unit = Arc::new(unit);
+/// let unit = Arc::try_new(unit)?;
 /// let vm = Vm::new(runtime, unit);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
@@ -245,8 +246,6 @@ impl<'a, S> Build<'a, S> {
     /// If unspecified the empty context constructed with [`Context::new`] will
     /// be used. Since this counts as building without a context,
     /// [`Vm::without_runtime`] can be used when running the produced [`Unit`].
-    ///
-    /// [`Vm::without_runtime`]: crate::Vm::without_runtime
     #[inline]
     pub fn with_context(mut self, context: &'a Context) -> Self {
         self.context = Some(context);
@@ -293,7 +292,19 @@ impl<'a, S> Build<'a, S> {
     /// See [`rune::prepare`] for more.
     ///
     /// [`rune::prepare`]: prepare
-    pub fn build(mut self) -> Result<Unit<S>, BuildError>
+    pub fn build(self) -> Result<Unit<S>, BuildError>
+    where
+        S: Default + UnitEncoder,
+    {
+        let (unit, ()) = self.build_inner(|_| ())?;
+        Ok(unit)
+    }
+
+    #[inline]
+    fn build_inner<O>(
+        mut self,
+        extra: impl FnOnce(&Context) -> O,
+    ) -> Result<(Unit<S>, O), BuildError>
     where
         S: Default + UnitEncoder,
     {
@@ -390,11 +401,23 @@ impl<'a, S> Build<'a, S> {
         }
 
         match unit.build(Span::empty(), unit_storage) {
-            Ok(unit) => Ok(unit),
+            Ok(unit) => Ok((unit, extra(context))),
             Err(error) => {
                 diagnostics.error(SourceId::empty(), error)?;
                 Err(BuildError::default())
             }
         }
+    }
+}
+
+impl<'a> Build<'a, DefaultStorage> {
+    /// Convenience method to build a [`Vm`] directly from the current build
+    /// using default storage.
+    pub fn build_vm(self) -> Result<Vm, BuildError> {
+        let (unit, runtime) = self.build_inner(|context| context.runtime())?;
+        let runtime = runtime?;
+        let runtime = Arc::try_new(runtime)?;
+        let unit = Arc::try_new(unit)?;
+        Ok(Vm::new(runtime, unit))
     }
 }

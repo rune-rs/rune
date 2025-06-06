@@ -1,7 +1,5 @@
 prelude!();
 
-use std::sync::Arc;
-
 /// Cannot call instance functions on template literals.
 /// https://github.com/rune-rs/rune/issues/326
 #[test]
@@ -9,7 +7,7 @@ fn bug_326() -> Result<()> {
     let mut context = Context::with_default_modules()?;
     context.install(trim_module()?)?;
 
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = Sources::new();
     sources.insert(Source::new(
@@ -30,7 +28,8 @@ fn bug_326() -> Result<()> {
     let result = prepare(&mut sources).with_context(&context).build();
 
     let unit = result?;
-    let mut vm = Vm::new(runtime, Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     vm.call(["test_multiline_template"], ())?;
     Ok(())

@@ -81,7 +81,7 @@ impl Module {
             #[automatically_derived]
             #[allow(non_snake_case)]
             #[doc(hidden)]
-            fn #name() -> rune::alloc::Result<rune::__priv::ModuleMetaData> {
+            fn #name() -> Result<rune::__priv::ModuleMetaData, rune::alloc::Error> {
                 Ok(rune::__priv::ModuleMetaData {
                     item: unsafe { rune::__priv::Item::from_bytes(&#item_bytes) },
                     docs: &#docs[..],

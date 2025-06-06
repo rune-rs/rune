@@ -1,17 +1,16 @@
+use rune::ast;
 use rune::macros::quote;
 use rune::parse::Parser;
+use rune::sync::Arc;
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{ast, ContextError};
-use rune::{Diagnostics, Module, Vm};
-
-use std::sync::Arc;
+use rune::{ContextError, Diagnostics, Module, Vm};
 
 pub fn main() -> rune::support::Result<()> {
     let m = module()?;
 
     let mut context = rune_modules::default_context()?;
     context.install(m)?;
-    let runtime = Arc::new(context.runtime()?);
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = rune::sources! {
         entry => {
@@ -36,8 +35,9 @@ pub fn main() -> rune::support::Result<()> {
     }
 
     let unit = result?;
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
-    let mut vm = Vm::new(runtime, Arc::new(unit));
     let output = vm.execute(["main"], ())?.complete()?;
     let output: (u32, u32) = rune::from_value(output)?;
 

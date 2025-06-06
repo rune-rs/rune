@@ -1,9 +1,10 @@
 use core::ptr;
 
+use rune_alloc::hashbrown::raw::RawIter;
+
 use crate as rune;
 use crate::alloc;
 use crate::alloc::fmt::TryWrite;
-use crate::alloc::hashbrown::raw::RawIter;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{

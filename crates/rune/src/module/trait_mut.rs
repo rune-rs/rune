@@ -1,7 +1,5 @@
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 #[cfg(feature = "doc")]
 use crate::alloc::Box;
 use crate::alloc::Vec;
@@ -17,7 +15,7 @@ pub struct TraitMut<'a> {
     pub(super) docs: &'a mut Docs,
     #[cfg(feature = "doc")]
     pub(super) deprecated: &'a mut Option<Box<str>>,
-    pub(super) handler: &'a mut Option<Arc<TraitHandler>>,
+    pub(super) handler: &'a mut Option<TraitHandler>,
     pub(super) functions: &'a mut Vec<TraitFunction>,
 }
 
@@ -66,7 +64,7 @@ impl TraitMut<'_> {
     where
         F: 'static + Fn(&mut TraitContext<'_>) -> Result<(), ContextError> + Send + Sync,
     {
-        *self.handler = Some(Arc::new(handler));
+        *self.handler = Some(TraitHandler::new(handler)?);
         Ok(self)
     }
 

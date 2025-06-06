@@ -4,6 +4,7 @@ prelude!();
 #[test]
 pub fn test_bug_700() -> Result<()> {
     let context = Context::new();
+    let runtime = Arc::try_new(context.runtime()?)?;
 
     let mut sources = sources! {
         entry => {
@@ -14,7 +15,8 @@ pub fn test_bug_700() -> Result<()> {
     };
 
     let unit = prepare(&mut sources).with_context(&context).build()?;
-    let mut vm = Vm::new(Arc::new(context.runtime()?), Arc::new(unit));
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
 
     let value = vm.call(["main"], (42,))?;
     let function = from_value::<Function>(value)?;
