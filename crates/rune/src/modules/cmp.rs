@@ -5,10 +5,9 @@ use core::cmp::Ordering;
 use crate as rune;
 use crate::alloc;
 use crate::alloc::fmt::TryWrite;
-use crate::docstring;
-use crate::hash;
 use crate::runtime::{Formatter, Protocol, Value};
 use crate::shared::Caller;
+use crate::{docstring, hash_in};
 use crate::{ContextError, Hash, Module, VmError};
 
 /// Comparison and ordering.
@@ -60,14 +59,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// "An ordering where a compared value is greater than another.
             })?;
 
-        m.associated_function(&Protocol::IS_VARIANT, |this: Ordering, hash: Hash| {
-            match (this, hash) {
-                (Ordering::Less, hash!(::std::cmp::Ordering::Less)) => true,
-                (Ordering::Equal, hash!(::std::cmp::Ordering::Equal)) => true,
-                (Ordering::Greater, hash!(::std::cmp::Ordering::Greater)) => true,
-                _ => false,
-            }
-        })?;
+        m.function_meta(ordering_is_variant__meta)?;
     }
 
     m.function_meta(ordering_partial_eq__meta)?;
@@ -680,6 +672,17 @@ pub fn module() -> Result<Module, ContextError> {
         })?;
 
     Ok(m)
+}
+
+#[rune::function(keep, instance, protocol = IS_VARIANT)]
+#[inline]
+pub(crate) fn ordering_is_variant(this: Ordering, hash: Hash) -> bool {
+    match (this, hash) {
+        (Ordering::Less, hash_in!(crate, ::std::cmp::Ordering::Less)) => true,
+        (Ordering::Equal, hash_in!(crate, ::std::cmp::Ordering::Equal)) => true,
+        (Ordering::Greater, hash_in!(crate, ::std::cmp::Ordering::Greater)) => true,
+        _ => false,
+    }
 }
 
 /// Compares and returns the maximum of two values.
