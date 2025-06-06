@@ -21,12 +21,11 @@ use super::{
     budget, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs,
     DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
     GeneratorState, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
-    InstShiftOp, InstTarget, InstValue, InstVariant, Object, Output, OwnedTuple, Pair, Panic,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type,
-    TypeCheck, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
-    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome,
-    VmSendExecution,
+    InstShiftOp, InstTarget, InstValue, Object, Output, OwnedTuple, Pair, Panic, Protocol,
+    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Repr,
+    RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type, TypeCheck, TypeHash,
+    TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj,
+    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -2732,27 +2731,6 @@ impl Vm {
         Ok(())
     }
 
-    /// Push the given variant onto the stack.
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_variant(
-        &mut self,
-        addr: Address,
-        variant: InstVariant,
-        out: Output,
-    ) -> Result<(), VmError> {
-        match variant {
-            InstVariant::Some => {
-                let some = self.stack.at(addr).clone();
-                out.store(&mut self.stack, || Value::try_from(Some(some)))?;
-            }
-            InstVariant::None => {
-                out.store(&mut self.stack, || Value::try_from(None))?;
-            }
-        }
-
-        Ok(())
-    }
-
     /// Load a function as a value onto the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash, out: Output) -> Result<(), VmError> {
@@ -3293,9 +3271,6 @@ impl Vm {
                 }
                 inst::Kind::YieldUnit { out } => {
                     return Ok(VmHalt::Yielded(None, out));
-                }
-                inst::Kind::Variant { addr, variant, out } => {
-                    self.op_variant(addr, variant, out)?;
                 }
                 inst::Kind::Op { op, a, b, out } => {
                     self.op_op(op, a, b, out)?;

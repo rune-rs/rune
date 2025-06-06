@@ -988,26 +988,6 @@ pub(crate) enum Kind {
         /// Where to store the produced resume value.
         out: Output,
     },
-    /// Construct a built-in variant onto the stack.
-    ///
-    /// The variant will pop as many values of the stack as necessary to
-    /// construct it.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value..>
-    /// => <variant>
-    /// ```
-    #[cfg_attr(feature = "musli", musli(packed))]
-    Variant {
-        /// Where the arguments to construct the variant are stored.
-        addr: Address,
-        /// The kind of built-in variant to construct.
-        variant: InstVariant,
-        /// Where to store the variant.
-        out: Output,
-    },
     /// An operation.
     #[cfg_attr(feature = "musli", musli(packed))]
     Op {
@@ -1746,33 +1726,6 @@ impl fmt::Display for InstValue {
             Self::Type(v) => write!(f, "{}", v.into_hash())?,
             Self::Ordering(v) => write!(f, "{v:?}")?,
             Self::Hash(v) => write!(f, "{v:?}")?,
-        }
-
-        Ok(())
-    }
-}
-
-/// A variant that can be constructed.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
-#[try_clone(copy)]
-pub(crate) enum InstVariant {
-    /// `Option::Some`, which uses one value.
-    Some,
-    /// `Option::None`, which uses no values.
-    None,
-}
-
-impl fmt::Display for InstVariant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Some => {
-                write!(f, "Some")?;
-            }
-            Self::None => {
-                write!(f, "None")?;
-            }
         }
 
         Ok(())
