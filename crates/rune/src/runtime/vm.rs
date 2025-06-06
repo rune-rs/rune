@@ -23,9 +23,9 @@ use super::{
     GeneratorState, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
     InstShiftOp, InstTarget, InstValue, Object, Output, OwnedTuple, Pair, Panic, Protocol,
     ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Repr,
-    RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type, TypeCheck, TypeHash,
-    TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj,
-    VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution,
+    RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type, TypeHash, TypeInfo,
+    TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError,
+    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -935,32 +935,6 @@ impl Vm {
                 field: field.try_to_owned()?,
             }),
         }
-    }
-
-    fn on_tuple<F, O>(&self, ty: TypeCheck, value: &Value, f: F) -> Result<Option<O>, VmError>
-    where
-        F: FnOnce(&[Value]) -> O,
-    {
-        let value = match value.as_ref() {
-            Repr::Inline(value) => match (ty, value) {
-                (TypeCheck::Unit, Inline::Unit) => Some(f(&[])),
-                _ => None,
-            },
-            Repr::Any(value) => match (ty, value.type_hash()) {
-                (TypeCheck::Vec, runtime::Vec::HASH) => {
-                    let vec = value.borrow_ref::<runtime::Vec>()?;
-                    Some(f(&vec))
-                }
-                (TypeCheck::Tuple, runtime::OwnedTuple::HASH) => {
-                    let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
-                    Some(f(&tuple))
-                }
-                _ => None,
-            },
-            _ => None,
-        };
-
-        Ok(value)
     }
 
     /// Internal implementation of the instance check.
@@ -2569,7 +2543,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_sequence(
         &mut self,
-        ty: TypeCheck,
+        hash: Hash,
         len: usize,
         exact: bool,
         addr: Address,
@@ -2577,15 +2551,41 @@ impl Vm {
     ) -> Result<(), VmError> {
         let value = self.stack.at(addr);
 
-        let result = self.on_tuple(ty, value, move |tuple| {
+        let type_hash = value.type_hash();
+
+        if type_hash != hash {
+            out.store(&mut self.stack, false)?;
+            return Ok(());
+        }
+
+        let f = move |tuple: &[Value]| {
             if exact {
                 tuple.len() == len
             } else {
                 tuple.len() >= len
             }
-        })?;
+        };
 
-        out.store(&mut self.stack, result.unwrap_or_default())?;
+        let on_sequence = || -> Result<bool, VmError> {
+            match value.as_ref() {
+                Repr::Inline(Inline::Unit) => Ok(f(&[])),
+                Repr::Any(value) => match type_hash {
+                    runtime::Vec::HASH => {
+                        let vec = value.borrow_ref::<runtime::Vec>()?;
+                        Ok(f(&vec))
+                    }
+                    runtime::OwnedTuple::HASH => {
+                        let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
+                        Ok(f(&tuple))
+                    }
+                    _ => Ok(false),
+                },
+                _ => Ok(false),
+            }
+        };
+
+        let value = on_sequence()?;
+        out.store(&mut self.stack, value)?;
         Ok(())
     }
 
@@ -2656,32 +2656,6 @@ impl Vm {
                 CallResultOnly::Ok(value) => bool::from_value(value)?,
                 CallResultOnly::Unsupported(..) => false,
             }
-        };
-
-        out.store(&mut self.stack, is_match)?;
-        Ok(())
-    }
-
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_builtin(
-        &mut self,
-        type_check: TypeCheck,
-        addr: Address,
-        out: Output,
-    ) -> Result<(), VmError> {
-        let value = self.stack.at(addr);
-
-        let is_match = match value.as_ref() {
-            Repr::Inline(value) => match (type_check, value) {
-                (TypeCheck::Unit, Inline::Unit) => true,
-                _ => false,
-            },
-            Repr::Dynamic(..) => false,
-            Repr::Any(value) => match (type_check, value.type_hash()) {
-                (TypeCheck::Vec, runtime::Vec::HASH) => true,
-                (TypeCheck::Tuple, runtime::OwnedTuple::HASH) => true,
-                _ => false,
-            },
         };
 
         out.store(&mut self.stack, is_match)?;
@@ -3232,13 +3206,13 @@ impl Vm {
                     self.op_eq_bytes(addr, slot, out)?;
                 }
                 inst::Kind::MatchSequence {
-                    type_check,
+                    hash,
                     len,
                     exact,
                     addr,
                     out,
                 } => {
-                    self.op_match_sequence(type_check, len, exact, addr, out)?;
+                    self.op_match_sequence(hash, len, exact, addr, out)?;
                 }
                 inst::Kind::MatchType { hash, addr, out } => {
                     self.op_match_type(hash, addr, out)?;
@@ -3250,13 +3224,6 @@ impl Vm {
                     out,
                 } => {
                     self.op_match_variant(enum_hash, variant_hash, addr, out)?;
-                }
-                inst::Kind::MatchBuiltIn {
-                    type_check,
-                    addr,
-                    out,
-                } => {
-                    self.op_match_builtin(type_check, addr, out)?;
                 }
                 inst::Kind::MatchObject {
                     slot,

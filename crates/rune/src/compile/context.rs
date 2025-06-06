@@ -21,7 +21,7 @@ use crate::module::{
 };
 use crate::runtime::{
     Address, AnyTypeInfo, ConstConstruct, ConstContext, ConstValue, FunctionHandler, Memory,
-    Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeCheck, TypeInfo, VmError,
+    Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeInfo, VmError,
 };
 use crate::{Hash, Item, ItemBuf};
 
@@ -244,8 +244,6 @@ pub(crate) struct ContextType {
     item: ItemBuf,
     /// Type hash.
     hash: Hash,
-    /// The type check used for the current type.
-    type_check: Option<TypeCheck>,
     /// Complete detailed information on the hash.
     type_info: TypeInfo,
     /// Type parameters.
@@ -586,12 +584,6 @@ impl Context {
         self.attribute_macros.get(&hash)
     }
 
-    /// Look up the type check implementation for the specified type hash.
-    pub(crate) fn type_check_for(&self, hash: Hash) -> Option<TypeCheck> {
-        let ty = self.types.get(&hash)?;
-        ty.type_check
-    }
-
     /// Iterate over available crates.
     #[cfg(feature = "cli")]
     pub(crate) fn iter_crates(&self) -> impl Iterator<Item = &str> {
@@ -708,7 +700,6 @@ impl Context {
         self.install_type_info(ContextType {
             item: ty.item.try_to_owned()?,
             hash: ty.hash,
-            type_check: None,
             type_info: ty.type_info.try_clone()?,
             type_parameters: ty.type_parameters,
         })?;
@@ -784,7 +775,6 @@ impl Context {
                         self.install_type_info(ContextType {
                             item: item.try_clone()?,
                             hash,
-                            type_check: None,
                             type_info: TypeInfo::rtti(Arc::new(Rtti {
                                 kind,
                                 hash: ty.hash,

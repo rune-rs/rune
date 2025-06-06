@@ -84,34 +84,6 @@ impl fmt::Display for PanicReason {
     }
 }
 
-/// Type checks for built-in types.
-#[derive(Debug, TryClone, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
-#[try_clone(copy)]
-pub(crate) enum TypeCheck {
-    /// Matches a unit type.
-    Unit,
-    /// Matches an anonymous tuple.
-    Tuple,
-    /// Matches an anonymous object.
-    Object,
-    /// Matches a vector.
-    Vec,
-}
-
-impl fmt::Display for TypeCheck {
-    #[inline]
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unit => write!(fmt, "Unit"),
-            Self::Tuple => write!(fmt, "Tuple"),
-            Self::Object => write!(fmt, "Object"),
-            Self::Vec => write!(fmt, "Vec"),
-        }
-    }
-}
-
 /// The kind of an instruction in the virtual machine.
 #[derive(Debug, TryClone, Clone, Copy, InstDisplay)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -897,23 +869,6 @@ pub(crate) enum Kind {
         /// Where to store the output.
         out: Output,
     },
-    /// Test if the top of the stack is the given builtin type or variant.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    #[cfg_attr(feature = "musli", musli(packed))]
-    MatchBuiltIn {
-        /// The type to check for.
-        type_check: TypeCheck,
-        /// The address of the value to test.
-        addr: Address,
-        /// Where to store the output.
-        out: Output,
-    },
     /// Test that the top of the stack is a tuple with the given length
     /// requirements.
     ///
@@ -926,7 +881,7 @@ pub(crate) enum Kind {
     #[cfg_attr(feature = "musli", musli(packed))]
     MatchSequence {
         /// Type constraints that the sequence must match.
-        type_check: TypeCheck,
+        hash: Hash,
         /// The minimum length to test for.
         len: usize,
         /// Whether the operation should check exact `true` or minimum length

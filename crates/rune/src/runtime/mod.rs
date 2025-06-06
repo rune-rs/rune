@@ -89,7 +89,7 @@ pub(crate) mod inst;
 pub use self::inst::{Address, Inst, IntoOutput, Output};
 pub(crate) use self::inst::{
     InstArithmeticOp, InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget, InstValue,
-    PanicReason, TypeCheck,
+    PanicReason,
 };
 
 mod iterator;

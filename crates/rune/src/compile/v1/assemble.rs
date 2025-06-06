@@ -14,8 +14,7 @@ use crate::query::{ConstFn, Query, Used};
 use crate::runtime::ConstInstance;
 use crate::runtime::{
     self, inst, ConstValue, ConstValueKind, Inline, InstArithmeticOp, InstBitwiseOp, InstOp,
-    InstRange, InstShiftOp, InstTarget, InstValue, Label, Output, PanicReason, Protocol, TypeCheck,
-    TypeHash,
+    InstRange, InstShiftOp, InstTarget, InstValue, Label, Output, PanicReason, Protocol, TypeHash,
 };
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
@@ -552,7 +551,8 @@ fn pat<'a, 'hir>(
                 converge!(load(cx, &mut needs)?, free(needs));
 
                 let cond = cx.scopes.alloc(hir)?;
-                let inst = pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), cond.output());
+                let inst =
+                    pat_sequence_kind_to_inst(hir, *kind, needs.addr()?.addr(), cond.output())?;
 
                 cx.asm.push(inst, hir)?;
                 cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
@@ -711,46 +711,27 @@ fn pat_sequence<'a, 'hir>(
     let addr = addr.into_addr()?;
     let cond = cx.scopes.alloc(span)?.with_name("loaded pattern condition");
 
-    if matches!(
-        hir.kind,
-        hir::PatSequenceKind::Anonymous {
-            type_check: TypeCheck::Tuple,
-            count: 0,
-            is_open: false
-        }
-    ) {
-        cx.asm.push(
-            inst::Kind::IsUnit {
-                addr: addr.addr(),
-                out: cond.output(),
-            },
-            span,
-        )?;
+    let inst = pat_sequence_kind_to_inst(span, hir.kind, addr.addr(), cond.output())?;
+    cx.asm.push(inst, span)?;
+    cx.asm.jump_if_not(cond.addr(), false_label, span)?;
 
-        cx.asm.jump_if_not(cond.addr(), false_label, span)?;
-    } else {
-        let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output());
-        cx.asm.push(inst, span)?;
-        cx.asm.jump_if_not(cond.addr(), false_label, span)?;
+    for (index, p) in hir.items.iter().enumerate() {
+        let mut load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| {
+            cx.asm.push(
+                inst::Kind::TupleIndexGetAt {
+                    addr: addr.addr(),
+                    index,
+                    out: needs.alloc_output()?,
+                },
+                p,
+            )?;
+            Ok(Asm::new(p, ()))
+        };
 
-        for (index, p) in hir.items.iter().enumerate() {
-            let mut load = |cx: &mut Ctxt<'a, 'hir, '_>, needs: &mut dyn Needs<'a, 'hir>| {
-                cx.asm.push(
-                    inst::Kind::TupleIndexGetAt {
-                        addr: addr.addr(),
-                        index,
-                        out: needs.alloc_output()?,
-                    },
-                    p,
-                )?;
-                Ok(Asm::new(p, ()))
-            };
-
-            converge!(
-                self::pat(cx, p, false_label, &mut load, bindings)?,
-                free(cond, addr)
-            );
-        }
+        converge!(
+            self::pat(cx, p, false_label, &mut load, bindings)?,
+            free(cond, addr)
+        );
     }
 
     cond.free()?;
@@ -759,19 +740,18 @@ fn pat_sequence<'a, 'hir>(
 }
 
 fn pat_sequence_kind_to_inst(
+    span: &dyn Spanned,
     kind: hir::PatSequenceKind,
     addr: inst::Address,
     out: Output,
-) -> inst::Kind {
-    match kind {
-        hir::PatSequenceKind::Type { hash } => inst::Kind::MatchType { hash, addr, out },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => inst::Kind::MatchBuiltIn {
-            type_check,
-            addr,
-            out,
-        },
-        hir::PatSequenceKind::Variant {
-            enum_hash,
+) -> compile::Result<inst::Kind> {
+    let inst = match kind {
+        hir::PatSequenceKind::Type {
+            hash,
+            variant_hash: Hash::EMPTY,
+        } => inst::Kind::MatchType { hash, addr, out },
+        hir::PatSequenceKind::Type {
+            hash: enum_hash,
             variant_hash,
         } => inst::Kind::MatchVariant {
             enum_hash,
@@ -779,18 +759,33 @@ fn pat_sequence_kind_to_inst(
             addr,
             out,
         },
-        hir::PatSequenceKind::Anonymous {
-            type_check,
+        hir::PatSequenceKind::Sequence {
+            hash: runtime::Tuple::HASH,
+            variant_hash: Hash::EMPTY,
+            count: 0,
+            is_open: false,
+        } => inst::Kind::IsUnit { addr, out },
+        hir::PatSequenceKind::Sequence {
+            hash,
+            variant_hash: Hash::EMPTY,
             count,
             is_open,
         } => inst::Kind::MatchSequence {
-            type_check,
+            hash,
             len: count,
             exact: !is_open,
             addr,
             out,
         },
-    }
+        _ => {
+            return Err(compile::Error::msg(
+                span,
+                "Unsupported pattern sequence kind",
+            ))
+        }
+    };
+
+    Ok(inst)
 }
 
 /// Assemble an object pattern.
@@ -819,18 +814,16 @@ fn pat_object<'a, 'hir>(
     }
 
     let inst = match hir.kind {
-        hir::PatSequenceKind::Type { hash } => inst::Kind::MatchType {
+        hir::PatSequenceKind::Type {
+            hash,
+            variant_hash: Hash::EMPTY,
+        } => inst::Kind::MatchType {
             hash,
             addr: addr.addr(),
             out: cond.output(),
         },
-        hir::PatSequenceKind::BuiltInVariant { type_check } => inst::Kind::MatchBuiltIn {
-            type_check,
-            addr: addr.addr(),
-            out: cond.output(),
-        },
-        hir::PatSequenceKind::Variant {
-            enum_hash,
+        hir::PatSequenceKind::Type {
+            hash: enum_hash,
             variant_hash,
         } => inst::Kind::MatchVariant {
             enum_hash,
@@ -838,7 +831,11 @@ fn pat_object<'a, 'hir>(
             addr: addr.addr(),
             out: cond.output(),
         },
-        hir::PatSequenceKind::Anonymous { is_open, .. } => {
+        hir::PatSequenceKind::Sequence {
+            hash: runtime::Object::HASH,
+            is_open,
+            ..
+        } => {
             let keys =
                 cx.q.unit
                     .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;
@@ -850,6 +847,18 @@ fn pat_object<'a, 'hir>(
                 out: cond.output(),
             }
         }
+        hir::PatSequenceKind::Sequence {
+            hash,
+            count,
+            is_open,
+            ..
+        } => inst::Kind::MatchSequence {
+            hash,
+            len: count,
+            exact: !is_open,
+            addr: addr.addr(),
+            out: cond.output(),
+        },
     };
 
     // Copy the temporary and check that its length matches the pattern and
