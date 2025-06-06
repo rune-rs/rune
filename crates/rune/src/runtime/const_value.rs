@@ -12,15 +12,15 @@ use musli::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate as rune;
+use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap};
 use crate::runtime;
+use crate::{self as rune};
 use crate::{hash_in, Hash, TypeHash};
 
 use super::{
-    Bytes, FromValue, Inline, Object, OwnedTuple, Repr, ToValue, Tuple, Type, TypeInfo, Value,
-    VmErrorKind,
+    AnyTypeInfo, Bytes, ExpectedType, FromValue, Inline, Object, OwnedTuple, Repr, RuntimeError,
+    ToValue, Tuple, Type, TypeInfo, Value, VmErrorKind, VmIntegerRepr,
 };
 
 /// Derive for the [`ToConstValue`] trait.
@@ -95,8 +95,6 @@ use super::{
 /// }
 /// ```
 pub use rune_macros::ToConstValue;
-
-use super::{AnyTypeInfo, RuntimeError, VmIntegerRepr};
 
 /// Cheap conversion trait to convert something infallibly into a [`ConstValue`].
 pub trait IntoConstValue {
@@ -181,27 +179,26 @@ impl ToConstValue for Value {
     }
 }
 
+/// A dynamic constant value.
 #[derive(Debug, TryClone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
-pub(crate) enum ConstValueKind {
-    /// An inline constant value.
-    Inline(#[try_clone(copy)] Inline),
-    /// A string constant designated by its slot.
-    String(String),
-    /// A byte string.
-    Bytes(Bytes),
-    /// A vector of values.
-    Vec(Vec<ConstValue>),
-    /// An anonymous tuple.
-    Tuple(Box<[ConstValue]>),
-    /// An anonymous object.
-    Object(HashMap<String, ConstValue>),
-    /// A struct with the given type.
-    Struct(Hash, Hash, Box<[ConstValue]>),
+pub(crate) struct ConstInstance {
+    /// The type hash of the value.
+    ///
+    /// If the value is a variant, this is the type hash of the enum.
+    #[try_clone(copy)]
+    pub(crate) hash: Hash,
+    /// The type hash of the variant.
+    ///
+    /// If this is not an enum, this is `Hash::EMPTY`.
+    #[try_clone(copy)]
+    pub(crate) variant_hash: Hash,
+    /// The fields the value is constituted of.
+    pub(crate) fields: Box<[ConstValue]>,
 }
 
-impl ConstValueKind {
+impl ConstInstance {
     fn type_info(&self) -> TypeInfo {
         fn struct_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "unknown constant struct")
@@ -211,20 +208,41 @@ impl ConstValueKind {
             write!(f, "unknown constant variant")
         }
 
+        match self.hash {
+            Option::<Value>::HASH => TypeInfo::any::<Option<Value>>(),
+            runtime::Vec::HASH => TypeInfo::any::<runtime::Vec>(),
+            OwnedTuple::HASH => TypeInfo::any::<OwnedTuple>(),
+            Object::HASH => TypeInfo::any::<Object>(),
+            hash if self.variant_hash == Hash::EMPTY => {
+                TypeInfo::any_type_info(AnyTypeInfo::new(struct_name, hash))
+            }
+            hash => TypeInfo::any_type_info(AnyTypeInfo::new(variant_name, hash)),
+        }
+    }
+}
+
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+pub(crate) enum ConstValueKind {
+    /// An inline constant value.
+    Inline(#[try_clone(copy)] Inline),
+    /// A string constant designated by its slot.
+    String(Box<str>),
+    /// A byte string.
+    Bytes(Box<[u8]>),
+    /// An instance of some type of value.
+    Instance(Box<ConstInstance>),
+}
+
+impl ConstValueKind {
+    #[inline]
+    fn type_info(&self) -> TypeInfo {
         match self {
             ConstValueKind::Inline(value) => value.type_info(),
             ConstValueKind::String(..) => TypeInfo::any::<String>(),
             ConstValueKind::Bytes(..) => TypeInfo::any::<Bytes>(),
-            ConstValueKind::Vec(..) => TypeInfo::any::<runtime::Vec>(),
-            ConstValueKind::Tuple(..) => TypeInfo::any::<OwnedTuple>(),
-            ConstValueKind::Object(..) => TypeInfo::any::<Object>(),
-            ConstValueKind::Struct(Option::<Value>::HASH, ..) => TypeInfo::any::<Option<Value>>(),
-            ConstValueKind::Struct(hash, Hash::EMPTY, ..) => {
-                TypeInfo::any_type_info(AnyTypeInfo::new(struct_name, *hash))
-            }
-            ConstValueKind::Struct(hash, _, ..) => {
-                TypeInfo::any_type_info(AnyTypeInfo::new(variant_name, *hash))
-            }
+            ConstValueKind::Instance(instance) => instance.type_info(),
         }
     }
 }
@@ -237,11 +255,28 @@ pub struct ConstValue {
 }
 
 impl ConstValue {
+    /// Construct a constant value that is a string.
+    pub fn string(value: impl AsRef<str>) -> Result<ConstValue, RuntimeError> {
+        let value = Box::try_from(value.as_ref())?;
+        Ok(Self::from(ConstValueKind::String(value)))
+    }
+
+    /// Construct a constant value that is bytes.
+    pub fn bytes(value: impl AsRef<[u8]>) -> Result<ConstValue, RuntimeError> {
+        let value = Box::try_from(value.as_ref())?;
+        Ok(Self::from(ConstValueKind::Bytes(value)))
+    }
+
     /// Construct a new tuple constant value.
-    pub fn tuple(values: Box<[ConstValue]>) -> ConstValue {
-        ConstValue {
-            kind: ConstValueKind::Tuple(values),
-        }
+    pub fn tuple(fields: Box<[ConstValue]>) -> Result<ConstValue, RuntimeError> {
+        let instance = ConstInstance {
+            hash: OwnedTuple::HASH,
+            variant_hash: Hash::EMPTY,
+            fields,
+        };
+
+        let instance = Box::try_new(instance)?;
+        Ok(Self::from(ConstValueKind::Instance(instance)))
     }
 
     /// Construct a constant value for a struct.
@@ -251,9 +286,14 @@ impl ConstValue {
     ) -> Result<ConstValue, RuntimeError> {
         let fields = Box::<[ConstValue]>::try_from(fields)?;
 
-        Ok(ConstValue {
-            kind: ConstValueKind::Struct(hash, Hash::EMPTY, fields),
-        })
+        let instance = ConstInstance {
+            hash,
+            variant_hash: Hash::EMPTY,
+            fields,
+        };
+
+        let instance = Box::try_new(instance)?;
+        Ok(Self::from(ConstValueKind::Instance(instance)))
     }
 
     /// Try to coerce the current value as the specified integer `T`.
@@ -301,10 +341,17 @@ impl ConstValue {
 
     /// Coerce into tuple.
     #[inline]
-    pub fn into_tuple(self) -> Result<Box<[ConstValue]>, RuntimeError> {
+    pub fn into_tuple(self) -> Result<Box<[ConstValue]>, ExpectedType> {
         match self.kind {
-            ConstValueKind::Tuple(tuple) => Ok(tuple),
-            kind => Err(RuntimeError::expected::<Tuple>(kind.type_info())),
+            ConstValueKind::Instance(instance) => {
+                let instance = Box::into_inner(instance);
+
+                match instance.hash {
+                    OwnedTuple::HASH => Ok(instance.fields),
+                    _ => Err(ExpectedType::new::<Tuple>(instance.type_info())),
+                }
+            }
+            kind => Err(ExpectedType::new::<Tuple>(kind.type_info())),
         }
     }
 
@@ -315,7 +362,7 @@ impl ConstValue {
 
     /// Construct a constant value from a reference to a value..
     pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
-        let inner = match value.as_ref() {
+        let kind = match value.as_ref() {
             Repr::Inline(value) => ConstValueKind::Inline(*value),
             Repr::Dynamic(value) => {
                 return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
@@ -323,36 +370,11 @@ impl ConstValue {
                 }));
             }
             Repr::Any(value) => match value.type_hash() {
-                Option::<Value>::HASH => {
-                    let option = value.borrow_ref::<Option<Value>>()?;
-
-                    let (variant_hash, values) = match &*option {
-                        Some(some) => (
-                            hash_in!(crate, ::std::option::Option::Some),
-                            Box::try_from([Self::from_value_ref(some)?])?,
-                        ),
-                        None => (hash_in!(crate, ::std::option::Option::None), Box::default()),
-                    };
-
-                    ConstValueKind::Struct(Option::<Value>::HASH, variant_hash, values)
-                }
                 String::HASH => {
-                    let s = value.borrow_ref::<String>()?;
-                    ConstValueKind::String(s.try_to_owned()?)
+                    return ConstValue::string(value.borrow_ref::<String>()?.as_str());
                 }
                 Bytes::HASH => {
-                    let s = value.borrow_ref::<Bytes>()?;
-                    ConstValueKind::Bytes(s.try_to_owned()?)
-                }
-                runtime::Vec::HASH => {
-                    let vec = value.borrow_ref::<runtime::Vec>()?;
-                    let mut const_vec = Vec::try_with_capacity(vec.len())?;
-
-                    for value in vec.iter() {
-                        const_vec.try_push(Self::from_value_ref(value)?)?;
-                    }
-
-                    ConstValueKind::Vec(const_vec)
+                    return ConstValue::bytes(value.borrow_ref::<Bytes>()?.as_slice());
                 }
                 runtime::OwnedTuple::HASH => {
                     let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
@@ -362,19 +384,61 @@ impl ConstValue {
                         const_tuple.try_push(Self::from_value_ref(value)?)?;
                     }
 
-                    ConstValueKind::Tuple(const_tuple.try_into_boxed_slice()?)
+                    return ConstValue::tuple(const_tuple.try_into_boxed_slice()?);
                 }
                 Object::HASH => {
                     let object = value.borrow_ref::<Object>()?;
-                    let mut const_object = HashMap::try_with_capacity(object.len())?;
+                    let mut fields = Vec::try_with_capacity(object.len())?;
 
                     for (key, value) in object.iter() {
-                        let key = key.try_clone()?;
+                        let key = ConstValue::string(key.as_str())?;
                         let value = Self::from_value_ref(value)?;
-                        const_object.try_insert(key, value)?;
+                        fields.try_push(ConstValue::tuple(Box::try_from([key, value])?)?)?;
                     }
 
-                    ConstValueKind::Object(const_object)
+                    let instance = ConstInstance {
+                        hash: Object::HASH,
+                        variant_hash: Hash::EMPTY,
+                        fields: fields.try_into_boxed_slice()?,
+                    };
+
+                    let instance = Box::try_new(instance)?;
+                    ConstValueKind::Instance(instance)
+                }
+                Option::<Value>::HASH => {
+                    let option = value.borrow_ref::<Option<Value>>()?;
+
+                    let (variant_hash, fields) = match &*option {
+                        Some(some) => (
+                            hash_in!(crate, ::std::option::Option::Some),
+                            Box::try_from([Self::from_value_ref(some)?])?,
+                        ),
+                        None => (hash_in!(crate, ::std::option::Option::None), Box::default()),
+                    };
+
+                    let instance = ConstInstance {
+                        hash: Option::<Value>::HASH,
+                        variant_hash,
+                        fields,
+                    };
+                    ConstValueKind::Instance(Box::try_new(instance)?)
+                }
+                runtime::Vec::HASH => {
+                    let vec = value.borrow_ref::<runtime::Vec>()?;
+                    let mut const_vec = Vec::try_with_capacity(vec.len())?;
+
+                    for value in vec.iter() {
+                        const_vec.try_push(Self::from_value_ref(value)?)?;
+                    }
+
+                    let fields = Box::try_from(const_vec)?;
+
+                    let instance = ConstInstance {
+                        hash: runtime::Vec::HASH,
+                        variant_hash: Hash::EMPTY,
+                        fields,
+                    };
+                    ConstValueKind::Instance(Box::try_new(instance)?)
                 }
                 _ => {
                     return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
@@ -384,13 +448,39 @@ impl ConstValue {
             },
         };
 
-        Ok(Self { kind: inner })
+        Ok(Self { kind })
     }
 
     #[inline]
     #[cfg(test)]
     pub(crate) fn to_value(&self) -> Result<Value, RuntimeError> {
         self.to_value_with(&EmptyConstContext)
+    }
+
+    /// Convert into a pair of tuples.
+    pub(crate) fn as_string(&self) -> Result<&str, ExpectedType> {
+        let ConstValueKind::String(value) = &self.kind else {
+            return Err(ExpectedType::new::<String>(self.kind.type_info()));
+        };
+
+        Ok(value)
+    }
+
+    /// Convert into a pair of tuples.
+    pub(crate) fn as_pair(&self) -> Result<(&ConstValue, &ConstValue), ExpectedType> {
+        let ConstValueKind::Instance(instance) = &self.kind else {
+            return Err(ExpectedType::new::<Tuple>(self.kind.type_info()));
+        };
+
+        if !matches!(instance.hash, OwnedTuple::HASH) {
+            return Err(ExpectedType::new::<Tuple>(instance.type_info()));
+        }
+
+        let [a, b] = instance.fields.as_ref() else {
+            return Err(ExpectedType::new::<Tuple>(instance.type_info()));
+        };
+
+        Ok((a, b))
     }
 
     /// Convert into virtual machine value.
@@ -401,57 +491,70 @@ impl ConstValue {
     pub(crate) fn to_value_with(&self, cx: &dyn ConstContext) -> Result<Value, RuntimeError> {
         match &self.kind {
             ConstValueKind::Inline(value) => Ok(Value::from(*value)),
-            ConstValueKind::String(string) => Ok(Value::try_from(string.try_clone()?)?),
-            ConstValueKind::Bytes(b) => Ok(Value::try_from(b.try_clone()?)?),
-            ConstValueKind::Vec(vec) => {
-                let mut v = runtime::Vec::with_capacity(vec.len())?;
+            ConstValueKind::String(string) => Ok(Value::try_from(string.as_ref())?),
+            ConstValueKind::Bytes(b) => Ok(Value::try_from(b.as_ref())?),
+            ConstValueKind::Instance(instance) => match &**instance {
+                ConstInstance {
+                    hash,
+                    variant_hash: Hash::EMPTY,
+                    fields,
+                } => match *hash {
+                    runtime::OwnedTuple::HASH => {
+                        let mut t = Vec::try_with_capacity(fields.len())?;
 
-                for value in vec {
-                    v.push(Self::to_value_with(value, cx)?)?;
-                }
+                        for value in fields.iter() {
+                            t.try_push(Self::to_value_with(value, cx)?)?;
+                        }
 
-                Ok(Value::try_from(v)?)
-            }
-            ConstValueKind::Tuple(tuple) => {
-                let mut t = Vec::try_with_capacity(tuple.len())?;
-
-                for value in tuple.iter() {
-                    t.try_push(Self::to_value_with(value, cx)?)?;
-                }
-
-                Ok(Value::try_from(OwnedTuple::try_from(t)?)?)
-            }
-            ConstValueKind::Object(object) => {
-                let mut o = Object::with_capacity(object.len())?;
-
-                for (key, value) in object {
-                    let key = key.try_clone()?;
-                    let value = Self::to_value_with(value, cx)?;
-                    o.insert(key, value)?;
-                }
-
-                Ok(Value::try_from(o)?)
-            }
-            ConstValueKind::Struct(hash, variant_hash, fields) => {
-                match (*variant_hash, &fields[..]) {
-                    // If the hash is `Option`, we can return a value directly.
-                    (hash_in!(crate, ::std::option::Option::Some), [value]) => {
-                        let value = Self::to_value_with(value, cx)?;
-                        Ok(Value::try_from(Some(value))?)
+                        Ok(Value::try_from(OwnedTuple::try_from(t)?)?)
                     }
-                    (hash_in!(crate, ::std::option::Option::None), []) => {
-                        Ok(Value::try_from(None)?)
+                    runtime::Vec::HASH => {
+                        let mut v = runtime::Vec::with_capacity(fields.len())?;
+
+                        for value in fields.iter() {
+                            v.push(Self::to_value_with(value, cx)?)?;
+                        }
+
+                        Ok(Value::try_from(v)?)
                     }
-                    (Hash::EMPTY, fields) => {
+                    runtime::Object::HASH => {
+                        let mut o = Object::with_capacity(fields.len())?;
+
+                        for value in fields.iter() {
+                            let (key, value) = value.as_pair()?;
+                            let key = key.as_string()?.try_to_string()?;
+                            let value = Self::to_value_with(value, cx)?;
+                            o.insert(key, value)?;
+                        }
+
+                        Ok(Value::try_from(o)?)
+                    }
+                    _ => {
                         let Some(constructor) = cx.get(*hash) else {
                             return Err(RuntimeError::missing_constant_constructor(*hash));
                         };
 
                         constructor.const_construct(fields)
                     }
-                    _ => Err(RuntimeError::missing_constant_constructor(*hash)),
+                },
+                ConstInstance {
+                    hash,
+                    variant_hash,
+                    fields,
+                } => {
+                    match (*variant_hash, &fields[..]) {
+                        // If the hash is `Option`, we can return a value directly.
+                        (hash_in!(crate, ::std::option::Option::Some), [value]) => {
+                            let value = Self::to_value_with(value, cx)?;
+                            Ok(Value::try_from(Some(value))?)
+                        }
+                        (hash_in!(crate, ::std::option::Option::None), []) => {
+                            Ok(Value::try_from(None)?)
+                        }
+                        _ => Err(RuntimeError::missing_constant_constructor(*hash)),
+                    }
                 }
-            }
+            },
         }
     }
 
@@ -497,17 +600,28 @@ impl From<Inline> for ConstValue {
     }
 }
 
-impl From<String> for ConstValue {
+impl TryFrom<String> for ConstValue {
+    type Error = alloc::Error;
+
     #[inline]
-    fn from(value: String) -> Self {
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(Self::from(Box::<str>::try_from(value)?))
+    }
+}
+
+impl From<Box<str>> for ConstValue {
+    #[inline]
+    fn from(value: Box<str>) -> Self {
         Self::from(ConstValueKind::String(value))
     }
 }
 
-impl From<Bytes> for ConstValue {
+impl TryFrom<Bytes> for ConstValue {
+    type Error = alloc::Error;
+
     #[inline]
-    fn from(value: Bytes) -> Self {
-        Self::from(ConstValueKind::Bytes(value))
+    fn try_from(value: Bytes) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_slice())
     }
 }
 
@@ -516,7 +630,7 @@ impl TryFrom<&str> for ConstValue {
 
     #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(ConstValue::from(String::try_from(value)?))
+        Ok(ConstValue::from(Box::<str>::try_from(value)?))
     }
 }
 
@@ -527,12 +641,19 @@ impl ToConstValue for &str {
     }
 }
 
+impl From<Box<[u8]>> for ConstValue {
+    #[inline]
+    fn from(value: Box<[u8]>) -> Self {
+        Self::from(ConstValueKind::Bytes(value))
+    }
+}
+
 impl TryFrom<&[u8]> for ConstValue {
     type Error = alloc::Error;
 
     #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(ConstValue::from(Bytes::try_from(value)?))
+        Ok(Self::from(Box::<[u8]>::try_from(value)?))
     }
 }
 

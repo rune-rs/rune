@@ -249,6 +249,25 @@ impl From<Panic> for VmErrorKind {
     }
 }
 
+/// A expected error.
+pub struct ExpectedType {
+    pub(crate) expected: TypeInfo,
+    pub(crate) actual: TypeInfo,
+}
+
+impl ExpectedType {
+    /// Construct an expected error.
+    pub(crate) fn new<T>(actual: TypeInfo) -> Self
+    where
+        T: ?Sized + TypeOf,
+    {
+        Self {
+            expected: T::type_info(),
+            actual,
+        }
+    }
+}
+
 vm_error!(RuntimeError);
 
 /// An opaque simple runtime error.
@@ -284,7 +303,7 @@ impl RuntimeError {
     where
         T: ?Sized + TypeOf,
     {
-        Self::new(VmErrorKind::Expected {
+        Self::new(VmErrorKind::ExpectedType {
             expected: T::type_info(),
             actual,
         })
@@ -295,7 +314,7 @@ impl RuntimeError {
     where
         T: Any,
     {
-        Self::new(VmErrorKind::Expected {
+        Self::new(VmErrorKind::ExpectedType {
             expected: TypeInfo::any::<T>(),
             actual,
         })
@@ -374,7 +393,7 @@ impl From<AnyObjError> for RuntimeError {
     fn from(value: AnyObjError) -> Self {
         match value.into_kind() {
             AnyObjErrorKind::Alloc(error) => Self::from(error),
-            AnyObjErrorKind::Cast(expected, actual) => Self::new(VmErrorKind::Expected {
+            AnyObjErrorKind::Cast(expected, actual) => Self::new(VmErrorKind::ExpectedType {
                 expected: TypeInfo::any_type_info(expected),
                 actual,
             }),
@@ -415,6 +434,16 @@ impl From<VmErrorKind> for RuntimeError {
     #[inline]
     fn from(error: VmErrorKind) -> Self {
         Self { error }
+    }
+}
+
+impl From<ExpectedType> for RuntimeError {
+    #[inline]
+    fn from(expected: ExpectedType) -> Self {
+        Self::from(VmErrorKind::ExpectedType {
+            expected: expected.expected,
+            actual: expected.actual,
+        })
     }
 }
 
@@ -595,7 +624,7 @@ pub(crate) enum VmErrorKind {
     UnsupportedIterNextOperand {
         actual: TypeInfo,
     },
-    Expected {
+    ExpectedType {
         expected: TypeInfo,
         actual: TypeInfo,
     },
@@ -816,7 +845,7 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::UnsupportedIterNextOperand { actual } => {
                 write!(f, "Type `{actual}` is not supported as iter-next operand")
             }
-            VmErrorKind::Expected { expected, actual } => {
+            VmErrorKind::ExpectedType { expected, actual } => {
                 write!(f, "Expected type `{expected}` but found `{actual}`")
             }
             VmErrorKind::ExpectedAny { actual } => {
@@ -1005,7 +1034,7 @@ impl VmErrorKind {
     where
         T: ?Sized + TypeOf,
     {
-        Self::Expected {
+        Self::ExpectedType {
             expected: T::type_info(),
             actual,
         }

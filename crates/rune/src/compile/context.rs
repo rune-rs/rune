@@ -1027,7 +1027,7 @@ impl Context {
 
         self.constants.try_insert(
             Hash::associated_function(ty.hash, &Protocol::INTO_TYPE_NAME),
-            ConstValue::from(ty.item.try_to_string()?),
+            ConstValue::try_from(ty.item.try_to_string()?)?,
         )?;
 
         if let Some(old) = self.types.try_insert(ty.hash, ty)? {
@@ -1053,7 +1053,7 @@ impl Context {
             rune::module::ModuleItemKind::Function(f) => {
                 self.constants.try_insert(
                     Hash::associated_function(m.hash, &Protocol::INTO_TYPE_NAME),
-                    ConstValue::from(m.item.try_to_string()?),
+                    ConstValue::try_from(m.item.try_to_string()?)?,
                 )?;
 
                 let signature = meta::Signature::from_context(&f.doc, &m.common)?;
@@ -1143,7 +1143,7 @@ impl Context {
                 if let Some((hash, item)) = &item {
                     self.constants.try_insert(
                         Hash::associated_function(*hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::from(item.try_to_string()?),
+                        ConstValue::try_from(item.try_to_string()?)?,
                     )?;
 
                     self.insert_native_fn(

@@ -444,7 +444,7 @@ macro_rules! impl_tuple {
                 let mut vec = alloc::Vec::try_with_capacity($count)?;
                 $(vec.try_push($var)?;)*
                 let tuple = Box::<[ConstValue]>::try_from(vec)?;
-                Ok(ConstValue::tuple(tuple))
+                ConstValue::tuple(tuple)
             }
         }
     };

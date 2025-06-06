@@ -551,7 +551,7 @@ impl Value {
         crate::runtime::env::shared(|context, unit| {
             if let Some(name) = context.constant(&hash) {
                 match name.as_kind() {
-                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_str())?),
+                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_ref())?),
                     _ => {
                         return Err(VmError::new(VmErrorKind::expected::<String>(
                             name.type_info(),
@@ -562,7 +562,7 @@ impl Value {
 
             if let Some(name) = unit.constant(&hash) {
                 match name.as_kind() {
-                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_str())?),
+                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_ref())?),
                     _ => {
                         return Err(VmError::new(VmErrorKind::expected::<String>(
                             name.type_info(),

@@ -38,7 +38,7 @@ pub fn test_bug_700() -> Result<()> {
 
     assert_eq!(
         error.into_kind(),
-        VmErrorKind::Expected {
+        VmErrorKind::ExpectedType {
             expected: TypeInfo::any::<OwnedTuple>(),
             actual: TypeInfo::named::<i64>()
         }

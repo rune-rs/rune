@@ -48,7 +48,7 @@ where
     #[inline]
     fn try_to_string(&self) -> Result<String, Error> {
         let mut s = String::new();
-        core::write!(s, "{}", self)?;
+        core::write!(s, "{self}")?;
         Ok(s)
     }
 }
