@@ -36,14 +36,7 @@ pub fn module() -> Result<Module, ContextError> {
         .constructor(Result::Err)?
         .static_docs(&["Contains the error value"])?;
 
-    m.associated_function(
-        &Protocol::IS_VARIANT,
-        |this: &Result<Value, Value>, hash: Hash| match (this, hash) {
-            (Result::Ok(_), hash_in!(crate, ::std::result::Result::Ok)) => true,
-            (Result::Err(_), hash_in!(crate, ::std::result::Result::Err)) => true,
-            _ => false,
-        },
-    )?;
+    m.function_meta(is_variant__meta)?;
 
     m.index_function(
         &Protocol::GET,
@@ -84,6 +77,16 @@ pub fn module() -> Result<Module, ContextError> {
 
     m.function_meta(result_try__meta)?;
     Ok(m)
+}
+
+#[rune::function(instance, keep, protocol = IS_VARIANT)]
+#[inline]
+pub(crate) fn is_variant(this: &Result<Value, Value>, variant_hash: Hash) -> bool {
+    match (this, variant_hash) {
+        (Ok(..), hash_in!(crate, ::std::result::Result::Ok)) => true,
+        (Err(..), hash_in!(crate, ::std::result::Result::Err)) => true,
+        _ => false,
+    }
 }
 
 /// Converts from `Result` to `Option`.

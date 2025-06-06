@@ -830,7 +830,7 @@ pub(crate) enum Kind {
         /// Where to store the result of the comparison.
         out: Output,
     },
-    /// Test that the top of the stack has the given type.
+    /// Test if the specified type matches.
     ///
     /// # Operation
     ///
@@ -842,27 +842,7 @@ pub(crate) enum Kind {
     MatchType {
         /// The type hash to match against.
         hash: Hash,
-        /// The address of the value to test.
-        addr: Address,
-        /// Where to store the output.
-        out: Output,
-    },
-    /// Test if the specified variant matches. This is distinct from
-    /// [Inst::MatchType] because it will match immediately on the variant type
-    /// if appropriate which is possible for internal types, but external types
-    /// will require an additional runtime check for matching.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    #[cfg_attr(feature = "musli", musli(packed))]
-    MatchVariant {
-        /// The type hash of the containing enum.
-        enum_hash: Hash,
-        /// The type hash of the variant.
+        /// The variant hash to match against.
         variant_hash: Hash,
         /// The address of the value to test.
         addr: Address,

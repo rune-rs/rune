@@ -32,14 +32,7 @@ pub fn module() -> Result<Module, ContextError> {
         .constructor(|| Option::None)?
         .static_docs(&["No value."])?;
 
-    m.associated_function(
-        &Protocol::IS_VARIANT,
-        |this: &Option<Value>, hash: Hash| match (this, hash) {
-            (Option::Some(_), hash_in!(crate, ::std::option::Option::Some)) => true,
-            (Option::None, hash_in!(crate, ::std::option::Option::None)) => true,
-            _ => false,
-        },
-    )?;
+    m.function_meta(is_variant__meta)?;
 
     m.index_function(&Protocol::GET, 0, |this: &Option<Value>| match this {
         Option::Some(value) => Ok(value.clone()),
@@ -94,6 +87,16 @@ pub fn module() -> Result<Module, ContextError> {
     m.implement_trait::<Iter>(rune::item!(::std::clone::Clone))?;
 
     Ok(m)
+}
+
+#[rune::function(instance, keep, protocol = IS_VARIANT)]
+#[inline]
+pub(crate) fn is_variant(this: &Option<Value>, variant_hash: Hash) -> bool {
+    match (this, variant_hash) {
+        (Option::Some(_), hash_in!(crate, ::std::option::Option::Some)) => true,
+        (Option::None, hash_in!(crate, ::std::option::Option::None)) => true,
+        _ => false,
+    }
 }
 
 /// Returns the contained [`Some`] value, consuming the `self` value.

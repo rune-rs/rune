@@ -5,10 +5,8 @@ use core::ptr::NonNull;
 
 use rust_alloc::sync::Arc;
 
-use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
-use crate::hash;
 use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{option, result};
 use crate::runtime;
@@ -2590,60 +2588,43 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_type(&mut self, hash: Hash, addr: Address, out: Output) -> Result<(), VmError> {
-        let value = self.stack.at(addr);
-        let is_match = value.type_hash() == hash;
-        out.store(&mut self.stack, is_match)?;
-        Ok(())
-    }
-
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_variant(
+    fn op_match_type(
         &mut self,
-        enum_hash: Hash,
+        hash: Hash,
         variant_hash: Hash,
         addr: Address,
         out: Output,
     ) -> Result<(), VmError> {
         let value = self.stack.at(addr);
 
+        let type_hash = value.type_hash();
+
         let is_match = 'out: {
+            if type_hash != hash {
+                break 'out false;
+            }
+
+            // No variant to check.
+            if variant_hash == Hash::EMPTY {
+                break 'out true;
+            }
+
             match value.as_ref() {
                 Repr::Dynamic(value) => {
-                    break 'out value.rtti().is(enum_hash, variant_hash);
+                    break 'out value.rtti().is(hash, variant_hash);
                 }
-                Repr::Any(any) => match enum_hash {
+                Repr::Any(any) => match hash {
                     Result::<Value, Value>::HASH => {
-                        let Some(result) = any.try_borrow_ref::<Result<Value, Value>>()? else {
-                            break 'out false;
-                        };
-
-                        break 'out match (&*result, variant_hash) {
-                            (Ok(..), hash!(::std::result::Result::Ok)) => true,
-                            (Err(..), hash!(::std::result::Result::Err)) => true,
-                            _ => false,
-                        };
+                        let result = any.borrow_ref::<Result<Value, Value>>()?;
+                        break 'out result::is_variant(&*result, variant_hash);
                     }
                     Option::<Value>::HASH => {
-                        let Some(option) = any.try_borrow_ref::<Option<Value>>()? else {
-                            break 'out false;
-                        };
-
-                        break 'out match (&*option, variant_hash) {
-                            (None, hash!(::std::option::Option::None)) => true,
-                            (Some(..), hash!(::std::option::Option::Some)) => true,
-                            _ => false,
-                        };
+                        let option = any.borrow_ref::<Option<Value>>()?;
+                        break 'out option::is_variant(&*option, variant_hash);
                     }
-                    _ => {
-                        if any.type_hash() != enum_hash {
-                            break 'out false;
-                        }
-                    }
+                    _ => {}
                 },
-                _ => {
-                    break 'out false;
-                }
+                _ => break 'out true,
             }
 
             let value = value.clone();
@@ -3214,16 +3195,13 @@ impl Vm {
                 } => {
                     self.op_match_sequence(hash, len, exact, addr, out)?;
                 }
-                inst::Kind::MatchType { hash, addr, out } => {
-                    self.op_match_type(hash, addr, out)?;
-                }
-                inst::Kind::MatchVariant {
-                    enum_hash,
+                inst::Kind::MatchType {
+                    hash,
                     variant_hash,
                     addr,
                     out,
                 } => {
-                    self.op_match_variant(enum_hash, variant_hash, addr, out)?;
+                    self.op_match_type(hash, variant_hash, addr, out)?;
                 }
                 inst::Kind::MatchObject {
                     slot,
