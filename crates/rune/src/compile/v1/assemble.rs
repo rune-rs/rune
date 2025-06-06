@@ -551,8 +551,7 @@ fn pat<'a, 'hir>(
                 converge!(load(cx, &mut needs)?, free(needs));
 
                 let cond = cx.scopes.alloc(hir)?;
-                let inst =
-                    pat_sequence_kind_to_inst(hir, *kind, needs.addr()?.addr(), cond.output())?;
+                let inst = pat_sequence_kind_to_inst(*kind, needs.addr()?.addr(), cond.output())?;
 
                 cx.asm.push(inst, hir)?;
                 cx.asm.jump_if_not(cond.addr(), false_label, hir)?;
@@ -570,7 +569,7 @@ fn pat<'a, 'hir>(
                 Ok(Asm::new(span, Pattern::Irrefutable))
             }
         },
-        hir::PatKind::Lit(hir) => Ok(pat_lit(cx, hir, false_label, load)?),
+        hir::PatKind::Lit(hir) => pat_lit(cx, hir, false_label, load),
         hir::PatKind::Sequence(hir) => pat_sequence(cx, hir, span, false_label, load, bindings),
         hir::PatKind::Object(hir) => pat_object(cx, hir, span, false_label, load, bindings),
     }
@@ -711,7 +710,8 @@ fn pat_sequence<'a, 'hir>(
     let addr = addr.into_addr()?;
     let cond = cx.scopes.alloc(span)?.with_name("loaded pattern condition");
 
-    let inst = pat_sequence_kind_to_inst(span, hir.kind, addr.addr(), cond.output())?;
+    let inst = pat_sequence_kind_to_inst(hir.kind, addr.addr(), cond.output())?;
+
     cx.asm.push(inst, span)?;
     cx.asm.jump_if_not(cond.addr(), false_label, span)?;
 
@@ -740,7 +740,6 @@ fn pat_sequence<'a, 'hir>(
 }
 
 fn pat_sequence_kind_to_inst(
-    span: &dyn Spanned,
     kind: hir::PatSequenceKind,
     addr: inst::Address,
     out: Output,
@@ -754,7 +753,6 @@ fn pat_sequence_kind_to_inst(
         },
         hir::PatSequenceKind::Sequence {
             hash,
-            variant_hash: Hash::EMPTY,
             count,
             is_open,
         } => inst::Kind::MatchSequence {
@@ -764,12 +762,6 @@ fn pat_sequence_kind_to_inst(
             addr,
             out,
         },
-        _ => {
-            return Err(compile::Error::msg(
-                span,
-                "Unsupported pattern sequence kind",
-            ))
-        }
     };
 
     Ok(inst)
@@ -833,7 +825,6 @@ fn pat_object<'a, 'hir>(
             hash,
             count,
             is_open,
-            ..
         } => inst::Kind::MatchSequence {
             hash,
             len: count,

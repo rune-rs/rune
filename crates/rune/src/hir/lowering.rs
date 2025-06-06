@@ -640,7 +640,6 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: runtime::Tuple::HASH,
-                            variant_hash: Hash::EMPTY,
                             count: 0,
                             is_open: false,
                         },
@@ -673,7 +672,6 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: runtime::Vec::HASH,
-                            variant_hash: Hash::EMPTY,
                             count: items.len(),
                             is_open: false,
                         },
@@ -692,7 +690,6 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: runtime::Vec::HASH,
-                            variant_hash: Hash::EMPTY,
                             count: items.len(),
                             is_open: false,
                         },
@@ -714,7 +711,6 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: runtime::Object::HASH,
-                            variant_hash: Hash::EMPTY,
                             count: bindings.len(),
                             is_open: false,
                         },
@@ -1294,7 +1290,6 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                 hir::PatKind::Sequence(alloc!(hir::PatSequence {
                     kind: hir::PatSequenceKind::Sequence {
                         hash: runtime::Vec::HASH,
-                        variant_hash: Hash::EMPTY,
                         count,
                         is_open
                     },
@@ -1338,7 +1333,6 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                 } else {
                     hir::PatSequenceKind::Sequence {
                         hash: runtime::Tuple::HASH,
-                        variant_hash: Hash::EMPTY,
                         count,
                         is_open,
                     }
@@ -1447,7 +1441,6 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                     }
                     ast::ObjectIdent::Anonymous(..) => hir::PatSequenceKind::Sequence {
                         hash: runtime::Object::HASH,
-                        variant_hash: Hash::EMPTY,
                         count,
                         is_open,
                     },
