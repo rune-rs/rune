@@ -836,9 +836,15 @@ fn pat_object<'a, 'hir>(
             is_open,
             ..
         } => {
-            let keys =
-                cx.q.unit
-                    .new_static_object_keys_iter(span, hir.bindings.iter().map(|b| b.key()))?;
+            let mut entries = hir
+                .bindings
+                .iter()
+                .map(|b| b.key())
+                .try_collect::<Vec<_>>()?;
+
+            entries.sort();
+
+            let keys = cx.q.unit.new_static_object_keys_iter(span, entries)?;
 
             inst::Kind::MatchObject {
                 slot: keys,
@@ -2696,6 +2702,8 @@ fn expr_object<'a, 'hir>(
     {
         match hir.kind {
             hir::ExprObjectKind::Struct { hash } => {
+                reorder_field_assignments(cx, hir, linear.addr(), span)?;
+
                 cx.asm.push(
                     inst::Kind::Struct {
                         addr: linear.addr(),
