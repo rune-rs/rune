@@ -14,8 +14,7 @@ use crate::query::{ConstFn, Query, Used};
 use crate::runtime::inst;
 use crate::runtime::{
     ConstValue, ConstValueKind, Inline, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
-    InstShiftOp, InstTarget, InstValue, InstVariant, Label, Output, PanicReason, Protocol,
-    TypeCheck,
+    InstShiftOp, InstTarget, InstValue, Label, Output, PanicReason, Protocol, TypeCheck,
 };
 use crate::shared::FixedVec;
 use crate::{Hash, SourceId};
@@ -1151,30 +1150,6 @@ fn const_<'a, 'hir>(
             let slot = cx.q.unit.new_static_bytes(span, b)?;
             cx.asm.push(inst::Kind::Bytes { slot, out }, span)?;
         }
-        ConstValueKind::Option(ref option) => match option {
-            Some(value) => {
-                const_(cx, value, span, addr)?;
-
-                cx.asm.push(
-                    inst::Kind::Variant {
-                        variant: InstVariant::Some,
-                        addr: addr.addr(),
-                        out,
-                    },
-                    span,
-                )?;
-            }
-            None => {
-                cx.asm.push(
-                    inst::Kind::Variant {
-                        variant: InstVariant::None,
-                        addr: addr.addr(),
-                        out,
-                    },
-                    span,
-                )?;
-            }
-        },
         ConstValueKind::Vec(ref vec) => {
             let mut linear = cx.scopes.linear(span, vec.len())?;
 
@@ -1236,22 +1211,34 @@ fn const_<'a, 'hir>(
 
             linear.free_non_dangling()?;
         }
-        ConstValueKind::Struct(hash, ref values) => {
+        ConstValueKind::Struct(hash, variant_hash, ref values) => {
             let mut linear = cx.scopes.linear(span, values.len())?;
 
             for (value, needs) in values.iter().zip(&mut linear) {
                 const_(cx, value, span, needs)?;
             }
 
-            cx.asm.push(
-                inst::Kind::ConstConstruct {
-                    addr: linear.addr(),
-                    hash,
-                    count: values.len(),
-                    out,
-                },
-                span,
-            )?;
+            if variant_hash.is_empty() {
+                cx.asm.push(
+                    inst::Kind::ConstConstruct {
+                        addr: linear.addr(),
+                        hash,
+                        count: values.len(),
+                        out,
+                    },
+                    span,
+                )?;
+            } else {
+                cx.asm.push(
+                    inst::Kind::Call {
+                        addr: linear.addr(),
+                        hash: variant_hash,
+                        args: values.len(),
+                        out,
+                    },
+                    span,
+                )?;
+            }
         }
     }
 

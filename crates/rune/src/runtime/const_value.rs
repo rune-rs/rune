@@ -16,7 +16,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap};
 use crate::runtime;
-use crate::{Hash, TypeHash};
+use crate::{hash_in, Hash, TypeHash};
 
 use super::{
     Bytes, FromValue, Inline, Object, OwnedTuple, Repr, ToValue, Tuple, Type, TypeInfo, Value,
@@ -197,16 +197,18 @@ pub(crate) enum ConstValueKind {
     Tuple(Box<[ConstValue]>),
     /// An anonymous object.
     Object(HashMap<String, ConstValue>),
-    /// An option.
-    Option(Option<Box<ConstValue>>),
     /// A struct with the given type.
-    Struct(Hash, Box<[ConstValue]>),
+    Struct(Hash, Hash, Box<[ConstValue]>),
 }
 
 impl ConstValueKind {
     fn type_info(&self) -> TypeInfo {
-        fn full_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "constant struct")
+        fn struct_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "unknown constant struct")
+        }
+
+        fn variant_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "unknown constant variant")
         }
 
         match self {
@@ -216,9 +218,12 @@ impl ConstValueKind {
             ConstValueKind::Vec(..) => TypeInfo::any::<runtime::Vec>(),
             ConstValueKind::Tuple(..) => TypeInfo::any::<OwnedTuple>(),
             ConstValueKind::Object(..) => TypeInfo::any::<Object>(),
-            ConstValueKind::Option(..) => TypeInfo::any::<Option<Value>>(),
-            ConstValueKind::Struct(hash, ..) => {
-                TypeInfo::any_type_info(AnyTypeInfo::new(full_name, *hash))
+            ConstValueKind::Struct(Option::<Value>::HASH, ..) => TypeInfo::any::<Option<Value>>(),
+            ConstValueKind::Struct(hash, Hash::EMPTY, ..) => {
+                TypeInfo::any_type_info(AnyTypeInfo::new(struct_name, *hash))
+            }
+            ConstValueKind::Struct(hash, _, ..) => {
+                TypeInfo::any_type_info(AnyTypeInfo::new(variant_name, *hash))
             }
         }
     }
@@ -247,7 +252,7 @@ impl ConstValue {
         let fields = Box::<[ConstValue]>::try_from(fields)?;
 
         Ok(ConstValue {
-            kind: ConstValueKind::Struct(hash, fields),
+            kind: ConstValueKind::Struct(hash, Hash::EMPTY, fields),
         })
     }
 
@@ -321,10 +326,15 @@ impl ConstValue {
                 Option::<Value>::HASH => {
                     let option = value.borrow_ref::<Option<Value>>()?;
 
-                    ConstValueKind::Option(match &*option {
-                        Some(some) => Some(Box::try_new(Self::from_value_ref(some)?)?),
-                        None => None,
-                    })
+                    let (variant_hash, values) = match &*option {
+                        Some(some) => (
+                            hash_in!(crate, ::std::option::Option::Some),
+                            Box::try_from([Self::from_value_ref(some)?])?,
+                        ),
+                        None => (hash_in!(crate, ::std::option::Option::None), Box::default()),
+                    };
+
+                    ConstValueKind::Struct(Option::<Value>::HASH, variant_hash, values)
                 }
                 String::HASH => {
                     let s = value.borrow_ref::<String>()?;
@@ -393,10 +403,6 @@ impl ConstValue {
             ConstValueKind::Inline(value) => Ok(Value::from(*value)),
             ConstValueKind::String(string) => Ok(Value::try_from(string.try_clone()?)?),
             ConstValueKind::Bytes(b) => Ok(Value::try_from(b.try_clone()?)?),
-            ConstValueKind::Option(option) => Ok(Value::try_from(match option {
-                Some(some) => Some(Self::to_value_with(some, cx)?),
-                None => None,
-            })?),
             ConstValueKind::Vec(vec) => {
                 let mut v = runtime::Vec::with_capacity(vec.len())?;
 
@@ -426,12 +432,25 @@ impl ConstValue {
 
                 Ok(Value::try_from(o)?)
             }
-            ConstValueKind::Struct(hash, fields) => {
-                let Some(constructor) = cx.get(*hash) else {
-                    return Err(RuntimeError::missing_constant_constructor(*hash));
-                };
+            ConstValueKind::Struct(hash, variant_hash, fields) => {
+                match (*variant_hash, &fields[..]) {
+                    // If the hash is `Option`, we can return a value directly.
+                    (hash_in!(crate, ::std::option::Option::Some), [value]) => {
+                        let value = Self::to_value_with(value, cx)?;
+                        Ok(Value::try_from(Some(value))?)
+                    }
+                    (hash_in!(crate, ::std::option::Option::None), []) => {
+                        Ok(Value::try_from(None)?)
+                    }
+                    (Hash::EMPTY, fields) => {
+                        let Some(constructor) = cx.get(*hash) else {
+                            return Err(RuntimeError::missing_constant_constructor(*hash));
+                        };
 
-                constructor.const_construct(fields)
+                        constructor.const_construct(fields)
+                    }
+                    _ => Err(RuntimeError::missing_constant_constructor(*hash)),
+                }
             }
         }
     }
