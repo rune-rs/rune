@@ -19,7 +19,7 @@ use crate::hir;
 use crate::parse::{NonZeroId, Resolve};
 use crate::query::{self, GenericsParameters, Named2, Named2Kind, Used};
 use crate::runtime::{
-    self, format, ConstInstance, ConstValue, ConstValueKind, Inline, Type, TypeCheck, TypeHash,
+    self, format, ConstInstance, ConstValue, ConstValueKind, Inline, Type, TypeHash,
 };
 use crate::Hash;
 
@@ -2187,7 +2187,7 @@ fn pat_path<'hir>(
                     return pat_const_value(cx, &const_value, &*p);
                 }
                 _ => {
-                    if let Some((0, kind)) = tuple_match_for(cx, &meta) {
+                    if let Some((0, kind)) = tuple_match_for(&meta) {
                         break 'path hir::PatPathKind::Kind(alloc!(kind));
                     }
                 }
@@ -2273,7 +2273,7 @@ fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
 
         // Treat the current meta as a tuple and get the number of arguments it
         // should receive and the type check that applies to it.
-        let Some((args, kind)) = tuple_match_for(cx, &meta) else {
+        let Some((args, kind)) = tuple_match_for(&meta) else {
             return Err(Error::expected_meta(
                 span,
                 meta.info(cx.q.pool)?,
@@ -2293,8 +2293,9 @@ fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
 
         kind
     } else {
-        hir::PatSequenceKind::Anonymous {
-            type_check: TypeCheck::Tuple,
+        hir::PatSequenceKind::Sequence {
+            hash: runtime::Tuple::HASH,
+            variant_hash: Hash::EMPTY,
             count: items.len(),
             is_open,
         }
@@ -2385,8 +2386,7 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
             let parameters = generics_parameters(cx, &named)?;
             let meta = cx.lookup_meta(&span, named.item, parameters)?;
 
-            let Some((mut fields, kind)) =
-                struct_match_for(cx, &meta, is_open && bindings.is_empty())?
+            let Some((mut fields, kind)) = struct_match_for(&meta, is_open && bindings.is_empty())?
             else {
                 return Err(Error::expected_meta(
                     span,
@@ -2423,8 +2423,9 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
 
             kind
         }
-        None => hir::PatSequenceKind::Anonymous {
-            type_check: TypeCheck::Object,
+        None => hir::PatSequenceKind::Sequence {
+            hash: runtime::Object::HASH,
+            variant_hash: Hash::EMPTY,
             count: bindings.len(),
             is_open,
         },
@@ -2465,8 +2466,9 @@ fn pat_array<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
 
     let items = iter!(items);
 
-    let kind = hir::PatSequenceKind::Anonymous {
-        type_check: TypeCheck::Vec,
+    let kind = hir::PatSequenceKind::Sequence {
+        hash: runtime::Vec::HASH,
+        variant_hash: Hash::EMPTY,
         count: items.len(),
         is_open,
     };
@@ -2540,8 +2542,9 @@ fn pat_const_value<'hir>(
             ConstValueKind::Inline(value) => match *value {
                 Inline::Unit => {
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                        kind: hir::PatSequenceKind::Anonymous {
-                            type_check: TypeCheck::Unit,
+                        kind: hir::PatSequenceKind::Sequence {
+                            hash: runtime::Tuple::HASH,
+                            variant_hash: Hash::EMPTY,
                             count: 0,
                             is_open: false,
                         },
@@ -2558,24 +2561,6 @@ fn pat_const_value<'hir>(
             ConstValueKind::Bytes(bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
             ConstValueKind::Instance(instance) => match &**instance {
                 ConstInstance {
-                    hash: runtime::Vec::HASH,
-                    variant_hash: Hash::EMPTY,
-                    fields,
-                } => {
-                    let items = iter!(fields.iter(), fields.len(), |value| pat_const_value(
-                        cx, value, span
-                    )?);
-
-                    break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                        kind: hir::PatSequenceKind::Anonymous {
-                            type_check: TypeCheck::Vec,
-                            count: items.len(),
-                            is_open: false,
-                        },
-                        items,
-                    }));
-                }
-                ConstInstance {
                     hash: runtime::Object::HASH,
                     variant_hash: Hash::EMPTY,
                     fields,
@@ -2588,8 +2573,9 @@ fn pat_const_value<'hir>(
                     });
 
                     break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
-                        kind: hir::PatSequenceKind::Anonymous {
-                            type_check: TypeCheck::Object,
+                        kind: hir::PatSequenceKind::Sequence {
+                            hash: runtime::Object::HASH,
+                            variant_hash: Hash::EMPTY,
                             count: bindings.len(),
                             is_open: false,
                         },
@@ -2597,8 +2583,8 @@ fn pat_const_value<'hir>(
                     }));
                 }
                 ConstInstance {
-                    hash: runtime::OwnedTuple::HASH,
-                    variant_hash: Hash::EMPTY,
+                    hash,
+                    variant_hash,
                     fields,
                 } => {
                     let items = iter!(fields.iter(), fields.len(), |value| pat_const_value(
@@ -2606,16 +2592,14 @@ fn pat_const_value<'hir>(
                     )?);
 
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                        kind: hir::PatSequenceKind::Anonymous {
-                            type_check: TypeCheck::Vec,
+                        kind: hir::PatSequenceKind::Sequence {
+                            hash: *hash,
+                            variant_hash: *variant_hash,
                             count: items.len(),
                             is_open: false,
                         },
                         items,
                     }));
-                }
-                _ => {
-                    return Err(Error::msg(span, "Unsupported constant value in pattern"));
                 }
             },
         };
@@ -2638,7 +2622,6 @@ fn pat_const_value<'hir>(
 /// For `open` matches (i.e. `{ .. }`), `Unnamed` and `Empty` structs are also
 /// supported and they report empty fields.
 fn struct_match_for(
-    cx: &Ctxt<'_, '_, '_>,
     meta: &meta::Meta,
     open: bool,
 ) -> alloc::Result<Option<(HashSet<Box<str>>, hir::PatSequenceKind)>> {
@@ -2649,18 +2632,17 @@ fn struct_match_for(
             ..
         } => {
             let kind = 'kind: {
-                if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                    break 'kind hir::PatSequenceKind::BuiltInVariant { type_check };
-                }
-
                 if enum_hash != Hash::EMPTY {
-                    break 'kind hir::PatSequenceKind::Variant {
-                        enum_hash,
+                    break 'kind hir::PatSequenceKind::Type {
+                        hash: enum_hash,
                         variant_hash: meta.hash,
                     };
                 }
 
-                hir::PatSequenceKind::Type { hash: meta.hash }
+                hir::PatSequenceKind::Type {
+                    hash: meta.hash,
+                    variant_hash: Hash::EMPTY,
+                }
             };
 
             (fields, kind)
@@ -2668,7 +2650,10 @@ fn struct_match_for(
         meta::Kind::Type { .. } if open => {
             return Ok(Some((
                 HashSet::new(),
-                hir::PatSequenceKind::Type { hash: meta.hash },
+                hir::PatSequenceKind::Type {
+                    hash: meta.hash,
+                    variant_hash: Hash::EMPTY,
+                },
             )));
         }
         _ => {
@@ -2689,10 +2674,7 @@ fn struct_match_for(
     Ok(Some((fields, kind)))
 }
 
-fn tuple_match_for(
-    cx: &Ctxt<'_, '_, '_>,
-    meta: &meta::Meta,
-) -> Option<(usize, hir::PatSequenceKind)> {
+fn tuple_match_for(meta: &meta::Meta) -> Option<(usize, hir::PatSequenceKind)> {
     match meta.kind {
         meta::Kind::Struct {
             ref fields,
@@ -2702,18 +2684,17 @@ fn tuple_match_for(
             let args = fields.as_tuple()?;
 
             let kind = 'kind: {
-                if let Some(type_check) = cx.q.context.type_check_for(meta.hash) {
-                    break 'kind hir::PatSequenceKind::BuiltInVariant { type_check };
-                }
-
                 if enum_hash != Hash::EMPTY {
-                    break 'kind hir::PatSequenceKind::Variant {
-                        enum_hash,
+                    break 'kind hir::PatSequenceKind::Type {
+                        hash: enum_hash,
                         variant_hash: meta.hash,
                     };
                 }
 
-                hir::PatSequenceKind::Type { hash: meta.hash }
+                hir::PatSequenceKind::Type {
+                    hash: meta.hash,
+                    variant_hash: Hash::EMPTY,
+                }
             };
 
             Some((args, kind))

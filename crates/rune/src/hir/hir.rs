@@ -6,7 +6,7 @@ use crate::alloc::prelude::*;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::{ItemId, ModId};
 use crate::parse::NonZeroId;
-use crate::runtime::{format, Type, TypeCheck};
+use crate::runtime::{format, Type};
 use crate::Hash;
 
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -108,16 +108,11 @@ pub(crate) enum PatKind<'hir> {
 pub(crate) enum PatSequenceKind {
     Type {
         hash: Hash,
-    },
-    BuiltInVariant {
-        type_check: TypeCheck,
-    },
-    Variant {
-        enum_hash: Hash,
         variant_hash: Hash,
     },
-    Anonymous {
-        type_check: TypeCheck,
+    Sequence {
+        hash: Hash,
+        variant_hash: Hash,
         count: usize,
         is_open: bool,
     },
