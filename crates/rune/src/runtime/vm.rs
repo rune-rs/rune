@@ -2531,45 +2531,6 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_match_sequence(
-        &mut self,
-        hash: Hash,
-        len: usize,
-        exact: bool,
-        addr: Address,
-        out: Output,
-    ) -> Result<(), VmError> {
-        let value = self.stack.at(addr);
-
-        let type_hash = value.type_hash();
-
-        let is_match = 'out: {
-            if type_hash != hash {
-                break 'out false;
-            }
-
-            let actual = match value.as_ref() {
-                Repr::Inline(Inline::Unit) => 0,
-                Repr::Any(any) => match type_hash {
-                    runtime::Vec::HASH => any.borrow_ref::<runtime::Vec>()?.len(),
-                    runtime::OwnedTuple::HASH => any.borrow_ref::<runtime::OwnedTuple>()?.len(),
-                    _ => break 'out false,
-                },
-                _ => break 'out false,
-            };
-
-            if exact {
-                actual == len
-            } else {
-                actual >= len
-            }
-        };
-
-        out.store(&mut self.stack, is_match)?;
-        Ok(())
-    }
-
-    #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_type(
         &mut self,
         hash: Hash,
@@ -2598,11 +2559,11 @@ impl Vm {
                 Repr::Any(any) => match hash {
                     Result::<Value, Value>::HASH => {
                         let result = any.borrow_ref::<Result<Value, Value>>()?;
-                        break 'out result::is_variant(&*result, variant_hash);
+                        break 'out result::is_variant(&result, variant_hash);
                     }
                     Option::<Value>::HASH => {
                         let option = any.borrow_ref::<Option<Value>>()?;
-                        break 'out option::is_variant(&*option, variant_hash);
+                        break 'out option::is_variant(&option, variant_hash);
                     }
                     _ => {}
                 },
@@ -2626,6 +2587,41 @@ impl Vm {
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
+    fn op_match_sequence(
+        &mut self,
+        hash: Hash,
+        len: usize,
+        exact: bool,
+        addr: Address,
+        out: Output,
+    ) -> Result<(), VmError> {
+        let value = self.stack.at(addr);
+
+        let type_hash = value.type_hash();
+
+        let is_match = 'out: {
+            if type_hash != hash {
+                break 'out false;
+            }
+
+            let actual = match value.as_ref() {
+                Repr::Inline(Inline::Unit) => 0,
+                Repr::Any(any) => match type_hash {
+                    runtime::Vec::HASH => any.borrow_ref::<runtime::Vec>()?.len(),
+                    runtime::OwnedTuple::HASH => any.borrow_ref::<runtime::OwnedTuple>()?.len(),
+                    _ => break 'out false,
+                },
+                _ => break 'out false,
+            };
+
+            actual >= len && (!exact || actual == len)
+        };
+
+        out.store(&mut self.stack, is_match)?;
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
     fn op_match_object(
         &mut self,
         slot: usize,
@@ -2633,35 +2629,26 @@ impl Vm {
         addr: Address,
         out: Output,
     ) -> Result<(), VmError> {
-        fn test(object: &Object, keys: &[alloc::String], exact: bool) -> bool {
-            if exact {
-                if object.len() != keys.len() {
-                    return false;
-                }
-            } else if object.len() < keys.len() {
-                return false;
+        let is_match = 'is_match: {
+            let Some(object) = self.stack.at(addr).try_borrow_ref::<Object>()? else {
+                break 'is_match false;
+            };
+
+            let Some(keys) = self.unit.lookup_object_keys(slot) else {
+                return Err(VmError::new(VmErrorKind::MissingStaticObjectKeys { slot }));
+            };
+
+            if object.len() < keys.len() || (exact && object.len() != keys.len()) {
+                break 'is_match false;
             }
 
             for key in keys {
                 if !object.contains_key(key.as_str()) {
-                    return false;
+                    break 'is_match false;
                 }
             }
 
             true
-        }
-
-        let value = self.stack.at(addr);
-
-        let is_match = match value.try_borrow_ref::<Object>()? {
-            Some(object) => {
-                let Some(keys) = self.unit.lookup_object_keys(slot) else {
-                    return Err(VmError::new(VmErrorKind::MissingStaticObjectKeys { slot }));
-                };
-
-                test(&object, keys, exact)
-            }
-            None => false,
         };
 
         out.store(&mut self.stack, is_match)?;
@@ -3165,6 +3152,14 @@ impl Vm {
                 inst::Kind::EqBytes { addr, slot, out } => {
                     self.op_eq_bytes(addr, slot, out)?;
                 }
+                inst::Kind::MatchType {
+                    hash,
+                    variant_hash,
+                    addr,
+                    out,
+                } => {
+                    self.op_match_type(hash, variant_hash, addr, out)?;
+                }
                 inst::Kind::MatchSequence {
                     hash,
                     len,
@@ -3173,14 +3168,6 @@ impl Vm {
                     out,
                 } => {
                     self.op_match_sequence(hash, len, exact, addr, out)?;
-                }
-                inst::Kind::MatchType {
-                    hash,
-                    variant_hash,
-                    addr,
-                    out,
-                } => {
-                    self.op_match_type(hash, variant_hash, addr, out)?;
                 }
                 inst::Kind::MatchObject {
                     slot,

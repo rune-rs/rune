@@ -94,6 +94,7 @@ impl ProtocolCaller for EnvProtocolCaller {
 }
 
 impl ProtocolCaller for Vm {
+    #[inline]
     fn try_call_protocol_fn(
         &mut self,
         protocol: &'static Protocol,
@@ -103,19 +104,22 @@ impl ProtocolCaller for Vm {
         let addr = self.stack().addr();
         self.stack_mut().push(())?;
 
-        match self.call_instance_fn(Isolated::Isolated, target, protocol, args, addr.output())? {
-            CallResult::Unsupported(value) => Ok(CallResultOnly::Unsupported(value)),
+        let result = match self.call_instance_fn(
+            Isolated::Isolated,
+            target,
+            protocol,
+            args,
+            addr.output(),
+        )? {
+            CallResult::Unsupported(value) => CallResultOnly::Unsupported(value),
             CallResult::Ok(()) => {
                 let value = self.stack().at(addr).clone();
-                self.stack_mut().truncate(addr);
-                Ok(CallResultOnly::Ok(value))
+                CallResultOnly::Ok(value)
             }
-            CallResult::Frame => {
-                let mut execution = VmExecution::new(self);
-                let value = execution.complete()?;
-                execution.vm_mut().stack_mut().truncate(addr);
-                Ok(CallResultOnly::Ok(value))
-            }
-        }
+            CallResult::Frame => CallResultOnly::Ok(VmExecution::new(&mut *self).complete()?),
+        };
+
+        self.stack_mut().truncate(addr);
+        Ok(result)
     }
 }

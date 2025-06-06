@@ -112,7 +112,6 @@ pub(crate) enum PatSequenceKind {
     },
     Sequence {
         hash: Hash,
-        variant_hash: Hash,
         count: usize,
         is_open: bool,
     },

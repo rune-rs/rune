@@ -2295,7 +2295,6 @@ fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
     } else {
         hir::PatSequenceKind::Sequence {
             hash: runtime::Tuple::HASH,
-            variant_hash: Hash::EMPTY,
             count: items.len(),
             is_open,
         }
@@ -2425,7 +2424,6 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
         }
         None => hir::PatSequenceKind::Sequence {
             hash: runtime::Object::HASH,
-            variant_hash: Hash::EMPTY,
             count: bindings.len(),
             is_open,
         },
@@ -2468,7 +2466,6 @@ fn pat_array<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
 
     let kind = hir::PatSequenceKind::Sequence {
         hash: runtime::Vec::HASH,
-        variant_hash: Hash::EMPTY,
         count: items.len(),
         is_open,
     };
@@ -2544,7 +2541,6 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: runtime::Tuple::HASH,
-                            variant_hash: Hash::EMPTY,
                             count: 0,
                             is_open: false,
                         },
@@ -2575,7 +2571,6 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: runtime::Object::HASH,
-                            variant_hash: Hash::EMPTY,
                             count: bindings.len(),
                             is_open: false,
                         },
@@ -2584,7 +2579,7 @@ fn pat_const_value<'hir>(
                 }
                 ConstInstance {
                     hash,
-                    variant_hash,
+                    variant_hash: Hash::EMPTY,
                     fields,
                 } => {
                     let items = iter!(fields.iter(), fields.len(), |value| pat_const_value(
@@ -2594,13 +2589,13 @@ fn pat_const_value<'hir>(
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                         kind: hir::PatSequenceKind::Sequence {
                             hash: *hash,
-                            variant_hash: *variant_hash,
                             count: items.len(),
                             is_open: false,
                         },
                         items,
                     }));
                 }
+                _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
             },
         };
 

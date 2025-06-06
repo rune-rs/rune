@@ -77,7 +77,18 @@ pub struct VmExecution<T> {
 }
 
 impl<T> VmExecution<T> {
+    /// Construct an execution from a virtual machine.
+    #[inline]
+    pub(crate) fn new(vm: T) -> Self {
+        Self {
+            vm,
+            state: ExecutionState::Initial,
+            states: Vec::new(),
+        }
+    }
+
     /// Get a reference to the current virtual machine.
+    #[inline]
     pub fn vm(&self) -> &Vm
     where
         T: AsRef<Vm>,
@@ -86,20 +97,12 @@ impl<T> VmExecution<T> {
     }
 
     /// Get a mutable reference the current virtual machine.
+    #[inline]
     pub fn vm_mut(&mut self) -> &mut Vm
     where
         T: AsMut<Vm>,
     {
         self.vm.as_mut()
-    }
-
-    /// Construct an execution from a virtual machine.
-    pub(crate) fn new(vm: T) -> Self {
-        Self {
-            vm,
-            state: ExecutionState::Initial,
-            states: Vec::new(),
-        }
     }
 }
 

@@ -56,7 +56,7 @@ fn struct_match() {
 }
 
 #[test]
-fn enum_match() {
+fn simple_enum_match() {
     #[derive(Debug, Any, Clone, Copy)]
     enum Enum {
         Success,
@@ -110,4 +110,61 @@ fn enum_match() {
     test!(Failed, Aborted);
     test!(Aborted, Errored);
     test!(Errored, Success);
+}
+#[test]
+fn field_enum_match() {
+    #[derive(Debug, Any, Clone, Copy)]
+    enum Enum {
+        Unnamed(#[rune(get)] u32, #[rune(get)] u32),
+        Named {
+            #[rune(get)]
+            a: u32,
+            #[rune(get)]
+            b: u32,
+        },
+    }
+
+    fn make_module() -> Result<Module, ContextError> {
+        let mut module = Module::new();
+        module.ty::<Enum>()?;
+        Ok(module)
+    }
+
+    let m = make_module().expect("failed make module");
+
+    let e = Enum::Unnamed(1, 2);
+
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Enum::Unnamed(a, ..) => a, _ => 0 } }
+    };
+
+    assert_eq!(n, 1);
+
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Enum::Unnamed(_, b, ..) => b, _ => 0 } }
+    };
+
+    assert_eq!(n, 2);
+
+    let e = Enum::Named { a: 1, b: 2 };
+
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Enum::Named { a, .. } => a, _ => 0 } }
+    };
+
+    assert_eq!(n, 1);
+
+    let n: u32 = rune_n! {
+        mod m,
+        (e,),
+        pub fn main(v) { match v { Enum::Named { b, .. } => b, _ => 0 } }
+    };
+
+    assert_eq!(n, 2);
 }
