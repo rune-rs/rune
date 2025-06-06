@@ -711,20 +711,6 @@ pub(crate) enum Kind {
         /// Where to store the produced format.
         out: Output,
     },
-    /// Test if the top of the stack is a unit.
-    ///
-    /// # Operation
-    ///
-    /// ```text
-    /// <value>
-    /// => <boolean>
-    /// ```
-    IsUnit {
-        /// The address of the value to test.
-        addr: Address,
-        /// Where to store the output.
-        out: Output,
-    },
     /// Perform the try operation which takes the value at the given `address`
     /// and tries to unwrap it or return from the current call frame.
     ///

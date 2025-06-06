@@ -753,12 +753,6 @@ fn pat_sequence_kind_to_inst(
             out,
         },
         hir::PatSequenceKind::Sequence {
-            hash: runtime::Tuple::HASH,
-            variant_hash: Hash::EMPTY,
-            count: 0,
-            is_open: false,
-        } => inst::Kind::IsUnit { addr, out },
-        hir::PatSequenceKind::Sequence {
             hash,
             variant_hash: Hash::EMPTY,
             count,
