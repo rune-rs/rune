@@ -2393,14 +2393,6 @@ impl Vm {
         Ok(())
     }
 
-    #[cfg_attr(feature = "bench", inline(never))]
-    fn op_is_unit(&mut self, addr: Address, out: Output) -> Result<(), VmError> {
-        let value = self.stack.at(addr);
-        let is_unit = matches!(value.as_inline(), Some(Inline::Unit));
-        out.store(&mut self.stack, is_unit)?;
-        Ok(())
-    }
-
     /// Perform the try operation on the given stack location.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_try(&mut self, addr: Address, out: Output) -> Result<Option<Output>, VmError> {
@@ -2551,39 +2543,29 @@ impl Vm {
 
         let type_hash = value.type_hash();
 
-        if type_hash != hash {
-            out.store(&mut self.stack, false)?;
-            return Ok(());
-        }
-
-        let f = move |tuple: &[Value]| {
-            if exact {
-                tuple.len() == len
-            } else {
-                tuple.len() >= len
+        let is_match = 'out: {
+            if type_hash != hash {
+                break 'out false;
             }
-        };
 
-        let on_sequence = || -> Result<bool, VmError> {
-            match value.as_ref() {
-                Repr::Inline(Inline::Unit) => Ok(f(&[])),
-                Repr::Any(value) => match type_hash {
-                    runtime::Vec::HASH => {
-                        let vec = value.borrow_ref::<runtime::Vec>()?;
-                        Ok(f(&vec))
-                    }
-                    runtime::OwnedTuple::HASH => {
-                        let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
-                        Ok(f(&tuple))
-                    }
-                    _ => Ok(false),
+            let actual = match value.as_ref() {
+                Repr::Inline(Inline::Unit) => 0,
+                Repr::Any(any) => match type_hash {
+                    runtime::Vec::HASH => any.borrow_ref::<runtime::Vec>()?.len(),
+                    runtime::OwnedTuple::HASH => any.borrow_ref::<runtime::OwnedTuple>()?.len(),
+                    _ => break 'out false,
                 },
-                _ => Ok(false),
+                _ => break 'out false,
+            };
+
+            if exact {
+                actual == len
+            } else {
+                actual >= len
             }
         };
 
-        let value = on_sequence()?;
-        out.store(&mut self.stack, value)?;
+        out.store(&mut self.stack, is_match)?;
         Ok(())
     }
 
@@ -3155,9 +3137,6 @@ impl Vm {
                 }
                 inst::Kind::Format { addr, spec, out } => {
                     self.op_format(addr, spec, out)?;
-                }
-                inst::Kind::IsUnit { addr, out } => {
-                    self.op_is_unit(addr, out)?;
                 }
                 inst::Kind::Try { addr, out } => {
                     if let Some(out) = self.op_try(addr, out)? {
