@@ -15,15 +15,18 @@ use core::iter;
 use core::ops::Range;
 use core::slice;
 
+#[cfg(feature = "emit")]
+use std::io;
+
 use crate as rune;
 #[cfg(feature = "std")]
 use crate::alloc::borrow::Cow;
 use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box};
-
-#[cfg(feature = "emit")]
 use crate::ast::Span;
+#[cfg(feature = "emit")]
+use crate::termcolor::{self, WriteColor};
 
 /// Error raised when constructing a source.
 #[derive(Debug)]
@@ -176,7 +179,6 @@ impl Source {
     }
 
     /// Access all line starts in the source.
-    #[cfg(feature = "emit")]
     pub(crate) fn line_starts(&self) -> &[usize] {
         &self.line_starts
     }
@@ -219,10 +221,27 @@ impl Source {
         self.path.as_deref()
     }
 
-    /// Convert the given offset to a utf-16 line and character.
-    #[cfg(feature = "languageserver")]
-    pub(crate) fn pos_to_utf16cu_linecol(&self, offset: usize) -> (usize, usize) {
-        let (line, offset, rest) = self.position(offset);
+    /// Convert the given position to a utf-8 line position in code units.
+    ///
+    /// A position is a character offset into the source in utf-8 characters.
+    ///
+    /// Note that utf-8 code units is what you'd count when using the
+    /// [`str::chars()`] iterator.
+    pub fn find_line_column(&self, position: usize) -> (usize, usize) {
+        let (line, offset, rest) = self.position(position);
+        let col = rest.char_indices().take_while(|&(n, _)| n < offset).count();
+        (line, col)
+    }
+
+    /// Convert the given position to a utf-16 code units line and character.
+    ///
+    /// A position is a character offset into the source in utf-16 characters.
+    ///
+    /// Note that utf-16 code units is what you'd count when iterating over the
+    /// string in terms of characters as-if they would have been encoded with
+    /// [`char::encode_utf16()`].
+    pub fn find_utf16cu_line_column(&self, position: usize) -> (usize, usize) {
+        let (line, offset, rest) = self.position(position);
 
         let col = rest
             .char_indices()
@@ -232,11 +251,19 @@ impl Source {
         (line, col)
     }
 
-    /// Convert the given offset to a utf-16 line and character.
-    pub fn pos_to_utf8_linecol(&self, offset: usize) -> (usize, usize) {
-        let (line, offset, rest) = self.position(offset);
-        let col = rest.char_indices().take_while(|&(n, _)| n < offset).count();
-        (line, col)
+    /// Fetch [`SourceLine`] information for the given span.
+    pub fn source_line(&self, span: Span) -> Option<SourceLine<'_>> {
+        let (line, column, text, _span) = line_for(self, span)?;
+
+        Some(SourceLine {
+            #[cfg(feature = "emit")]
+            name: self.name(),
+            line,
+            column,
+            text,
+            #[cfg(feature = "emit")]
+            span: _span,
+        })
     }
 
     /// Get the line index for the given byte.
@@ -265,7 +292,7 @@ impl Source {
     #[cfg(feature = "emit")]
     pub(crate) fn line(&self, span: Span) -> Option<(usize, usize, [&str; 3])> {
         let from = span.range();
-        let (lin, col) = self.pos_to_utf8_linecol(from.start);
+        let (lin, col) = self.find_line_column(from.start);
         let line = self.line_range(lin)?;
 
         let start = from.start.checked_sub(line.start)?;
@@ -320,6 +347,61 @@ impl fmt::Debug for Source {
     }
 }
 
+/// An extracted source line.
+pub struct SourceLine<'a> {
+    #[cfg(feature = "emit")]
+    name: &'a str,
+    /// The line number in the source.
+    pub line: usize,
+    /// The column number in the source.
+    pub column: usize,
+    /// The text of the span.
+    pub text: &'a str,
+    #[cfg(feature = "emit")]
+    span: Span,
+}
+
+impl SourceLine<'_> {
+    /// Pretty write a source line to the given output.
+    #[cfg(feature = "emit")]
+    pub(crate) fn write(&self, o: &mut dyn WriteColor) -> io::Result<()> {
+        let mut highlight = termcolor::ColorSpec::new();
+        highlight.set_fg(Some(termcolor::Color::Yellow));
+
+        let mut new_line = termcolor::ColorSpec::new();
+        new_line.set_fg(Some(termcolor::Color::Red));
+
+        let text = self.text.trim_end();
+        let end = self.span.end.into_usize().min(text.len());
+
+        let before = &text[0..self.span.start.into_usize()].trim_start();
+        let inner = &text[self.span.start.into_usize()..end];
+        let after = &text[end..];
+
+        {
+            let name = self.name;
+            let line = self.line + 1;
+            let start = self.column + 1;
+            let end = start + inner.chars().count();
+            write!(o, "{name}:{line}:{start}-{end}: ")?;
+        }
+
+        write!(o, "{before}")?;
+        o.set_color(&highlight)?;
+        write!(o, "{inner}")?;
+        o.reset()?;
+        write!(o, "{after}")?;
+
+        if self.span.end != end {
+            o.set_color(&new_line)?;
+            write!(o, "\\n")?;
+            o.reset()?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Holder for the name of a source.
 #[derive(Default, Debug, TryClone, PartialEq, Eq)]
 enum SourceName {
@@ -331,6 +413,46 @@ enum SourceName {
     Name(Box<str>),
 }
 
+#[inline(always)]
 fn line_starts(source: &str) -> impl Iterator<Item = usize> + '_ {
     iter::once(0).chain(source.match_indices('\n').map(|(i, _)| i + 1))
+}
+
+/// Get the line number and source line for the given source and span.
+fn line_for(source: &Source, span: Span) -> Option<(usize, usize, &str, Span)> {
+    let line_starts = source.line_starts();
+
+    let line = match line_starts.binary_search(&span.start.into_usize()) {
+        Ok(n) => n,
+        Err(n) => n.saturating_sub(1),
+    };
+
+    let start = *line_starts.get(line)?;
+    let end = line.checked_add(1)?;
+
+    let s = if let Some(end) = line_starts.get(end) {
+        source.get(start..*end)?
+    } else {
+        source.get(start..)?
+    };
+
+    let line_end = span.start.into_usize().saturating_sub(start);
+
+    let column = s
+        .get(..line_end)
+        .into_iter()
+        .flat_map(|s| s.chars())
+        .count();
+
+    let start = start.try_into().unwrap();
+
+    Some((
+        line,
+        column,
+        s,
+        Span::new(
+            span.start.saturating_sub(start),
+            span.end.saturating_sub(start),
+        ),
+    ))
 }

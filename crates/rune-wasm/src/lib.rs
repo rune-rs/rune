@@ -201,11 +201,10 @@ async fn inner_compile(
                             let span = error.span();
 
                             let start = WasmPosition::from(
-                                source.pos_to_utf8_linecol(span.start.into_usize()),
+                                source.find_line_column(span.start.into_usize()),
                             );
-                            let end = WasmPosition::from(
-                                source.pos_to_utf8_linecol(span.end.into_usize()),
-                            );
+                            let end =
+                                WasmPosition::from(source.find_line_column(span.end.into_usize()));
 
                             diagnostics.push(WasmDiagnostic {
                                 kind: WasmDiagnosticKind::Error,
@@ -218,10 +217,10 @@ async fn inner_compile(
                             LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
                                     let start = WasmPosition::from(
-                                        source.pos_to_utf8_linecol(span.start.into_usize()),
+                                        source.find_line_column(span.start.into_usize()),
                                     );
                                     let end = WasmPosition::from(
-                                        source.pos_to_utf8_linecol(span.end.into_usize()),
+                                        source.find_line_column(span.end.into_usize()),
                                     );
 
                                     diagnostics.push(WasmDiagnostic {
@@ -243,8 +242,8 @@ async fn inner_compile(
 
                 if let Some(source) = sources.get(warning.source_id()) {
                     let start =
-                        WasmPosition::from(source.pos_to_utf8_linecol(span.start.into_usize()));
-                    let end = WasmPosition::from(source.pos_to_utf8_linecol(span.end.into_usize()));
+                        WasmPosition::from(source.find_line_column(span.start.into_usize()));
+                    let end = WasmPosition::from(source.find_line_column(span.end.into_usize()));
 
                     diagnostics.push(WasmDiagnostic {
                         kind: WasmDiagnosticKind::Warning,
@@ -323,12 +322,11 @@ async fn inner_compile(
                 if let Some(inst) = debug.instruction_at(ip) {
                     if let Some(source) = sources.get(inst.source_id) {
                         let start = WasmPosition::from(
-                            source.pos_to_utf8_linecol(inst.span.start.into_usize()),
+                            source.find_line_column(inst.span.start.into_usize()),
                         );
 
-                        let end = WasmPosition::from(
-                            source.pos_to_utf8_linecol(inst.span.end.into_usize()),
-                        );
+                        let end =
+                            WasmPosition::from(source.find_line_column(inst.span.end.into_usize()));
 
                         diagnostics.push(WasmDiagnostic {
                             kind: WasmDiagnosticKind::Error,

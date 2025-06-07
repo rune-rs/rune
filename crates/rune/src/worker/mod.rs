@@ -415,7 +415,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             .q
             .sources
             .get(this.location.source_id)
-            .map(|s| s.pos_to_utf8_linecol(p.span().start.into_usize()))
+            .map(|s| s.find_line_column(p.span().start.into_usize()))
             .unwrap_or_default();
 
         Ok(BuiltInMacro2::Line(l + 1))
