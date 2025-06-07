@@ -228,7 +228,11 @@ impl<T> HashSet<T, DefaultHashBuilder> {
     }
 }
 
-impl<T: Hash + Eq, A: Allocator> HashSet<T, DefaultHashBuilder, A> {
+impl<T, A> HashSet<T, DefaultHashBuilder, A>
+where
+    T: Hash + Eq,
+    A: Allocator,
+{
     /// Creates an empty `HashSet`.
     ///
     /// The hash set is initially created with a capacity of 0, so it will not allocate until it
@@ -297,7 +301,10 @@ impl<T: Hash + Eq, A: Allocator> HashSet<T, DefaultHashBuilder, A> {
     }
 }
 
-impl<T, S, A: Allocator> HashSet<T, S, A> {
+impl<T, S, A> HashSet<T, S, A>
+where
+    A: Allocator,
+{
     /// Returns the number of elements the set can hold without reallocating.
     ///
     /// # Examples
@@ -1317,7 +1324,10 @@ where
     }
 }
 
-impl<T, S, A: Allocator> HashSet<T, S, A> {
+impl<T, S, A> HashSet<T, S, A>
+where
+    A: Allocator,
+{
     /// Returns a reference to the [`RawTable`] used underneath [`HashSet`].
     /// This function is only available if the `raw` feature of the crate is enabled.
     ///
@@ -1400,10 +1410,11 @@ where
     }
 }
 
-impl<T, S, A: Allocator> TryFromIteratorIn<T, A> for HashSet<T, S, A>
+impl<T, S, A> TryFromIteratorIn<T, A> for HashSet<T, S, A>
 where
     T: Eq + Hash,
     S: BuildHasher + Default,
+    A: Allocator,
 {
     #[cfg_attr(feature = "inline-more", inline)]
     fn try_from_iter_in<I: IntoIterator<Item = T>>(iter: I, alloc: A) -> Result<Self, Error> {
@@ -1611,7 +1622,10 @@ pub struct Union<'a, T, S, A: Allocator = Global> {
     iter: Chain<Iter<'a, T>, Difference<'a, T, S, A>>,
 }
 
-impl<'a, T, S, A: Allocator> IntoIterator for &'a HashSet<T, S, A> {
+impl<'a, T, S, A> IntoIterator for &'a HashSet<T, S, A>
+where
+    A: Allocator,
+{
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -1621,7 +1635,10 @@ impl<'a, T, S, A: Allocator> IntoIterator for &'a HashSet<T, S, A> {
     }
 }
 
-impl<T, S, A: Allocator> IntoIterator for HashSet<T, S, A> {
+impl<T, S, A> IntoIterator for HashSet<T, S, A>
+where
+    A: Allocator,
+{
     type Item = T;
     type IntoIter = IntoIter<T, A>;
 
@@ -1690,7 +1707,10 @@ impl<K: fmt::Debug> fmt::Debug for Iter<'_, K> {
     }
 }
 
-impl<K, A: Allocator> Iterator for IntoIter<K, A> {
+impl<K, A> Iterator for IntoIter<K, A>
+where
+    A: Allocator,
+{
     type Item = K;
 
     #[cfg_attr(feature = "inline-more", inline)]
@@ -1706,22 +1726,33 @@ impl<K, A: Allocator> Iterator for IntoIter<K, A> {
         self.iter.size_hint()
     }
 }
-impl<K, A: Allocator> ExactSizeIterator for IntoIter<K, A> {
+
+impl<K, A> ExactSizeIterator for IntoIter<K, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn len(&self) -> usize {
         self.iter.len()
     }
 }
-impl<K, A: Allocator> FusedIterator for IntoIter<K, A> {}
+impl<K, A> FusedIterator for IntoIter<K, A> where A: Allocator {}
 
-impl<K: fmt::Debug, A: Allocator> fmt::Debug for IntoIter<K, A> {
+impl<K, A> fmt::Debug for IntoIter<K, A>
+where
+    K: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let entries_iter = self.iter.iter().map(|(k, _)| k);
         f.debug_list().entries(entries_iter).finish()
     }
 }
 
-impl<K, A: Allocator> Iterator for Drain<'_, K, A> {
+impl<K, A> Iterator for Drain<'_, K, A>
+where
+    A: Allocator,
+{
     type Item = K;
 
     #[cfg_attr(feature = "inline-more", inline)]
@@ -1738,24 +1769,32 @@ impl<K, A: Allocator> Iterator for Drain<'_, K, A> {
         self.iter.size_hint()
     }
 }
-impl<K, A: Allocator> ExactSizeIterator for Drain<'_, K, A> {
+impl<K, A> ExactSizeIterator for Drain<'_, K, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn len(&self) -> usize {
         self.iter.len()
     }
 }
-impl<K, A: Allocator> FusedIterator for Drain<'_, K, A> {}
+impl<K, A> FusedIterator for Drain<'_, K, A> where A: Allocator {}
 
-impl<K: fmt::Debug, A: Allocator> fmt::Debug for Drain<'_, K, A> {
+impl<K, A> fmt::Debug for Drain<'_, K, A>
+where
+    K: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let entries_iter = self.iter.iter().map(|(k, _)| k);
         f.debug_list().entries(entries_iter).finish()
     }
 }
 
-impl<K, F, A: Allocator> Iterator for ExtractIf<'_, K, F, A>
+impl<K, F, A> Iterator for ExtractIf<'_, K, F, A>
 where
     F: FnMut(&K) -> bool,
+    A: Allocator,
 {
     type Item = K;
 
@@ -1772,9 +1811,17 @@ where
     }
 }
 
-impl<K, F, A: Allocator> FusedIterator for ExtractIf<'_, K, F, A> where F: FnMut(&K) -> bool {}
+impl<K, F, A> FusedIterator for ExtractIf<'_, K, F, A>
+where
+    F: FnMut(&K) -> bool,
+    A: Allocator,
+{
+}
 
-impl<T, S, A: Allocator> Clone for Intersection<'_, T, S, A> {
+impl<T, S, A> Clone for Intersection<'_, T, S, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn clone(&self) -> Self {
         Intersection {
@@ -1828,7 +1875,10 @@ where
 {
 }
 
-impl<T, S, A: Allocator> Clone for Difference<'_, T, S, A> {
+impl<T, S, A> Clone for Difference<'_, T, S, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn clone(&self) -> Self {
         Difference {
@@ -1882,7 +1932,10 @@ where
     }
 }
 
-impl<T, S, A: Allocator> Clone for SymmetricDifference<'_, T, S, A> {
+impl<T, S, A> Clone for SymmetricDifference<'_, T, S, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn clone(&self) -> Self {
         SymmetricDifference {
@@ -1928,7 +1981,10 @@ where
     }
 }
 
-impl<T, S, A: Allocator> Clone for Union<'_, T, S, A> {
+impl<T, S, A> Clone for Union<'_, T, S, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn clone(&self) -> Self {
         Union {
@@ -2052,7 +2108,11 @@ where
     Vacant(VacantEntry<'a, T, S, A>),
 }
 
-impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for Entry<'_, T, S, A> {
+impl<T, S, A> fmt::Debug for Entry<'_, T, S, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Entry::Vacant(ref v) => f.debug_tuple("Entry").field(v).finish(),
@@ -2103,7 +2163,12 @@ pub struct OccupiedEntry<'a, T, S, A: Allocator = Global> {
     inner: map::OccupiedEntry<'a, T, (), S, A>,
 }
 
-impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for OccupiedEntry<'_, T, S, A> {
+impl<T, S, A> fmt::Debug for OccupiedEntry<'_, T, S, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OccupiedEntry")
             .field("value", self.get())
@@ -2142,13 +2207,20 @@ pub struct VacantEntry<'a, T, S, A: Allocator = Global> {
     inner: map::VacantEntry<'a, T, (), S, A>,
 }
 
-impl<T: fmt::Debug, S, A: Allocator> fmt::Debug for VacantEntry<'_, T, S, A> {
+impl<T, S, A> fmt::Debug for VacantEntry<'_, T, S, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("VacantEntry").field(self.get()).finish()
     }
 }
 
-impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
+impl<'a, T, S, A> Entry<'a, T, S, A>
+where
+    A: Allocator,
+{
     /// Sets the value of the entry, and returns an OccupiedEntry.
     ///
     /// # Examples
@@ -2230,7 +2302,10 @@ impl<'a, T, S, A: Allocator> Entry<'a, T, S, A> {
     }
 }
 
-impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
+impl<T, S, A> OccupiedEntry<'_, T, S, A>
+where
+    A: Allocator,
+{
     /// Gets a reference to the value in the entry.
     ///
     /// # Examples
@@ -2321,7 +2396,10 @@ impl<T, S, A: Allocator> OccupiedEntry<'_, T, S, A> {
     }
 }
 
-impl<'a, T, S, A: Allocator> VacantEntry<'a, T, S, A> {
+impl<'a, T, S, A> VacantEntry<'a, T, S, A>
+where
+    A: Allocator,
+{
     /// Gets a reference to the value that would be used when inserting
     /// through the `VacantEntry`.
     ///
@@ -2403,30 +2481,48 @@ fn assert_covariance() {
     fn iter<'a, 'new>(v: Iter<'a, &'static str>) -> Iter<'a, &'new str> {
         v
     }
-    fn into_iter<'new, A: Allocator>(v: IntoIter<&'static str, A>) -> IntoIter<&'new str, A> {
+    fn into_iter<'new, A>(v: IntoIter<&'static str, A>) -> IntoIter<&'new str, A>
+    where
+        A: Allocator,
+    {
         v
     }
-    fn difference<'a, 'new, A: Allocator>(
+    fn difference<'a, 'new, A>(
         v: Difference<'a, &'static str, DefaultHashBuilder, A>,
-    ) -> Difference<'a, &'new str, DefaultHashBuilder, A> {
+    ) -> Difference<'a, &'new str, DefaultHashBuilder, A>
+    where
+        A: Allocator,
+    {
         v
     }
-    fn symmetric_difference<'a, 'new, A: Allocator>(
+    fn symmetric_difference<'a, 'new, A>(
         v: SymmetricDifference<'a, &'static str, DefaultHashBuilder, A>,
-    ) -> SymmetricDifference<'a, &'new str, DefaultHashBuilder, A> {
+    ) -> SymmetricDifference<'a, &'new str, DefaultHashBuilder, A>
+    where
+        A: Allocator,
+    {
         v
     }
-    fn intersection<'a, 'new, A: Allocator>(
+    fn intersection<'a, 'new, A>(
         v: Intersection<'a, &'static str, DefaultHashBuilder, A>,
-    ) -> Intersection<'a, &'new str, DefaultHashBuilder, A> {
+    ) -> Intersection<'a, &'new str, DefaultHashBuilder, A>
+    where
+        A: Allocator,
+    {
         v
     }
-    fn union<'a, 'new, A: Allocator>(
+    fn union<'a, 'new, A>(
         v: Union<'a, &'static str, DefaultHashBuilder, A>,
-    ) -> Union<'a, &'new str, DefaultHashBuilder, A> {
+    ) -> Union<'a, &'new str, DefaultHashBuilder, A>
+    where
+        A: Allocator,
+    {
         v
     }
-    fn drain<'new, A: Allocator>(d: Drain<'static, &'static str, A>) -> Drain<'new, &'new str, A> {
+    fn drain<'new, A>(d: Drain<'static, &'static str, A>) -> Drain<'new, &'new str, A>
+    where
+        A: Allocator,
+    {
         d
     }
 }

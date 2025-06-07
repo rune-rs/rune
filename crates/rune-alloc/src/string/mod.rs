@@ -253,7 +253,7 @@ use crate::vec::Vec;
 ///
 /// impl<'a> TraitExample for &'a str {}
 ///
-/// fn example_func<A: TraitExample>(example_arg: A) {}
+/// fn example_func<A>(example_arg: A) where A: TraitExample {}
 ///
 /// let example_string = String::try_from("example_string")?;
 /// example_func(&example_string);
@@ -2618,7 +2618,10 @@ where
     }
 }
 
-impl<'a, A: Allocator> TryExtend<&'a str> for String<A> {
+impl<'a, A> TryExtend<&'a str> for String<A>
+where
+    A: Allocator,
+{
     /// Extend a string using a character iterator.
     ///
     /// ```

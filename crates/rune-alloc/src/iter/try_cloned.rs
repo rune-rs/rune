@@ -18,10 +18,10 @@ impl<I> TryCloned<I> {
     }
 }
 
-impl<'a, I, T: 'a> Iterator for TryCloned<I>
+impl<'a, I, T> Iterator for TryCloned<I>
 where
     I: Iterator<Item = &'a T>,
-    T: TryClone,
+    T: 'a + TryClone,
 {
     type Item = Result<T, Error>;
 
@@ -30,6 +30,7 @@ where
         Some(self.it.next()?.try_clone())
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.it.size_hint()
     }

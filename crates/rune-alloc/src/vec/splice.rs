@@ -80,7 +80,10 @@ where
 }
 
 /// Private helper methods for `Splice::drop`
-impl<T, A: Allocator> Drain<'_, T, A> {
+impl<T, A> Drain<'_, T, A>
+where
+    A: Allocator,
+{
     /// The range from `self.vec.len` to `self.tail_start` contains elements
     /// that have been moved out.
     /// Fill that range as much as possible with new elements from the `replace_with` iterator.

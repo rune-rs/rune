@@ -9,7 +9,10 @@ use core::slice;
 /// documentation for more.
 ///
 /// [`iter`]: super::VecDeque::iter
-pub struct Iter<'a, T: 'a> {
+pub struct Iter<'a, T>
+where
+    T: 'a,
+{
     i1: slice::Iter<'a, T>,
     i2: slice::Iter<'a, T>,
 }

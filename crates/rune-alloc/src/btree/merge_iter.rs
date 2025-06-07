@@ -4,7 +4,10 @@ use core::iter::FusedIterator;
 
 /// Core of an iterator that merges the output of two strictly ascending iterators,
 /// for instance a union or a symmetric difference.
-pub(crate) struct MergeIterInner<I: Iterator> {
+pub(crate) struct MergeIterInner<I>
+where
+    I: Iterator,
+{
     a: I,
     b: I,
     peeked: Option<Peeked<I>>,
@@ -13,7 +16,10 @@ pub(crate) struct MergeIterInner<I: Iterator> {
 /// Benchmarks faster than wrapping both iterators in a Peekable,
 /// probably because we can afford to impose a FusedIterator bound.
 #[derive(Clone, Debug)]
-enum Peeked<I: Iterator> {
+enum Peeked<I>
+where
+    I: Iterator,
+{
     A(I::Item),
     B(I::Item),
 }
@@ -46,7 +52,10 @@ where
     }
 }
 
-impl<I: Iterator> MergeIterInner<I> {
+impl<I> MergeIterInner<I>
+where
+    I: Iterator,
+{
     /// Creates a new core for an iterator merging a pair of sources.
     pub(crate) fn new(a: I, b: I) -> Self {
         MergeIterInner { a, b, peeked: None }

@@ -25,7 +25,11 @@ pub(crate) struct LeafRange<BorrowType, K, V> {
     back: Option<Handle<NodeRef<BorrowType, K, V, marker::Leaf>, marker::Edge>>,
 }
 
-impl<'a, K: 'a, V: 'a> Clone for LeafRange<marker::Immut<'a>, K, V> {
+impl<'a, K, V> Clone for LeafRange<marker::Immut<'a>, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     fn clone(&self) -> Self {
         LeafRange {
             front: self.front,
@@ -127,7 +131,12 @@ enum LazyLeafHandle<BorrowType, K, V> {
     Edge(Handle<NodeRef<BorrowType, K, V, marker::Leaf>, marker::Edge>),
 }
 
-impl<'a, K: 'a, V: 'a> Clone for LazyLeafHandle<marker::Immut<'a>, K, V> {
+impl<'a, K, V> Clone for LazyLeafHandle<marker::Immut<'a>, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
+    #[inline]
     fn clone(&self) -> Self {
         match self {
             LazyLeafHandle::Root(root) => LazyLeafHandle::Root(*root),
@@ -161,6 +170,7 @@ pub(crate) struct LazyLeafRange<BorrowType, K, V> {
 }
 
 impl<B, K, V> Default for LazyLeafRange<B, K, V> {
+    #[inline]
     fn default() -> Self {
         LazyLeafRange {
             front: None,
@@ -169,7 +179,12 @@ impl<B, K, V> Default for LazyLeafRange<B, K, V> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> Clone for LazyLeafRange<marker::Immut<'a>, K, V> {
+impl<'a, K, V> Clone for LazyLeafRange<marker::Immut<'a>, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
+    #[inline]
     fn clone(&self) -> Self {
         LazyLeafRange {
             front: self.front.clone(),
@@ -179,6 +194,7 @@ impl<'a, K: 'a, V: 'a> Clone for LazyLeafRange<marker::Immut<'a>, K, V> {
 }
 
 impl<K, V> Clone for LazyLeafRange<marker::Raw, K, V> {
+    #[inline]
     fn clone(&self) -> Self {
         LazyLeafRange {
             front: self.front.clone(),
@@ -390,7 +406,11 @@ fn full_range<BorrowType: marker::BorrowType, K, V>(
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Finds the pair of leaf edges delimiting a specific range in a tree.
     ///
     /// The result is meaningful only if the tree is ordered by key, like the tree
@@ -422,7 +442,11 @@ impl<K, V> NodeRef<marker::Raw, K, V, marker::LeafOrInternal> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::ValMut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::ValMut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Splits a unique reference into a pair of leaf edges delimiting a specified range.
     /// The result are non-unique references allowing (some) mutation, which must be used
     /// carefully.
@@ -798,7 +822,11 @@ pub(crate) enum Position<BorrowType, K, V> {
     InternalKV(#[allow(unused)] Handle<NodeRef<BorrowType, K, V, marker::Internal>, marker::KV>),
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Visits leaf nodes and internal KVs in order of ascending keys, and also
     /// visits internal nodes as a whole in a depth first order, meaning that
     /// internal nodes precede their individual KVs and their child nodes.

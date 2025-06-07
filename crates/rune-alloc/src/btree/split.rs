@@ -32,7 +32,7 @@ impl<K, V> Root<K, V> {
     /// and if the ordering of `Q` corresponds to that of `K`.
     /// If `self` respects all `BTreeMap` tree invariants, then both
     /// `self` and the returned tree will respect those invariants.
-    pub(crate) fn split_off<C: ?Sized, Q: ?Sized, A: Allocator, E>(
+    pub(crate) fn split_off<C, Q, A, E>(
         &mut self,
         cx: &mut C,
         key: &Q,
@@ -41,6 +41,9 @@ impl<K, V> Root<K, V> {
     ) -> Result<Result<Self, AllocError>, E>
     where
         K: Borrow<Q>,
+        C: ?Sized,
+        Q: ?Sized,
+        A: Allocator,
     {
         let left_root = self;
 
@@ -77,7 +80,10 @@ impl<K, V> Root<K, V> {
     }
 
     /// Creates a tree consisting of empty nodes.
-    fn new_pillar<A: Allocator>(height: usize, alloc: &A) -> Result<Self, AllocError> {
+    fn new_pillar<A>(height: usize, alloc: &A) -> Result<Self, AllocError>
+    where
+        A: Allocator,
+    {
         let mut root = Root::new(alloc)?;
 
         for _ in 0..height {

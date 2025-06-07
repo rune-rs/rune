@@ -3,7 +3,11 @@ use crate::alloc::Allocator;
 use super::map::MIN_LEN;
 use super::node::{marker, ForceResult::*, Handle, LeftOrRight::*, NodeRef};
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Removes a key-value pair from the tree, and returns that pair, as well as
     /// the leaf edge corresponding to that former pair. It's possible this empties
     /// a root node that is internal, which the caller should pop from the map
@@ -27,7 +31,11 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInter
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     fn remove_leaf_kv<F, A>(
         self,
         handle_emptied_internal_root: F,
@@ -91,7 +99,11 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     fn remove_internal_kv<F, A>(
         self,
         handle_emptied_internal_root: F,

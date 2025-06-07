@@ -19,7 +19,12 @@ use Entry::*;
 /// This `enum` is constructed from the [`entry`] method on [`BTreeMap`].
 ///
 /// [`entry`]: BTreeMap::entry
-pub enum Entry<'a, K: 'a, V: 'a, A: Allocator = Global> {
+pub enum Entry<'a, K, V, A = Global>
+where
+    K: 'a,
+    V: 'a,
+    A: Allocator,
+{
     /// A vacant entry.
     Vacant(VacantEntry<'a, K, V, A>),
 
@@ -27,7 +32,13 @@ pub enum Entry<'a, K: 'a, V: 'a, A: Allocator = Global> {
     Occupied(OccupiedEntry<'a, K, V, A>),
 }
 
-impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for Entry<'_, K, V, A> {
+impl<K, V, A> Debug for Entry<'_, K, V, A>
+where
+    K: Debug + Ord,
+    V: Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Vacant(ref v) => f.debug_tuple("Entry").field(v).finish(),
@@ -38,7 +49,10 @@ impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for Entry<'_, K, V, A> {
 
 /// A view into a vacant entry in a `BTreeMap`.
 /// It is part of the [`Entry`] enum.
-pub struct VacantEntry<'a, K, V, A: Allocator = Global> {
+pub struct VacantEntry<'a, K, V, A = Global>
+where
+    A: Allocator,
+{
     pub(super) key: K,
     /// `None` for a (empty) map without root
     pub(super) handle: Option<Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>>,
@@ -51,7 +65,12 @@ pub struct VacantEntry<'a, K, V, A: Allocator = Global> {
     pub(super) _marker: PhantomData<&'a mut (K, V)>,
 }
 
-impl<K: Debug + Ord, V, A: Allocator> Debug for VacantEntry<'_, K, V, A> {
+impl<K, V, A> Debug for VacantEntry<'_, K, V, A>
+where
+    K: Debug + Ord,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("VacantEntry").field(self.key()).finish()
     }
@@ -59,7 +78,10 @@ impl<K: Debug + Ord, V, A: Allocator> Debug for VacantEntry<'_, K, V, A> {
 
 /// A view into an occupied entry in a `BTreeMap`.
 /// It is part of the [`Entry`] enum.
-pub struct OccupiedEntry<'a, K, V, A: Allocator = Global> {
+pub struct OccupiedEntry<'a, K, V, A = Global>
+where
+    A: Allocator,
+{
     pub(super) handle: Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV>,
     pub(super) dormant_map: DormantMutRef<'a, BTreeMap<K, V, A>>,
 
@@ -70,7 +92,13 @@ pub struct OccupiedEntry<'a, K, V, A: Allocator = Global> {
     pub(super) _marker: PhantomData<&'a mut (K, V)>,
 }
 
-impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for OccupiedEntry<'_, K, V, A> {
+impl<K, V, A> Debug for OccupiedEntry<'_, K, V, A>
+where
+    K: Debug + Ord,
+    V: Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OccupiedEntry")
             .field("key", self.key())
@@ -82,14 +110,25 @@ impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for OccupiedEntry<'_, K, V, A
 /// The error returned by [`try_insert`](BTreeMap::try_insert) when the key already exists.
 ///
 /// Contains the occupied entry, and the value that was not inserted.
-pub struct OccupiedError<'a, K: 'a, V: 'a, A: Allocator = Global> {
+pub struct OccupiedError<'a, K, V, A = Global>
+where
+    K: 'a,
+    V: 'a,
+    A: Allocator,
+{
     /// The entry in the map that was already occupied.
     pub entry: OccupiedEntry<'a, K, V, A>,
     /// The value which was not inserted, because the entry was already occupied.
     pub value: V,
 }
 
-impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for OccupiedError<'_, K, V, A> {
+impl<K, V, A> Debug for OccupiedError<'_, K, V, A>
+where
+    K: Debug + Ord,
+    V: Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OccupiedError")
             .field("key", self.entry.key())
@@ -99,7 +138,12 @@ impl<K: Debug + Ord, V: Debug, A: Allocator> Debug for OccupiedError<'_, K, V, A
     }
 }
 
-impl<K: Debug + Ord, V: Debug, A: Allocator> fmt::Display for OccupiedError<'_, K, V, A> {
+impl<K, V, A> fmt::Display for OccupiedError<'_, K, V, A>
+where
+    K: Debug + Ord,
+    V: Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -111,7 +155,11 @@ impl<K: Debug + Ord, V: Debug, A: Allocator> fmt::Display for OccupiedError<'_, 
     }
 }
 
-impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
+impl<'a, K, V, A> Entry<'a, K, V, A>
+where
+    K: Ord,
+    A: Allocator,
+{
     /// Ensures a value is in the entry by inserting the default if empty, and
     /// returns a mutable reference to the value in the entry.
     ///
@@ -126,6 +174,7 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// assert_eq!(map["poneyland"], 12);
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
+    #[inline]
     pub fn or_try_insert(self, default: V) -> Result<&'a mut V, AllocError> {
         match self {
             Occupied(entry) => Ok(entry.into_mut()),
@@ -150,7 +199,11 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// assert_eq!(map["poneyland"], "hoho".to_string());
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
-    pub fn or_try_insert_with<F: FnOnce() -> V>(self, default: F) -> Result<&'a mut V, AllocError> {
+    #[inline]
+    pub fn or_try_insert_with<F>(self, default: F) -> Result<&'a mut V, AllocError>
+    where
+        F: FnOnce() -> V,
+    {
         match self {
             Occupied(entry) => Ok(entry.into_mut()),
             Vacant(entry) => entry.try_insert(default()),
@@ -178,10 +231,10 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     /// # Ok::<_, rune::alloc::Error>(())
     /// ```
     #[inline]
-    pub fn or_try_insert_with_key<F: FnOnce(&K) -> V>(
-        self,
-        default: F,
-    ) -> Result<&'a mut V, AllocError> {
+    pub fn or_try_insert_with_key<F>(self, default: F) -> Result<&'a mut V, AllocError>
+    where
+        F: FnOnce(&K) -> V,
+    {
         match self {
             Occupied(entry) => Ok(entry.into_mut()),
             Vacant(entry) => {
@@ -244,7 +297,12 @@ impl<'a, K: Ord, V, A: Allocator> Entry<'a, K, V, A> {
     }
 }
 
-impl<'a, K: Ord, V: Default, A: Allocator> Entry<'a, K, V, A> {
+impl<'a, K, V, A> Entry<'a, K, V, A>
+where
+    K: Ord,
+    V: Default,
+    A: Allocator,
+{
     /// Ensures a value is in the entry by inserting the default value if empty,
     /// and returns a mutable reference to the value in the entry.
     ///
@@ -267,7 +325,10 @@ impl<'a, K: Ord, V: Default, A: Allocator> Entry<'a, K, V, A> {
     }
 }
 
-impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
+impl<'a, K, V, A> VacantEntry<'a, K, V, A>
+where
+    A: Allocator,
+{
     /// Gets a reference to the key that would be used when inserting a value
     /// through the VacantEntry.
     ///
@@ -279,6 +340,7 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     /// let mut map: BTreeMap<&str, usize> = BTreeMap::new();
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
     /// ```
+    #[inline]
     pub fn key(&self) -> &K {
         &self.key
     }
@@ -297,6 +359,7 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     ///     v.into_key();
     /// }
     /// ```
+    #[inline]
     pub fn into_key(self) -> K {
         self.key
     }
@@ -363,7 +426,10 @@ impl<'a, K, V, A: Allocator> VacantEntry<'a, K, V, A> {
     }
 }
 
-impl<'a, K, V, A: Allocator> OccupiedEntry<'a, K, V, A> {
+impl<'a, K, V, A> OccupiedEntry<'a, K, V, A>
+where
+    A: Allocator,
+{
     /// Gets a reference to the key in the entry.
     ///
     /// # Examples

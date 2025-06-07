@@ -273,6 +273,7 @@ impl<A> PartialOrd for ItemBuf<A>
 where
     A: Allocator,
 {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.content.cmp(&other.content))
     }
@@ -282,6 +283,7 @@ impl<A> Ord for ItemBuf<A>
 where
     A: Allocator,
 {
+    #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.content.cmp(&other.content)
     }
@@ -291,7 +293,11 @@ impl<A> Hash for ItemBuf<A>
 where
     A: Allocator,
 {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    #[inline]
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         self.content.hash(state);
     }
 }

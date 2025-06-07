@@ -14,7 +14,11 @@ use super::VecDeque;
 /// documentation for more.
 ///
 /// [`drain`]: VecDeque::drain
-pub struct Drain<'a, T: 'a, A: Allocator = Global> {
+pub struct Drain<'a, T, A = Global>
+where
+    T: 'a,
+    A: Allocator,
+{
     // We can't just use a &mut VecDeque<T, A>, as that would make Drain invariant over T
     // and we want it to be covariant instead
     deque: NonNull<VecDeque<T, A>>,
@@ -29,7 +33,10 @@ pub struct Drain<'a, T: 'a, A: Allocator = Global> {
     _marker: PhantomData<&'a T>,
 }
 
-impl<'a, T, A: Allocator> Drain<'a, T, A> {
+impl<'a, T, A> Drain<'a, T, A>
+where
+    A: Allocator,
+{
     pub(super) unsafe fn new(
         deque: &'a mut VecDeque<T, A>,
         drain_start: usize,
@@ -68,7 +75,11 @@ impl<'a, T, A: Allocator> Drain<'a, T, A> {
     }
 }
 
-impl<T: fmt::Debug, A: Allocator> fmt::Debug for Drain<'_, T, A> {
+impl<T, A> fmt::Debug for Drain<'_, T, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Drain")
             .field(&self.drain_len)
@@ -82,11 +93,19 @@ impl<T: fmt::Debug, A: Allocator> fmt::Debug for Drain<'_, T, A> {
 unsafe impl<T: Sync, A: Allocator + Sync> Sync for Drain<'_, T, A> {}
 unsafe impl<T: Send, A: Allocator + Send> Send for Drain<'_, T, A> {}
 
-impl<T, A: Allocator> Drop for Drain<'_, T, A> {
+impl<T, A> Drop for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
-        struct DropGuard<'r, 'a, T, A: Allocator>(&'r mut Drain<'a, T, A>);
+        struct DropGuard<'r, 'a, T, A>(&'r mut Drain<'a, T, A>)
+        where
+            A: Allocator;
 
-        impl<T, A: Allocator> Drop for DropGuard<'_, '_, T, A> {
+        impl<T, A> Drop for DropGuard<'_, '_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 if self.0.remaining != 0 {
                     unsafe {
@@ -167,7 +186,10 @@ impl<T, A: Allocator> Drop for Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> Iterator for Drain<'_, T, A> {
+impl<T, A> Iterator for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     type Item = T;
 
     #[inline]
@@ -188,7 +210,10 @@ impl<T, A: Allocator> Iterator for Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> DoubleEndedIterator for Drain<'_, T, A> {
+impl<T, A> DoubleEndedIterator for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn next_back(&mut self) -> Option<T> {
         if self.remaining == 0 {
@@ -204,6 +229,6 @@ impl<T, A: Allocator> DoubleEndedIterator for Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> ExactSizeIterator for Drain<'_, T, A> {}
+impl<T, A> ExactSizeIterator for Drain<'_, T, A> where A: Allocator {}
 
-impl<T, A: Allocator> FusedIterator for Drain<'_, T, A> {}
+impl<T, A> FusedIterator for Drain<'_, T, A> where A: Allocator {}

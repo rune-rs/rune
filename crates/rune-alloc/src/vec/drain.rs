@@ -20,7 +20,11 @@ use super::Vec;
 /// let mut v = vec![0, 1, 2];
 /// let iter: std::vec::Drain<'_, _> = v.drain(..);
 /// ```
-pub struct Drain<'a, T: 'a, A: Allocator + 'a = Global> {
+pub struct Drain<'a, T, A = Global>
+where
+    T: 'a,
+    A: Allocator + 'a,
+{
     /// Index of tail to preserve
     pub(super) tail_start: usize,
     /// Length of tail
@@ -30,13 +34,20 @@ pub struct Drain<'a, T: 'a, A: Allocator + 'a = Global> {
     pub(super) vec: NonNull<Vec<T, A>>,
 }
 
-impl<T: fmt::Debug, A: Allocator> fmt::Debug for Drain<'_, T, A> {
+impl<T, A> fmt::Debug for Drain<'_, T, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Drain").field(&self.iter.as_slice()).finish()
     }
 }
 
-impl<T, A: Allocator> Drain<'_, T, A> {
+impl<T, A> Drain<'_, T, A>
+where
+    A: Allocator,
+{
     /// Returns the remaining items of this iterator as a slice.
     ///
     /// # Examples
@@ -130,7 +141,10 @@ impl<T, A: Allocator> Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> AsRef<[T]> for Drain<'_, T, A> {
+impl<T, A> AsRef<[T]> for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
@@ -139,7 +153,10 @@ impl<T, A: Allocator> AsRef<[T]> for Drain<'_, T, A> {
 unsafe impl<T: Sync, A: Sync + Allocator> Sync for Drain<'_, T, A> {}
 unsafe impl<T: Send, A: Send + Allocator> Send for Drain<'_, T, A> {}
 
-impl<T, A: Allocator> Iterator for Drain<'_, T, A> {
+impl<T, A> Iterator for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     type Item = T;
 
     #[inline]
@@ -154,7 +171,10 @@ impl<T, A: Allocator> Iterator for Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> DoubleEndedIterator for Drain<'_, T, A> {
+impl<T, A> DoubleEndedIterator for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn next_back(&mut self) -> Option<T> {
         self.iter
@@ -163,12 +183,20 @@ impl<T, A: Allocator> DoubleEndedIterator for Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> Drop for Drain<'_, T, A> {
+impl<T, A> Drop for Drain<'_, T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         /// Moves back the un-`Drain`ed elements to restore the original `Vec`.
-        struct DropGuard<'r, 'a, T, A: Allocator>(&'r mut Drain<'a, T, A>);
+        struct DropGuard<'r, 'a, T, A>(&'r mut Drain<'a, T, A>)
+        where
+            A: Allocator;
 
-        impl<T, A: Allocator> Drop for DropGuard<'_, '_, T, A> {
+        impl<T, A> Drop for DropGuard<'_, '_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 if self.0.tail_len > 0 {
                     unsafe {
@@ -231,6 +259,6 @@ impl<T, A: Allocator> Drop for Drain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> ExactSizeIterator for Drain<'_, T, A> {}
+impl<T, A> ExactSizeIterator for Drain<'_, T, A> where A: Allocator {}
 
-impl<T, A: Allocator> FusedIterator for Drain<'_, T, A> {}
+impl<T, A> FusedIterator for Drain<'_, T, A> where A: Allocator {}

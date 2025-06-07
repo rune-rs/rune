@@ -57,8 +57,8 @@ impl<T: fmt::Debug> fmt::Debug for RawIter<T> {
     }
 }
 
-unsafe impl<T: Sync> Sync for RawIter<T> {}
-unsafe impl<T: Sync> Send for RawIter<T> {}
+unsafe impl<T> Sync for RawIter<T> where T: Sync {}
+unsafe impl<T> Send for RawIter<T> where T: Sync {}
 
 impl<T> RawIter<T> {
     #[inline]
@@ -176,8 +176,8 @@ impl<T: fmt::Debug> fmt::Debug for RawIterMut<T> {
     }
 }
 
-unsafe impl<T: Sync> Sync for RawIterMut<T> {}
-unsafe impl<T: Send> Send for RawIterMut<T> {}
+unsafe impl<T> Sync for RawIterMut<T> where T: Sync {}
+unsafe impl<T> Send for RawIterMut<T> where T: Send {}
 
 impl<T> RawIterMut<T> {
     #[inline]
