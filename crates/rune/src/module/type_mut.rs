@@ -39,11 +39,7 @@ where
     /// Set documentation for an inserted type.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(self, docs: I) -> Result<Self, ContextError>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
+    pub fn docs(self, docs: impl IntoIterator<Item: AsRef<str>>) -> Result<Self, ContextError> {
         self.docs.set_docs(docs)?;
         Ok(self)
     }

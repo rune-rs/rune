@@ -8,14 +8,18 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInter
     /// the leaf edge corresponding to that former pair. It's possible this empties
     /// a root node that is internal, which the caller should pop from the map
     /// holding the tree. The caller should also decrement the map's length.
-    pub(crate) fn remove_kv_tracking<F: FnOnce(), A: Allocator>(
+    pub(crate) fn remove_kv_tracking<F, A>(
         self,
         handle_emptied_internal_root: F,
         alloc: &A,
     ) -> (
         (K, V),
         Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>,
-    ) {
+    )
+    where
+        F: FnOnce(),
+        A: Allocator,
+    {
         match self.force() {
             Leaf(node) => node.remove_leaf_kv(handle_emptied_internal_root, alloc),
             Internal(node) => node.remove_internal_kv(handle_emptied_internal_root, alloc),
@@ -24,14 +28,18 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInter
 }
 
 impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV> {
-    fn remove_leaf_kv<F: FnOnce(), A: Allocator>(
+    fn remove_leaf_kv<F, A>(
         self,
         handle_emptied_internal_root: F,
         alloc: &A,
     ) -> (
         (K, V),
         Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>,
-    ) {
+    )
+    where
+        F: FnOnce(),
+        A: Allocator,
+    {
         let (old_kv, mut pos) = self.remove();
         let len = pos.reborrow().into_node().len();
         if len < MIN_LEN {
@@ -84,14 +92,18 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
 }
 
 impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV> {
-    fn remove_internal_kv<F: FnOnce(), A: Allocator>(
+    fn remove_internal_kv<F, A>(
         self,
         handle_emptied_internal_root: F,
         alloc: &A,
     ) -> (
         (K, V),
         Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>,
-    ) {
+    )
+    where
+        F: FnOnce(),
+        A: Allocator,
+    {
         // Remove an adjacent KV from its leaf and then put it back in place of
         // the element we were asked to remove. Prefer the left adjacent KV,
         // for the reasons listed in `choose_parent_kv`.

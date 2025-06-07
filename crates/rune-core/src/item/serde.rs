@@ -8,6 +8,7 @@ use crate::alloc::alloc::Allocator;
 use crate::item::{Component, Item, ItemBuf};
 
 impl ser::Serialize for Item {
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -22,7 +23,11 @@ impl ser::Serialize for Item {
     }
 }
 
-impl<A: Allocator> ser::Serialize for ItemBuf<A> {
+impl<A> ser::Serialize for ItemBuf<A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -31,10 +36,11 @@ impl<A: Allocator> ser::Serialize for ItemBuf<A> {
     }
 }
 
-impl<'de, A: Allocator> de::Deserialize<'de> for ItemBuf<A>
+impl<'de, A> de::Deserialize<'de> for ItemBuf<A>
 where
-    A: Default,
+    A: Allocator + Default,
 {
+    #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -45,16 +51,18 @@ where
 
 struct BytesVisitor<A>(PhantomData<A>);
 
-impl<'de, A: Allocator> de::Visitor<'de> for BytesVisitor<A>
+impl<'de, A> de::Visitor<'de> for BytesVisitor<A>
 where
-    A: Default,
+    A: Allocator + Default,
 {
     type Value = ItemBuf<A>;
 
+    #[inline]
     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "item buffer deserialization to be implemented")
     }
 
+    #[inline]
     fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
     where
         S: de::SeqAccess<'de>,

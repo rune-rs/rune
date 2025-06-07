@@ -43,8 +43,7 @@ impl<'de> de::Deserialize<'de> for Box<str> {
 
 impl<'de, T: ?Sized> de::Deserialize<'de> for Cow<'_, T>
 where
-    T: TryToOwned,
-    T::Owned: de::Deserialize<'de>,
+    T: TryToOwned<Owned: de::Deserialize<'de>>,
 {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

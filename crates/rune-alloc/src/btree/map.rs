@@ -227,14 +227,22 @@ pub struct BTreeMap<K, V, A: Allocator = Global> {
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] K, #[may_dangle] V, A: Allocator> Drop for BTreeMap<K, V, A> {
+unsafe impl<#[may_dangle] K, #[may_dangle] V, A> Drop for BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn drop(&mut self) {
         drop(unsafe { ptr::read(self) }.into_iter())
     }
 }
 
 #[cfg(not(rune_nightly))]
-impl<K, V, A: Allocator> Drop for BTreeMap<K, V, A> {
+impl<K, V, A> Drop for BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn drop(&mut self) {
         drop(unsafe { ptr::read(self) }.into_iter())
     }
@@ -244,11 +252,12 @@ impl<K, V, A: Allocator> Drop for BTreeMap<K, V, A> {
 // (The bounds of the automatic `UnwindSafe` implementation have been like this since Rust 1.50.)
 // Maybe we can fix it nonetheless with a crater run, or if the `UnwindSafe`
 // traits are deprecated, or disarmed (no longer causing hard errors) in the future.
-impl<K, V, A: Allocator> core::panic::UnwindSafe for BTreeMap<K, V, A>
+impl<K, V, A> core::panic::UnwindSafe for BTreeMap<K, V, A>
 where
     A: core::panic::UnwindSafe,
     K: core::panic::RefUnwindSafe,
     V: core::panic::RefUnwindSafe,
+    A: Allocator,
 {
 }
 
@@ -339,7 +348,12 @@ impl<K: TryClone, V: TryClone, A: Allocator + Clone> TryClone for BTreeMap<K, V,
 }
 
 #[cfg(test)]
-impl<K: TryClone, V: TryClone, A: Allocator + Clone> Clone for BTreeMap<K, V, A> {
+impl<K, V, A> Clone for BTreeMap<K, V, A>
+where
+    K: TryClone,
+    V: TryClone,
+    A: Allocator + Clone,
+{
     #[inline]
     fn clone(&self) -> Self {
         self.try_clone().abort()
@@ -351,9 +365,11 @@ impl<K: TryClone, V: TryClone, A: Allocator + Clone> Clone for BTreeMap<K, V, A>
     }
 }
 
-impl<K, Q: ?Sized, A: Allocator> Recover<Q> for BTreeMap<K, SetValZST, A>
+impl<K, Q, A> Recover<Q> for BTreeMap<K, SetValZST, A>
 where
     K: Borrow<Q>,
+    Q: ?Sized,
+    A: Allocator,
 {
     type Key = K;
 
@@ -591,7 +607,10 @@ pub struct IntoIter<K, V, A: Allocator = Global> {
     alloc: A,
 }
 
-impl<K, V, A: Allocator> IntoIter<K, V, A> {
+impl<K, V, A> IntoIter<K, V, A>
+where
+    A: Allocator,
+{
     /// Returns an iterator of references over the remaining items.
     #[inline]
     pub(super) fn iter(&self) -> Iter<'_, K, V> {
@@ -602,7 +621,13 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
     }
 }
 
-impl<K: Debug, V: Debug, A: Allocator> Debug for IntoIter<K, V, A> {
+impl<K, V, A> Debug for IntoIter<K, V, A>
+where
+    K: Debug,
+    V: Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
@@ -693,7 +718,12 @@ pub struct IntoKeys<K, V, A: Allocator = Global> {
     inner: IntoIter<K, V, A>,
 }
 
-impl<K: fmt::Debug, V, A: Allocator> fmt::Debug for IntoKeys<K, V, A> {
+impl<K, V, A> fmt::Debug for IntoKeys<K, V, A>
+where
+    K: fmt::Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
             .entries(self.inner.iter().map(|(key, _)| key))
@@ -712,7 +742,12 @@ pub struct IntoValues<K, V, A: Allocator = Global> {
     inner: IntoIter<K, V, A>,
 }
 
-impl<K, V: fmt::Debug, A: Allocator> fmt::Debug for IntoValues<K, V, A> {
+impl<K, V, A> fmt::Debug for IntoValues<K, V, A>
+where
+    V: fmt::Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
             .entries(self.inner.iter().map(|(_, val)| val))
@@ -797,7 +832,10 @@ impl<K, V> BTreeMap<K, V> {
     }
 }
 
-impl<K, V, A: Allocator> BTreeMap<K, V, A> {
+impl<K, V, A> BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     /// Makes a new empty BTreeMap with a reasonable choice for B.
     ///
     /// # Examples
@@ -824,7 +862,10 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> BTreeMap<K, V, A> {
+impl<K, V, A> BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     /// Clears the map, removing all elements.
     ///
     /// # Examples
@@ -845,7 +886,10 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> BTreeMap<K, V, A> {
+impl<K, V, A> BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     /// Returns a reference to the value corresponding to the key.
     ///
     /// The key may be any borrowed form of the map's key type, but the ordering
@@ -1843,10 +1887,14 @@ impl<K, V, A: Allocator> BTreeMap<K, V, A> {
     }
 }
 
-impl<'a, K, V, A: Allocator> IntoIterator for &'a BTreeMap<K, V, A> {
+impl<'a, K, V, A> IntoIterator for &'a BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V>;
 
+    #[inline]
     fn into_iter(self) -> Iter<'a, K, V> {
         self.iter()
     }
@@ -1855,6 +1903,7 @@ impl<'a, K, V, A: Allocator> IntoIterator for &'a BTreeMap<K, V, A> {
 impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
+    #[inline]
     fn next(&mut self) -> Option<(&'a K, &'a V)> {
         if self.length == 0 {
             None
@@ -1864,14 +1913,17 @@ impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.length, Some(self.length))
     }
 
+    #[inline]
     fn last(mut self) -> Option<(&'a K, &'a V)> {
         self.next_back()
     }
 
+    #[inline]
     fn min(mut self) -> Option<(&'a K, &'a V)>
     where
         (&'a K, &'a V): Ord,
@@ -1879,6 +1931,7 @@ impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
         self.next()
     }
 
+    #[inline]
     fn max(mut self) -> Option<(&'a K, &'a V)>
     where
         (&'a K, &'a V): Ord,
@@ -1890,6 +1943,7 @@ impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
 impl<K, V> FusedIterator for Iter<'_, K, V> {}
 
 impl<'a, K: 'a, V: 'a> DoubleEndedIterator for Iter<'a, K, V> {
+    #[inline]
     fn next_back(&mut self) -> Option<(&'a K, &'a V)> {
         if self.length == 0 {
             None
@@ -1901,12 +1955,14 @@ impl<'a, K: 'a, V: 'a> DoubleEndedIterator for Iter<'a, K, V> {
 }
 
 impl<K, V> ExactSizeIterator for Iter<'_, K, V> {
+    #[inline]
     fn len(&self) -> usize {
         self.length
     }
 }
 
 impl<K, V> Clone for Iter<'_, K, V> {
+    #[inline]
     fn clone(&self) -> Self {
         Iter {
             range: self.range.clone(),
@@ -1915,10 +1971,14 @@ impl<K, V> Clone for Iter<'_, K, V> {
     }
 }
 
-impl<'a, K, V, A: Allocator> IntoIterator for &'a mut BTreeMap<K, V, A> {
+impl<'a, K, V, A> IntoIterator for &'a mut BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     type Item = (&'a K, &'a mut V);
     type IntoIter = IterMut<'a, K, V>;
 
+    #[inline]
     fn into_iter(self) -> IterMut<'a, K, V> {
         self.iter_mut()
     }
@@ -1989,7 +2049,10 @@ impl<K, V> IterMut<'_, K, V> {
     }
 }
 
-impl<K, V, A: Allocator> IntoIterator for BTreeMap<K, V, A> {
+impl<K, V, A> IntoIterator for BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     type Item = (K, V);
     type IntoIter = IntoIter<K, V, A>;
 
@@ -2013,11 +2076,19 @@ impl<K, V, A: Allocator> IntoIterator for BTreeMap<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> Drop for IntoIter<K, V, A> {
+impl<K, V, A> Drop for IntoIter<K, V, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
-        struct DropGuard<'a, K, V, A: Allocator>(&'a mut IntoIter<K, V, A>);
+        struct DropGuard<'a, K, V, A>(&'a mut IntoIter<K, V, A>)
+        where
+            A: Allocator;
 
-        impl<K, V, A: Allocator> Drop for DropGuard<'_, K, V, A> {
+        impl<K, V, A> Drop for DropGuard<'_, K, V, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 // Continue the same loop we perform below. This only runs when unwinding, so we
                 // don't have to care about panics this time (they'll abort).
@@ -2037,7 +2108,10 @@ impl<K, V, A: Allocator> Drop for IntoIter<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> IntoIter<K, V, A> {
+impl<K, V, A> IntoIter<K, V, A>
+where
+    A: Allocator,
+{
     /// Core of a `next` method returning a dying KV handle,
     /// invalidated by further calls to this function and some others.
     fn dying_next(
@@ -2067,7 +2141,10 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> Iterator for IntoIter<K, V, A> {
+impl<K, V, A> Iterator for IntoIter<K, V, A>
+where
+    A: Allocator,
+{
     type Item = (K, V);
 
     fn next(&mut self) -> Option<(K, V)> {
@@ -2080,7 +2157,10 @@ impl<K, V, A: Allocator> Iterator for IntoIter<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> DoubleEndedIterator for IntoIter<K, V, A> {
+impl<K, V, A> DoubleEndedIterator for IntoIter<K, V, A>
+where
+    A: Allocator,
+{
     fn next_back(&mut self) -> Option<(K, V)> {
         // SAFETY: we consume the dying handle immediately.
         self.dying_next_back()
@@ -2088,13 +2168,16 @@ impl<K, V, A: Allocator> DoubleEndedIterator for IntoIter<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> ExactSizeIterator for IntoIter<K, V, A> {
+impl<K, V, A> ExactSizeIterator for IntoIter<K, V, A>
+where
+    A: Allocator,
+{
     fn len(&self) -> usize {
         self.length
     }
 }
 
-impl<K, V, A: Allocator> FusedIterator for IntoIter<K, V, A> {}
+impl<K, V, A> FusedIterator for IntoIter<K, V, A> where A: Allocator {}
 
 impl<'a, K, V> Iterator for Keys<'a, K, V> {
     type Item = &'a K;
@@ -2257,9 +2340,10 @@ where
     }
 }
 
-impl<K, V, F, A: Allocator> Iterator for ExtractIf<'_, K, V, F, A>
+impl<K, V, F, A> Iterator for ExtractIf<'_, K, V, F, A>
 where
     F: FnMut(&K, &mut V) -> bool,
+    A: Allocator,
 {
     type Item = (K, V);
 
@@ -2280,9 +2364,10 @@ impl<K, V> ExtractIfInner<'_, K, V> {
     }
 
     /// Implementation of a typical `ExtractIf::next` method, given the predicate.
-    pub(super) fn next<F, A: Allocator>(&mut self, pred: &mut F, alloc: &A) -> Option<(K, V)>
+    pub(super) fn next<F, A>(&mut self, pred: &mut F, alloc: &A) -> Option<(K, V)>
     where
         F: FnMut(&K, &mut V) -> bool,
+        A: Allocator,
     {
         while let Ok(mut kv) = self.cur_leaf_edge.take()?.next_kv() {
             let (k, v) = kv.kv_mut();
@@ -2390,21 +2475,28 @@ impl<K, V> ExactSizeIterator for ValuesMut<'_, K, V> {
 
 impl<K, V> FusedIterator for ValuesMut<'_, K, V> {}
 
-impl<K, V, A: Allocator> Iterator for IntoKeys<K, V, A> {
+impl<K, V, A> Iterator for IntoKeys<K, V, A>
+where
+    A: Allocator,
+{
     type Item = K;
 
+    #[inline]
     fn next(&mut self) -> Option<K> {
         self.inner.next().map(|(k, _)| k)
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
 
+    #[inline]
     fn last(mut self) -> Option<K> {
         self.next_back()
     }
 
+    #[inline]
     fn min(mut self) -> Option<K>
     where
         K: Ord,
@@ -2412,6 +2504,7 @@ impl<K, V, A: Allocator> Iterator for IntoKeys<K, V, A> {
         self.next()
     }
 
+    #[inline]
     fn max(mut self) -> Option<K>
     where
         K: Ord,
@@ -2420,19 +2513,27 @@ impl<K, V, A: Allocator> Iterator for IntoKeys<K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> DoubleEndedIterator for IntoKeys<K, V, A> {
+impl<K, V, A> DoubleEndedIterator for IntoKeys<K, V, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn next_back(&mut self) -> Option<K> {
         self.inner.next_back().map(|(k, _)| k)
     }
 }
 
-impl<K, V, A: Allocator> ExactSizeIterator for IntoKeys<K, V, A> {
+impl<K, V, A> ExactSizeIterator for IntoKeys<K, V, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
-impl<K, V, A: Allocator> FusedIterator for IntoKeys<K, V, A> {}
+impl<K, V, A> FusedIterator for IntoKeys<K, V, A> where A: Allocator {}
 
 impl<K, V, A> Default for IntoKeys<K, V, A>
 where
@@ -2446,6 +2547,7 @@ where
     /// let iter: btree_map::IntoKeys<u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
     /// ```
+    #[inline]
     fn default() -> Self {
         IntoKeys {
             inner: Default::default(),
@@ -2453,35 +2555,49 @@ where
     }
 }
 
-impl<K, V, A: Allocator> Iterator for IntoValues<K, V, A> {
+impl<K, V, A> Iterator for IntoValues<K, V, A>
+where
+    A: Allocator,
+{
     type Item = V;
 
+    #[inline]
     fn next(&mut self) -> Option<V> {
         self.inner.next().map(|(_, v)| v)
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
 
+    #[inline]
     fn last(mut self) -> Option<V> {
         self.next_back()
     }
 }
 
-impl<K, V, A: Allocator> DoubleEndedIterator for IntoValues<K, V, A> {
+impl<K, V, A> DoubleEndedIterator for IntoValues<K, V, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn next_back(&mut self) -> Option<V> {
         self.inner.next_back().map(|(_, v)| v)
     }
 }
 
-impl<K, V, A: Allocator> ExactSizeIterator for IntoValues<K, V, A> {
+impl<K, V, A> ExactSizeIterator for IntoValues<K, V, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
-impl<K, V, A: Allocator> FusedIterator for IntoValues<K, V, A> {}
+impl<K, V, A> FusedIterator for IntoValues<K, V, A> where A: Allocator {}
 
 impl<K, V, A> Default for IntoValues<K, V, A>
 where
@@ -2495,6 +2611,7 @@ where
     /// let iter: btree_map::IntoValues<u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
     /// ```
+    #[inline]
     fn default() -> Self {
         IntoValues {
             inner: Default::default(),
@@ -2503,6 +2620,7 @@ where
 }
 
 impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
+    #[inline]
     fn next_back(&mut self) -> Option<(&'a K, &'a V)> {
         self.inner.next_back_checked()
     }
@@ -2511,6 +2629,7 @@ impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
 impl<K, V> FusedIterator for Range<'_, K, V> {}
 
 impl<K, V> Clone for Range<'_, K, V> {
+    #[inline]
     fn clone(&self) -> Self {
         Range {
             inner: self.inner.clone(),
@@ -2521,14 +2640,17 @@ impl<K, V> Clone for Range<'_, K, V> {
 impl<'a, K, V> Iterator for RangeMut<'a, K, V> {
     type Item = (&'a K, &'a mut V);
 
+    #[inline]
     fn next(&mut self) -> Option<(&'a K, &'a mut V)> {
         self.inner.next_checked()
     }
 
+    #[inline]
     fn last(mut self) -> Option<(&'a K, &'a mut V)> {
         self.next_back()
     }
 
+    #[inline]
     fn min(mut self) -> Option<(&'a K, &'a mut V)>
     where
         (&'a K, &'a mut V): Ord,
@@ -2536,6 +2658,7 @@ impl<'a, K, V> Iterator for RangeMut<'a, K, V> {
         self.next()
     }
 
+    #[inline]
     fn max(mut self) -> Option<(&'a K, &'a mut V)>
     where
         (&'a K, &'a mut V): Ord,
@@ -2545,6 +2668,7 @@ impl<'a, K, V> Iterator for RangeMut<'a, K, V> {
 }
 
 impl<'a, K, V> DoubleEndedIterator for RangeMut<'a, K, V> {
+    #[inline]
     fn next_back(&mut self) -> Option<(&'a K, &'a mut V)> {
         self.inner.next_back_checked()
     }
@@ -2574,6 +2698,7 @@ impl<K: Ord, V, A: Allocator + Clone> Extend<(K, V)> for BTreeMap<K, V, A> {
 impl<'a, K: Ord + Copy, V: Copy, A: Allocator + Clone> TryExtend<(&'a K, &'a V)>
     for BTreeMap<K, V, A>
 {
+    #[inline]
     fn try_extend<I: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: I) -> Result<(), Error> {
         self.try_extend(iter.into_iter().map(|(&key, &value)| (key, value)))
     }
@@ -2583,14 +2708,22 @@ impl<'a, K: Ord + Copy, V: Copy, A: Allocator + Clone> TryExtend<(&'a K, &'a V)>
 impl<'a, K: Ord + Copy, V: Copy, A: Allocator + Clone> Extend<(&'a K, &'a V)>
     for BTreeMap<K, V, A>
 {
+    #[inline]
     fn extend<I: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: I) {
         self.try_extend(iter).abort();
     }
 }
 
-impl<K: Hash, V: Hash, A: Allocator> Hash for BTreeMap<K, V, A> {
+impl<K, V, A> Hash for BTreeMap<K, V, A>
+where
+    K: Hash,
+    V: Hash,
+    A: Allocator,
+{
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_usize(self.len());
+
         for elt in self {
             elt.hash(state);
         }
@@ -2604,38 +2737,66 @@ impl<K, V> Default for BTreeMap<K, V> {
     }
 }
 
-impl<K: PartialEq, V: PartialEq, A: Allocator> PartialEq for BTreeMap<K, V, A> {
+impl<K, V, A> PartialEq for BTreeMap<K, V, A>
+where
+    K: PartialEq,
+    V: PartialEq,
+    A: Allocator,
+{
     fn eq(&self, other: &BTreeMap<K, V, A>) -> bool {
         self.len() == other.len() && self.iter().zip(other).all(|(a, b)| a == b)
     }
 }
 
-impl<K: Eq, V: Eq, A: Allocator> Eq for BTreeMap<K, V, A> {}
+impl<K, V, A> Eq for BTreeMap<K, V, A>
+where
+    K: Eq,
+    V: Eq,
+    A: Allocator,
+{
+}
 
-impl<K: PartialOrd, V: PartialOrd, A: Allocator> PartialOrd for BTreeMap<K, V, A> {
+impl<K, V, A> PartialOrd for BTreeMap<K, V, A>
+where
+    K: PartialOrd,
+    V: PartialOrd,
+    A: Allocator,
+{
     #[inline]
     fn partial_cmp(&self, other: &BTreeMap<K, V, A>) -> Option<Ordering> {
         self.iter().partial_cmp(other.iter())
     }
 }
 
-impl<K: Ord, V: Ord, A: Allocator> Ord for BTreeMap<K, V, A> {
+impl<K, V, A> Ord for BTreeMap<K, V, A>
+where
+    K: Ord,
+    V: Ord,
+    A: Allocator,
+{
     #[inline]
     fn cmp(&self, other: &BTreeMap<K, V, A>) -> Ordering {
         self.iter().cmp(other.iter())
     }
 }
 
-impl<K: Debug, V: Debug, A: Allocator> Debug for BTreeMap<K, V, A> {
+impl<K, V, A> Debug for BTreeMap<K, V, A>
+where
+    K: Debug,
+    V: Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }
 
-impl<K, Q: ?Sized, V, A: Allocator> Index<&Q> for BTreeMap<K, V, A>
+impl<K, Q, V, A> Index<&Q> for BTreeMap<K, V, A>
 where
     K: Borrow<Q> + Ord,
-    Q: Ord,
+    Q: ?Sized + Ord,
+    A: Allocator,
 {
     type Output = V;
 
@@ -2650,7 +2811,10 @@ where
     }
 }
 
-impl<K, V, A: Allocator> BTreeMap<K, V, A> {
+impl<K, V, A> BTreeMap<K, V, A>
+where
+    A: Allocator,
+{
     /// Gets an iterator over the entries of the map, sorted by key.
     ///
     /// # Examples
@@ -3409,7 +3573,11 @@ impl<K, V, A> CursorMut<'_, K, V, A> {
 }
 
 // Now the tree editing operations
-impl<K: Ord, V, A: Allocator> CursorMut<'_, K, V, A> {
+impl<K, V, A> CursorMut<'_, K, V, A>
+where
+    K: Ord,
+    A: Allocator,
+{
     /// Inserts a new element into the `BTreeMap` after the current one.
     ///
     /// If the cursor is pointing at the "ghost" non-element then the new element is
@@ -3629,9 +3797,10 @@ impl<K: Ord, V, A: Allocator> CursorMut<'_, K, V, A> {
     }
 }
 
-impl<K, V, A: Allocator> TryFromIteratorIn<(K, V), A> for BTreeMap<K, V, A>
+impl<K, V, A> TryFromIteratorIn<(K, V), A> for BTreeMap<K, V, A>
 where
     K: Ord,
+    A: Allocator,
 {
     #[inline]
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>

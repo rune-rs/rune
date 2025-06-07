@@ -256,15 +256,11 @@ impl UnitBuilder {
 
     /// Insert a new collection of static object keys, or return one already
     /// existing.
-    pub(crate) fn new_static_object_keys_iter<I>(
+    pub(crate) fn new_static_object_keys_iter(
         &mut self,
         span: &dyn Spanned,
-        current: I,
-    ) -> compile::Result<usize>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
+        current: impl IntoIterator<Item: AsRef<str>>,
+    ) -> compile::Result<usize> {
         let current = current
             .into_iter()
             .map(|s| s.as_ref().try_to_owned())

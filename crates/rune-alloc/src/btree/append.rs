@@ -19,7 +19,7 @@ impl<K, V> Root<K, V> {
     /// a `BTreeMap`, both iterators should produce keys in strictly ascending
     /// order, each greater than all keys in the tree, including any keys
     /// already in the tree upon entry.
-    pub(crate) fn try_append_from_sorted_iters<I, A: Allocator>(
+    pub(crate) fn try_append_from_sorted_iters<I, A>(
         &mut self,
         left: I,
         right: I,
@@ -29,6 +29,7 @@ impl<K, V> Root<K, V> {
     where
         K: Ord,
         I: Iterator<Item = (K, V)> + FusedIterator,
+        A: Allocator,
     {
         // We prepare to merge `left` and `right` into a sorted sequence in linear time.
         let iter = MergeIter(MergeIterInner::new(left, right));
@@ -40,7 +41,7 @@ impl<K, V> Root<K, V> {
     /// Pushes all key-value pairs to the end of the tree, incrementing a
     /// `length` variable along the way. The latter makes it easier for the
     /// caller to avoid a leak when the iterator panicks.
-    pub(crate) fn try_bulk_push<I, A: Allocator>(
+    pub(crate) fn try_bulk_push<I, A>(
         &mut self,
         iter: I,
         length: &mut usize,
@@ -48,6 +49,7 @@ impl<K, V> Root<K, V> {
     ) -> Result<(), AllocError>
     where
         I: Iterator<Item = (K, V)>,
+        A: Allocator,
     {
         let mut cur_node = self.borrow_mut().last_leaf_edge().into_node();
         // Iterate through all key-value pairs, pushing them into nodes at the right level.
@@ -103,9 +105,10 @@ impl<K, V> Root<K, V> {
     }
 
     #[cfg(test)]
-    pub(crate) fn bulk_push<I, A: Allocator>(&mut self, iter: I, length: &mut usize, alloc: &A)
+    pub(crate) fn bulk_push<I, A>(&mut self, iter: I, length: &mut usize, alloc: &A)
     where
         I: Iterator<Item = (K, V)>,
+        A: Allocator,
     {
         self.try_bulk_push(iter, length, alloc).abort()
     }

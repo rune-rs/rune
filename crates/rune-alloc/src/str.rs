@@ -31,7 +31,10 @@ use crate::Result;
 /// The provided buffer must be valid UTF-8.
 #[must_use]
 #[inline]
-pub unsafe fn from_boxed_utf8_unchecked<A: Allocator>(v: Box<[u8], A>) -> Box<str, A> {
+pub unsafe fn from_boxed_utf8_unchecked<A>(v: Box<[u8], A>) -> Box<str, A>
+where
+    A: Allocator,
+{
     let (ptr, alloc) = Box::into_raw_with_allocator(v);
     unsafe { Box::from_raw_in(ptr as *mut str, alloc) }
 }
@@ -55,7 +58,10 @@ pub unsafe fn from_boxed_utf8_unchecked<A: Allocator>(v: Box<[u8], A>) -> Box<st
 /// ```
 #[must_use = "`self` will be dropped if the result is not used"]
 #[inline]
-pub fn into_string<A: Allocator>(this: Box<str, A>) -> String<A> {
+pub fn into_string<A>(this: Box<str, A>) -> String<A>
+where
+    A: Allocator,
+{
     let slice = Box::<[u8], A>::from(this);
     let vec = crate::slice::into_vec(slice);
     unsafe { String::<A>::from_utf8_unchecked(vec) }

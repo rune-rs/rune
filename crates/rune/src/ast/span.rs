@@ -31,17 +31,15 @@ impl Span {
     /// let span = Span::new(42, 50);
     /// assert!(span < Span::new(100, 101));
     /// ```
-    pub fn new<S, E>(start: S, end: E) -> Self
-    where
-        S: TryInto<ByteIndex>,
-        S::Error: fmt::Debug,
-        E: TryInto<ByteIndex>,
-        E::Error: fmt::Debug,
-    {
-        Self {
-            start: start.try_into().expect("start out of bounds"),
-            end: end.try_into().expect("end out of bounds"),
-        }
+    #[inline]
+    pub fn new(
+        start: impl TryInto<ByteIndex, Error: fmt::Debug>,
+        end: impl TryInto<ByteIndex, Error: fmt::Debug>,
+    ) -> Self {
+        let start = start.try_into().expect("start out of bounds");
+        let end = end.try_into().expect("end out of bounds");
+
+        Self { start, end }
     }
 
     /// Get a span corresponding to a single point where both start and end are
@@ -54,11 +52,8 @@ impl Span {
     ///
     /// assert_eq!(Span::point(42), Span::new(42, 42));
     /// ```
-    pub fn point<P>(pos: P) -> Self
-    where
-        P: TryInto<ByteIndex>,
-        P::Error: fmt::Debug,
-    {
+    #[inline]
+    pub fn point(pos: impl TryInto<ByteIndex, Error: fmt::Debug>) -> Self {
         let pos = pos.try_into().expect("point out of bounds");
 
         Self {

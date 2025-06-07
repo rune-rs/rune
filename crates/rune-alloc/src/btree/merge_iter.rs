@@ -18,11 +18,11 @@ enum Peeked<I: Iterator> {
     B(I::Item),
 }
 
-impl<I: Iterator> Clone for MergeIterInner<I>
+impl<I> Clone for MergeIterInner<I>
 where
-    I: Clone,
-    I::Item: Clone,
+    I: Iterator<Item: Clone> + Clone,
 {
+    #[inline]
     fn clone(&self) -> Self {
         Self {
             a: self.a.clone(),
@@ -32,11 +32,11 @@ where
     }
 }
 
-impl<I: Iterator> Debug for MergeIterInner<I>
+impl<I> Debug for MergeIterInner<I>
 where
-    I: Debug,
-    I::Item: Debug,
+    I: Iterator<Item: Debug> + Debug,
 {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("MergeIterInner")
             .field(&self.a)

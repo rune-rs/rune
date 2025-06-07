@@ -65,7 +65,10 @@ impl<T> RawVec<T, Global> {
     }
 }
 
-impl<T, A: Allocator> RawVec<T, A> {
+impl<T, A> RawVec<T, A>
+where
+    A: Allocator,
+{
     // Tiny Vecs are dumb. Skip to:
     // - 8 if the element size is 1, because any heap allocators is likely
     //   to round up a request of less than 8 bytes to at least 8 bytes.
@@ -279,7 +282,10 @@ impl<T, A: Allocator> RawVec<T, A> {
     }
 }
 
-impl<T, A: Allocator> RawVec<T, A> {
+impl<T, A> RawVec<T, A>
+where
+    A: Allocator,
+{
     /// Returns if the buffer needs to grow to fulfill the needed extra capacity.
     /// Mainly used to make inlining reserve-calls possible without inlining `grow`.
     fn needs_to_grow(&self, len: usize, additional: usize) -> bool {
@@ -416,7 +422,10 @@ where
 }
 
 #[cfg(not(rune_nightly))]
-impl<T, A: Allocator> Drop for RawVec<T, A> {
+impl<T, A> Drop for RawVec<T, A>
+where
+    A: Allocator,
+{
     /// Frees the memory owned by the `RawVec` *without* trying to drop its contents.
     fn drop(&mut self) {
         if let Some((ptr, layout)) = self.current_memory() {
@@ -426,7 +435,10 @@ impl<T, A: Allocator> Drop for RawVec<T, A> {
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawVec<T, A> {
+unsafe impl<#[may_dangle] T, A> Drop for RawVec<T, A>
+where
+    A: Allocator,
+{
     /// Frees the memory owned by the `RawVec` *without* trying to drop its contents.
     fn drop(&mut self) {
         if let Some((ptr, layout)) = self.current_memory() {

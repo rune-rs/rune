@@ -409,11 +409,7 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Render rust code.
-    fn render_code<I>(&self, lines: I) -> Result<String>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
+    fn render_code(&self, lines: impl IntoIterator<Item: AsRef<str>>) -> Result<String> {
         match &self.syntax_set {
             Some(syntax_set) => {
                 let syntax = match syntax_set.find_syntax_by_token(self::markdown::RUST_TOKEN) {

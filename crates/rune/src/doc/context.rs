@@ -162,14 +162,10 @@ impl<'a> Context<'a> {
     }
 
     /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<I>(
+    pub(crate) fn iter_components(
         &self,
-        iter: I,
-    ) -> alloc::Result<impl Iterator<Item = (MetaSource<'a>, ComponentRef<'a>)> + 'a>
-    where
-        I: 'a + Clone + IntoIterator,
-        I::Item: IntoComponent,
-    {
+        iter: impl IntoIterator<Item: IntoComponent> + Clone + 'a,
+    ) -> alloc::Result<impl Iterator<Item = (MetaSource<'a>, ComponentRef<'a>)> + 'a> {
         let mut out = Vec::new();
 
         if let Some(context) = self.context {

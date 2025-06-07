@@ -1465,7 +1465,11 @@ where
     }
 }
 
-impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
+impl<T, A> PartialOrd for Arc<T, A>
+where
+    T: ?Sized + PartialOrd,
+    A: Allocator,
+{
     /// Partial comparison for two `Arc`s.
     ///
     /// The two are compared by calling `partial_cmp()` on their inner values.
@@ -1559,7 +1563,11 @@ impl<T: ?Sized + PartialOrd, A: Allocator> PartialOrd for Arc<T, A> {
     }
 }
 
-impl<T: ?Sized + Ord, A: Allocator> Ord for Arc<T, A> {
+impl<T, A> Ord for Arc<T, A>
+where
+    T: ?Sized + Ord,
+    A: Allocator,
+{
     /// Comparison for two `Arc`s.
     ///
     /// The two are compared by calling `cmp()` on their inner values.
@@ -1656,7 +1664,10 @@ where
     }
 }
 
-impl<T, A: Allocator> TryFrom<Vec<T, A>> for Arc<[T], A> {
+impl<T, A> TryFrom<Vec<T, A>> for Arc<[T], A>
+where
+    A: Allocator,
+{
     type Error = AllocError;
 
     /// Allocates a reference-counted slice and moves `v`'s items into it.

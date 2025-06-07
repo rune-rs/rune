@@ -79,7 +79,10 @@ impl<K, V> LeafNode<K, V> {
     }
 
     /// Creates a new boxed `LeafNode`.
-    fn new<A: Allocator>(alloc: &A) -> Result<NonNull<Self>, AllocError> {
+    fn new<A>(alloc: &A) -> Result<NonNull<Self>, AllocError>
+    where
+        A: Allocator,
+    {
         unsafe {
             let layout = Layout::new::<Self>();
             let ptr = alloc.allocate(layout)?.cast::<Self>();
@@ -112,7 +115,10 @@ impl<K, V> InternalNode<K, V> {
     /// An invariant of internal nodes is that they have at least one
     /// initialized and valid edge. This function does not set up
     /// such an edge.
-    unsafe fn new<A: Allocator>(alloc: &A) -> Result<NonNull<Self>, AllocError> {
+    unsafe fn new<A>(alloc: &A) -> Result<NonNull<Self>, AllocError>
+    where
+        A: Allocator,
+    {
         unsafe {
             let layout = Layout::new::<Self>();
             let ptr = alloc.allocate(layout)?.cast::<Self>();
@@ -200,8 +206,17 @@ pub(crate) struct NodeRef<BorrowType, K, V, Type> {
 /// Note that this does not have a destructor, and must be cleaned up manually.
 pub(crate) type Root<K, V> = NodeRef<marker::Owned, K, V, marker::LeafOrInternal>;
 
-impl<'a, K: 'a, V: 'a, Type> Copy for NodeRef<marker::Immut<'a>, K, V, Type> {}
-impl<'a, K: 'a, V: 'a, Type> Clone for NodeRef<marker::Immut<'a>, K, V, Type> {
+impl<'a, K, V, Type> Copy for NodeRef<marker::Immut<'a>, K, V, Type>
+where
+    K: 'a,
+    V: 'a,
+{
+}
+impl<'a, K, V, Type> Clone for NodeRef<marker::Immut<'a>, K, V, Type>
+where
+    K: 'a,
+    V: 'a,
+{
     fn clone(&self) -> Self {
         *self
     }
@@ -214,20 +229,60 @@ impl<K, V, Type> Clone for NodeRef<marker::Raw, K, V, Type> {
     }
 }
 
-unsafe impl<BorrowType, K: Sync, V: Sync, Type> Sync for NodeRef<BorrowType, K, V, Type> {}
+unsafe impl<BorrowType, K, V, Type> Sync for NodeRef<BorrowType, K, V, Type>
+where
+    K: Sync,
+    V: Sync,
+{
+}
 
-unsafe impl<K: Sync, V: Sync, Type> Send for NodeRef<marker::Immut<'_>, K, V, Type> {}
-unsafe impl<K: Sync, V: Sync, Type> Send for NodeRef<marker::Raw, K, V, Type> {}
-unsafe impl<K: Send, V: Send, Type> Send for NodeRef<marker::Mut<'_>, K, V, Type> {}
-unsafe impl<K: Send, V: Send, Type> Send for NodeRef<marker::ValMut<'_>, K, V, Type> {}
-unsafe impl<K: Send, V: Send, Type> Send for NodeRef<marker::Owned, K, V, Type> {}
-unsafe impl<K: Send, V: Send, Type> Send for NodeRef<marker::Dying, K, V, Type> {}
+unsafe impl<K, V, Type> Send for NodeRef<marker::Immut<'_>, K, V, Type>
+where
+    K: Sync,
+    V: Sync,
+{
+}
+unsafe impl<K, V, Type> Send for NodeRef<marker::Raw, K, V, Type>
+where
+    K: Sync,
+    V: Sync,
+{
+}
+unsafe impl<K, V, Type> Send for NodeRef<marker::Mut<'_>, K, V, Type>
+where
+    K: Send,
+    V: Send,
+{
+}
+unsafe impl<K, V, Type> Send for NodeRef<marker::ValMut<'_>, K, V, Type>
+where
+    K: Send,
+    V: Send,
+{
+}
+unsafe impl<K, V, Type> Send for NodeRef<marker::Owned, K, V, Type>
+where
+    K: Send,
+    V: Send,
+{
+}
+unsafe impl<K, V, Type> Send for NodeRef<marker::Dying, K, V, Type>
+where
+    K: Send,
+    V: Send,
+{
+}
 
 impl<K, V> NodeRef<marker::Owned, K, V, marker::Leaf> {
-    pub(crate) fn new_leaf<A: Allocator>(alloc: &A) -> Result<Self, AllocError> {
+    #[inline]
+    pub(crate) fn new_leaf<A>(alloc: &A) -> Result<Self, AllocError>
+    where
+        A: Allocator,
+    {
         Ok(Self::from_new_leaf(LeafNode::new(alloc)?))
     }
 
+    #[inline]
     fn from_new_leaf(leaf: NonNull<LeafNode<K, V>>) -> Self {
         NodeRef {
             height: 0,
@@ -238,7 +293,10 @@ impl<K, V> NodeRef<marker::Owned, K, V, marker::Leaf> {
 }
 
 impl<K, V> NodeRef<marker::Owned, K, V, marker::Internal> {
-    fn new_internal<A: Allocator>(child: Root<K, V>, alloc: &A) -> Result<Self, AllocError> {
+    fn new_internal<A>(child: Root<K, V>, alloc: &A) -> Result<Self, AllocError>
+    where
+        A: Allocator,
+    {
         let mut new_node = unsafe { InternalNode::new(alloc)? };
 
         // SAFETY: new_node has been initialized to the point where we can

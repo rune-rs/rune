@@ -509,8 +509,7 @@ impl Context {
         iter: I,
     ) -> alloc::Result<impl Iterator<Item = ComponentRef<'a>> + 'a>
     where
-        I: 'a + IntoIterator,
-        I::Item: IntoComponent,
+        I: 'a + IntoIterator<Item: IntoComponent>,
     {
         self.names.iter_components(iter)
     }

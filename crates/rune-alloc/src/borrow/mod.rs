@@ -294,8 +294,7 @@ where
 #[cfg(feature = "alloc")]
 impl<'a, T: ?Sized + 'a> TryFrom<rust_alloc::borrow::Cow<'a, T>> for Cow<'a, T>
 where
-    T: ToOwned + TryToOwned,
-    <T as TryToOwned>::Owned: TryFrom<<T as ToOwned>::Owned>,
+    T: ToOwned + TryToOwned<Owned: TryFrom<<T as ToOwned>::Owned>>,
 {
     type Error = <<T as TryToOwned>::Owned as TryFrom<<T as ToOwned>::Owned>>::Error;
 
@@ -307,9 +306,9 @@ where
     }
 }
 
-impl<B: ?Sized + TryToOwned> Deref for Cow<'_, B>
+impl<B> Deref for Cow<'_, B>
 where
-    B::Owned: Borrow<B>,
+    B: ?Sized + TryToOwned<Owned: Borrow<B>>,
 {
     type Target = B;
 
