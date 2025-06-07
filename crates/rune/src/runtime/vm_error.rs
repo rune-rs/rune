@@ -12,7 +12,7 @@ use crate::{vm_error, Any, Hash, ItemBuf};
 use super::{
     AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, BoxedPanic,
     CallFrame, DynArgsUsed, ExecutionState, Panic, Protocol, SliceError, StackError, StaticString,
-    TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    StoreError, StoreErrorKind, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
 
 vm_error!(VmError);
@@ -192,6 +192,7 @@ impl<E> From<E> for VmError
 where
     VmErrorKind: From<E>,
 {
+    #[inline]
     fn from(error: E) -> Self {
         Self::new(error)
     }
@@ -930,6 +931,19 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::IllegalFormat => {
                 write!(f, "Value cannot be formatted")
             }
+        }
+    }
+}
+
+impl<E> From<StoreError<E>> for VmErrorKind
+where
+    VmErrorKind: From<E>,
+{
+    #[inline]
+    fn from(value: StoreError<E>) -> Self {
+        match value.into_kind() {
+            StoreErrorKind::Stack(error) => VmErrorKind::StackError { error },
+            StoreErrorKind::Error(error) => VmErrorKind::from(error),
         }
     }
 }

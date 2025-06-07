@@ -19,8 +19,8 @@ use crate::TypeHash as _;
 use crate::{Any, FromValue};
 
 use super::{
-    IntoOutput, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
-    RawAnyGuard, Ref, RuntimeError, UnsafeToRef, Value, VmError, VmErrorKind,
+    Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RawAnyGuard, Ref,
+    RuntimeError, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 /// A vector of bytes.
@@ -546,13 +546,6 @@ impl TryFrom<&[u8]> for Value {
     #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         Value::new(Bytes::try_from(value)?)
-    }
-}
-
-impl IntoOutput for &[u8] {
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        Ok(Value::try_from(self)?)
     }
 }
 

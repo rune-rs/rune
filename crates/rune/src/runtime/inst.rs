@@ -12,7 +12,7 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::Hash;
 
-use super::{Call, FormatSpec, Memory, RuntimeError, Type, Value};
+use super::{Call, FormatSpec, IntoOutput, Memory, StackError, Type, Value};
 
 /// An instruction in the virtual machine.
 #[derive(Clone, Copy)]
@@ -1083,6 +1083,41 @@ impl Kind {
     }
 }
 
+/// An error produced by a call to [`Output::store`].
+pub struct StoreError<E> {
+    kind: StoreErrorKind<E>,
+}
+
+impl<E> StoreError<E> {
+    #[inline]
+    pub(crate) fn into_kind(self) -> StoreErrorKind<E> {
+        self.kind
+    }
+}
+
+pub(crate) enum StoreErrorKind<E> {
+    Stack(StackError),
+    Error(E),
+}
+
+impl<E> From<StackError> for StoreError<E> {
+    #[inline]
+    fn from(error: StackError) -> Self {
+        Self {
+            kind: StoreErrorKind::Stack(error),
+        }
+    }
+}
+
+impl<E> StoreError<E> {
+    #[inline]
+    fn error(error: E) -> Self {
+        Self {
+            kind: StoreErrorKind::Error(error),
+        }
+    }
+}
+
 /// What to do with the output of an instruction.
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash)]
 #[try_clone(copy)]
@@ -1141,13 +1176,13 @@ impl Output {
     ///     Ok(())
     /// }
     #[inline(always)]
-    pub fn store<M, O>(self, stack: &mut M, o: O) -> Result<(), RuntimeError>
+    pub fn store<M, O>(self, stack: &mut M, o: O) -> Result<(), StoreError<O::Error>>
     where
         M: ?Sized + Memory,
         O: IntoOutput,
     {
         if let Some(addr) = self.as_addr() {
-            *stack.at_mut(addr)? = o.into_output()?;
+            *stack.at_mut(addr)? = o.into_output().map_err(StoreError::error)?;
         }
 
         Ok(())
@@ -1168,41 +1203,6 @@ impl fmt::Debug for Output {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
-    }
-}
-
-/// Trait used to coerce values into outputs.
-pub trait IntoOutput {
-    /// Coerce the current value into an output.
-    fn into_output(self) -> Result<Value, RuntimeError>;
-}
-
-impl<F, O> IntoOutput for F
-where
-    F: FnOnce() -> O,
-    O: IntoOutput,
-{
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        self().into_output()
-    }
-}
-
-impl<T, E> IntoOutput for Result<T, E>
-where
-    T: IntoOutput,
-    RuntimeError: From<E>,
-{
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        self?.into_output()
-    }
-}
-
-impl IntoOutput for Value {
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        Ok(self)
     }
 }
 
@@ -1714,12 +1714,5 @@ where
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
-    }
-}
-
-impl IntoOutput for &str {
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        Ok(Value::try_from(self)?)
     }
 }

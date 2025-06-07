@@ -53,7 +53,7 @@ macro_rules! any_from {
     ($($ty:ty),* $(,)*) => {
         $(
             impl TryFrom<$ty> for Value {
-                type Error = alloc::Error;
+                type Error = $crate::alloc::Error;
 
                 #[inline]
                 fn try_from(value: $ty) -> Result<Self, Self::Error> {
@@ -61,10 +61,15 @@ macro_rules! any_from {
                 }
             }
 
-            impl IntoOutput for $ty {
+            impl $crate::runtime::into_output::sealed::Sealed for $ty {
+            }
+
+            impl $crate::runtime::IntoOutput for $ty {
+                type Error = $crate::alloc::Error;
+
                 #[inline]
-                fn into_output(self) -> Result<$crate::runtime::Value, $crate::runtime::RuntimeError> {
-                    Ok(Value::new(self)?)
+                fn into_output(self) -> Result<$crate::runtime::Value, Self::Error> {
+                    $crate::runtime::Value::new(self)
                 }
             }
         )*
@@ -88,9 +93,14 @@ macro_rules! inline_from {
                 }
             }
 
+            impl $crate::runtime::into_output::sealed::Sealed for $ty {
+            }
+
             impl $crate::runtime::IntoOutput for $ty {
+                type Error = core::convert::Infallible;
+
                 #[inline]
-                fn into_output(self) -> Result<$crate::runtime::Value, $crate::runtime::RuntimeError> {
+                fn into_output(self) -> Result<$crate::runtime::Value, Self::Error> {
                     Ok($crate::runtime::Value::from(self))
                 }
             }

@@ -9,8 +9,8 @@ use crate::alloc::alloc::{Allocator, Global};
 use crate::alloc::fmt::TryWrite;
 use crate::hash::Hash;
 use crate::runtime::{
-    Access, AccessError, BorrowMut, BorrowRef, Formatter, IntoOutput, ProtocolCaller, Rtti,
-    RttiKind, RuntimeError, Snapshot, TypeInfo, Value, VmError,
+    Access, AccessError, BorrowMut, BorrowRef, Formatter, ProtocolCaller, Rtti, RttiKind, Snapshot,
+    TypeInfo, Value, VmError,
 };
 use crate::sync::Arc;
 
@@ -469,11 +469,4 @@ fn debug_struct(
 
     write!(f, "}}")?;
     Ok(())
-}
-
-impl IntoOutput for AnySequence<Arc<Rtti>, Value> {
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        Ok(Value::from(self))
-    }
 }
