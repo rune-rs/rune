@@ -655,9 +655,9 @@ struct Append<P, T>(P, T);
 impl<P, T> fmt::Display for Append<P, T>
 where
     P: fmt::Display,
-    T: Copy + IntoIterator,
-    T::Item: fmt::Display,
+    T: Copy + IntoIterator<Item: fmt::Display>,
 {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for item in self.1 {
             self.0.fmt(f)?;

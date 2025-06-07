@@ -138,12 +138,11 @@ where
     Ok(())
 }
 
-fn create_release_zip<I, V>(dest: &Path, version: V, sources: I) -> Result<()>
-where
-    I: IntoIterator,
-    I::Item: AsRef<Path>,
-    V: fmt::Display,
-{
+fn create_release_zip(
+    dest: &Path,
+    version: impl fmt::Display,
+    sources: impl IntoIterator<Item: AsRef<Path>>,
+) -> Result<()> {
     if !dest.is_dir() {
         fs::create_dir_all(dest)?;
     }
@@ -160,11 +159,7 @@ where
     Ok(())
 }
 
-fn create_zip<I>(file: &Path, sources: I) -> Result<()>
-where
-    I: IntoIterator,
-    I::Item: AsRef<Path>,
-{
+fn create_zip(file: &Path, sources: impl IntoIterator<Item: AsRef<Path>>) -> Result<()> {
     let options =
         zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 

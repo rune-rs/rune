@@ -516,7 +516,10 @@ pub struct FromUtf8Error<A: Allocator = Global> {
     error: Utf8Error,
 }
 
-impl<A: Allocator> fmt::Debug for FromUtf8Error<A> {
+impl<A> fmt::Debug for FromUtf8Error<A>
+where
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FromUtf8Error")
             .field("bytes", &self.bytes)
@@ -525,15 +528,21 @@ impl<A: Allocator> fmt::Debug for FromUtf8Error<A> {
     }
 }
 
-impl<A: Allocator> PartialEq for FromUtf8Error<A> {
+impl<A> PartialEq for FromUtf8Error<A>
+where
+    A: Allocator,
+{
     fn eq(&self, other: &Self) -> bool {
         self.bytes == other.bytes && self.error == other.error
     }
 }
 
-impl<A: Allocator> Eq for FromUtf8Error<A> {}
+impl<A> Eq for FromUtf8Error<A> where A: Allocator {}
 
-impl<A: Allocator> String<A> {
+impl<A> String<A>
+where
+    A: Allocator,
+{
     /// Creates a new empty `String`.
     ///
     /// Given that the `String` is empty, this will not allocate any initial
@@ -1210,13 +1219,19 @@ impl<A: Allocator> String<A> {
     where
         F: FnMut(char) -> bool,
     {
-        struct SetLenOnDrop<'a, A: Allocator> {
+        struct SetLenOnDrop<'a, A>
+        where
+            A: Allocator,
+        {
             s: &'a mut String<A>,
             idx: usize,
             del_bytes: usize,
         }
 
-        impl<A: Allocator> Drop for SetLenOnDrop<'_, A> {
+        impl<A> Drop for SetLenOnDrop<'_, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 let new_len = self.idx - self.del_bytes;
                 debug_assert!(new_len <= self.s.len());
@@ -1664,7 +1679,10 @@ impl<A: Allocator> String<A> {
     }
 }
 
-impl<A: Allocator> FromUtf8Error<A> {
+impl<A> FromUtf8Error<A>
+where
+    A: Allocator,
+{
     /// Returns a slice of [`u8`]s bytes that were attempted to convert to a `String`.
     ///
     /// # Examples
@@ -1739,9 +1757,9 @@ impl<A: Allocator> FromUtf8Error<A> {
     }
 }
 
-impl<A: Allocator> Default for String<A>
+impl<A> Default for String<A>
 where
-    A: Default,
+    A: Allocator + Default,
 {
     /// Construct a default string.
     ///
@@ -1757,22 +1775,31 @@ where
     }
 }
 
-impl<A: Allocator> Borrow<str> for String<A> {
+impl<A> Borrow<str> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn borrow(&self) -> &str {
         &self[..]
     }
 }
 
-impl<A: Allocator> fmt::Display for FromUtf8Error<A> {
+impl<A> fmt::Display for FromUtf8Error<A>
+where
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.error, f)
     }
 }
 
-impl<A: Allocator> core::error::Error for FromUtf8Error<A> {}
+impl<A> core::error::Error for FromUtf8Error<A> where A: Allocator {}
 
-impl<A: Allocator + Clone> TryClone for String<A> {
+impl<A> TryClone for String<A>
+where
+    A: Allocator + Clone,
+{
     fn try_clone(&self) -> Result<Self, Error> {
         Ok(String {
             vec: self.vec.try_clone()?,
@@ -1781,29 +1808,41 @@ impl<A: Allocator + Clone> TryClone for String<A> {
 }
 
 #[cfg(test)]
-impl<A: Allocator + Clone> Clone for String<A> {
+impl<A> Clone for String<A>
+where
+    A: Allocator + Clone,
+{
     fn clone(&self) -> Self {
         self.try_clone().abort()
     }
 }
 
-impl<A: Allocator> PartialEq for String<A> {
+impl<A> PartialEq for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.vec == other.vec
     }
 }
 
-impl<A: Allocator> Eq for String<A> {}
+impl<A> Eq for String<A> where A: Allocator {}
 
-impl<A: Allocator> PartialOrd for String<A> {
+impl<A> PartialOrd for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<A: Allocator> Ord for String<A> {
+impl<A> Ord for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.vec.cmp(&other.vec)
@@ -1846,28 +1885,40 @@ impl_eq! { Cow<'a, str>, str }
 impl_eq! { Cow<'a, str>, &'b str }
 impl_eq! { Cow<'a, str>, String }
 
-impl<A: Allocator> fmt::Display for String<A> {
+impl<A> fmt::Display for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
 
-impl<A: Allocator> fmt::Debug for String<A> {
+impl<A> fmt::Debug for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<A: Allocator> hash::Hash for String<A> {
+impl<A> hash::Hash for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn hash<H: hash::Hasher>(&self, hasher: &mut H) {
         (**self).hash(hasher)
     }
 }
 
-impl<A: Allocator> ops::Index<ops::Range<usize>> for String<A> {
+impl<A> ops::Index<ops::Range<usize>> for String<A>
+where
+    A: Allocator,
+{
     type Output = str;
 
     #[inline]
@@ -1876,7 +1927,10 @@ impl<A: Allocator> ops::Index<ops::Range<usize>> for String<A> {
     }
 }
 
-impl<A: Allocator> ops::Index<ops::RangeTo<usize>> for String<A> {
+impl<A> ops::Index<ops::RangeTo<usize>> for String<A>
+where
+    A: Allocator,
+{
     type Output = str;
 
     #[inline]
@@ -1885,7 +1939,10 @@ impl<A: Allocator> ops::Index<ops::RangeTo<usize>> for String<A> {
     }
 }
 
-impl<A: Allocator> ops::Index<ops::RangeFrom<usize>> for String<A> {
+impl<A> ops::Index<ops::RangeFrom<usize>> for String<A>
+where
+    A: Allocator,
+{
     type Output = str;
 
     #[inline]
@@ -1894,7 +1951,10 @@ impl<A: Allocator> ops::Index<ops::RangeFrom<usize>> for String<A> {
     }
 }
 
-impl<A: Allocator> ops::Index<ops::RangeFull> for String<A> {
+impl<A> ops::Index<ops::RangeFull> for String<A>
+where
+    A: Allocator,
+{
     type Output = str;
 
     #[inline]
@@ -1903,7 +1963,10 @@ impl<A: Allocator> ops::Index<ops::RangeFull> for String<A> {
     }
 }
 
-impl<A: Allocator> ops::Index<ops::RangeInclusive<usize>> for String<A> {
+impl<A> ops::Index<ops::RangeInclusive<usize>> for String<A>
+where
+    A: Allocator,
+{
     type Output = str;
 
     #[inline]
@@ -1912,7 +1975,10 @@ impl<A: Allocator> ops::Index<ops::RangeInclusive<usize>> for String<A> {
     }
 }
 
-impl<A: Allocator> ops::Index<ops::RangeToInclusive<usize>> for String<A> {
+impl<A> ops::Index<ops::RangeToInclusive<usize>> for String<A>
+where
+    A: Allocator,
+{
     type Output = str;
 
     #[inline]
@@ -1921,49 +1987,70 @@ impl<A: Allocator> ops::Index<ops::RangeToInclusive<usize>> for String<A> {
     }
 }
 
-impl<A: Allocator> ops::IndexMut<ops::Range<usize>> for String<A> {
+impl<A> ops::IndexMut<ops::Range<usize>> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: ops::Range<usize>) -> &mut str {
         &mut self[..][index]
     }
 }
 
-impl<A: Allocator> ops::IndexMut<ops::RangeTo<usize>> for String<A> {
+impl<A> ops::IndexMut<ops::RangeTo<usize>> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: ops::RangeTo<usize>) -> &mut str {
         &mut self[..][index]
     }
 }
 
-impl<A: Allocator> ops::IndexMut<ops::RangeFrom<usize>> for String<A> {
+impl<A> ops::IndexMut<ops::RangeFrom<usize>> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: ops::RangeFrom<usize>) -> &mut str {
         &mut self[..][index]
     }
 }
 
-impl<A: Allocator> ops::IndexMut<ops::RangeFull> for String<A> {
+impl<A> ops::IndexMut<ops::RangeFull> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, _index: ops::RangeFull) -> &mut str {
         unsafe { from_utf8_unchecked_mut(&mut self.vec) }
     }
 }
 
-impl<A: Allocator> ops::IndexMut<ops::RangeInclusive<usize>> for String<A> {
+impl<A> ops::IndexMut<ops::RangeInclusive<usize>> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: ops::RangeInclusive<usize>) -> &mut str {
         IndexMut::index_mut(&mut **self, index)
     }
 }
 
-impl<A: Allocator> ops::IndexMut<ops::RangeToInclusive<usize>> for String<A> {
+impl<A> ops::IndexMut<ops::RangeToInclusive<usize>> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: ops::RangeToInclusive<usize>) -> &mut str {
         IndexMut::index_mut(&mut **self, index)
     }
 }
 
-impl<A: Allocator> ops::Deref for String<A> {
+impl<A> ops::Deref for String<A>
+where
+    A: Allocator,
+{
     type Target = str;
 
     #[inline]
@@ -1972,21 +2059,30 @@ impl<A: Allocator> ops::Deref for String<A> {
     }
 }
 
-impl<A: Allocator> ops::DerefMut for String<A> {
+impl<A> ops::DerefMut for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut str {
         unsafe { from_utf8_unchecked_mut(&mut self.vec) }
     }
 }
 
-impl<A: Allocator> AsRef<str> for String<A> {
+impl<A> AsRef<str> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn as_ref(&self) -> &str {
         self
     }
 }
 
-impl<A: Allocator> AsMut<str> for String<A> {
+impl<A> AsMut<str> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn as_mut(&mut self) -> &mut str {
         self
@@ -1994,21 +2090,30 @@ impl<A: Allocator> AsMut<str> for String<A> {
 }
 
 #[cfg(feature = "std")]
-impl<A: Allocator> AsRef<std::ffi::OsStr> for String<A> {
+impl<A> AsRef<std::ffi::OsStr> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn as_ref(&self) -> &std::ffi::OsStr {
         (**self).as_ref()
     }
 }
 
-impl<A: Allocator> AsRef<[u8]> for String<A> {
+impl<A> AsRef<[u8]> for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl<A: Allocator> From<Box<str, A>> for String<A> {
+impl<A> From<Box<str, A>> for String<A>
+where
+    A: Allocator,
+{
     /// Converts the given boxed `str` slice to a [`String`].
     /// It is notable that the `str` slice is owned.
     ///
@@ -2080,7 +2185,10 @@ impl TryFrom<rust_alloc::string::String> for String<Global> {
 }
 
 #[cfg(feature = "alloc")]
-impl<A: Allocator> From<String<A>> for rust_alloc::string::String {
+impl<A> From<String<A>> for rust_alloc::string::String
+where
+    A: Allocator,
+{
     /// Try to convert a [`String`] into a std `String`.
     ///
     /// The result is allocated on the heap.
@@ -2090,7 +2198,10 @@ impl<A: Allocator> From<String<A>> for rust_alloc::string::String {
 }
 
 #[cfg(feature = "alloc")]
-impl<A: Allocator> From<&String<A>> for rust_alloc::string::String {
+impl<A> From<&String<A>> for rust_alloc::string::String
+where
+    A: Allocator,
+{
     /// Try to convert a [`String`] reference into a std `String`.
     ///
     /// The result is allocated on the heap.
@@ -2173,7 +2284,10 @@ impl<A: Allocator + Clone> TryFrom<&String<A>> for String<A> {
     }
 }
 
-impl<A: Allocator> TryFrom<String<A>> for Box<str, A> {
+impl<A> TryFrom<String<A>> for Box<str, A>
+where
+    A: Allocator,
+{
     type Error = Error;
 
     /// Converts the given [`String`] to a boxed `str` slice that is owned.
@@ -2217,7 +2331,10 @@ impl TryFrom<Cow<'_, str>> for Box<str> {
     }
 }
 
-impl<A: Allocator> From<String<A>> for Vec<u8, A> {
+impl<A> From<String<A>> for Vec<u8, A>
+where
+    A: Allocator,
+{
     /// Converts the given [`String`] to a vector [`Vec`] that holds values of type [`u8`].
     ///
     /// # Examples
@@ -2245,7 +2362,10 @@ impl<A: Allocator> From<String<A>> for Vec<u8, A> {
 /// documentation for more.
 ///
 /// [`drain`]: String::drain
-pub struct Drain<'a, A: Allocator> {
+pub struct Drain<'a, A>
+where
+    A: Allocator,
+{
     /// Will be used as &'a mut String in the destructor
     string: *mut String<A>,
     /// Start of part to remove
@@ -2256,16 +2376,22 @@ pub struct Drain<'a, A: Allocator> {
     iter: Chars<'a>,
 }
 
-impl<A: Allocator> fmt::Debug for Drain<'_, A> {
+impl<A> fmt::Debug for Drain<'_, A>
+where
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Drain").field(&self.as_str()).finish()
     }
 }
 
-unsafe impl<A: Allocator> Sync for Drain<'_, A> {}
-unsafe impl<A: Allocator> Send for Drain<'_, A> {}
+unsafe impl<A> Sync for Drain<'_, A> where A: Allocator {}
+unsafe impl<A> Send for Drain<'_, A> where A: Allocator {}
 
-impl<A: Allocator> Drop for Drain<'_, A> {
+impl<A> Drop for Drain<'_, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         unsafe {
             // Use Vec::drain. "Reaffirm" the bounds checks to avoid
@@ -2279,7 +2405,10 @@ impl<A: Allocator> Drop for Drain<'_, A> {
     }
 }
 
-impl<A: Allocator> Drain<'_, A> {
+impl<A> Drain<'_, A>
+where
+    A: Allocator,
+{
     /// Returns the remaining (sub)string of this iterator as a slice.
     ///
     /// # Examples
@@ -2300,19 +2429,28 @@ impl<A: Allocator> Drain<'_, A> {
     }
 }
 
-impl<A: Allocator> AsRef<str> for Drain<'_, A> {
+impl<A> AsRef<str> for Drain<'_, A>
+where
+    A: Allocator,
+{
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl<A: Allocator> AsRef<[u8]> for Drain<'_, A> {
+impl<A> AsRef<[u8]> for Drain<'_, A>
+where
+    A: Allocator,
+{
     fn as_ref(&self) -> &[u8] {
         self.as_str().as_bytes()
     }
 }
 
-impl<A: Allocator> Iterator for Drain<'_, A> {
+impl<A> Iterator for Drain<'_, A>
+where
+    A: Allocator,
+{
     type Item = char;
 
     #[inline]
@@ -2330,16 +2468,22 @@ impl<A: Allocator> Iterator for Drain<'_, A> {
     }
 }
 
-impl<A: Allocator> DoubleEndedIterator for Drain<'_, A> {
+impl<A> DoubleEndedIterator for Drain<'_, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn next_back(&mut self) -> Option<char> {
         self.iter.next_back()
     }
 }
 
-impl<A: Allocator> FusedIterator for Drain<'_, A> {}
+impl<A> FusedIterator for Drain<'_, A> where A: Allocator {}
 
-impl<A: Allocator> TryWrite for String<A> {
+impl<A> TryWrite for String<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn try_write_str(&mut self, s: &str) -> Result<(), Error> {
         self.try_push_str(s)
@@ -2351,7 +2495,10 @@ impl<A: Allocator> TryWrite for String<A> {
     }
 }
 
-impl<A: Allocator> TryFromIteratorIn<char, A> for String<A> {
+impl<A> TryFromIteratorIn<char, A> for String<A>
+where
+    A: Allocator,
+{
     /// Construct a string from an iterator of characters.
     ///
     /// ```
@@ -2372,7 +2519,10 @@ impl<A: Allocator> TryFromIteratorIn<char, A> for String<A> {
     }
 }
 
-impl<'a, A: Allocator> TryFromIteratorIn<&'a str, A> for String<A> {
+impl<'a, A> TryFromIteratorIn<&'a str, A> for String<A>
+where
+    A: Allocator,
+{
     /// Construct a string from an iterator of characters.
     ///
     /// ```
@@ -2393,9 +2543,10 @@ impl<'a, A: Allocator> TryFromIteratorIn<&'a str, A> for String<A> {
     }
 }
 
-impl<T, A: Allocator> TryJoin<char, T, A> for String<A>
+impl<T, A> TryJoin<char, T, A> for String<A>
 where
     T: AsRef<str>,
+    A: Allocator,
 {
     fn try_join_in<I>(iter: I, sep: char, alloc: A) -> Result<Self, Error>
     where
@@ -2417,9 +2568,10 @@ where
     }
 }
 
-impl<T, A: Allocator> TryJoin<&str, T, A> for String<A>
+impl<T, A> TryJoin<&str, T, A> for String<A>
 where
     T: AsRef<str>,
+    A: Allocator,
 {
     fn try_join_in<I>(iter: I, sep: &str, alloc: A) -> Result<Self, Error>
     where
@@ -2441,7 +2593,10 @@ where
     }
 }
 
-impl<A: Allocator> TryExtend<char> for String<A> {
+impl<A> TryExtend<char> for String<A>
+where
+    A: Allocator,
+{
     /// Extend a string using a character iterator.
     ///
     /// ```

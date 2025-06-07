@@ -20,28 +20,30 @@ pub struct TokenStream {
 
 impl TokenStream {
     /// Construct an empty token stream for testing.
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Push the current token to the stream.
+    #[inline]
     pub fn push(&mut self, token: ast::Token) -> alloc::Result<()> {
         self.stream.try_push(token)?;
         Ok(())
     }
 
     /// Extend the token stream with another iterator.
-    pub fn extend<I>(&mut self, tokens: I) -> alloc::Result<()>
-    where
-        I: IntoIterator,
-        ast::Token: From<I::Item>,
-    {
-        self.stream
-            .try_extend(tokens.into_iter().map(ast::Token::from))?;
+    #[inline]
+    pub fn extend<I>(
+        &mut self,
+        tokens: impl IntoIterator<Item: Into<ast::Token>>,
+    ) -> alloc::Result<()> {
+        self.stream.try_extend(tokens.into_iter().map(Into::into))?;
         Ok(())
     }
 
     /// Create an iterator over the token stream.
+    #[inline]
     pub(crate) fn iter(&self) -> TokenStreamIter<'_> {
         TokenStreamIter {
             iter: self.stream.iter(),
@@ -49,6 +51,7 @@ impl TokenStream {
     }
 
     /// Return something that once formatted will produce a stream of kinds.
+    #[inline]
     pub fn kinds(&self) -> Kinds<'_> {
         Kinds {
             stream: &self.stream,

@@ -4,7 +4,10 @@ use crate::error::Error;
 use crate::iter::{TryCloned, TryFromIteratorIn, TryJoin};
 
 /// Iterator extension trait.
-pub trait IteratorExt: Iterator + self::sealed::Sealed {
+pub trait IteratorExt
+where
+    Self: Iterator + self::sealed::Sealed,
+{
     /// Transforms an iterator into a collection using fallible allocations.
     fn try_collect<B>(self) -> Result<B, Error>
     where
@@ -15,10 +18,11 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     }
 
     /// Transforms an iterator into a collection using fallible allocations.
-    fn try_collect_in<B, A: Allocator>(self, alloc: A) -> Result<B, Error>
+    fn try_collect_in<B, A>(self, alloc: A) -> Result<B, Error>
     where
         Self: Sized,
         B: TryFromIteratorIn<Self::Item, A>,
+        A: Allocator,
     {
         TryFromIteratorIn::try_from_iter_in(self, alloc)
     }
@@ -49,10 +53,11 @@ pub trait IteratorExt: Iterator + self::sealed::Sealed {
     }
 
     /// Try to join the given value.
-    fn try_join_in<J, S, A: Allocator>(self, sep: S, alloc: A) -> Result<J, Error>
+    fn try_join_in<J, S, A>(self, sep: S, alloc: A) -> Result<J, Error>
     where
         Self: Sized,
         J: TryJoin<S, Self::Item, A>,
+        A: Allocator,
     {
         J::try_join_in(self, sep, alloc)
     }

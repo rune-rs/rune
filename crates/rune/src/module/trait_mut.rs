@@ -23,11 +23,10 @@ impl TraitMut<'_> {
     /// Set documentation for an inserted trait.
     ///
     /// This completely replaces any existing documentation.
-    pub fn docs<I>(&mut self, docs: I) -> Result<&mut Self, ContextError>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
+    pub fn docs(
+        &mut self,
+        docs: impl IntoIterator<Item: AsRef<str>>,
+    ) -> Result<&mut Self, ContextError> {
         self.docs.set_docs(docs)?;
         Ok(self)
     }

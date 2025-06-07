@@ -528,16 +528,12 @@ where
 }
 
 /// Render documentation.
-pub(super) fn render_code_by_syntax<I>(
+pub(super) fn render_code_by_syntax(
     syntax_set: &SyntaxSet,
     syntax: &SyntaxReference,
-    lines: I,
+    lines: impl IntoIterator<Item: AsRef<str>>,
     mut out: Option<&mut String>,
-) -> Result<String>
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
+) -> Result<String> {
     let mut buf = String::new();
     let mut gen =
         ClassedHTMLGenerator::new_with_class_style(syntax, syntax_set, ClassStyle::Spaced);
@@ -569,14 +565,10 @@ where
     Ok(gen.finalize().try_into()?)
 }
 
-pub(super) fn render_code_without_syntax<I>(
-    lines: I,
+pub(super) fn render_code_without_syntax(
+    lines: impl IntoIterator<Item: AsRef<str>>,
     mut out: Option<&mut String>,
-) -> Result<String>
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
+) -> Result<String> {
     let mut buf = String::new();
 
     for line in lines {

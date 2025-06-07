@@ -29,7 +29,10 @@ pub trait IntoComponent: Sized {
     #[inline]
     #[doc(hidden)]
     #[cfg(feature = "alloc")]
-    fn write_component<A: Allocator>(self, output: &mut Vec<u8, A>) -> alloc::Result<()> {
+    fn write_component<A>(self, output: &mut Vec<u8, A>) -> alloc::Result<()>
+    where
+        A: Allocator,
+    {
         write_component(self.as_component_ref(), output)
     }
 
@@ -64,7 +67,10 @@ where
     #[inline]
     #[doc(hidden)]
     #[cfg(feature = "alloc")]
-    fn write_component<A: Allocator>(self, output: &mut Vec<u8, A>) -> alloc::Result<()> {
+    fn write_component<A>(self, output: &mut Vec<u8, A>) -> alloc::Result<()>
+    where
+        A: Allocator,
+    {
         let [this] = self;
         this.write_component(output)
     }
@@ -144,7 +150,10 @@ macro_rules! impl_into_component_for_str {
             }
 
             #[cfg(feature = "alloc")]
-            fn write_component<A: Allocator>(self, output: &mut Vec<u8, A>) -> alloc::Result<()> {
+            fn write_component<A>(self, output: &mut Vec<u8, A>) -> alloc::Result<()>
+            where
+                A: Allocator,
+            {
                 internal::write_str(self.as_ref(), output)
             }
 
@@ -189,10 +198,10 @@ fn into_component(component: ComponentRef<'_>) -> alloc::Result<Component> {
 
 /// Write the current component to the given vector.
 #[cfg(feature = "alloc")]
-fn write_component<A: Allocator>(
-    component: ComponentRef<'_>,
-    output: &mut Vec<u8, A>,
-) -> alloc::Result<()> {
+fn write_component<A>(component: ComponentRef<'_>, output: &mut Vec<u8, A>) -> alloc::Result<()>
+where
+    A: Allocator,
+{
     match component {
         ComponentRef::Crate(s) => internal::write_crate(s, output),
         ComponentRef::Str(s) => internal::write_str(s, output),

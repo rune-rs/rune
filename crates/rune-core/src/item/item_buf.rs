@@ -62,12 +62,19 @@ use crate::item::{ComponentRef, IntoComponent, Item, Iter};
 /// dddddddd ddddddtt
 /// ```
 #[repr(transparent)]
-pub struct ItemBuf<A: Allocator = Global> {
+pub struct ItemBuf<A = Global>
+where
+    A: Allocator,
+{
     content: Vec<u8, A>,
 }
 
-impl<A: Allocator> ItemBuf<A> {
+impl<A> ItemBuf<A>
+where
+    A: Allocator,
+{
     /// Construct a new item buffer inside of the given allocator.
+    #[inline]
     pub(crate) const fn new_in(alloc: A) -> Self {
         Self {
             content: Vec::new_in(alloc),
@@ -79,11 +86,13 @@ impl<A: Allocator> ItemBuf<A> {
     /// # Safety
     ///
     /// Caller must ensure that its representation is valid.
+    #[inline]
     pub(super) const unsafe fn from_raw(content: Vec<u8, A>) -> Self {
         Self { content }
     }
 
     /// Construct a new item with the given path in the given allocator.
+    #[inline]
     pub(crate) fn with_item_in(
         iter: impl IntoIterator<Item: IntoComponent>,
         alloc: A,
@@ -98,10 +107,8 @@ impl<A: Allocator> ItemBuf<A> {
     }
 
     /// Push the given component to the current item.
-    pub fn push<C>(&mut self, c: C) -> alloc::Result<()>
-    where
-        C: IntoComponent,
-    {
+    #[inline]
+    pub fn push(&mut self, c: impl IntoComponent) -> alloc::Result<()> {
         c.write_component(&mut self.content)?;
         Ok(())
     }
@@ -128,12 +135,9 @@ impl<A: Allocator> ItemBuf<A> {
     }
 
     /// Extend the current item with an iterator.
-    pub fn extend<I>(&mut self, i: I) -> alloc::Result<()>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
-        for c in i {
+    #[inline]
+    pub fn extend(&mut self, iter: impl IntoIterator<Item: IntoComponent>) -> alloc::Result<()> {
+        for c in iter {
             self.push(c)?;
         }
 
@@ -141,6 +145,7 @@ impl<A: Allocator> ItemBuf<A> {
     }
 
     /// Clear the current item.
+    #[inline]
     pub fn clear(&mut self) {
         self.content.clear();
     }
@@ -224,11 +229,11 @@ impl ItemBuf {
     /// assert_eq!(it.next(), None);
     /// # Ok::<(), rune::support::Error>(())
     /// ```
-    pub fn with_crate_item<I>(name: &str, iter: I) -> alloc::Result<Self>
-    where
-        I: IntoIterator,
-        I::Item: IntoComponent,
-    {
+    #[inline]
+    pub fn with_crate_item(
+        name: &str,
+        iter: impl IntoIterator<Item: IntoComponent>,
+    ) -> alloc::Result<Self> {
         let mut content = Vec::new();
         ComponentRef::Crate(name).write_component(&mut content)?;
 
@@ -240,10 +245,11 @@ impl ItemBuf {
     }
 }
 
-impl<A: Allocator> Default for ItemBuf<A>
+impl<A> Default for ItemBuf<A>
 where
-    A: Default,
+    A: Allocator + Default,
 {
+    #[inline]
     fn default() -> Self {
         Self {
             content: Vec::new_in(A::default()),
@@ -251,34 +257,49 @@ where
     }
 }
 
-impl<A: Allocator> PartialEq for ItemBuf<A> {
+impl<A> PartialEq for ItemBuf<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.content == other.content
     }
 }
 
-impl<A: Allocator> Eq for ItemBuf<A> {}
+impl<A> Eq for ItemBuf<A> where A: Allocator {}
 
-impl<A: Allocator> PartialOrd for ItemBuf<A> {
+impl<A> PartialOrd for ItemBuf<A>
+where
+    A: Allocator,
+{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.content.cmp(&other.content))
     }
 }
 
-impl<A: Allocator> Ord for ItemBuf<A> {
+impl<A> Ord for ItemBuf<A>
+where
+    A: Allocator,
+{
     fn cmp(&self, other: &Self) -> Ordering {
         self.content.cmp(&other.content)
     }
 }
 
-impl<A: Allocator> Hash for ItemBuf<A> {
+impl<A> Hash for ItemBuf<A>
+where
+    A: Allocator,
+{
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.content.hash(state);
     }
 }
 
-impl<A: Allocator + Clone> TryClone for ItemBuf<A> {
+impl<A> TryClone for ItemBuf<A>
+where
+    A: Allocator + Clone,
+{
     #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
@@ -287,23 +308,30 @@ impl<A: Allocator + Clone> TryClone for ItemBuf<A> {
     }
 }
 
-impl<A: Allocator> AsRef<Item> for ItemBuf<A> {
+impl<A> AsRef<Item> for ItemBuf<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn as_ref(&self) -> &Item {
         self
     }
 }
 
-impl<A: Allocator> Borrow<Item> for ItemBuf<A> {
+impl<A> Borrow<Item> for ItemBuf<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn borrow(&self) -> &Item {
         self
     }
 }
 
-impl<C, A: Allocator> TryFromIteratorIn<C, A> for ItemBuf<A>
+impl<C, A> TryFromIteratorIn<C, A> for ItemBuf<A>
 where
     C: IntoComponent,
+    A: Allocator,
 {
     #[inline]
     fn try_from_iter_in<T: IntoIterator<Item = C>>(iter: T, alloc: A) -> alloc::Result<Self> {
@@ -311,9 +339,13 @@ where
     }
 }
 
-impl<A: Allocator> Deref for ItemBuf<A> {
+impl<A> Deref for ItemBuf<A>
+where
+    A: Allocator,
+{
     type Target = Item;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         // SAFETY: Item ensures that content is valid.
         unsafe { Item::from_bytes(self.content.as_ref()) }
@@ -321,54 +353,84 @@ impl<A: Allocator> Deref for ItemBuf<A> {
 }
 
 /// Format implementation for an [ItemBuf], defers to [Item].
-impl<A: Allocator> fmt::Display for ItemBuf<A> {
+impl<A> fmt::Display for ItemBuf<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Item::fmt(self, f)
     }
 }
 
-impl<A: Allocator> fmt::Debug for ItemBuf<A> {
+impl<A> fmt::Debug for ItemBuf<A>
+where
+    A: Allocator,
+{
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Item::fmt(self, f)
     }
 }
 
-impl<'a, A: Allocator> IntoIterator for &'a ItemBuf<A> {
+impl<'a, A> IntoIterator for &'a ItemBuf<A>
+where
+    A: Allocator,
+{
     type IntoIter = Iter<'a>;
     type Item = ComponentRef<'a>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-impl<A: Allocator> PartialEq<Item> for ItemBuf<A> {
+impl<A> PartialEq<Item> for ItemBuf<A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn eq(&self, other: &Item) -> bool {
         self.content.as_slice() == other.as_bytes()
     }
 }
 
-impl<A: Allocator> PartialEq<Item> for &ItemBuf<A> {
+impl<A> PartialEq<Item> for &ItemBuf<A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn eq(&self, other: &Item) -> bool {
         self.content.as_slice() == other.as_bytes()
     }
 }
 
-impl<A: Allocator> PartialEq<&Item> for ItemBuf<A> {
+impl<A> PartialEq<&Item> for ItemBuf<A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn eq(&self, other: &&Item) -> bool {
         self.content.as_slice() == other.as_bytes()
     }
 }
 
-impl<A: Allocator> PartialEq<Iter<'_>> for ItemBuf<A> {
+impl<A> PartialEq<Iter<'_>> for ItemBuf<A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn eq(&self, other: &Iter<'_>) -> bool {
         self == other.as_item()
     }
 }
 
-impl<A: Allocator> PartialEq<Iter<'_>> for &ItemBuf<A> {
+impl<A> PartialEq<Iter<'_>> for &ItemBuf<A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn eq(&self, other: &Iter<'_>) -> bool {
         *self == other.as_item()
     }
@@ -382,6 +444,7 @@ pub struct FromStrError {
 }
 
 impl From<alloc::Error> for FromStrError {
+    #[inline]
     fn from(error: alloc::Error) -> Self {
         Self {
             kind: FromStrErrorKind::AllocError(error),
@@ -390,6 +453,7 @@ impl From<alloc::Error> for FromStrError {
 }
 
 impl From<FromStrErrorKind> for FromStrError {
+    #[inline]
     fn from(kind: FromStrErrorKind) -> Self {
         Self { kind }
     }
@@ -415,9 +479,9 @@ impl fmt::Display for FromStrError {
 
 impl core::error::Error for FromStrError {}
 
-impl<A: Allocator> FromStr for ItemBuf<A>
+impl<A> FromStr for ItemBuf<A>
 where
-    A: Default,
+    A: Allocator + Default,
 {
     type Err = FromStrError;
 

@@ -405,8 +405,7 @@ fn test_iter_rev() {
 // Specifically tests iter_mut's ability to mutate the value of pairs in-line.
 fn do_test_iter_mut_mutation<T>(size: usize)
 where
-    T: Copy + Debug + Ord + TryFrom<usize>,
-    <T as TryFrom<usize>>::Error: Debug,
+    T: Copy + Debug + Ord + TryFrom<usize, Error: Debug>,
 {
     let zero = T::try_from(0).unwrap();
     let mut map = BTreeMap::from_iter((0..size).map(|i| (T::try_from(i).unwrap(), zero)));

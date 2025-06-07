@@ -1368,14 +1368,10 @@ impl<'a, 'arena> Query<'a, 'arena> {
     }
 
     /// Iterate over known child components of the given name.
-    pub(crate) fn iter_components<'it, I>(
+    pub(crate) fn iter_components<'it>(
         &'it self,
-        iter: I,
-    ) -> alloc::Result<impl Iterator<Item = ComponentRef<'it>> + 'it>
-    where
-        I: 'it + IntoIterator,
-        I::Item: IntoComponent,
-    {
+        iter: impl IntoIterator<Item: IntoComponent> + 'it,
+    ) -> alloc::Result<impl Iterator<Item = ComponentRef<'it>> + 'it> {
         self.inner.names.iter_components(iter)
     }
 

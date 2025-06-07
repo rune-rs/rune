@@ -69,8 +69,7 @@ impl Prelude {
     /// Define a prelude item.
     fn add_prelude<I>(&mut self, local: &str, path: I) -> alloc::Result<()>
     where
-        I: IntoIterator,
-        I::Item: IntoComponent,
+        I: IntoIterator<Item: IntoComponent>,
     {
         self.prelude
             .try_insert(local.try_into()?, ItemBuf::with_crate_item("std", path)?)?;

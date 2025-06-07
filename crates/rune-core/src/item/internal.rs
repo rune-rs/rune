@@ -42,11 +42,10 @@ pub(super) fn read_tag(content: &[u8]) -> (Tag, usize) {
 /// # Panics
 ///
 /// Panics if the provided size cannot fit withing an identifier.
-pub(super) fn write_tag<A: Allocator>(
-    output: &mut Vec<u8, A>,
-    Tag(tag): Tag,
-    n: usize,
-) -> alloc::Result<()> {
+pub(super) fn write_tag<A>(output: &mut Vec<u8, A>, Tag(tag): Tag, n: usize) -> alloc::Result<()>
+where
+    A: Allocator,
+{
     let tag = usize::from(tag);
 
     debug_assert!(tag <= TYPE_MASK);
@@ -67,7 +66,10 @@ pub(super) fn write_tag<A: Allocator>(
 }
 
 /// Internal function to write only the crate of a component.
-pub(super) fn write_crate<A: Allocator>(s: &str, output: &mut Vec<u8, A>) -> alloc::Result<()> {
+pub(super) fn write_crate<A>(s: &str, output: &mut Vec<u8, A>) -> alloc::Result<()>
+where
+    A: Allocator,
+{
     write_tag(output, CRATE, s.len())?;
     output.try_extend_from_slice(s.as_bytes())?;
     write_tag(output, CRATE, s.len())?;
@@ -75,7 +77,10 @@ pub(super) fn write_crate<A: Allocator>(s: &str, output: &mut Vec<u8, A>) -> all
 }
 
 /// Internal function to write only the string of a component.
-pub(super) fn write_str<A: Allocator>(s: &str, output: &mut Vec<u8, A>) -> alloc::Result<()> {
+pub(super) fn write_str<A>(s: &str, output: &mut Vec<u8, A>) -> alloc::Result<()>
+where
+    A: Allocator,
+{
     write_tag(output, STRING, s.len())?;
     output.try_extend_from_slice(s.as_bytes())?;
     write_tag(output, STRING, s.len())?;

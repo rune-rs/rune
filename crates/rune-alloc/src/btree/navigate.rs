@@ -251,27 +251,36 @@ impl<K, V> LazyLeafRange<marker::Dying, K, V> {
     }
 
     #[inline]
-    pub(crate) unsafe fn deallocating_next_unchecked<A: Allocator>(
+    pub(crate) unsafe fn deallocating_next_unchecked<A>(
         &mut self,
         alloc: &A,
-    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV> {
+    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV>
+    where
+        A: Allocator,
+    {
         debug_assert!(self.front.is_some());
         let front = self.init_front().unwrap();
         unsafe { front.deallocating_next_unchecked(alloc) }
     }
 
     #[inline]
-    pub(crate) unsafe fn deallocating_next_back_unchecked<A: Allocator>(
+    pub(crate) unsafe fn deallocating_next_back_unchecked<A>(
         &mut self,
         alloc: &A,
-    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV> {
+    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV>
+    where
+        A: Allocator,
+    {
         debug_assert!(self.back.is_some());
         let back = self.init_back().unwrap();
         unsafe { back.deallocating_next_back_unchecked(alloc) }
     }
 
     #[inline]
-    pub(crate) fn deallocating_end<A: Allocator>(&mut self, alloc: &A) {
+    pub(crate) fn deallocating_end<A>(&mut self, alloc: &A)
+    where
+        A: Allocator,
+    {
         if let Some(front) = self.take_front() {
             front.deallocating_end(alloc)
         }
@@ -541,13 +550,16 @@ impl<K, V> Handle<NodeRef<marker::Dying, K, V, marker::Leaf>, marker::Edge> {
     ///   `deallocating_next_back`.
     /// - The returned KV handle is only valid to access the key and value,
     ///   and only valid until the next call to a `deallocating_` method.
-    unsafe fn deallocating_next<A: Allocator>(
+    unsafe fn deallocating_next<A>(
         self,
         alloc: &A,
     ) -> Option<(
         Self,
         Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV>,
-    )> {
+    )>
+    where
+        A: Allocator,
+    {
         let mut edge = self.forget_node_type();
         loop {
             edge = match edge.right_kv() {
@@ -575,13 +587,16 @@ impl<K, V> Handle<NodeRef<marker::Dying, K, V, marker::Leaf>, marker::Edge> {
     ///   `deallocating_next`.
     /// - The returned KV handle is only valid to access the key and value,
     ///   and only valid until the next call to a `deallocating_` method.
-    unsafe fn deallocating_next_back<A: Allocator>(
+    unsafe fn deallocating_next_back<A>(
         self,
         alloc: &A,
     ) -> Option<(
         Self,
         Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV>,
-    )> {
+    )>
+    where
+        A: Allocator,
+    {
         let mut edge = self.forget_node_type();
         loop {
             edge = match edge.left_kv() {
@@ -602,7 +617,10 @@ impl<K, V> Handle<NodeRef<marker::Dying, K, V, marker::Leaf>, marker::Edge> {
     /// both sides of the tree, and have hit the same edge. As it is intended
     /// only to be called when all keys and values have been returned,
     /// no cleanup is done on any of the keys or values.
-    fn deallocating_end<A: Allocator>(self, alloc: &A) {
+    fn deallocating_end<A>(self, alloc: &A)
+    where
+        A: Allocator,
+    {
         let mut edge = self.forget_node_type();
         while let Some(parent_edge) = unsafe { edge.into_node().deallocate_and_ascend(alloc) } {
             edge = parent_edge.forget_node_type();
@@ -705,10 +723,13 @@ impl<K, V> Handle<NodeRef<marker::Dying, K, V, marker::Leaf>, marker::Edge> {
     ///
     /// The only safe way to proceed with the updated handle is to compare it, drop it,
     /// or call this method or counterpart `deallocating_next_back_unchecked` again.
-    unsafe fn deallocating_next_unchecked<A: Allocator>(
+    unsafe fn deallocating_next_unchecked<A>(
         &mut self,
         alloc: &A,
-    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV> {
+    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV>
+    where
+        A: Allocator,
+    {
         into_ok(super::mem::replace(self, |leaf_edge| unsafe {
             Ok(leaf_edge.deallocating_next(alloc).unwrap())
         }))
@@ -726,10 +747,13 @@ impl<K, V> Handle<NodeRef<marker::Dying, K, V, marker::Leaf>, marker::Edge> {
     ///
     /// The only safe way to proceed with the updated handle is to compare it, drop it,
     /// or call this method or counterpart `deallocating_next_unchecked` again.
-    unsafe fn deallocating_next_back_unchecked<A: Allocator>(
+    unsafe fn deallocating_next_back_unchecked<A>(
         &mut self,
         alloc: &A,
-    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV> {
+    ) -> Handle<NodeRef<marker::Dying, K, V, marker::LeafOrInternal>, marker::KV>
+    where
+        A: Allocator,
+    {
         into_ok(super::mem::replace(self, |leaf_edge| unsafe {
             Ok::<_, Never>(leaf_edge.deallocating_next_back(alloc).unwrap())
         }))
