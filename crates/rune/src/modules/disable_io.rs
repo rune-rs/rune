@@ -26,8 +26,8 @@ pub fn module() -> Result<Module, ContextError> {
     module
         .raw_function(
             "dbg",
-            move |stack: &mut dyn Memory, _: Address, _: usize, out: Output| {
-                out.store(stack, ())?;
+            move |memory: &mut dyn Memory, _: Address, _: usize, out: Output| {
+                memory.store(out, ())?;
                 Ok(())
             },
         )

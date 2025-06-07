@@ -1720,7 +1720,7 @@ pub fn module() -> Result<Module, ContextError> {
                     value: value.clone(),
                 };
 
-                out.store(stack, || rune::to_value(rev))?;
+                stack.store(out, || rune::to_value(rev))?;
                 Ok(())
             })?;
 

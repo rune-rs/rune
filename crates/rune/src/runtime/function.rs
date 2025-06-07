@@ -635,7 +635,8 @@ where
             }
             Inner::FnUnitStruct(empty) => {
                 check_args(args, 0)?;
-                out.store(vm.stack_mut(), || Value::empty_struct(empty.rtti.clone()))?;
+                vm.stack_mut()
+                    .store(out, || Value::empty_struct(empty.rtti.clone()))?;
                 None
             }
             Inner::FnTupleStruct(tuple) => {
@@ -644,7 +645,7 @@ where
                 let seq = vm.stack().slice_at(addr, args)?;
                 let data = seq.iter().cloned();
                 let value = AnySequence::new(tuple.rtti.clone(), data)?;
-                out.store(vm.stack_mut(), value)?;
+                vm.stack_mut().store(out, value)?;
                 None
             }
         };

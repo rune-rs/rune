@@ -1081,14 +1081,14 @@ impl Module {
     /// use rune::runtime::{Output, Memory, ToValue, VmError, Address};
     /// use rune::{docstring, vm_try};
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
-    ///     for value in stack.slice_at(addr, args)? {
+    ///     for value in memory.slice_at(addr, args)? {
     ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number)?;
+    ///     memory.store(out, number)?;
     ///     Ok(())
     /// }
     ///

@@ -38,9 +38,11 @@ pub(crate) mod sealed {
 /// Trait used to coerce values into outputs.
 pub trait IntoOutput: self::sealed::Sealed {
     /// The error type produced by output coercion.
+    #[doc(hidden)]
     type Error;
 
     /// Coerce the current value into an output.
+    #[doc(hidden)]
     fn into_output(self) -> Result<Value, Self::Error>;
 }
 

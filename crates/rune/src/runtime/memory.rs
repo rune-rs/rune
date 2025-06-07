@@ -9,7 +9,8 @@ use core::slice::SliceIndex;
 use crate::alloc::alloc::Global;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
-use crate::runtime::{Address, Output, Value, VmErrorKind};
+
+use super::{Address, IntoOutput, Output, Value, VmErrorKind};
 
 // This is a bit tricky. We know that `Value::empty()` is `Sync` but we can't
 // convince Rust that is the case.
@@ -72,6 +73,41 @@ pub(crate) enum Pair<'a> {
     Pair(&'a mut Value, &'a Value),
 }
 
+/// An error produced by a call to `Memory::store`.
+pub struct StoreError<E> {
+    kind: StoreErrorKind<E>,
+}
+
+impl<E> StoreError<E> {
+    #[inline]
+    pub(crate) fn into_kind(self) -> StoreErrorKind<E> {
+        self.kind
+    }
+}
+
+pub(crate) enum StoreErrorKind<E> {
+    Stack(StackError),
+    Error(E),
+}
+
+impl<E> From<StackError> for StoreError<E> {
+    #[inline]
+    fn from(error: StackError) -> Self {
+        Self {
+            kind: StoreErrorKind::Stack(error),
+        }
+    }
+}
+
+impl<E> StoreError<E> {
+    #[inline]
+    fn error(error: E) -> Self {
+        Self {
+            kind: StoreErrorKind::Error(error),
+        }
+    }
+}
+
 /// Memory access.
 pub trait Memory {
     /// Get the slice at the given address with the given length.
@@ -81,14 +117,14 @@ pub trait Memory {
     /// ```
     /// use rune::runtime::{Address, Memory, Output, VmError};
     ///
-    /// fn sum(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
-    ///     for value in stack.slice_at(addr, args)? {
+    ///     for value in memory.slice_at(addr, args)? {
     ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number)?;
+    ///     memory.store(out, number)?;
     ///     Ok(())
     /// }
     /// ```
@@ -101,12 +137,12 @@ pub trait Memory {
     /// ```
     /// use rune::runtime::{Address, Memory, Output, Value, VmError};
     ///
-    /// fn drop_values(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
-    ///     for value in stack.slice_at_mut(addr, args)? {
+    /// fn drop_values(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     for value in memory.slice_at_mut(addr, args)? {
     ///         *value = Value::empty();
     ///     }
     ///
-    ///     out.store(stack, ())?;
+    ///     memory.store(out, ())?;
     ///     Ok(())
     /// }
     /// ```
@@ -119,11 +155,11 @@ pub trait Memory {
     /// ```
     /// use rune::runtime::{Address, Memory, Output, VmError};
     ///
-    /// fn add_one(stack: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
-    ///     let mut value = stack.at_mut(addr)?;
+    /// fn add_one(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let mut value = memory.at_mut(addr)?;
     ///     let number = value.as_integer::<i64>()?;
     ///     *value = rune::to_value(number + 1)?;
-    ///     out.store(stack, ())?;
+    ///     memory.store(out, ())?;
     ///     Ok(())
     /// }
     /// ```
@@ -136,6 +172,44 @@ pub trait Memory {
     {
         let slice = self.slice_at(addr, N)?;
         Ok(array::from_fn(|i| &slice[i]))
+    }
+}
+
+impl dyn Memory + '_ {
+    /// Write output using the provided [`IntoOutput`] implementation onto the
+    /// stack.
+    ///
+    /// The [`IntoOutput`] trait primarily allows for deferring a computation
+    /// since it's implemented by [`FnOnce`]. However, you must take care that
+    /// any side effects calling a function may have are executed outside of the
+    /// call to `store`. Like if the function would error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Output, Memory, ToValue, VmError, Address};
+    /// use rune::vm_try;
+    ///
+    /// fn sum(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let mut number = 0;
+    ///
+    ///     for value in memory.slice_at(addr, args)? {
+    ///         number += value.as_integer::<i64>()?;
+    ///     }
+    ///
+    ///     memory.store(out, number)?;
+    ///     Ok(())
+    /// }
+    #[inline(always)]
+    pub fn store<O>(&mut self, out: Output, o: O) -> Result<(), StoreError<O::Error>>
+    where
+        O: IntoOutput,
+    {
+        if let Some(addr) = out.as_addr() {
+            *self.at_mut(addr)? = o.into_output().map_err(StoreError::error)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -239,9 +313,9 @@ impl Stack {
     /// use rune::Module;
     /// use rune::runtime::{Output, Stack, VmError, Address};
     ///
-    /// fn add_one(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
-    ///     let value = stack.at(addr).as_integer::<i64>()?;
-    ///     out.store(stack, value + 1);
+    /// fn add_one(memory: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let value = memory.at(addr).as_integer::<i64>()?;
+    ///     memory.store(out, value + 1);
     ///     Ok(())
     /// }
     /// ```
@@ -260,11 +334,11 @@ impl Stack {
     /// use rune::Module;
     /// use rune::runtime::{Output, Stack, VmError, Address};
     ///
-    /// fn add_one(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
-    ///     let mut value = stack.at_mut(addr)?;
+    /// fn add_one(memory: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let mut value = memory.at_mut(addr)?;
     ///     let number = value.as_integer::<i64>()?;
     ///     *value = rune::to_value(number + 1)?;
-    ///     out.store(stack, ());
+    ///     memory.store(out, ())?;
     ///     Ok(())
     /// }
     /// ```
@@ -283,14 +357,14 @@ impl Stack {
     /// use rune::Module;
     /// use rune::runtime::{Output, Stack, ToValue, VmError, Address};
     ///
-    /// fn sum(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    /// fn sum(memory: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
     ///     let mut number = 0;
     ///
-    ///     for value in stack.slice_at(addr, args)? {
+    ///     for value in memory.slice_at(addr, args)? {
     ///         number += value.as_integer::<i64>()?;
     ///     }
     ///
-    ///     out.store(stack, number)?;
+    ///     memory.store(out, number)?;
     ///     Ok(())
     /// }
     /// ```
@@ -312,15 +386,15 @@ impl Stack {
     /// ```
     /// use rune::vm_try;
     /// use rune::Module;
-    /// use rune::runtime::{Output, Stack, VmError, Address};
+    /// use rune::runtime::{Output, Memory, VmError, Address};
     ///
-    /// fn sum(stack: &mut Stack, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
-    ///     for value in stack.slice_at_mut(addr, args)? {
+    /// fn sum(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     for value in memory.slice_at_mut(addr, args)? {
     ///         let number = value.as_integer::<i64>()?;
     ///         *value = rune::to_value(number + 1)?;
     ///     }
     ///
-    ///     out.store(stack, ())?;
+    ///     memory.store(out, ())?;
     ///     Ok(())
     /// }
     /// ```
@@ -333,6 +407,42 @@ impl Stack {
         }
 
         Err(slice_error(stack_len, self.top, addr, len))
+    }
+
+    /// Write output using the provided [`IntoOutput`] implementation onto the
+    /// stack.
+    ///
+    /// The [`IntoOutput`] trait primarily allows for deferring a computation
+    /// since it's implemented by [`FnOnce`]. However, you must take care that
+    /// any side effects calling a function may have are executed outside of the
+    /// call to `store`. Like if the function would error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::runtime::{Output, Memory, ToValue, VmError, Address};
+    /// use rune::vm_try;
+    ///
+    /// fn sum(memory: &mut dyn Memory, addr: Address, args: usize, out: Output) -> Result<(), VmError> {
+    ///     let mut number = 0;
+    ///
+    ///     for value in memory.slice_at(addr, args)? {
+    ///         number += value.as_integer::<i64>()?;
+    ///     }
+    ///
+    ///     memory.store(out, number)?;
+    ///     Ok(())
+    /// }
+    #[inline(always)]
+    pub fn store<O>(&mut self, out: Output, o: O) -> Result<(), StoreError<O::Error>>
+    where
+        O: IntoOutput,
+    {
+        if let Some(addr) = out.as_addr() {
+            *self.at_mut(addr)? = o.into_output().map_err(StoreError::error)?;
+        }
+
+        Ok(())
     }
 
     /// The current top address of the stack.
