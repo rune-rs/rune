@@ -308,6 +308,12 @@ where
                 self.write("<dd>")?;
             }
             Tag::MetadataBlock(..) => {}
+            Tag::Superscript => {
+                self.write("<sup>")?;
+            }
+            Tag::Subscript => {
+                self.write("<sub>")?;
+            }
         }
 
         Ok(())
@@ -451,6 +457,12 @@ where
                 self.write("</dd>")?;
             }
             TagEnd::MetadataBlock(..) => {}
+            TagEnd::Superscript => {
+                self.write("</sup>")?;
+            }
+            TagEnd::Subscript => {
+                self.write("</sub>")?;
+            }
         }
 
         Ok(())
