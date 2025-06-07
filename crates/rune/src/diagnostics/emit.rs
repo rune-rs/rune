@@ -22,7 +22,7 @@ use crate::hash::Hash;
 use crate::runtime::DebugInfo;
 use crate::runtime::{DebugInst, Protocol, Unit, VmError, VmErrorAt, VmErrorKind};
 use crate::Context;
-use crate::{Diagnostics, Source, SourceId, Sources};
+use crate::{Diagnostics, SourceId, Sources};
 
 struct StackFrame {
     source_id: SourceId,
@@ -417,108 +417,6 @@ impl Unit {
 
         Ok(())
     }
-}
-
-impl Source {
-    /// Print formatted diagnostics about a source conveniently.
-    pub fn source_line(&self, span: Span) -> Option<SourceLine<'_>> {
-        let (count, column, line, span) = line_for(self, span)?;
-
-        Some(SourceLine {
-            name: self.name(),
-            count,
-            column,
-            line,
-            span,
-        })
-    }
-}
-
-/// An extracted source line.
-pub struct SourceLine<'a> {
-    name: &'a str,
-    count: usize,
-    column: usize,
-    line: &'a str,
-    span: Span,
-}
-
-impl SourceLine<'_> {
-    /// Write a source line to the given output.
-    pub fn write(&self, o: &mut dyn WriteColor) -> io::Result<()> {
-        let mut highlight = termcolor::ColorSpec::new();
-        highlight.set_fg(Some(termcolor::Color::Yellow));
-
-        let mut new_line = termcolor::ColorSpec::new();
-        new_line.set_fg(Some(termcolor::Color::Red));
-
-        let line = self.line.trim_end();
-        let end = self.span.end.into_usize().min(line.len());
-
-        let before = &line[0..self.span.start.into_usize()].trim_start();
-        let inner = &line[self.span.start.into_usize()..end];
-        let after = &line[end..];
-
-        {
-            let name = self.name;
-            let column = self.count + 1;
-            let start = self.column + 1;
-            let end = start + inner.chars().count();
-            write!(o, "{name}:{column}:{start}-{end}: ")?;
-        }
-
-        write!(o, "{before}")?;
-        o.set_color(&highlight)?;
-        write!(o, "{inner}")?;
-        o.reset()?;
-        write!(o, "{after}")?;
-
-        if self.span.end != end {
-            o.set_color(&new_line)?;
-            write!(o, "\\n")?;
-            o.reset()?;
-        }
-
-        Ok(())
-    }
-}
-
-/// Get the line number and source line for the given source and span.
-pub fn line_for(source: &Source, span: Span) -> Option<(usize, usize, &str, Span)> {
-    let line_starts = source.line_starts();
-
-    let line = match line_starts.binary_search(&span.start.into_usize()) {
-        Ok(n) => n,
-        Err(n) => n.saturating_sub(1),
-    };
-
-    let start = *line_starts.get(line)?;
-    let end = line.checked_add(1)?;
-
-    let s = if let Some(end) = line_starts.get(end) {
-        source.get(start..*end)?
-    } else {
-        source.get(start..)?
-    };
-
-    let line_end = span.start.into_usize().saturating_sub(start);
-    let column = s
-        .get(..line_end)
-        .into_iter()
-        .flat_map(|s| s.chars())
-        .count();
-
-    let start = start.try_into().unwrap();
-
-    Some((
-        line,
-        column,
-        s,
-        Span::new(
-            span.start.saturating_sub(start),
-            span.end.saturating_sub(start),
-        ),
-    ))
 }
 
 /// Helper to emit diagnostics for a warning.

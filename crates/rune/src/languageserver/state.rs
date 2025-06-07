@@ -123,8 +123,8 @@ impl StateEncoding {
     /// Get line column out of source.
     pub(super) fn source_position(&self, source: &Source, at: usize) -> Result<lsp::Position> {
         let (l, c) = match self {
-            StateEncoding::Utf16 => source.pos_to_utf16cu_linecol(at),
-            StateEncoding::Utf8 => source.pos_to_utf8_linecol(at),
+            StateEncoding::Utf16 => source.find_utf16cu_line_column(at),
+            StateEncoding::Utf8 => source.find_line_column(at),
         };
 
         Ok(lsp::Position {
