@@ -26,7 +26,7 @@ pub struct AccessError {
 
 impl AccessError {
     #[inline]
-    pub(crate) const fn new(kind: AccessErrorKind) -> Self {
+    const fn new(kind: AccessErrorKind) -> Self {
         Self { kind }
     }
 }
@@ -53,16 +53,9 @@ impl fmt::Display for AccessError {
 
 impl core::error::Error for AccessError {}
 
-impl From<AccessErrorKind> for AccessError {
-    #[inline]
-    fn from(kind: AccessErrorKind) -> Self {
-        AccessError::new(kind)
-    }
-}
-
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
-pub(crate) enum AccessErrorKind {
+enum AccessErrorKind {
     NotAccessibleRef(Snapshot),
     NotAccessibleMut(Snapshot),
     NotAccessibleTake(Snapshot),

@@ -14,7 +14,7 @@ pub use self::dynamic::{DynamicEmpty, DynamicStruct, DynamicTuple};
 
 mod access;
 pub use self::access::AccessError;
-pub(crate) use self::access::{Access, AccessErrorKind, RawAccessGuard, Snapshot};
+pub(crate) use self::access::{Access, RawAccessGuard, Snapshot};
 
 mod borrow_mut;
 pub use self::borrow_mut::BorrowMut;
