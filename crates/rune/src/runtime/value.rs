@@ -37,9 +37,9 @@ use crate::{Any, Hash, TypeHash};
 use super::{
     AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
     ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
-    IntoOutput, Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller,
-    RawAnyObjGuard, Ref, RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmError,
-    VmErrorKind, VmIntegerRepr,
+    Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref,
+    RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmError, VmErrorKind,
+    VmIntegerRepr,
 };
 
 /// Defined guard for a reference value.
@@ -1578,13 +1578,6 @@ impl From<()> for Value {
     }
 }
 
-impl IntoOutput for () {
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        Ok(Value::from(()))
-    }
-}
-
 impl From<Inline> for Value {
     #[inline]
     fn from(value: Inline) -> Self {
@@ -1646,13 +1639,6 @@ where
         Self {
             repr: Repr::Any(value.into_any_obj()),
         }
-    }
-}
-
-impl IntoOutput for Inline {
-    #[inline]
-    fn into_output(self) -> Result<Value, RuntimeError> {
-        Ok(Value::from(self))
     }
 }
 
