@@ -10,19 +10,35 @@ use crate::sync::Arc;
 use crate::{vm_error, Any, Hash, ItemBuf};
 
 use super::{
-    AccessError, AccessErrorKind, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, BoxedPanic,
-    CallFrame, DynArgsUsed, ExecutionState, Panic, Protocol, SliceError, StackError, StaticString,
-    StoreError, StoreErrorKind, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
+    AccessError, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, BoxedPanic, CallFrame,
+    DynArgsUsed, ExecutionState, Panic, Protocol, SliceError, StackError, StaticString, StoreError,
+    StoreErrorKind, TypeInfo, TypeOf, Unit, Vm, VmHaltInfo,
 };
+
+macro_rules! from_new {
+    (
+        $($ty:ty { $($from:ty),* $(,)? })*
+    ) => {
+        $($(
+            impl From<$from> for $ty {
+                #[inline]
+                fn from(error: $from) -> Self {
+                    Self::new(error)
+                }
+            }
+        )*)*
+    }
+}
 
 vm_error!(VmError);
 
 /// A virtual machine error which includes tracing information.
 pub struct VmError {
-    pub(crate) inner: Box<VmErrorInner>,
+    inner: Box<VmErrorInner>,
 }
 
 impl VmError {
+    #[inline]
     pub(crate) fn new<E>(error: E) -> Self
     where
         VmErrorKind: From<E>,
@@ -41,6 +57,7 @@ impl VmError {
     }
 
     /// Construct an error containing a panic.
+    #[inline]
     pub fn panic<D>(message: D) -> Self
     where
         D: 'static + BoxedPanic,
@@ -50,6 +67,7 @@ impl VmError {
 
     /// Construct an expectation error. The actual type received is `actual`,
     /// but we expected `E`.
+    #[inline]
     pub fn expected<E>(actual: TypeInfo) -> Self
     where
         E: ?Sized + TypeOf,
@@ -58,25 +76,42 @@ impl VmError {
     }
 
     /// Get the location where the error happened.
+    #[inline]
     pub fn at(&self) -> &VmErrorAt {
         &self.inner.error
     }
 
+    /// Get the top-level error.
+    #[inline]
+    pub fn error(&self) -> &VmErrorAt {
+        &self.inner.error
+    }
+
     /// Get the full backtrace of errors and their corresponding instructions.
+    #[inline]
     pub fn chain(&self) -> &[VmErrorAt] {
         &self.inner.chain
     }
 
+    /// Get the full backtrace of errors and their corresponding instructions.
+    #[inline]
+    pub fn stacktrace(&self) -> &[VmErrorLocation] {
+        &self.inner.stacktrace
+    }
+
     /// Construct an overflow error.
+    #[inline]
     pub fn overflow() -> Self {
         Self::from(VmErrorKind::Overflow)
     }
 
     /// Get the first error location.
+    #[inline]
     pub fn first_location(&self) -> Option<&VmErrorLocation> {
         self.inner.stacktrace.first()
     }
 
+    #[inline]
     pub(crate) fn into_kind(self) -> VmErrorKind {
         self.inner.error.kind
     }
@@ -250,6 +285,16 @@ impl From<Panic> for VmErrorKind {
     }
 }
 
+impl From<ExpectedType> for VmErrorKind {
+    #[inline]
+    fn from(expected: ExpectedType) -> Self {
+        VmErrorKind::ExpectedType {
+            expected: expected.expected,
+            actual: expected.actual,
+        }
+    }
+}
+
 /// A expected error.
 pub struct ExpectedType {
     pub(crate) expected: TypeInfo,
@@ -274,24 +319,32 @@ vm_error!(RuntimeError);
 /// An opaque simple runtime error.
 #[cfg_attr(test, derive(PartialEq))]
 pub struct RuntimeError {
-    error: VmErrorKind,
+    error: Box<VmErrorKind>,
 }
 
 impl RuntimeError {
-    pub(crate) fn new(error: VmErrorKind) -> Self {
-        Self { error }
+    #[inline]
+    pub(crate) fn new<E>(error: E) -> Self
+    where
+        VmErrorKind: From<E>,
+    {
+        Self {
+            error: Box::new(VmErrorKind::from(error)),
+        }
     }
 
+    #[inline]
     pub(crate) fn into_vm_error_kind(self) -> VmErrorKind {
-        self.error
+        *self.error
     }
 
     /// Construct an error containing a panic.
+    #[inline]
     pub fn panic<D>(message: D) -> Self
     where
         D: 'static + BoxedPanic,
     {
-        Self::new(VmErrorKind::from(Panic::custom(message)))
+        Self::new(Panic::custom(message))
     }
 
     /// Bad argument count.
@@ -344,27 +397,19 @@ impl RuntimeError {
     }
 }
 
-impl fmt::Debug for RuntimeError {
+impl core::error::Error for RuntimeError {}
+
+impl fmt::Display for RuntimeError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.error.fmt(f)
     }
 }
 
-impl From<Infallible> for RuntimeError {
+impl fmt::Debug for RuntimeError {
     #[inline]
-    fn from(error: Infallible) -> Self {
-        match error {}
-    }
-}
-
-impl From<AnySequenceTakeError> for RuntimeError {
-    #[inline]
-    fn from(value: AnySequenceTakeError) -> Self {
-        match value {
-            AnySequenceTakeError::Access(error) => Self::from(error),
-            AnySequenceTakeError::Alloc(error) => Self::from(error),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(f)
     }
 }
 
@@ -375,87 +420,19 @@ impl From<VmError> for RuntimeError {
     }
 }
 
-impl From<alloc::Error> for RuntimeError {
-    #[inline]
-    fn from(error: alloc::Error) -> Self {
-        RuntimeError::from(VmErrorKind::from(error))
+from_new! {
+    RuntimeError {
+        alloc::Error,
+        alloc::alloc::AllocError,
+        AccessError,
+        AnySequenceTakeError,
+        AnyObjError,
+        Infallible,
+        StackError,
+        VmErrorKind,
+        ExpectedType,
     }
 }
-
-impl From<alloc::alloc::AllocError> for RuntimeError {
-    #[inline]
-    fn from(error: alloc::alloc::AllocError) -> Self {
-        RuntimeError::from(VmErrorKind::from(error))
-    }
-}
-
-impl From<AnyObjError> for RuntimeError {
-    #[inline]
-    fn from(value: AnyObjError) -> Self {
-        match value.into_kind() {
-            AnyObjErrorKind::Alloc(error) => Self::from(error),
-            AnyObjErrorKind::Cast(expected, actual) => Self::new(VmErrorKind::ExpectedType {
-                expected: TypeInfo::any_type_info(expected),
-                actual,
-            }),
-            AnyObjErrorKind::AccessError(error) => Self::from(error),
-            AnyObjErrorKind::NotOwned(type_info) => Self::new(VmErrorKind::NotOwned { type_info }),
-        }
-    }
-}
-
-impl From<AccessError> for RuntimeError {
-    #[inline]
-    fn from(error: AccessError) -> Self {
-        Self {
-            error: VmErrorKind::from(error),
-        }
-    }
-}
-
-impl From<StackError> for RuntimeError {
-    #[inline]
-    fn from(error: StackError) -> Self {
-        Self {
-            error: VmErrorKind::from(error),
-        }
-    }
-}
-
-impl From<AccessErrorKind> for RuntimeError {
-    #[inline]
-    fn from(error: AccessErrorKind) -> Self {
-        Self {
-            error: VmErrorKind::from(AccessError::from(error)),
-        }
-    }
-}
-
-impl From<VmErrorKind> for RuntimeError {
-    #[inline]
-    fn from(error: VmErrorKind) -> Self {
-        Self { error }
-    }
-}
-
-impl From<ExpectedType> for RuntimeError {
-    #[inline]
-    fn from(expected: ExpectedType) -> Self {
-        Self::from(VmErrorKind::ExpectedType {
-            expected: expected.expected,
-            actual: expected.actual,
-        })
-    }
-}
-
-impl fmt::Display for RuntimeError {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.error.fmt(f)
-    }
-}
-
-impl core::error::Error for RuntimeError {}
 
 /// The kind of error encountered.
 #[derive(Debug)]
@@ -935,6 +912,13 @@ impl fmt::Display for VmErrorKind {
     }
 }
 
+impl From<Infallible> for VmErrorKind {
+    #[inline]
+    fn from(error: Infallible) -> Self {
+        match error {}
+    }
+}
+
 impl<E> From<StoreError<E>> for VmErrorKind
 where
     VmErrorKind: From<E>,
@@ -967,15 +951,16 @@ impl From<AnySequenceTakeError> for VmErrorKind {
 
 impl From<AnyObjError> for VmErrorKind {
     #[inline]
-    fn from(error: AnyObjError) -> Self {
-        Self::from(RuntimeError::from(error))
-    }
-}
-
-impl From<Infallible> for VmErrorKind {
-    #[inline]
-    fn from(error: Infallible) -> Self {
-        match error {}
+    fn from(value: AnyObjError) -> Self {
+        match value.into_kind() {
+            AnyObjErrorKind::Alloc(error) => Self::from(error),
+            AnyObjErrorKind::Cast(expected, actual) => VmErrorKind::ExpectedType {
+                expected: TypeInfo::any_type_info(expected),
+                actual,
+            },
+            AnyObjErrorKind::AccessError(error) => Self::from(error),
+            AnyObjErrorKind::NotOwned(type_info) => VmErrorKind::NotOwned { type_info },
+        }
     }
 }
 

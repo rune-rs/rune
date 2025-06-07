@@ -174,7 +174,7 @@ impl VmError {
         let mut backtrace = vec![];
         let config = term::Config::default();
 
-        for l in &self.inner.stacktrace {
+        for l in self.stacktrace() {
             let debug_info = match l.unit.debug_info() {
                 Some(debug_info) => debug_info,
                 None => continue,
@@ -200,19 +200,19 @@ impl VmError {
         let mut notes = rust_alloc::vec::Vec::new();
 
         let get = |at: &VmErrorAt| -> Option<&DebugInst> {
-            let l = self.inner.stacktrace.get(at.index())?;
+            let l = self.stacktrace().get(at.index())?;
             let debug_info = l.unit.debug_info()?;
             let debug_inst = debug_info.instruction_at(l.ip)?;
             Some(debug_inst)
         };
 
         let get_ident = |at: &VmErrorAt, hash: Hash| {
-            let l = self.inner.stacktrace.get(at.index())?;
+            let l = self.stacktrace().get(at.index())?;
             let debug_info = l.unit.debug_info()?;
             debug_info.ident_for_hash(hash)
         };
 
-        for at in &self.inner.chain {
+        for at in self.chain() {
             // Populate source-specific notes.
             match at.kind() {
                 VmErrorKind::UnsupportedBinaryOperation { lhs, rhs, .. } => {
@@ -242,15 +242,15 @@ impl VmError {
 
         if let Some(&DebugInst {
             source_id, span, ..
-        }) = get(&self.inner.error)
+        }) = get(self.error())
         {
             labels.push(
                 d::Label::primary(source_id, span.range())
-                    .with_message(self.inner.error.try_to_string()?),
+                    .with_message(self.error().try_to_string()?),
             );
         };
 
-        for at in [&self.inner.error].into_iter().chain(&self.inner.chain) {
+        for at in [self.error()].into_iter().chain(self.chain()) {
             // Populate source-specific notes.
             if let VmErrorKind::MissingInstanceFunction { hash, instance } = at.kind() {
                 // Undo instance function hashing to extract the hash of the
@@ -284,7 +284,7 @@ impl VmError {
         }
 
         let diagnostic = d::Diagnostic::error()
-            .with_message(self.inner.error.try_to_string()?)
+            .with_message(self.error().try_to_string()?)
             .with_labels(labels)
             .with_notes(notes);
 
