@@ -8,7 +8,11 @@ use crate::testing::*;
 use super::super::navigate;
 use super::*;
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     // Asserts that the back pointer in each reachable node points to its parent.
     pub fn assert_back_pointers(self) {
         if let ForceResult::Internal(node) = self.force() {

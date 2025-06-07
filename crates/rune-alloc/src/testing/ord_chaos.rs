@@ -61,13 +61,20 @@ impl Governor {
 #[derive(Debug)]
 pub struct Governed<'a, T>(pub T, pub &'a Governor);
 
-impl<T: Ord> PartialOrd for Governed<'_, T> {
+impl<T> PartialOrd for Governed<'_, T>
+where
+    T: Ord,
+{
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: Ord> Ord for Governed<'_, T> {
+impl<T> Ord for Governed<'_, T>
+where
+    T: Ord,
+{
     fn cmp(&self, other: &Self) -> Ordering {
         assert!(ptr::eq(self.1, other.1));
         let ord = self.0.cmp(&other.0);
@@ -79,11 +86,14 @@ impl<T: Ord> Ord for Governed<'_, T> {
     }
 }
 
-impl<T: PartialEq> PartialEq for Governed<'_, T> {
+impl<T> PartialEq for Governed<'_, T>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         assert!(ptr::eq(self.1, other.1));
         self.0.eq(&other.0)
     }
 }
 
-impl<T: Eq> Eq for Governed<'_, T> {}
+impl<T> Eq for Governed<'_, T> where T: Eq {}

@@ -165,14 +165,20 @@ macro_rules! impl_is_zero_option_of_num {
 
 impl_is_zero_option_of_num!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize,);
 
-unsafe impl<T: IsZero> IsZero for Wrapping<T> {
+unsafe impl<T> IsZero for Wrapping<T>
+where
+    T: IsZero,
+{
     #[inline]
     fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
 }
 
-unsafe impl<T: IsZero> IsZero for Saturating<T> {
+unsafe impl<T> IsZero for Saturating<T>
+where
+    T: IsZero,
+{
     #[inline]
     fn is_zero(&self) -> bool {
         self.0.is_zero()

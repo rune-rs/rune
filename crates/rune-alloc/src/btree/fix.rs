@@ -3,7 +3,11 @@ use crate::alloc::Allocator;
 use super::map::MIN_LEN;
 use super::node::{marker, ForceResult::*, Handle, LeftOrRight::*, NodeRef, Root};
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Stocks up a possibly underfull node by merging with or stealing from a
     /// sibling. If successful but at the cost of shrinking the parent node,
     /// returns that shrunk parent node. Returns an `Err` if the node is
@@ -50,7 +54,11 @@ impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Stocks up a possibly underfull node, and if that causes its parent node
     /// to shrink, stocks up the parent, recursively.
     /// Returns `true` if it fixed the tree, `false` if it couldn't because the
@@ -134,7 +142,11 @@ impl<K, V> Root<K, V> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     fn fix_left_border_of_left_edge<A>(mut self, alloc: &A)
     where
         A: Allocator,
@@ -156,7 +168,11 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInter
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Stocks up the left child, assuming the right child isn't underfull, and
     /// provisions an extra element to allow merging its children in turn
     /// without becoming underfull.

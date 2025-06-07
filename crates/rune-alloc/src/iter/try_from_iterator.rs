@@ -6,7 +6,11 @@ use crate::error::Error;
 /// By implementing `TryFromIteratorIn` for a type, you define how it will be
 /// created from an iterator. This is common for types which describe a
 /// collection of some kind.
-pub trait TryFromIteratorIn<T, A: Allocator>: Sized {
+pub trait TryFromIteratorIn<T, A>
+where
+    Self: Sized,
+    A: Allocator,
+{
     /// Creates a value from an iterator within an allocator.
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where
@@ -38,9 +42,10 @@ where
     }
 }
 
-impl<T, U, E, A: Allocator> TryFromIteratorIn<Result<T, E>, A> for Result<U, E>
+impl<T, U, E, A> TryFromIteratorIn<Result<T, E>, A> for Result<U, E>
 where
     U: TryFromIteratorIn<T, A>,
+    A: Allocator,
 {
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where

@@ -47,7 +47,10 @@ unsafe impl<T: Send + ?Sized> Send for Unique<T> {}
 /// `Unique` must enforce it.
 unsafe impl<T: Sync + ?Sized> Sync for Unique<T> {}
 
-impl<T: Sized> Unique<T> {
+impl<T> Unique<T>
+where
+    T: Sized,
+{
     /// Creates a new `Unique` that is dangling, but well-aligned.
     ///
     /// This is useful for initializing types which lazily allocate, like

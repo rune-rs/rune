@@ -31,7 +31,9 @@ mod seed {
     /// A DeserializeSeed helper for implementing deserialize_in_place Visitors.
     ///
     /// Wraps a mutable reference and calls deserialize_in_place on it.
-    pub struct InPlaceSeed<'a, T: 'a>(pub &'a mut T);
+    pub struct InPlaceSeed<'a, T>(pub &'a mut T)
+    where
+        T: 'a;
 
     impl<'de, T> DeserializeSeed<'de> for InPlaceSeed<'_, T>
     where
@@ -118,7 +120,9 @@ where
     where
         D: Deserializer<'de>,
     {
-        struct VecInPlaceVisitor<'a, T: 'a>(&'a mut Vec<T>);
+        struct VecInPlaceVisitor<'a, T>(&'a mut Vec<T>)
+        where
+            T: 'a;
 
         impl<'de, T> Visitor<'de> for VecInPlaceVisitor<'_, T>
         where

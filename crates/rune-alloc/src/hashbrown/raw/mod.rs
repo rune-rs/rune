@@ -438,7 +438,11 @@ impl<T> Bucket<T> {
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
-    /// fn make_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
+    /// fn make_hash<K, S>(hash_builder: &S, key: &K) -> u64
+    /// where
+    ///     K: Hash + ?Sized,
+    ///     S: BuildHasher,
+    /// {
     ///     use core::hash::Hasher;
     ///     let mut state = hash_builder.build_hasher();
     ///     key.hash(&mut state);
@@ -599,7 +603,11 @@ impl<T> Bucket<T> {
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
-    /// fn make_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
+    /// fn make_hash<K, S>(hash_builder: &S, key: &K) -> u64
+    /// where
+    ///     K: Hash + ?Sized,
+    ///     S: BuildHasher,
+    /// {
     ///     use core::hash::Hasher;
     ///     let mut state = hash_builder.build_hasher();
     ///     key.hash(&mut state);
@@ -653,7 +661,11 @@ impl<T> Bucket<T> {
     ///
     /// type NewHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
     ///
-    /// fn make_hash<K: Hash + ?Sized, S: BuildHasher>(hash_builder: &S, key: &K) -> u64 {
+    /// fn make_hash<K, S>(hash_builder: &S, key: &K) -> u64
+    /// where
+    ///     K: Hash + ?Sized,
+    ///     S: BuildHasher,
+    /// {
     ///     use core::hash::Hasher;
     ///     let mut state = hash_builder.build_hasher();
     ///     key.hash(&mut state);
@@ -768,7 +780,10 @@ impl<T> RawTable<T, Global> {
     }
 }
 
-impl<T, A: Allocator> RawTable<T, A> {
+impl<T, A> RawTable<T, A>
+where
+    A: Allocator,
+{
     const TABLE_LAYOUT: TableLayout = TableLayout::new::<T>();
 
     /// Creates a new empty hash table without allocating any memory, using the
@@ -1546,16 +1561,16 @@ impl<T, A: Allocator> RawTable<T, A> {
     }
 }
 
-unsafe impl<T, A: Allocator> Send for RawTable<T, A>
+unsafe impl<T, A> Send for RawTable<T, A>
 where
     T: Send,
-    A: Send,
+    A: Allocator + Send,
 {
 }
-unsafe impl<T, A: Allocator> Sync for RawTable<T, A>
+unsafe impl<T, A> Sync for RawTable<T, A>
 where
     T: Sync,
-    A: Sync,
+    A: Allocator + Sync,
 {
 }
 
@@ -2142,7 +2157,10 @@ impl RawTableInner {
     /// [`RawTableInner::drop_elements`]: RawTableInner::drop_elements
     /// [`RawTableInner::free_buckets`]: RawTableInner::free_buckets
     /// [`undefined behavior`]: https://doc.rust-lang.org/reference/behavior-considered-undefined.html
-    unsafe fn drop_inner_table<T, A: Allocator>(&mut self, alloc: &A, table_layout: TableLayout) {
+    unsafe fn drop_inner_table<T, A>(&mut self, alloc: &A, table_layout: TableLayout)
+    where
+        A: Allocator,
+    {
         if !self.is_empty_singleton() {
             unsafe {
                 // SAFETY: The caller must uphold the safety contract for `drop_inner_table` method.
@@ -3250,7 +3268,10 @@ impl<T, A: Allocator + Default> Default for RawTable<T, A> {
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawTable<T, A> {
+unsafe impl<#[may_dangle] T, A> Drop for RawTable<T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn drop(&mut self) {
         unsafe {
@@ -3267,7 +3288,10 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawTable<T, A> {
     }
 }
 #[cfg(not(rune_nightly))]
-impl<T, A: Allocator> Drop for RawTable<T, A> {
+impl<T, A> Drop for RawTable<T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn drop(&mut self) {
         unsafe {
@@ -3284,7 +3308,10 @@ impl<T, A: Allocator> Drop for RawTable<T, A> {
     }
 }
 
-impl<T, A: Allocator> IntoIterator for RawTable<T, A> {
+impl<T, A> IntoIterator for RawTable<T, A>
+where
+    A: Allocator,
+{
     type Item = T;
     type IntoIter = RawIntoIter<T, A>;
 
@@ -3736,28 +3763,34 @@ pub struct RawIntoIter<T, A: Allocator = Global> {
     marker: PhantomData<T>,
 }
 
-impl<T, A: Allocator> RawIntoIter<T, A> {
+impl<T, A> RawIntoIter<T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn iter(&self) -> RawIter<T> {
         self.iter.clone()
     }
 }
 
-unsafe impl<T, A: Allocator> Send for RawIntoIter<T, A>
+unsafe impl<T, A> Send for RawIntoIter<T, A>
 where
     T: Send,
-    A: Send,
+    A: Allocator + Send,
 {
 }
-unsafe impl<T, A: Allocator> Sync for RawIntoIter<T, A>
+unsafe impl<T, A> Sync for RawIntoIter<T, A>
 where
     T: Sync,
-    A: Sync,
+    A: Allocator + Sync,
 {
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawIntoIter<T, A> {
+unsafe impl<#[may_dangle] T, A> Drop for RawIntoIter<T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn drop(&mut self) {
         unsafe {
@@ -3772,7 +3805,10 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for RawIntoIter<T, A> {
     }
 }
 #[cfg(not(rune_nightly))]
-impl<T, A: Allocator> Drop for RawIntoIter<T, A> {
+impl<T, A> Drop for RawIntoIter<T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn drop(&mut self) {
         unsafe {
@@ -3787,7 +3823,10 @@ impl<T, A: Allocator> Drop for RawIntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> Iterator for RawIntoIter<T, A> {
+impl<T, A> Iterator for RawIntoIter<T, A>
+where
+    A: Allocator,
+{
     type Item = T;
 
     #[cfg_attr(feature = "inline-more", inline)]
@@ -3801,8 +3840,8 @@ impl<T, A: Allocator> Iterator for RawIntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> ExactSizeIterator for RawIntoIter<T, A> {}
-impl<T, A: Allocator> FusedIterator for RawIntoIter<T, A> {}
+impl<T, A> ExactSizeIterator for RawIntoIter<T, A> where A: Allocator {}
+impl<T, A> FusedIterator for RawIntoIter<T, A> where A: Allocator {}
 
 /// Iterator which consumes elements without freeing the table storage.
 pub struct RawDrain<'a, T, A: Allocator = Global> {
@@ -3819,27 +3858,33 @@ pub struct RawDrain<'a, T, A: Allocator = Global> {
     marker: PhantomData<&'a RawTable<T, A>>,
 }
 
-impl<T, A: Allocator> RawDrain<'_, T, A> {
+impl<T, A> RawDrain<'_, T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     pub fn iter(&self) -> RawIter<T> {
         self.iter.clone()
     }
 }
 
-unsafe impl<T, A: Allocator> Send for RawDrain<'_, T, A>
+unsafe impl<T, A> Send for RawDrain<'_, T, A>
 where
     T: Send,
-    A: Send,
+    A: Allocator + Send,
 {
 }
-unsafe impl<T, A: Allocator> Sync for RawDrain<'_, T, A>
+unsafe impl<T, A> Sync for RawDrain<'_, T, A>
 where
     T: Sync,
-    A: Sync,
+    A: Allocator + Sync,
 {
 }
 
-impl<T, A: Allocator> Drop for RawDrain<'_, T, A> {
+impl<T, A> Drop for RawDrain<'_, T, A>
+where
+    A: Allocator,
+{
     #[cfg_attr(feature = "inline-more", inline)]
     fn drop(&mut self) {
         unsafe {
@@ -3858,7 +3903,10 @@ impl<T, A: Allocator> Drop for RawDrain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> Iterator for RawDrain<'_, T, A> {
+impl<T, A> Iterator for RawDrain<'_, T, A>
+where
+    A: Allocator,
+{
     type Item = T;
 
     #[cfg_attr(feature = "inline-more", inline)]
@@ -3875,8 +3923,8 @@ impl<T, A: Allocator> Iterator for RawDrain<'_, T, A> {
     }
 }
 
-impl<T, A: Allocator> ExactSizeIterator for RawDrain<'_, T, A> {}
-impl<T, A: Allocator> FusedIterator for RawDrain<'_, T, A> {}
+impl<T, A> ExactSizeIterator for RawDrain<'_, T, A> where A: Allocator {}
+impl<T, A> FusedIterator for RawDrain<'_, T, A> where A: Allocator {}
 
 /// Iterator over occupied buckets that could match a given hash.
 ///
@@ -3920,7 +3968,10 @@ struct RawIterHashInner {
 
 impl<T> RawIterHash<T> {
     #[cfg_attr(feature = "inline-more", inline)]
-    unsafe fn new<A: Allocator>(table: &RawTable<T, A>, hash: u64) -> Self {
+    unsafe fn new<A>(table: &RawTable<T, A>, hash: u64) -> Self
+    where
+        A: Allocator,
+    {
         RawIterHash {
             inner: RawIterHashInner::new(&table.table, hash),
             _marker: PhantomData,

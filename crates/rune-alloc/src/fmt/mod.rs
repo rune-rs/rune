@@ -27,7 +27,10 @@ pub trait TryWrite {
     /// use rune::alloc::fmt::TryWrite;
     /// use rune::alloc::{String, Error};
     ///
-    /// fn writer<W: TryWrite>(f: &mut W, s: &str) -> Result<(), Error> {
+    /// fn writer<W>(f: &mut W, s: &str) -> Result<(), Error>
+    /// where
+    ///     W: ?Sized + TryWrite,
+    /// {
     ///     f.try_write_str(s)
     /// }
     ///
@@ -55,7 +58,10 @@ pub trait TryWrite {
     /// use rune::alloc::fmt::TryWrite;
     /// use rune::alloc::{String, Error};
     ///
-    /// fn writer<W: TryWrite>(f: &mut W, c: char) -> Result<(), Error> {
+    /// fn writer<W>(f: &mut W, c: char) -> Result<(), Error>
+    /// where
+    ///     W: ?Sized + TryWrite,
+    /// {
     ///     f.try_write_char(c)
     /// }
     ///

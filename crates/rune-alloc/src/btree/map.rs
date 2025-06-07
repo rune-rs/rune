@@ -261,7 +261,12 @@ where
 {
 }
 
-impl<K: TryClone, V: TryClone, A: Allocator + Clone> TryClone for BTreeMap<K, V, A> {
+impl<K, V, A> TryClone for BTreeMap<K, V, A>
+where
+    K: TryClone,
+    V: TryClone,
+    A: Allocator + Clone,
+{
     fn try_clone(&self) -> Result<BTreeMap<K, V, A>, Error> {
         fn clone_subtree<'a, K, V, A>(
             node: NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>,
@@ -524,18 +529,31 @@ impl<K, V> Clone for IterRaw<K, V> {
 ///
 /// [`iter`]: BTreeMap::iter
 #[must_use = "iterators are lazy and do nothing unless consumed"]
-pub struct Iter<'a, K: 'a, V: 'a> {
+pub struct Iter<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     range: LazyLeafRange<marker::Immut<'a>, K, V>,
     length: usize,
 }
 
-impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Iter<'_, K, V> {
+impl<K, V> fmt::Debug for Iter<'_, K, V>
+where
+    K: fmt::Debug,
+    V: fmt::Debug,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
 }
 
-impl<'a, K: 'a, V: 'a> Default for Iter<'a, K, V> {
+impl<'a, K, V> Default for Iter<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Creates an empty `btree_map::Iter`.
     ///
     /// ```
@@ -544,6 +562,7 @@ impl<'a, K: 'a, V: 'a> Default for Iter<'a, K, V> {
     /// let iter: btree_map::Iter<'_, u8, u8> = Default::default();
     /// assert_eq!(iter.len(), 0);
     /// ```
+    #[inline]
     fn default() -> Self {
         Iter {
             range: Default::default(),
@@ -558,7 +577,11 @@ impl<'a, K: 'a, V: 'a> Default for Iter<'a, K, V> {
 /// documentation for more.
 ///
 /// [`iter_mut`]: BTreeMap::iter_mut
-pub struct IterMut<'a, K: 'a, V: 'a> {
+pub struct IterMut<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     range: LazyLeafRange<marker::ValMut<'a>, K, V>,
     length: usize,
 
@@ -576,7 +599,11 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for IterMut<'_, K, V> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> Default for IterMut<'a, K, V> {
+impl<'a, K, V> Default for IterMut<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Creates an empty `btree_map::IterMut`.
     ///
     /// ```
@@ -762,7 +789,11 @@ where
 ///
 /// [`range`]: BTreeMap::range
 #[must_use = "iterators are lazy and do nothing unless consumed"]
-pub struct Range<'a, K: 'a, V: 'a> {
+pub struct Range<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     inner: LeafRange<marker::Immut<'a>, K, V>,
 }
 
@@ -779,7 +810,11 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Range<'_, K, V> {
 ///
 /// [`range_mut`]: BTreeMap::range_mut
 #[must_use = "iterators are lazy and do nothing unless consumed"]
-pub struct RangeMut<'a, K: 'a, V: 'a> {
+pub struct RangeMut<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     inner: LeafRange<marker::ValMut<'a>, K, V>,
 
     // Be invariant in `K` and `V`
@@ -1900,7 +1935,11 @@ where
     }
 }
 
-impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
+impl<'a, K, V> Iterator for Iter<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     type Item = (&'a K, &'a V);
 
     #[inline]
@@ -1942,7 +1981,11 @@ impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
 
 impl<K, V> FusedIterator for Iter<'_, K, V> {}
 
-impl<'a, K: 'a, V: 'a> DoubleEndedIterator for Iter<'a, K, V> {
+impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     #[inline]
     fn next_back(&mut self) -> Option<(&'a K, &'a V)> {
         if self.length == 0 {
@@ -2676,7 +2719,11 @@ impl<'a, K, V> DoubleEndedIterator for RangeMut<'a, K, V> {
 
 impl<K, V> FusedIterator for RangeMut<'_, K, V> {}
 
-impl<K: Ord, V, A: Allocator + Clone> TryExtend<(K, V)> for BTreeMap<K, V, A> {
+impl<K, V, A> TryExtend<(K, V)> for BTreeMap<K, V, A>
+where
+    K: Ord,
+    A: Allocator + Clone,
+{
     #[inline]
     fn try_extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) -> Result<(), Error> {
         for (k, v) in iter {
@@ -2688,15 +2735,22 @@ impl<K: Ord, V, A: Allocator + Clone> TryExtend<(K, V)> for BTreeMap<K, V, A> {
 }
 
 #[cfg(test)]
-impl<K: Ord, V, A: Allocator + Clone> Extend<(K, V)> for BTreeMap<K, V, A> {
+impl<K, V, A> Extend<(K, V)> for BTreeMap<K, V, A>
+where
+    K: Ord,
+    A: Allocator + Clone,
+{
     #[inline]
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
         self.try_extend(iter).abort();
     }
 }
 
-impl<'a, K: Ord + Copy, V: Copy, A: Allocator + Clone> TryExtend<(&'a K, &'a V)>
-    for BTreeMap<K, V, A>
+impl<'a, K, V, A> TryExtend<(&'a K, &'a V)> for BTreeMap<K, V, A>
+where
+    K: Ord + Copy,
+    V: Copy,
+    A: Allocator + Clone,
 {
     #[inline]
     fn try_extend<I: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: I) -> Result<(), Error> {
@@ -2705,8 +2759,11 @@ impl<'a, K: Ord + Copy, V: Copy, A: Allocator + Clone> TryExtend<(&'a K, &'a V)>
 }
 
 #[cfg(test)]
-impl<'a, K: Ord + Copy, V: Copy, A: Allocator + Clone> Extend<(&'a K, &'a V)>
-    for BTreeMap<K, V, A>
+impl<'a, K, V, A> Extend<(&'a K, &'a V)> for BTreeMap<K, V, A>
+where
+    K: Ord + Copy,
+    V: Copy,
+    A: Allocator + Clone,
 {
     #[inline]
     fn extend<I: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: I) {
@@ -2721,7 +2778,10 @@ where
     A: Allocator,
 {
     #[inline]
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         state.write_usize(self.len());
 
         for elt in self {
@@ -3288,19 +3348,29 @@ where
 /// first elements of the tree.
 ///
 /// A `Cursor` is created with the [`BTreeMap::lower_bound`] and [`BTreeMap::upper_bound`] methods.
-pub struct Cursor<'a, K: 'a, V: 'a> {
+pub struct Cursor<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     current: Option<Handle<NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>, marker::KV>>,
     root: Option<&'a node::Root<K, V>>,
 }
 
 impl<K, V> Clone for Cursor<'_, K, V> {
+    #[inline]
     fn clone(&self) -> Self {
         let Cursor { current, root } = *self;
         Cursor { current, root }
     }
 }
 
-impl<K: Debug, V: Debug> Debug for Cursor<'_, K, V> {
+impl<K, V> Debug for Cursor<'_, K, V>
+where
+    K: Debug,
+    V: Debug,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Cursor").field(&self.key_value()).finish()
     }
@@ -3319,7 +3389,11 @@ impl<K: Debug, V: Debug> Debug for Cursor<'_, K, V> {
 ///
 /// A `Cursor` is created with the [`BTreeMap::lower_bound_mut`] and [`BTreeMap::upper_bound_mut`]
 /// methods.
-pub struct CursorMut<'a, K: 'a, V: 'a, A = Global> {
+pub struct CursorMut<'a, K, V, A = Global>
+where
+    K: 'a,
+    V: 'a,
+{
     current: Option<Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV>>,
     #[cfg_attr(not(test), allow(unused))]
     root: DormantMutRef<'a, Option<node::Root<K, V>>>,
@@ -3329,7 +3403,12 @@ pub struct CursorMut<'a, K: 'a, V: 'a, A = Global> {
     alloc: &'a mut A,
 }
 
-impl<K: Debug, V: Debug, A> Debug for CursorMut<'_, K, V, A> {
+impl<K, V, A> Debug for CursorMut<'_, K, V, A>
+where
+    K: Debug,
+    V: Debug,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("CursorMut").field(&self.key_value()).finish()
     }

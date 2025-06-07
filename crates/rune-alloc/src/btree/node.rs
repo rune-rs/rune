@@ -472,8 +472,13 @@ impl<BorrowType, K, V, Type> NodeRef<BorrowType, K, V, Type> {
     }
 }
 
-impl<'a, K: 'a, V: 'a, Type> NodeRef<marker::Immut<'a>, K, V, Type> {
+impl<'a, K, V, Type> NodeRef<marker::Immut<'a>, K, V, Type>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Exposes the leaf portion of any leaf or internal node in an immutable tree.
+    #[inline]
     fn into_leaf(self) -> &'a LeafNode<K, V> {
         let ptr = Self::as_leaf_ptr(&self);
         // SAFETY: there can be no mutable references into this tree borrowed as `Immut`.
@@ -510,10 +515,13 @@ impl<K, V> NodeRef<marker::Dying, K, V, marker::LeafOrInternal> {
     /// Similar to `ascend`, gets a reference to a node's parent node, but also
     /// deallocates the current node in the process. This is unsafe because the
     /// current node will still be accessible despite being deallocated.
-    pub(crate) unsafe fn deallocate_and_ascend<A: Allocator>(
+    pub(crate) unsafe fn deallocate_and_ascend<A>(
         self,
         alloc: &A,
-    ) -> Option<Handle<NodeRef<marker::Dying, K, V, marker::Internal>, marker::Edge>> {
+    ) -> Option<Handle<NodeRef<marker::Dying, K, V, marker::Internal>, marker::Edge>>
+    where
+        A: Allocator,
+    {
         let height = self.height;
         let node = self.node;
         let ret = self.ascend().ok();
@@ -600,7 +608,11 @@ impl<K, V, Type> NodeRef<marker::Dying, K, V, Type> {
     }
 }
 
-impl<'a, K: 'a, V: 'a, Type> NodeRef<marker::Mut<'a>, K, V, Type> {
+impl<'a, K, V, Type> NodeRef<marker::Mut<'a>, K, V, Type>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Borrows exclusive access to an element of the key storage area.
     ///
     /// # Safety
@@ -640,7 +652,11 @@ impl<'a, K: 'a, V: 'a, Type> NodeRef<marker::Mut<'a>, K, V, Type> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::Internal> {
+impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::Internal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Borrows exclusive access to an element or slice of the node's storage area for edge contents.
     ///
     /// # Safety
@@ -680,7 +696,11 @@ impl<'a, K, V, Type> NodeRef<marker::ValMut<'a>, K, V, Type> {
     }
 }
 
-impl<'a, K: 'a, V: 'a, Type> NodeRef<marker::Mut<'a>, K, V, Type> {
+impl<'a, K, V, Type> NodeRef<marker::Mut<'a>, K, V, Type>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Borrows exclusive access to the length of the node.
     pub(crate) fn len_mut(&mut self) -> &mut u16 {
         &mut self.as_leaf_mut().len
@@ -703,7 +723,11 @@ impl<K, V> NodeRef<marker::Mut<'_>, K, V, marker::Internal> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal> {
+impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Sets the node's link to its parent edge,
     /// without invalidating other references to the node.
     fn set_parent_link(&mut self, parent: NonNull<InternalNode<K, V>>, parent_idx: usize) {
@@ -724,17 +748,23 @@ impl<K, V> NodeRef<marker::Owned, K, V, marker::LeafOrInternal> {
 
 impl<K, V> NodeRef<marker::Owned, K, V, marker::LeafOrInternal> {
     /// Returns a new owned tree, with its own root node that is initially empty.
-    pub(crate) fn new<A: Allocator>(alloc: &A) -> Result<Self, AllocError> {
+    pub(crate) fn new<A>(alloc: &A) -> Result<Self, AllocError>
+    where
+        A: Allocator,
+    {
         Ok(NodeRef::new_leaf(alloc)?.forget_type())
     }
 
     /// Adds a new internal node with a single edge pointing to the previous root node,
     /// make that new node the root node, and return it. This increases the height by 1
     /// and is the opposite of `pop_internal_level`.
-    pub(crate) fn push_internal_level<A: Allocator>(
+    pub(crate) fn push_internal_level<A>(
         &mut self,
         alloc: &A,
-    ) -> Result<NodeRef<marker::Mut<'_>, K, V, marker::Internal>, AllocError> {
+    ) -> Result<NodeRef<marker::Mut<'_>, K, V, marker::Internal>, AllocError>
+    where
+        A: Allocator,
+    {
         super::mem::take_mut(self, |old_root| {
             Ok(NodeRef::new_internal(old_root, alloc)?.forget_type())
         })?;
@@ -756,7 +786,10 @@ impl<K, V> NodeRef<marker::Owned, K, V, marker::LeafOrInternal> {
     /// it will not invalidate other handles or references to the root node.
     ///
     /// Panics if there is no internal level, i.e., if the root node is a leaf.
-    pub(crate) fn pop_internal_level<A: Allocator>(&mut self, alloc: &A) {
+    pub(crate) fn pop_internal_level<A>(&mut self, alloc: &A)
+    where
+        A: Allocator,
+    {
         assert!(self.height > 0);
 
         let top = self.node;
@@ -808,7 +841,11 @@ impl<K, V, Type> NodeRef<marker::Owned, K, V, Type> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::Leaf> {
+impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::Leaf>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Adds a key-value pair to the end of the node, and returns
     /// the mutable reference of the inserted value.
     pub(crate) fn push(&mut self, key: K, val: V) -> &mut V {
@@ -823,7 +860,11 @@ impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::Leaf> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> NodeRef<marker::Mut<'a>, K, V, marker::Internal> {
+impl<'a, K, V> NodeRef<marker::Mut<'a>, K, V, marker::Internal>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Adds a key-value pair, and an edge to go to the right of that pair,
     /// to the end of the node.
     pub(crate) fn push(&mut self, key: K, val: V, edge: Root<K, V>) {
@@ -1099,7 +1140,11 @@ fn splitpoint(edge_idx: usize) -> (usize, LeftOrRight<usize>) {
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Inserts a new key-value pair between the key-value pairs to the right and left of
     /// this edge. This method assumes that there is enough space in the node for the new
     /// pair to fit.
@@ -1121,13 +1166,17 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Inserts a new key-value pair between the key-value pairs to the right and left of
     /// this edge. This method splits the node if there isn't enough room.
     ///
     /// Returns a dormant handle to the inserted node which can be reawakened
     /// once splitting is complete.
-    fn insert<A: Allocator>(
+    fn insert<A>(
         self,
         key: K,
         val: V,
@@ -1138,7 +1187,10 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
             Handle<NodeRef<marker::DormantMut, K, V, marker::Leaf>, marker::KV>,
         ),
         AllocError,
-    > {
+    >
+    where
+        A: Allocator,
+    {
         if self.node.len() < CAPACITY {
             // SAFETY: There is enough space in the node for insertion.
             let handle = unsafe { self.insert_fit(key, val) };
@@ -1175,7 +1227,11 @@ impl<K, V> Handle<NodeRef<marker::Mut<'_>, K, V, marker::Internal>, marker::Edge
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::Edge> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::Edge>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Inserts a new key-value pair and an edge that will go to the right of that new pair
     /// between this edge and the key-value pair to the right of this edge. This method assumes
     /// that there is enough space in the node for the new pair to fit.
@@ -1202,13 +1258,16 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, 
     /// Inserts a new key-value pair and an edge that will go to the right of that new pair
     /// between this edge and the key-value pair to the right of this edge. This method splits
     /// the node if there isn't enough room.
-    fn insert<A: Allocator>(
+    fn insert<A>(
         mut self,
         key: K,
         val: V,
         edge: Root<K, V>,
         alloc: &A,
-    ) -> Result<Option<SplitResult<'a, K, V, marker::Internal>>, AllocError> {
+    ) -> Result<Option<SplitResult<'a, K, V, marker::Internal>>, AllocError>
+    where
+        A: Allocator,
+    {
         assert!(edge.height == self.node.height - 1);
 
         if self.node.len() < CAPACITY {
@@ -1232,7 +1291,11 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, 
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Inserts a new key-value pair between the key-value pairs to the right and left of
     /// this edge. This method splits the node if there isn't enough room, and tries to
     /// insert the split off portion into the parent node recursively, until the root is reached.
@@ -1240,13 +1303,16 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
     /// If the returned result is some `SplitResult`, the `left` field will be the root node.
     /// The returned pointer points to the inserted value, which in the case of `SplitResult`
     /// is in the `left` or `right` tree.
-    pub(crate) fn insert_recursing<A: Allocator>(
+    pub(crate) fn insert_recursing<A>(
         self,
         key: K,
         value: V,
         alloc: &A,
         split_root: impl FnOnce(SplitResult<'a, K, V, marker::LeafOrInternal>) -> Result<(), AllocError>,
-    ) -> Result<Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV>, AllocError> {
+    ) -> Result<Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV>, AllocError>
+    where
+        A: Allocator,
+    {
         let (mut split, handle) = match self.insert(key, value, alloc)? {
             // SAFETY: we have finished splitting and can now re-awaken the
             // handle to the inserted element.
@@ -1312,7 +1378,11 @@ impl<BorrowType: marker::BorrowType, K, V>
     }
 }
 
-impl<'a, K: 'a, V: 'a, NodeType> Handle<NodeRef<marker::Immut<'a>, K, V, NodeType>, marker::KV> {
+impl<'a, K, V, NodeType> Handle<NodeRef<marker::Immut<'a>, K, V, NodeType>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     pub(crate) fn into_kv(self) -> (&'a K, &'a V) {
         debug_assert!(self.idx < self.node.len());
         let leaf = self.node.into_leaf();
@@ -1332,7 +1402,11 @@ impl<K, V, NodeType> Handle<NodeRef<marker::Raw, K, V, NodeType>, marker::KV> {
     }
 }
 
-impl<'a, K: 'a, V: 'a, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, marker::KV> {
+impl<'a, K, V, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     pub(crate) fn key_mut(&mut self) -> &mut K {
         unsafe { self.node.key_area_mut(self.idx).assume_init_mut() }
     }
@@ -1359,7 +1433,11 @@ impl<'a, K, V, NodeType> Handle<NodeRef<marker::ValMut<'a>, K, V, NodeType>, mar
     }
 }
 
-impl<'a, K: 'a, V: 'a, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, marker::KV> {
+impl<'a, K, V, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     pub(crate) fn kv_mut(&mut self) -> (&mut K, &mut V) {
         debug_assert!(self.idx < self.node.len());
         // We cannot call separate key and value methods, because calling the second one
@@ -1407,7 +1485,11 @@ impl<K, V, NodeType> Handle<NodeRef<marker::Dying, K, V, NodeType>, marker::KV> 
     }
 }
 
-impl<'a, K: 'a, V: 'a, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, marker::KV> {
+impl<'a, K, V, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Helps implementations of `split` for a particular `NodeType`,
     /// by taking care of leaf data.
     fn split_leaf_data(&mut self, new_node: &mut LeafNode<K, V>) -> (K, V) {
@@ -1434,7 +1516,11 @@ impl<'a, K: 'a, V: 'a, NodeType> Handle<NodeRef<marker::Mut<'a>, K, V, NodeType>
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Splits the underlying node into three parts:
     ///
     /// - The node is truncated to only contain the key-value pairs to the left of
@@ -1442,10 +1528,13 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
     /// - The key and value pointed to by this handle are extracted.
     /// - All the key-value pairs to the right of this handle are put into a newly
     ///   allocated node.
-    pub(crate) fn split<A: Allocator>(
+    pub(crate) fn split<A>(
         mut self,
         alloc: &A,
-    ) -> Result<SplitResult<'a, K, V, marker::Leaf>, AllocError> {
+    ) -> Result<SplitResult<'a, K, V, marker::Leaf>, AllocError>
+    where
+        A: Allocator,
+    {
         let mut new_node = LeafNode::new(alloc)?;
 
         let kv = self.split_leaf_data(unsafe { new_node.as_mut() });
@@ -1477,7 +1566,11 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, mark
     }
 }
 
-impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV> {
+impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::KV>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Splits the underlying node into three parts:
     ///
     /// - The node is truncated to only contain the edges and key-value pairs to the
@@ -1485,10 +1578,13 @@ impl<'a, K: 'a, V: 'a> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, 
     /// - The key and value pointed to by this handle are extracted.
     /// - All the edges and key-value pairs to the right of this handle are put into
     ///   a newly allocated node.
-    pub(crate) fn split<A: Allocator>(
+    pub(crate) fn split<A>(
         mut self,
         alloc: &A,
-    ) -> Result<SplitResult<'a, K, V, marker::Internal>, AllocError> {
+    ) -> Result<SplitResult<'a, K, V, marker::Internal>, AllocError>
+    where
+        A: Allocator,
+    {
         let old_len = self.node.len();
         unsafe {
             let mut new_node = InternalNode::new(alloc)?;
@@ -1599,7 +1695,11 @@ impl<'a, K, V> BalancingContext<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a, V: 'a> BalancingContext<'a, K, V> {
+impl<'a, K, V> BalancingContext<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
     /// Performs a merge and lets a closure decide what to return.
     fn do_merge<
         F: FnOnce(
@@ -1676,10 +1776,13 @@ impl<'a, K: 'a, V: 'a> BalancingContext<'a, K, V> {
     /// the left child node and returns the shrunk parent node.
     ///
     /// Panics unless we `.can_merge()`.
-    pub(crate) fn merge_tracking_parent<A: Allocator>(
+    pub(crate) fn merge_tracking_parent<A>(
         self,
         alloc: &A,
-    ) -> NodeRef<marker::Mut<'a>, K, V, marker::Internal> {
+    ) -> NodeRef<marker::Mut<'a>, K, V, marker::Internal>
+    where
+        A: Allocator,
+    {
         self.do_merge(|parent, _child| parent, alloc)
     }
 
@@ -1687,10 +1790,13 @@ impl<'a, K: 'a, V: 'a> BalancingContext<'a, K, V> {
     /// the left child node and returns that child node.
     ///
     /// Panics unless we `.can_merge()`.
-    pub(crate) fn merge_tracking_child<A: Allocator>(
+    pub(crate) fn merge_tracking_child<A>(
         self,
         alloc: &A,
-    ) -> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal> {
+    ) -> NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>
+    where
+        A: Allocator,
+    {
         self.do_merge(|_parent, child| child, alloc)
     }
 
@@ -1699,11 +1805,14 @@ impl<'a, K: 'a, V: 'a> BalancingContext<'a, K, V> {
     /// where the tracked child edge ended up,
     ///
     /// Panics unless we `.can_merge()`.
-    pub(crate) fn merge_tracking_child_edge<A: Allocator>(
+    pub(crate) fn merge_tracking_child_edge<A>(
         self,
         track_edge_idx: LeftOrRight<usize>,
         alloc: &A,
-    ) -> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::Edge> {
+    ) -> Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::Edge>
+    where
+        A: Allocator,
+    {
         let old_left_len = self.left_child.len();
         let right_len = self.right_child.len();
         assert!(match track_edge_idx {

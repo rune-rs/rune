@@ -114,7 +114,10 @@ use crate::Box;
 
 /// Construct a vector from an element that can be cloned.
 #[doc(hidden)]
-pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
+pub fn try_from_elem<T>(elem: T, n: usize) -> Result<Vec<T>, Error>
+where
+    T: TryClone,
+{
     <T as SpecFromElem>::from_elem(elem, n, Global)
 }
 
@@ -501,7 +504,10 @@ impl<T> Vec<T> {
     }
 }
 
-impl<T, A: Allocator> Vec<T, A> {
+impl<T, A> Vec<T, A>
+where
+    A: Allocator,
+{
     /// Constructs a new, empty `Vec<T, A>`.
     ///
     /// The vector will not allocate until elements are pushed onto it.
@@ -1482,14 +1488,20 @@ impl<T, A: Allocator> Vec<T, A> {
         // This drop guard will be invoked when predicate or `drop` of element panicked.
         // It shifts unchecked elements to cover holes and `set_len` to the correct length.
         // In cases when predicate and `drop` never panick, it will be optimized out.
-        struct BackshiftOnDrop<'a, T, A: Allocator> {
+        struct BackshiftOnDrop<'a, T, A>
+        where
+            A: Allocator,
+        {
             v: &'a mut Vec<T, A>,
             processed_len: usize,
             deleted_cnt: usize,
             original_len: usize,
         }
 
-        impl<T, A: Allocator> Drop for BackshiftOnDrop<'_, T, A> {
+        impl<T, A> Drop for BackshiftOnDrop<'_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 if self.deleted_cnt > 0 {
                     // SAFETY: Trailing unchecked items must be valid since we never touch them.
@@ -1617,7 +1629,10 @@ impl<T, A: Allocator> Vec<T, A> {
         }
 
         /* INVARIANT: vec.len() > read >= write > write-1 >= 0 */
-        struct FillGapOnDrop<'a, T, A: Allocator> {
+        struct FillGapOnDrop<'a, T, A>
+        where
+            A: Allocator,
+        {
             /* Offset of the element we want to check if it is duplicate */
             read: usize,
 
@@ -1629,7 +1644,10 @@ impl<T, A: Allocator> Vec<T, A> {
             vec: &'a mut Vec<T, A>,
         }
 
-        impl<T, A: Allocator> Drop for FillGapOnDrop<'_, T, A> {
+        impl<T, A> Drop for FillGapOnDrop<'_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 /* This code gets executed when `same_bucket` panics */
 
@@ -2344,9 +2362,10 @@ impl<T, A: Allocator> Vec<T, A> {
     }
 }
 
-impl<T, A: Allocator> Vec<T, A>
+impl<T, A> Vec<T, A>
 where
     T: TryClone,
+    A: Allocator,
 {
     /// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
     ///
@@ -2508,9 +2527,10 @@ impl<T, A: Allocator, const N: usize> Vec<[T; N], A> {
     }
 }
 
-impl<T, A: Allocator> Vec<T, A>
+impl<T, A> Vec<T, A>
 where
     T: TryClone,
+    A: Allocator,
 {
     /// Extend the vector by `n` clones of value.
     fn try_extend_with(&mut self, n: usize, value: T) -> Result<(), Error> {
@@ -2544,9 +2564,10 @@ where
     }
 }
 
-impl<T, A: Allocator> Vec<T, A>
+impl<T, A> Vec<T, A>
 where
     T: PartialEq,
+    A: Allocator,
 {
     /// Removes consecutive repeated elements in the vector according to the
     /// [`PartialEq`] trait implementation.
@@ -2573,7 +2594,10 @@ where
 // Common trait implementations for Vec
 ////////////////////////////////////////////////////////////////////////////////
 
-impl<T, A: Allocator> ops::Deref for Vec<T, A> {
+impl<T, A> ops::Deref for Vec<T, A>
+where
+    A: Allocator,
+{
     type Target = [T];
 
     #[inline]
@@ -2582,7 +2606,10 @@ impl<T, A: Allocator> ops::Deref for Vec<T, A> {
     }
 }
 
-impl<T, A: Allocator> ops::DerefMut for Vec<T, A> {
+impl<T, A> ops::DerefMut for Vec<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut [T] {
         unsafe { slice::from_raw_parts_mut(self.as_mut_ptr(), self.len) }
@@ -2622,14 +2649,25 @@ where
 /// assert_eq!(b.hash_one(v), b.hash_one(s));
 /// # Ok::<_, rune::alloc::Error>(())
 /// ```
-impl<T: Hash, A: Allocator> Hash for Vec<T, A> {
+impl<T, A> Hash for Vec<T, A>
+where
+    T: Hash,
+    A: Allocator,
+{
     #[inline]
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         Hash::hash(&**self, state)
     }
 }
 
-impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
+impl<T, I, A> Index<I> for Vec<T, A>
+where
+    I: SliceIndex<[T]>,
+    A: Allocator,
+{
     type Output = I::Output;
 
     #[inline]
@@ -2638,14 +2676,21 @@ impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
     }
 }
 
-impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
+impl<T, I, A> IndexMut<I> for Vec<T, A>
+where
+    I: SliceIndex<[T]>,
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         IndexMut::index_mut(&mut **self, index)
     }
 }
 
-impl<T, A: Allocator> IntoIterator for Vec<T, A> {
+impl<T, A> IntoIterator for Vec<T, A>
+where
+    A: Allocator,
+{
     type Item = T;
     type IntoIter = IntoIter<T, A>;
 
@@ -2696,7 +2741,10 @@ impl<T, A: Allocator> IntoIterator for Vec<T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
+impl<'a, T, A> IntoIterator for &'a Vec<T, A>
+where
+    A: Allocator,
+{
     type Item = &'a T;
     type IntoIter = slice::Iter<'a, T>;
 
@@ -2705,7 +2753,10 @@ impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> IntoIterator for &'a mut Vec<T, A> {
+impl<'a, T, A> IntoIterator for &'a mut Vec<T, A>
+where
+    A: Allocator,
+{
     type Item = &'a mut T;
     type IntoIter = slice::IterMut<'a, T>;
 
@@ -2716,12 +2767,13 @@ impl<'a, T, A: Allocator> IntoIterator for &'a mut Vec<T, A> {
 
 // leaf method to which various SpecFrom/SpecExtend implementations delegate when
 // they have no further optimizations to apply
-fn try_extend_desugared<'a, T, A: Allocator>(
+fn try_extend_desugared<'a, T, A>(
     this: &mut Vec<T, A>,
     mut iterator: impl Iterator<Item = &'a T>,
 ) -> Result<(), Error>
 where
     T: 'a + TryClone,
+    A: Allocator,
 {
     // This is the case for a general iterator.
     //
@@ -2761,10 +2813,19 @@ where
     }
 }
 
-impl<T: Eq, A: Allocator> Eq for Vec<T, A> {}
+impl<T, A> Eq for Vec<T, A>
+where
+    T: Eq,
+    A: Allocator,
+{
+}
 
 /// Implements ordering of vectors, [lexicographically](Ord#lexicographical-comparison).
-impl<T: Ord, A: Allocator> Ord for Vec<T, A> {
+impl<T, A> Ord for Vec<T, A>
+where
+    T: Ord,
+    A: Allocator,
+{
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         Ord::cmp(&**self, &**other)
@@ -2772,7 +2833,10 @@ impl<T: Ord, A: Allocator> Ord for Vec<T, A> {
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] T, A: Allocator> Drop for Vec<T, A> {
+unsafe impl<#[may_dangle] T, A> Drop for Vec<T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         unsafe {
             // use drop for [T]
@@ -2785,7 +2849,10 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for Vec<T, A> {
 }
 
 #[cfg(not(rune_nightly))]
-impl<T, A: Allocator> Drop for Vec<T, A> {
+impl<T, A> Drop for Vec<T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         unsafe {
             // use drop for [T]
@@ -2806,38 +2873,61 @@ impl<T> Default for Vec<T> {
     }
 }
 
-impl<T: fmt::Debug, A: Allocator> fmt::Debug for Vec<T, A> {
+impl<T, A> fmt::Debug for Vec<T, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<T, A: Allocator> Borrow<[T]> for Vec<T, A> {
+impl<T, A> Borrow<[T]> for Vec<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn borrow(&self) -> &[T] {
         self
     }
 }
 
-impl<T, A: Allocator> AsRef<Vec<T, A>> for Vec<T, A> {
+impl<T, A> AsRef<Vec<T, A>> for Vec<T, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn as_ref(&self) -> &Vec<T, A> {
         self
     }
 }
 
-impl<T, A: Allocator> AsMut<Vec<T, A>> for Vec<T, A> {
+impl<T, A> AsMut<Vec<T, A>> for Vec<T, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn as_mut(&mut self) -> &mut Vec<T, A> {
         self
     }
 }
 
-impl<T, A: Allocator> AsRef<[T]> for Vec<T, A> {
+impl<T, A> AsRef<[T]> for Vec<T, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn as_ref(&self) -> &[T] {
         self
     }
 }
 
-impl<T, A: Allocator> AsMut<[T]> for Vec<T, A> {
+impl<T, A> AsMut<[T]> for Vec<T, A>
+where
+    A: Allocator,
+{
+    #[inline]
     fn as_mut(&mut self) -> &mut [T] {
         self
     }
@@ -2978,7 +3068,10 @@ impl<T, A: Allocator, const N: usize> TryFrom<Vec<T, A>> for [T; N] {
     }
 }
 
-impl<T, A: Allocator> From<Box<[T], A>> for Vec<T, A> {
+impl<T, A> From<Box<[T], A>> for Vec<T, A>
+where
+    A: Allocator,
+{
     /// Convert a boxed slice into a vector by transferring ownership of the
     /// existing heap allocation.
     ///
@@ -3004,7 +3097,10 @@ impl<T, A: Allocator> From<Box<[T], A>> for Vec<T, A> {
     }
 }
 
-impl<T, A: Allocator> TryFromIteratorIn<T, A> for Vec<T, A> {
+impl<T, A> TryFromIteratorIn<T, A> for Vec<T, A>
+where
+    A: Allocator,
+{
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where
         I: IntoIterator<Item = T>,
@@ -3029,7 +3125,10 @@ impl<T> FromIterator<T> for Vec<T> {
     }
 }
 
-impl<T, A: Allocator> TryExtend<T> for Vec<T, A> {
+impl<T, A> TryExtend<T> for Vec<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn try_extend<I: IntoIterator<Item = T>>(&mut self, iter: I) -> Result<(), Error> {
         <Self as SpecExtend<T, I::IntoIter>>::spec_extend(self, iter.into_iter())

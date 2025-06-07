@@ -78,7 +78,10 @@ impl Value {
     /// index, for example if the index is a string and `self` is an array or a
     /// number. Also returns `None` if the given key does not exist in the map
     /// or the given index is not within the bounds of the array.
-    pub(crate) fn get<I: Index>(&self, index: I) -> Option<&SpannedValue> {
+    pub(crate) fn get<I>(&self, index: I) -> Option<&SpannedValue>
+    where
+        I: Index,
+    {
         index.index(self)
     }
 
@@ -90,7 +93,10 @@ impl Value {
     /// index, for example if the index is a string and `self` is an array or a
     /// number. Also returns `None` if the given key does not exist in the map
     /// or the given index is not within the bounds of the array.
-    pub(crate) fn get_mut<I: Index>(&mut self, index: I) -> Option<&mut SpannedValue> {
+    pub(crate) fn get_mut<I>(&mut self, index: I) -> Option<&mut SpannedValue>
+    where
+        I: Index,
+    {
         index.index_mut(self)
     }
 

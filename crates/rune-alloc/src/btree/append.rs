@@ -115,11 +115,14 @@ impl<K, V> Root<K, V> {
 }
 
 // An iterator for merging two sorted sequences into one
-struct MergeIter<K, V, I: Iterator<Item = (K, V)>>(MergeIterInner<I>);
+struct MergeIter<K, V, I>(MergeIterInner<I>)
+where
+    I: Iterator<Item = (K, V)>;
 
-impl<K: Ord, V, I> Iterator for MergeIter<K, V, I>
+impl<K, V, I> Iterator for MergeIter<K, V, I>
 where
     I: Iterator<Item = (K, V)> + FusedIterator,
+    K: Ord,
 {
     type Item = (K, V);
 

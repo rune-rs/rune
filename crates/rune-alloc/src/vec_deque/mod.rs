@@ -113,7 +113,10 @@ impl<T: TryClone, A: Allocator + Clone> TryClone for VecDeque<T, A> {
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] T, A: Allocator> Drop for VecDeque<T, A> {
+unsafe impl<#[may_dangle] T, A> Drop for VecDeque<T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         /// Runs the destructor for all items in the slice when it gets dropped (normally or
         /// during unwinding).
@@ -138,7 +141,10 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for VecDeque<T, A> {
 }
 
 #[cfg(not(rune_nightly))]
-impl<T, A: Allocator> Drop for VecDeque<T, A> {
+impl<T, A> Drop for VecDeque<T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
         /// Runs the destructor for all items in the slice when it gets dropped (normally or
         /// during unwinding).
@@ -170,7 +176,10 @@ impl<T> Default for VecDeque<T> {
     }
 }
 
-impl<T, A: Allocator> VecDeque<T, A> {
+impl<T, A> VecDeque<T, A>
+where
+    A: Allocator,
+{
     /// Marginally more convenient
     #[inline]
     fn ptr(&self) -> *mut T {
@@ -512,7 +521,10 @@ impl<T> VecDeque<T> {
     }
 }
 
-impl<T, A: Allocator> VecDeque<T, A> {
+impl<T, A> VecDeque<T, A>
+where
+    A: Allocator,
+{
     /// Creates an empty deque.
     ///
     /// # Examples
@@ -2553,7 +2565,11 @@ impl<T, A: Allocator> VecDeque<T, A> {
     }
 }
 
-impl<T: TryClone, A: Allocator> VecDeque<T, A> {
+impl<T, A> VecDeque<T, A>
+where
+    T: TryClone,
+    A: Allocator,
+{
     /// Modifies the deque in-place so that `len()` is equal to new_len,
     /// either by removing excess elements from the back or by appending clones of `value`
     /// to the back.
@@ -2606,7 +2622,11 @@ fn wrap_index(logical_index: usize, capacity: usize) -> usize {
     }
 }
 
-impl<T: PartialEq, A: Allocator> PartialEq for VecDeque<T, A> {
+impl<T, A> PartialEq for VecDeque<T, A>
+where
+    T: PartialEq,
+    A: Allocator,
+{
     fn eq(&self, other: &Self) -> bool {
         if self.len != other.len() {
             return false;
@@ -2644,7 +2664,12 @@ impl<T: PartialEq, A: Allocator> PartialEq for VecDeque<T, A> {
     }
 }
 
-impl<T: Eq, A: Allocator> Eq for VecDeque<T, A> {}
+impl<T, A> Eq for VecDeque<T, A>
+where
+    T: Eq,
+    A: Allocator,
+{
+}
 
 __impl_slice_eq1! { [] VecDeque<T, A>, Vec<U, A>, }
 __impl_slice_eq1! { [] VecDeque<T, A>, &[U], }
@@ -2653,21 +2678,38 @@ __impl_slice_eq1! { [const N: usize] VecDeque<T, A>, [U; N], }
 __impl_slice_eq1! { [const N: usize] VecDeque<T, A>, &[U; N], }
 __impl_slice_eq1! { [const N: usize] VecDeque<T, A>, &mut [U; N], }
 
-impl<T: PartialOrd, A: Allocator> PartialOrd for VecDeque<T, A> {
+impl<T, A> PartialOrd for VecDeque<T, A>
+where
+    T: PartialOrd,
+    A: Allocator,
+{
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.iter().partial_cmp(other.iter())
     }
 }
 
-impl<T: Ord, A: Allocator> Ord for VecDeque<T, A> {
+impl<T, A> Ord for VecDeque<T, A>
+where
+    T: Ord,
+    A: Allocator,
+{
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.iter().cmp(other.iter())
     }
 }
 
-impl<T: Hash, A: Allocator> Hash for VecDeque<T, A> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+impl<T, A> Hash for VecDeque<T, A>
+where
+    T: Hash,
+    A: Allocator,
+{
+    #[inline]
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
         state.write_usize(self.len);
         // It's not possible to use Hash::hash_slice on slices
         // returned by as_slices method as their length can vary
@@ -2679,7 +2721,10 @@ impl<T: Hash, A: Allocator> Hash for VecDeque<T, A> {
     }
 }
 
-impl<T, A: Allocator> Index<usize> for VecDeque<T, A> {
+impl<T, A> Index<usize> for VecDeque<T, A>
+where
+    A: Allocator,
+{
     type Output = T;
 
     #[inline]
@@ -2688,14 +2733,20 @@ impl<T, A: Allocator> Index<usize> for VecDeque<T, A> {
     }
 }
 
-impl<T, A: Allocator> IndexMut<usize> for VecDeque<T, A> {
+impl<T, A> IndexMut<usize> for VecDeque<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut T {
         self.get_mut(index).expect("Out of bounds access")
     }
 }
 
-impl<T, A: Allocator> IntoIterator for VecDeque<T, A> {
+impl<T, A> IntoIterator for VecDeque<T, A>
+where
+    A: Allocator,
+{
     type Item = T;
     type IntoIter = IntoIter<T, A>;
 
@@ -2706,7 +2757,10 @@ impl<T, A: Allocator> IntoIterator for VecDeque<T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> IntoIterator for &'a VecDeque<T, A> {
+impl<'a, T, A> IntoIterator for &'a VecDeque<T, A>
+where
+    A: Allocator,
+{
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -2715,7 +2769,10 @@ impl<'a, T, A: Allocator> IntoIterator for &'a VecDeque<T, A> {
     }
 }
 
-impl<'a, T, A: Allocator> IntoIterator for &'a mut VecDeque<T, A> {
+impl<'a, T, A> IntoIterator for &'a mut VecDeque<T, A>
+where
+    A: Allocator,
+{
     type Item = &'a mut T;
     type IntoIter = IterMut<'a, T>;
 
@@ -2724,13 +2781,20 @@ impl<'a, T, A: Allocator> IntoIterator for &'a mut VecDeque<T, A> {
     }
 }
 
-impl<T: fmt::Debug, A: Allocator> fmt::Debug for VecDeque<T, A> {
+impl<T, A> fmt::Debug for VecDeque<T, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
 }
 
-impl<T, A: Allocator> From<Vec<T, A>> for VecDeque<T, A> {
+impl<T, A> From<Vec<T, A>> for VecDeque<T, A>
+where
+    A: Allocator,
+{
     /// Turn a [`Vec<T>`] into a [`VecDeque<T>`].
     ///
     /// [`Vec<T>`]: crate::Vec
@@ -2746,7 +2810,10 @@ impl<T, A: Allocator> From<Vec<T, A>> for VecDeque<T, A> {
     }
 }
 
-impl<T, A: Allocator> From<VecDeque<T, A>> for Vec<T, A> {
+impl<T, A> From<VecDeque<T, A>> for Vec<T, A>
+where
+    A: Allocator,
+{
     /// Turn a [`VecDeque<T>`] into a [`Vec<T>`].
     ///
     /// [`Vec<T>`]: crate::Vec
@@ -2814,7 +2881,10 @@ impl<T, const N: usize> TryFrom<[T; N]> for VecDeque<T> {
     }
 }
 
-impl<T, A: Allocator> TryFromIteratorIn<T, A> for VecDeque<T, A> {
+impl<T, A> TryFromIteratorIn<T, A> for VecDeque<T, A>
+where
+    A: Allocator,
+{
     fn try_from_iter_in<I>(iter: I, alloc: A) -> Result<Self, Error>
     where
         I: IntoIterator<Item = T>,
@@ -2825,7 +2895,10 @@ impl<T, A: Allocator> TryFromIteratorIn<T, A> for VecDeque<T, A> {
     }
 }
 
-impl<T, A: Allocator> TryExtend<T> for VecDeque<T, A> {
+impl<T, A> TryExtend<T> for VecDeque<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn try_extend<I: IntoIterator<Item = T>>(&mut self, iter: I) -> Result<(), Error> {
         for value in iter {

@@ -13,7 +13,9 @@ use super::Vec;
 
 // Specialization trait used for Vec::from_elem
 pub(super) trait SpecFromElem: Sized {
-    fn from_elem<A: Allocator>(elem: Self, n: usize, alloc: A) -> Result<Vec<Self, A>, Error>;
+    fn from_elem<A>(elem: Self, n: usize, alloc: A) -> Result<Vec<Self, A>, Error>
+    where
+        A: Allocator;
 }
 
 impl<T> SpecFromElem for T
@@ -21,7 +23,10 @@ where
     T: TryClone,
 {
     default_fn! {
-        fn from_elem<A: Allocator>(elem: Self, n: usize, alloc: A) -> Result<Vec<Self, A>, Error> {
+        fn from_elem<A>(elem: Self, n: usize, alloc: A) -> Result<Vec<Self, A>, Error>
+        where
+            A: Allocator,
+        {
             let mut v = Vec::try_with_capacity_in(n, alloc)?;
             v.try_extend_with(n, elem)?;
             Ok(v)
@@ -35,7 +40,10 @@ where
     T: TryClone + IsZero,
 {
     #[inline]
-    default fn from_elem<A: Allocator>(elem: T, n: usize, alloc: A) -> Result<Vec<T, A>, Error> {
+    default fn from_elem<A>(elem: T, n: usize, alloc: A) -> Result<Vec<T, A>, Error>
+    where
+        A: Allocator,
+    {
         if elem.is_zero() {
             return Ok(Vec {
                 buf: RawVec::try_with_capacity_zeroed_in(n, alloc)?,
@@ -52,7 +60,10 @@ where
 #[cfg(rune_nightly)]
 impl SpecFromElem for i8 {
     #[inline]
-    fn from_elem<A: Allocator>(elem: i8, n: usize, alloc: A) -> Result<Vec<i8, A>, Error> {
+    fn from_elem<A>(elem: i8, n: usize, alloc: A) -> Result<Vec<i8, A>, Error>
+    where
+        A: Allocator,
+    {
         if elem == 0 {
             return Ok(Vec {
                 buf: RawVec::try_with_capacity_zeroed_in(n, alloc)?,
@@ -72,7 +83,10 @@ impl SpecFromElem for i8 {
 #[cfg(rune_nightly)]
 impl SpecFromElem for u8 {
     #[inline]
-    fn from_elem<A: Allocator>(elem: u8, n: usize, alloc: A) -> Result<Vec<u8, A>, Error> {
+    fn from_elem<A>(elem: u8, n: usize, alloc: A) -> Result<Vec<u8, A>, Error>
+    where
+        A: Allocator,
+    {
         if elem == 0 {
             return Ok(Vec {
                 buf: RawVec::try_with_capacity_zeroed_in(n, alloc)?,

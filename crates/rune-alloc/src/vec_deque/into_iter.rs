@@ -35,19 +35,31 @@ where
     }
 }
 
-impl<T, A: Allocator> IntoIter<T, A> {
+impl<T, A> IntoIter<T, A>
+where
+    A: Allocator,
+{
+    #[inline]
     pub(super) fn new(inner: VecDeque<T, A>) -> Self {
         IntoIter { inner }
     }
 }
 
-impl<T: fmt::Debug, A: Allocator> fmt::Debug for IntoIter<T, A> {
+impl<T, A> fmt::Debug for IntoIter<T, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("IntoIter").field(&self.inner).finish()
     }
 }
 
-impl<T, A: Allocator> Iterator for IntoIter<T, A> {
+impl<T, A> Iterator for IntoIter<T, A>
+where
+    A: Allocator,
+{
     type Item = T;
 
     #[inline]
@@ -71,13 +83,19 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
     where
         F: FnMut(B, Self::Item) -> B,
     {
-        struct Guard<'a, T, A: Allocator> {
+        struct Guard<'a, T, A>
+        where
+            A: Allocator,
+        {
             deque: &'a mut VecDeque<T, A>,
             // `consumed <= deque.len` always holds.
             consumed: usize,
         }
 
-        impl<T, A: Allocator> Drop for Guard<'_, T, A> {
+        impl<T, A> Drop for Guard<'_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 self.deque.len -= self.consumed;
                 self.deque.head = self.deque.to_physical_idx(self.consumed);
@@ -117,7 +135,10 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
+impl<T, A> DoubleEndedIterator for IntoIter<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn next_back(&mut self) -> Option<T> {
         self.inner.pop_back()
@@ -128,13 +149,19 @@ impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
     where
         F: FnMut(B, Self::Item) -> B,
     {
-        struct Guard<'a, T, A: Allocator> {
+        struct Guard<'a, T, A>
+        where
+            A: Allocator,
+        {
             deque: &'a mut VecDeque<T, A>,
             // `consumed <= deque.len` always holds.
             consumed: usize,
         }
 
-        impl<T, A: Allocator> Drop for Guard<'_, T, A> {
+        impl<T, A> Drop for Guard<'_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 self.deque.len -= self.consumed;
             }
@@ -166,11 +193,14 @@ impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> ExactSizeIterator for IntoIter<T, A> {
+impl<T, A> ExactSizeIterator for IntoIter<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
-impl<T, A: Allocator> FusedIterator for IntoIter<T, A> {}
+impl<T, A> FusedIterator for IntoIter<T, A> where A: Allocator {}

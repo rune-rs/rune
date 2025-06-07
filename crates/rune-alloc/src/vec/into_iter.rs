@@ -33,13 +33,20 @@ pub struct IntoIter<T, A: Allocator = Global> {
                               // for both ZST and non-ZST.
 }
 
-impl<T: fmt::Debug, A: Allocator> fmt::Debug for IntoIter<T, A> {
+impl<T, A> fmt::Debug for IntoIter<T, A>
+where
+    T: fmt::Debug,
+    A: Allocator,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("IntoIter").field(&self.as_slice()).finish()
     }
 }
 
-impl<T, A: Allocator> IntoIter<T, A> {
+impl<T, A> IntoIter<T, A>
+where
+    A: Allocator,
+{
     /// Returns the remaining items of this iterator as a slice.
     ///
     /// # Examples
@@ -91,16 +98,32 @@ impl<T, A: Allocator> IntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> AsRef<[T]> for IntoIter<T, A> {
+impl<T, A> AsRef<[T]> for IntoIter<T, A>
+where
+    A: Allocator,
+{
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
 }
 
-unsafe impl<T: Send, A: Allocator + Send> Send for IntoIter<T, A> {}
-unsafe impl<T: Sync, A: Allocator + Sync> Sync for IntoIter<T, A> {}
+unsafe impl<T, A> Send for IntoIter<T, A>
+where
+    T: Send,
+    A: Allocator + Send,
+{
+}
+unsafe impl<T, A> Sync for IntoIter<T, A>
+where
+    T: Sync,
+    A: Allocator + Sync,
+{
+}
 
-impl<T, A: Allocator> Iterator for IntoIter<T, A> {
+impl<T, A> Iterator for IntoIter<T, A>
+where
+    A: Allocator,
+{
     type Item = T;
 
     #[inline]
@@ -138,7 +161,10 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
+impl<T, A> DoubleEndedIterator for IntoIter<T, A>
+where
+    A: Allocator,
+{
     #[inline]
     fn next_back(&mut self) -> Option<T> {
         if self.end == self.ptr {
@@ -157,9 +183,9 @@ impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
     }
 }
 
-impl<T, A: Allocator> ExactSizeIterator for IntoIter<T, A> {}
+impl<T, A> ExactSizeIterator for IntoIter<T, A> where A: Allocator {}
 
-impl<T, A: Allocator> FusedIterator for IntoIter<T, A> {}
+impl<T, A> FusedIterator for IntoIter<T, A> where A: Allocator {}
 
 impl<T, A> Default for IntoIter<T, A>
 where
@@ -179,11 +205,19 @@ where
 }
 
 #[cfg(rune_nightly)]
-unsafe impl<#[may_dangle] T, A: Allocator> Drop for IntoIter<T, A> {
+unsafe impl<#[may_dangle] T, A> Drop for IntoIter<T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
-        struct DropGuard<'a, T, A: Allocator>(&'a mut IntoIter<T, A>);
+        struct DropGuard<'a, T, A>(&'a mut IntoIter<T, A>)
+        where
+            A: Allocator;
 
-        impl<T, A: Allocator> Drop for DropGuard<'_, T, A> {
+        impl<T, A> Drop for DropGuard<'_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 unsafe {
                     // `IntoIter::alloc` is not used anymore after this and will be dropped by RawVec
@@ -204,11 +238,19 @@ unsafe impl<#[may_dangle] T, A: Allocator> Drop for IntoIter<T, A> {
 }
 
 #[cfg(not(rune_nightly))]
-impl<T, A: Allocator> Drop for IntoIter<T, A> {
+impl<T, A> Drop for IntoIter<T, A>
+where
+    A: Allocator,
+{
     fn drop(&mut self) {
-        struct DropGuard<'a, T, A: Allocator>(&'a mut IntoIter<T, A>);
+        struct DropGuard<'a, T, A>(&'a mut IntoIter<T, A>)
+        where
+            A: Allocator;
 
-        impl<T, A: Allocator> Drop for DropGuard<'_, T, A> {
+        impl<T, A> Drop for DropGuard<'_, T, A>
+        where
+            A: Allocator,
+        {
             fn drop(&mut self) {
                 unsafe {
                     // `IntoIter::alloc` is not used anymore after this and will be dropped by RawVec

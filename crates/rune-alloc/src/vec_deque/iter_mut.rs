@@ -9,7 +9,10 @@ use core::slice;
 /// documentation for more.
 ///
 /// [`iter_mut`]: super::VecDeque::iter_mut
-pub struct IterMut<'a, T: 'a> {
+pub struct IterMut<'a, T>
+where
+    T: 'a,
+{
     i1: slice::IterMut<'a, T>,
     i2: slice::IterMut<'a, T>,
 }
