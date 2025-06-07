@@ -3,6 +3,8 @@ use core::convert::Infallible;
 use core::fmt;
 use core::mem::replace;
 use core::slice;
+#[cfg(feature = "cli")]
+use core::slice::SliceIndex;
 
 use crate::alloc::alloc::Global;
 use crate::alloc::prelude::*;
@@ -220,6 +222,7 @@ pub struct Stack {
 
 impl Stack {
     /// Construct a new stack.
+    #[inline]
     pub(crate) const fn new() -> Self {
         Self {
             stack: Vec::new(),
@@ -244,10 +247,8 @@ impl Stack {
     /// ```
     #[inline(always)]
     pub fn at(&self, addr: Address) -> &Value {
-        self.top
-            .checked_add(addr.offset())
-            .and_then(|n| self.stack.get(n))
-            .unwrap_or(&EMPTY.0)
+        let n = self.top.wrapping_add(addr.offset());
+        self.stack.get(n).unwrap_or(&EMPTY.0)
     }
 
     /// Get a value mutable at the given index from the stack bottom.
@@ -267,11 +268,10 @@ impl Stack {
     ///     Ok(())
     /// }
     /// ```
+    #[inline]
     pub fn at_mut(&mut self, addr: Address) -> Result<&mut Value, StackError> {
-        self.top
-            .checked_add(addr.offset())
-            .and_then(|n| self.stack.get_mut(n))
-            .ok_or(StackError { addr })
+        let n = self.top.wrapping_add(addr.offset());
+        self.stack.get_mut(n).ok_or(StackError { addr })
     }
 
     /// Get the slice at the given address with the given length.
@@ -294,6 +294,7 @@ impl Stack {
     ///     Ok(())
     /// }
     /// ```
+    #[inline]
     pub fn slice_at(&self, addr: Address, len: usize) -> Result<&[Value], SliceError> {
         let stack_len = self.stack.len();
 
@@ -323,6 +324,7 @@ impl Stack {
     ///     Ok(())
     /// }
     /// ```
+    #[inline]
     pub fn slice_at_mut(&mut self, addr: Address, len: usize) -> Result<&mut [Value], SliceError> {
         let stack_len = self.stack.len();
 
@@ -340,6 +342,7 @@ impl Stack {
     }
 
     /// Try to resize the stack with space for the given size.
+    #[inline]
     pub(crate) fn resize(&mut self, size: usize) -> alloc::Result<()> {
         if size == 0 {
             return Ok(());
@@ -350,6 +353,7 @@ impl Stack {
     }
 
     /// Construct a new stack with the given capacity pre-allocated.
+    #[inline]
     pub(crate) fn with_capacity(capacity: usize) -> alloc::Result<Self> {
         Ok(Self {
             stack: Vec::try_with_capacity(capacity)?,
@@ -364,14 +368,16 @@ impl Stack {
     ///
     /// [top]: Self::top()
     #[cfg(feature = "cli")]
-    pub(crate) fn get<I>(&self, index: I) -> Option<&<I as slice::SliceIndex<[Value]>>::Output>
+    #[inline]
+    pub(crate) fn get<I>(&self, index: I) -> Option<&<I as SliceIndex<[Value]>>::Output>
     where
-        I: slice::SliceIndex<[Value]>,
+        I: SliceIndex<[Value]>,
     {
         self.stack.get(index)
     }
 
     /// Push a value onto the stack.
+    #[inline]
     pub(crate) fn push<T>(&mut self, value: T) -> alloc::Result<()>
     where
         T: TryInto<Value, Error: Into<alloc::Error>>,
@@ -381,6 +387,7 @@ impl Stack {
     }
 
     /// Truncate the stack at the given address.
+    #[inline]
     pub(crate) fn truncate(&mut self, addr: Address) {
         if let Some(len) = self.top.checked_add(addr.offset()) {
             self.stack.truncate(len);
@@ -388,11 +395,13 @@ impl Stack {
     }
 
     /// Drain the current stack down to the current stack bottom.
+    #[inline]
     pub(crate) fn drain(&mut self) -> impl DoubleEndedIterator<Item = Value> + '_ {
         self.stack.drain(self.top..)
     }
 
     /// Clear the current stack.
+    #[inline]
     pub(crate) fn clear(&mut self) {
         self.stack.clear();
         self.top = 0;
@@ -404,12 +413,14 @@ impl Stack {
     /// frame the bottom of the stack corresponds to the bottom of the current
     /// call frame.
     #[cfg_attr(not(feature = "tracing"), allow(unused))]
+    #[inline]
     pub(crate) const fn top(&self) -> usize {
         self.top
     }
 
     /// Get the length of the stack.
     #[cfg_attr(not(feature = "tracing"), allow(unused))]
+    #[inline]
     pub(crate) const fn len(&self) -> usize {
         self.stack.len()
     }
@@ -487,6 +498,7 @@ impl Stack {
     }
 
     /// Pop the current stack top and modify it to a different one.
+    #[inline]
     #[tracing::instrument(skip_all)]
     pub(crate) fn pop_stack_top(&mut self, top: usize) {
         tracing::trace!(stack = self.stack.len(), self.top);
@@ -604,6 +616,7 @@ fn slice_error(stack: usize, bottom: usize, addr: Address, len: usize) -> SliceE
 }
 
 impl TryClone for Stack {
+    #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(Self {
             stack: self.stack.try_clone()?,
@@ -626,6 +639,7 @@ impl TryFromIteratorIn<Value, Global> for Stack {
 }
 
 impl From<Vec<Value>> for Stack {
+    #[inline]
     fn from(stack: Vec<Value>) -> Self {
         Self { stack, top: 0 }
     }
