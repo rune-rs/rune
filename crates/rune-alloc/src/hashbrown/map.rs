@@ -8735,12 +8735,15 @@ mod test_map {
         #[cfg(not(miri))]
         const N: usize = 128;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
+
         for n in 0..N {
             let mut map = HashMap::new();
+
             for i in 0..n {
                 assert!(map.try_insert(i, 2 * i).unwrap().is_none());
             }
+
             let hash_builder = map.hasher().clone();
 
             let mut it = unsafe { map.table.iter() };
@@ -8749,9 +8752,10 @@ mod test_map {
             let mut i = 0;
             let mut left = n;
             let mut removed = Vec::new();
+
             loop {
                 // occasionally remove some elements
-                if i < n && rng.gen_bool(0.1) {
+                if i < n && rng.random_bool(0.1) {
                     let hash_value = super::make_hash(&hash_builder, &i);
 
                     unsafe {

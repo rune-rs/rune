@@ -53,12 +53,12 @@ once_cell = { version = "1.18.0", default-features = false, features = ["critica
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }
 clap = { version = "4.2.7", features = ["derive"], optional = true }
-codespan-reporting = { version = "0.11.1", optional = true }
+codespan-reporting = { version = "0.12.0", optional = true }
 handlebars = { version = "6.0.0", optional = true }
-pulldown-cmark = { version = "0.12.2", optional = true }
+pulldown-cmark = { version = "0.13.0", optional = true }
 pulldown-cmark-escape = { version = "0.11.0", optional = true }
 relative-path = { version = "2.0.1", optional = true, features = ["serde"] }
-rust-embed = { version = "6.8.1", optional = true }
+rust-embed = { version = "8.7.2", optional = true }
 semver = { version = "1.0.17", optional = true, features = ["serde"] }
 serde-hashkey = { version = "0.4.5", optional = true }
 syntect = { version = "5.2.0", optional = true, default-features = false, features = ["default-fancy"] }
