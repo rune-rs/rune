@@ -69,7 +69,7 @@ impl VmCall {
             }
         };
 
-        out.store(execution.vm_mut().stack_mut(), value)?;
+        execution.vm_mut().stack_mut().store(out, value)?;
         Ok(())
     }
 

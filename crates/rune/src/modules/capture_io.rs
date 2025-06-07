@@ -24,7 +24,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::string::FromUtf8Error;
 use crate::alloc::{String, Vec};
 use crate::runtime::{Address, Memory, Output, VmError};
-use crate::{ContextError, Module, Value};
+use crate::{ContextError, Module};
 
 /// I/O module capable of capturing what's been written to a buffer.
 #[rune::module(::std::io)]
@@ -107,15 +107,15 @@ impl CaptureIo {
 
 fn dbg_impl(
     o: &mut Vec<u8>,
-    stack: &mut dyn Memory,
+    memory: &mut dyn Memory,
     addr: Address,
     args: usize,
     out: Output,
 ) -> Result<(), VmError> {
-    for value in stack.slice_at(addr, args)? {
+    for value in memory.slice_at(addr, args)? {
         writeln!(o, "{value:?}").map_err(VmError::panic)?;
     }
 
-    out.store(stack, Value::unit)?;
+    memory.store(out, ())?;
     Ok(())
 }

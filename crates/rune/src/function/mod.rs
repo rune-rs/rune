@@ -250,7 +250,7 @@ macro_rules! impl_function_traits {
                 $(drop($var.1);)*
 
                 let value = IntoReturn::into_return(ret)?;
-                out.store(memory, value)?;
+                memory.store(out, value)?;
                 Ok(())
             }
         }
@@ -281,7 +281,7 @@ macro_rules! impl_function_traits {
                 })?;
 
                 let value = Value::try_from(ret)?;
-                out.store(memory, value)?;
+                memory.store(out, value)?;
                 Ok(())
             }
         }

@@ -93,7 +93,7 @@ fn io_error_debug_fmt(error: &io::Error, f: &mut Formatter) -> alloc::Result<()>
 
 #[cfg(feature = "std")]
 fn dbg_impl(
-    stack: &mut dyn Memory,
+    memory: &mut dyn Memory,
     addr: Address,
     args: usize,
     out: Output,
@@ -101,11 +101,11 @@ fn dbg_impl(
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    for value in stack.slice_at(addr, args)? {
+    for value in memory.slice_at(addr, args)? {
         writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
     }
 
-    out.store(stack, ())?;
+    memory.store(out, ())?;
     Ok(())
 }
 

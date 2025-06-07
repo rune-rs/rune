@@ -508,7 +508,7 @@ where
 
             if let ExecutionState::Resumed(out) = state {
                 let vm = this.execution.vm.as_mut();
-                async_vm_try!(out.store(vm.stack_mut(), value));
+                async_vm_try!(vm.stack_mut().store(out, value));
             }
         }
 

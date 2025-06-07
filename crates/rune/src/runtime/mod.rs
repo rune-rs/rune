@@ -90,10 +90,10 @@ pub(crate) mod into_output;
 pub use self::into_output::IntoOutput;
 
 pub(crate) mod inst;
-pub use self::inst::{Address, Inst, Output, StoreError};
+pub use self::inst::{Address, Inst, Output};
 pub(crate) use self::inst::{
     InstArithmeticOp, InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget, InstValue,
-    PanicReason, StoreErrorKind,
+    PanicReason,
 };
 
 mod iterator;
@@ -146,9 +146,9 @@ mod r#ref;
 use self::r#ref::RefVtable;
 pub use self::r#ref::{Mut, RawAnyGuard, Ref};
 
-mod stack;
-pub(crate) use self::stack::Pair;
-pub use self::stack::{Memory, SliceError, Stack, StackError};
+mod memory;
+pub use self::memory::{Memory, SliceError, Stack, StackError, StoreError};
+pub(crate) use self::memory::{Pair, StoreErrorKind};
 
 mod static_string;
 pub use self::static_string::StaticString;

@@ -13,10 +13,9 @@ use crate::sync::Arc;
 mod ops;
 use self::ops::*;
 
-use super::inst;
 use super::{
-    budget, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow, DynArgs,
-    DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
+    budget, inst, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow,
+    DynArgs, DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
     GeneratorState, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
     InstShiftOp, InstTarget, InstValue, Object, Output, OwnedTuple, Pair, Panic, Protocol,
     ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Repr,
@@ -666,7 +665,7 @@ impl Vm {
             }
         };
 
-        out.store(&mut self.stack, || match ordering {
+        self.stack.store(out, || match ordering {
             Some(ordering) => match_ordering(ordering),
             None => false,
         })?;
@@ -1016,7 +1015,7 @@ impl Vm {
             }
         };
 
-        out.store(&mut self.stack, inline)?;
+        self.stack.store(out, inline)?;
         Ok(())
     }
 
@@ -1206,7 +1205,7 @@ impl Vm {
         }
 
         if futures.is_empty() {
-            value.store(&mut self.stack, ())?;
+            self.stack.store(value, ())?;
             self.ip = self.ip.wrapping_add(len);
             return Ok(None);
         }
@@ -1216,7 +1215,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_store(&mut self, value: InstValue, out: Output) -> Result<(), VmError> {
-        out.store(&mut self.stack, value.into_value())?;
+        self.stack.store(out, value.into_value())?;
         Ok(())
     }
 
@@ -1234,7 +1233,7 @@ impl Vm {
     fn op_move(&mut self, addr: Address, out: Output) -> Result<(), VmError> {
         let value = self.stack.at(addr).clone();
         let value = value.move_()?;
-        out.store(&mut self.stack, value)?;
+        self.stack.store(out, value)?;
         Ok(())
     }
 
@@ -1300,7 +1299,7 @@ impl Vm {
             .iter_mut()
             .map(take)
             .try_collect::<alloc::Vec<Value>>()?;
-        out.store(&mut self.stack, Vec::from(vec))?;
+        self.stack.store(out, Vec::from(vec))?;
         Ok(())
     }
 
@@ -1314,7 +1313,7 @@ impl Vm {
             .map(take)
             .try_collect::<alloc::Vec<Value>>()?;
 
-        out.store(&mut self.stack, || OwnedTuple::try_from(tuple))?;
+        self.stack.store(out, || OwnedTuple::try_from(tuple))?;
         Ok(())
     }
 
@@ -1328,7 +1327,7 @@ impl Vm {
             tuple.try_push(value)?;
         }
 
-        out.store(&mut self.stack, || OwnedTuple::try_from(tuple))?;
+        self.stack.store(out, || OwnedTuple::try_from(tuple))?;
         Ok(())
     }
 
@@ -1404,7 +1403,7 @@ impl Vm {
                 }));
             };
 
-            out.store(&mut self.stack, store)?;
+            self.stack.store(out, store)?;
             return Ok(());
         };
 
@@ -1465,7 +1464,7 @@ impl Vm {
                     Value::partial_eq_with(&lhs, &rhs, self)?
                 };
 
-                out.store(&mut self.stack, test)?;
+                self.stack.store(out, test)?;
             }
             InstOp::Neq => {
                 let rhs = self.stack.at(rhs);
@@ -1479,7 +1478,7 @@ impl Vm {
                     Value::partial_eq_with(&lhs, &rhs, self)?
                 };
 
-                out.store(&mut self.stack, !test)?;
+                self.stack.store(out, !test)?;
             }
             InstOp::And => {
                 self.internal_bool(|a, b| a && b, "&&", lhs, rhs, out)?;
@@ -1489,15 +1488,15 @@ impl Vm {
             }
             InstOp::As => {
                 let value = self.as_op(lhs, rhs)?;
-                out.store(&mut self.stack, value)?;
+                self.stack.store(out, value)?;
             }
             InstOp::Is => {
                 let is_instance = self.test_is_instance(lhs, rhs)?;
-                out.store(&mut self.stack, is_instance)?;
+                self.stack.store(out, is_instance)?;
             }
             InstOp::IsNot => {
                 let is_instance = self.test_is_instance(lhs, rhs)?;
-                out.store(&mut self.stack, !is_instance)?;
+                self.stack.store(out, !is_instance)?;
             }
         }
 
@@ -1554,7 +1553,7 @@ impl Vm {
                 }
             };
 
-            out.store(&mut self.stack, inline)?;
+            self.stack.store(out, inline)?;
             return Ok(());
         }
 
@@ -1617,7 +1616,7 @@ impl Vm {
                 }
             };
 
-            out.store(&mut self.stack, inline)?;
+            self.stack.store(out, inline)?;
             return Ok(());
         };
 
@@ -1697,7 +1696,7 @@ impl Vm {
                 }
             };
 
-            out.store(&mut self.stack, inline)?;
+            self.stack.store(out, inline)?;
             return Ok(());
         };
 
@@ -1956,7 +1955,7 @@ impl Vm {
         let (exit, out) = self.pop_call_frame();
 
         let out = if let Some(out) = out {
-            out.store(&mut self.stack, return_value)?;
+            self.stack.store(out, return_value)?;
             out
         } else {
             let addr = self.stack.addr();
@@ -2018,7 +2017,7 @@ impl Vm {
         let (exit, out) = self.pop_call_frame();
 
         let out = if let Some(out) = out {
-            out.store(&mut self.stack, ())?;
+            self.stack.store(out, ())?;
             out
         } else {
             let addr = self.stack.addr();
@@ -2039,7 +2038,7 @@ impl Vm {
         let instance = self.stack.at(addr);
         let ty = instance.type_hash();
         let hash = Hash::associated_function(ty, hash);
-        out.store(&mut self.stack, || Type::new(hash))?;
+        self.stack.store(out, || Type::new(hash))?;
         Ok(())
     }
 
@@ -2092,7 +2091,7 @@ impl Vm {
             return Ok(());
         };
 
-        out.store(&mut self.stack, value)?;
+        self.stack.store(out, value)?;
         Ok(())
     }
 
@@ -2127,7 +2126,7 @@ impl Vm {
         let value = self.stack.at(addr);
 
         if let Some(value) = Self::try_tuple_like_index_get(value, index)? {
-            out.store(&mut self.stack, value)?;
+            self.stack.store(out, value)?;
             return Ok(());
         }
 
@@ -2209,7 +2208,7 @@ impl Vm {
                 };
 
                 let value = value.clone();
-                out.store(&mut self.stack, value)?;
+                self.stack.store(out, value)?;
                 return Ok(());
             }
             Repr::Any(value) if value.type_hash() == Object::HASH => {
@@ -2220,7 +2219,7 @@ impl Vm {
                 };
 
                 let value = value.clone();
-                out.store(&mut self.stack, value)?;
+                self.stack.store(out, value)?;
                 return Ok(());
             }
             Repr::Any(..) => {}
@@ -2265,7 +2264,7 @@ impl Vm {
             object.insert(key, take(value))?;
         }
 
-        out.store(&mut self.stack, object)?;
+        self.stack.store(out, object)?;
         Ok(())
     }
 
@@ -2298,7 +2297,7 @@ impl Vm {
             }
         };
 
-        out.store(&mut self.stack, value)?;
+        self.stack.store(out, value)?;
         Ok(())
     }
 
@@ -2311,7 +2310,7 @@ impl Vm {
 
         let values = self.stack.slice_at_mut(addr, rtti.fields.len())?;
         let value = AnySequence::new(rtti.clone(), values.iter_mut().map(take))?;
-        out.store(&mut self.stack, value)?;
+        self.stack.store(out, value)?;
         Ok(())
     }
 
@@ -2333,7 +2332,7 @@ impl Vm {
         };
 
         let value = construct.runtime_construct(values)?;
-        out.store(&mut self.stack, value)?;
+        self.stack.store(out, value)?;
         Ok(())
     }
 
@@ -2343,7 +2342,7 @@ impl Vm {
             return Err(VmError::new(VmErrorKind::MissingStaticString { slot }));
         };
 
-        out.store(&mut self.stack, string.as_str())?;
+        self.stack.store(out, string.as_str())?;
         Ok(())
     }
 
@@ -2353,7 +2352,7 @@ impl Vm {
             return Err(VmError::new(VmErrorKind::MissingStaticBytes { slot }));
         };
 
-        out.store(&mut self.stack, bytes)?;
+        self.stack.store(out, bytes)?;
         Ok(())
     }
 
@@ -2379,7 +2378,7 @@ impl Vm {
             Ok::<_, VmError>(())
         })?;
 
-        out.store(&mut self.stack, s)?;
+        self.stack.store(out, s)?;
         Ok(())
     }
 
@@ -2387,7 +2386,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, addr: Address, spec: FormatSpec, out: Output) -> Result<(), VmError> {
         let value = self.stack.at(addr).clone();
-        out.store(&mut self.stack, || Format { value, spec })?;
+        self.stack.store(out, || Format { value, spec })?;
         Ok(())
     }
 
@@ -2427,7 +2426,7 @@ impl Vm {
 
         match result {
             ControlFlow::Continue(value) => {
-                out.store(&mut self.stack, value)?;
+                self.stack.store(out, value)?;
                 Ok(None)
             }
             ControlFlow::Break(error) => Ok(self.op_return_internal(error)?),
@@ -2443,7 +2442,7 @@ impl Vm {
             _ => false,
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2456,7 +2455,7 @@ impl Vm {
             _ => false,
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2467,7 +2466,7 @@ impl Vm {
             _ => false,
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2480,7 +2479,7 @@ impl Vm {
             _ => false,
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2502,7 +2501,7 @@ impl Vm {
             actual.as_str() == string.as_str()
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2524,7 +2523,7 @@ impl Vm {
             value.as_slice() == bytes
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2583,7 +2582,7 @@ impl Vm {
             }
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2618,7 +2617,7 @@ impl Vm {
             actual >= len && (!exact || actual == len)
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2652,7 +2651,7 @@ impl Vm {
             true
         };
 
-        out.store(&mut self.stack, is_match)?;
+        self.stack.store(out, is_match)?;
         Ok(())
     }
 
@@ -2660,7 +2659,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash, out: Output) -> Result<(), VmError> {
         let function = self.lookup_function_by_hash(hash)?;
-        out.store(&mut self.stack, function)?;
+        self.stack.store(out, function)?;
         Ok(())
     }
 
@@ -2707,7 +2706,7 @@ impl Vm {
             hash,
         );
 
-        out.store(&mut self.stack, function)?;
+        self.stack.store(out, function)?;
         Ok(())
     }
 
@@ -2746,7 +2745,8 @@ impl Vm {
                     return Err(VmError::new(VmErrorKind::MissingRtti { hash: *hash }));
                 };
 
-                out.store(&mut self.stack, || Value::empty_struct(rtti.clone()))?;
+                self.stack
+                    .store(out, || Value::empty_struct(rtti.clone()))?;
             }
             UnitFn::TupleStruct {
                 hash,
@@ -2761,7 +2761,7 @@ impl Vm {
                 let tuple = self.stack.slice_at_mut(addr, args)?;
                 let data = tuple.iter_mut().map(take);
                 let value = AnySequence::new(rtti.clone(), data)?;
-                out.store(&mut self.stack, value)?;
+                self.stack.store(out, value)?;
             }
         }
 
@@ -2875,7 +2875,7 @@ impl Vm {
             }
         };
 
-        out.store(&mut self.stack, some)?;
+        self.stack.store(out, some)?;
         Ok(())
     }
 
