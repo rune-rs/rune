@@ -4,7 +4,8 @@ fn inline_assign() {
     let b = 20;
     let (a, b) = (b, a);
 
-    assert_eq!(a + b, 30);
+    assert_eq!(a, 10);
+    assert_eq!(b, 20);
 }
 
 #[test]
@@ -13,6 +14,7 @@ fn basic_assign() {
     a = 42;
     let out = a;
 
+    assert_eq!(a, 42);
     assert_eq!(out, 42);
 }
 
