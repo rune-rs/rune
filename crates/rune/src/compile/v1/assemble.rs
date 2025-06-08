@@ -9,7 +9,9 @@ use crate::alloc::BTreeMap;
 use crate::ast::{self, Spanned};
 use crate::compile::ir;
 use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
+use crate::diagnostics::PolicyDiagnosticKind::{PatternMightPanic, Unreachable, Unused};
 use crate::hir;
+use crate::policy::{self, Policies};
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::ConstInstance;
 use crate::runtime::{
@@ -68,6 +70,8 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     pub(crate) select_branches: Vec<(Label, &'hir hir::ExprSelectBranch<'hir>)>,
     /// Values to drop.
     pub(crate) drop: Vec<inst::Address>,
+    /// Compilation policies for the current context.
+    pub(crate) p: Policies,
 }
 
 impl<'hir> Ctxt<'_, 'hir, '_> {
@@ -383,8 +387,13 @@ where
     let false_label = cx.asm.new_label("pattern_panic");
 
     if matches!(converge!(f(cx, &false_label)?), Pattern::Refutable) {
-        cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, span, cx.context())?;
+        cx.q.diagnostics.policy(
+            cx.source_id,
+            span,
+            cx.p.find(policy::Name::PatternMightPanic),
+            PatternMightPanic,
+            cx.context(),
+        )?;
 
         let match_label = cx.asm.new_label("patter_match");
 
@@ -929,14 +938,22 @@ fn block_without_scope<'a, 'hir>(
     hir: &'hir hir::Block<'hir>,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let mut diverge = None;
+    let mut diverge = None::<&dyn Spanned>;
     cx.contexts.try_push(hir)?;
 
     for stmt in hir.statements {
         let mut needs = Any::ignore(hir).with_name("statement ignore");
 
         if let Some(cause) = diverge {
-            cx.q.diagnostics.unreachable(cx.source_id, stmt, cause)?;
+            cx.q.diagnostics.policy(
+                cx.source_id,
+                stmt,
+                cx.p.find(policy::Name::Unreachable),
+                Unreachable {
+                    cause: cause.span(),
+                },
+                cx.context(),
+            )?;
             continue;
         }
 
@@ -952,7 +969,15 @@ fn block_without_scope<'a, 'hir>(
 
     if let Some(cause) = diverge {
         if let Some(e) = hir.value {
-            cx.q.diagnostics.unreachable(cx.source_id, e, cause)?;
+            cx.q.diagnostics.policy(
+                cx.source_id,
+                e,
+                cx.p.find(policy::Name::Unreachable),
+                Unreachable {
+                    cause: cause.span(),
+                },
+                cx.context(),
+            )?;
         }
     } else if let Some(e) = hir.value {
         if expr(cx, e, needs)?.diverging() {
@@ -1082,8 +1107,13 @@ fn const_<'a, 'hir>(
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<()> {
     let Some(addr) = needs.try_alloc_addr()? else {
-        cx.q.diagnostics
-            .not_used(cx.source_id, span, cx.context())?;
+        cx.q.diagnostics.policy(
+            cx.source_id,
+            span,
+            cx.p.find(policy::Name::Unused),
+            Unused,
+            cx.context(),
+        )?;
         return Ok(());
     };
 
@@ -2081,8 +2111,13 @@ fn expr_call_closure<'a, 'hir>(
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
     let Some(out) = needs.try_alloc_output()? else {
-        cx.q.diagnostics
-            .not_used(cx.source_id, span, cx.context())?;
+        cx.q.diagnostics.policy(
+            cx.source_id,
+            span,
+            cx.p.find(policy::Name::Unused),
+            Unused,
+            cx.context(),
+        )?;
         return Ok(Asm::new(span, ()));
     };
 
@@ -2225,8 +2260,15 @@ fn expr_for<'a, 'hir>(
 
     if !expr(cx, &hir.iter, &mut iter)?.converging() {
         iter.free()?;
-        cx.q.diagnostics
-            .unreachable(cx.source_id, &hir.body, &hir.iter)?;
+        cx.q.diagnostics.policy(
+            cx.source_id,
+            &hir.body,
+            cx.p.find(policy::Name::Unreachable),
+            Unreachable {
+                cause: hir.iter.span(),
+            },
+            cx.context(),
+        )?;
         return Ok(Asm::diverge(span));
     }
 
@@ -3252,8 +3294,13 @@ fn lit<'a, 'hir>(
 ) -> compile::Result<Asm<'hir>> {
     // Elide the entire literal if it's not needed.
     let Some(addr) = needs.try_alloc_addr()? else {
-        cx.q.diagnostics
-            .not_used(cx.source_id, span, cx.context())?;
+        cx.q.diagnostics.policy(
+            cx.source_id,
+            span,
+            cx.p.find(policy::Name::Unused),
+            Unused,
+            cx.context(),
+        )?;
         return Ok(Asm::new(span, ()));
     };
 

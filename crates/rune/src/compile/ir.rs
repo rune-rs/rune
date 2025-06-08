@@ -19,6 +19,7 @@ use crate::compile::{self, ItemId, WithSpan};
 use crate::hir;
 use crate::indexing::index;
 use crate::macros::MacroContext;
+use crate::policy::Policies;
 use crate::query::Used;
 use crate::runtime::{Inline, Value};
 
@@ -35,9 +36,15 @@ impl ast::Expr {
         let ir = {
             // TODO: avoid this arena?
             let arena = hir::Arena::new();
+            let p = Policies::new().with_span(&expr)?;
 
-            let mut hir_ctx =
-                hir::Ctxt::with_const(&arena, cx.idx.q.borrow(), cx.item_meta.location.source_id)?;
+            let mut hir_ctx = hir::Ctxt::with_const(
+                &arena,
+                cx.idx.q.borrow(),
+                cx.item_meta.location.source_id,
+                p,
+            )?;
+
             let hir = hir::lowering::expr(&mut hir_ctx, &expr)?;
 
             let mut cx = Ctxt {

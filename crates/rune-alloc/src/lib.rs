@@ -117,6 +117,9 @@ pub(crate) mod hint;
 pub mod iter;
 mod option;
 pub(crate) mod ptr;
+pub mod rc;
+#[doc(inline)]
+pub use self::rc::Rc;
 pub mod sync;
 
 #[doc(hidden)]

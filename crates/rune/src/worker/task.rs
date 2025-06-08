@@ -1,4 +1,5 @@
 use crate::alloc::path::PathBuf;
+use crate::ast::Span;
 use crate::compile::{ItemId, ModId};
 use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
@@ -9,8 +10,10 @@ pub(crate) enum Task {
     LoadFile {
         /// The kind of loaded file.
         kind: LoadFileKind,
-        /// The source id of the item being loaded.
+        /// The source id where the item is being loaded from.
         source_id: SourceId,
+        /// The span where the item is being loaded from.
+        span: Span,
         /// The item of the file to load.
         mod_item: ModId,
         /// Unique item stack identifier.

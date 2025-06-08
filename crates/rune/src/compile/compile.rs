@@ -2,19 +2,22 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::{Span, Spanned};
 use crate::compile::v1;
-use crate::compile::{
-    self, Assembly, CompileVisitor, Context, ErrorKind, Location, Options, Pool, Prelude,
-    SourceLoader, UnitBuilder,
-};
+use crate::diagnostics::PolicyDiagnosticKind::Unused;
 use crate::hir;
 use crate::indexing::FunctionAst;
 use crate::macros::Storage;
 use crate::parse::Resolve;
+use crate::policy::{self, Policies};
 use crate::query::{Build, BuildEntry, Query, SecondaryBuild, Used};
 use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Diagnostics, Sources};
+
+use super::{
+    Assembly, CompileVisitor, Context, Error, ErrorKind, Location, Options, Pool, Prelude, Result,
+    SourceLoader, UnitBuilder,
+};
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(
@@ -69,15 +72,13 @@ pub(crate) fn compile(
         let result = worker.queue.try_push_back(Task::LoadFile {
             kind: LoadFileKind::Root,
             source_id,
+            span: Span::empty(),
             mod_item,
             mod_item_id: root_item_id,
         });
 
         if let Err(error) = result {
-            worker
-                .q
-                .diagnostics
-                .error(source_id, compile::Error::from(error))?;
+            worker.q.diagnostics.error(source_id, Error::from(error))?;
         }
     }
 
@@ -139,15 +140,12 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             options: self.options,
             select_branches: Vec::new(),
             drop: Vec::new(),
+            p: Policies::new()?,
         })
     }
 
     #[tracing::instrument(skip_all)]
-    fn compile(
-        mut self,
-        entry: BuildEntry,
-        unit_storage: &mut dyn UnitEncoder,
-    ) -> compile::Result<()> {
+    fn compile(mut self, entry: BuildEntry, unit_storage: &mut dyn UnitEncoder) -> Result<()> {
         use self::v1::assemble;
 
         let BuildEntry { item_meta, build } = entry;
@@ -169,7 +167,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     .query_meta(&item_meta.location, item_meta.item, used)?
                     .is_none()
                 {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         item_meta.location.span,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).try_to_owned()?,
@@ -197,10 +195,13 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let arena = hir::Arena::new();
                 let mut secondary_builds = Vec::new();
 
+                let p = Policies::new()?;
+
                 let mut cx = hir::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
                     item_meta.location.source_id,
+                    p,
                     &mut secondary_builds,
                 )?;
 
@@ -236,12 +237,18 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let mut scopes = self::v1::Scopes::new(location.source_id)?;
                 let mut c = self.compiler1(location, span, &mut asm, &mut scopes)?;
                 assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
+
                 let size = c.scopes.size();
+                let p = c.p;
 
                 if !self.q.is_used(&item_meta) {
-                    self.q
-                        .diagnostics
-                        .not_used(location.source_id, span, None)?;
+                    self.q.diagnostics.policy(
+                        location.source_id,
+                        span,
+                        p.find(policy::Name::Unused),
+                        Unused,
+                        None::<Span>,
+                    )?;
                 } else {
                     let instance = match (type_hash, &f.ast) {
                         (Some(type_hash), FunctionAst::Item(_, name)) => {
@@ -255,11 +262,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         _ => None,
                     };
 
-                    let item = self.q.pool.item(item_meta.item);
-
                     self.q.unit.new_function(
                         location,
-                        item,
+                        self.q.pool.item(item_meta.item),
                         instance,
                         count,
                         None,
@@ -286,13 +291,17 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                             let mut scopes = self::v1::Scopes::new(location.source_id)?;
                             let mut cx = self.compiler1(location, c.hir, &mut asm, &mut scopes)?;
                             assemble::expr_closure_secondary(&mut cx, c.hir)?;
+
                             let size = cx.scopes.size();
+                            let p = cx.p;
 
                             if !self.q.is_used(&item_meta) {
-                                self.q.diagnostics.not_used(
+                                self.q.diagnostics.policy(
                                     location.source_id,
                                     &location.span,
-                                    None,
+                                    p.find(policy::Name::Unused),
+                                    Unused,
+                                    None::<Span>,
                                 )?;
                             } else {
                                 let captures =
@@ -324,13 +333,17 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                             let mut scopes = self::v1::Scopes::new(location.source_id)?;
                             let mut cx = self.compiler1(location, b.hir, &mut asm, &mut scopes)?;
                             assemble::async_block_secondary(&mut cx, b.hir)?;
+
                             let size = cx.scopes.size();
+                            let p = cx.p;
 
                             if !self.q.is_used(&item_meta) {
-                                self.q.diagnostics.not_used(
+                                self.q.diagnostics.policy(
                                     location.source_id,
                                     &location.span,
-                                    None,
+                                    p.find(policy::Name::Unused),
+                                    Unused,
+                                    None::<Span>,
                                 )?;
                             } else {
                                 let args = b.hir.captures.len();
@@ -355,10 +368,16 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             Build::Unused => {
                 tracing::trace!("unused: {}", self.q.pool.item(item_meta.item));
 
+                let p = Policies::new()?;
+
                 if !item_meta.visibility.is_public() {
-                    self.q
-                        .diagnostics
-                        .not_used(location.source_id, &location.span, None)?;
+                    self.q.diagnostics.policy(
+                        location.source_id,
+                        &location.span,
+                        p.find(policy::Name::Unused),
+                        Unused,
+                        None::<Span>,
+                    )?;
                 }
             }
             Build::Import(import) => {
@@ -375,10 +394,16 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q
                         .import(&location, item_meta.module, item_meta.item, used, used)?;
 
+                let p = Policies::new()?;
+
                 if !self.q.is_used(&item_meta) {
-                    self.q
-                        .diagnostics
-                        .not_used(location.source_id, &location.span, None)?;
+                    self.q.diagnostics.policy(
+                        location.source_id,
+                        &location.span,
+                        p.find(policy::Name::Unused),
+                        Unused,
+                        None::<Span>,
+                    )?;
                 }
 
                 let missing = match result {
@@ -395,7 +420,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 };
 
                 if let Some(item) = missing {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         location,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item).try_to_owned()?,
@@ -416,7 +441,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q
                         .import(&location, item_meta.module, item_meta.item, used, used)?
                 else {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         location.span,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).try_to_owned()?,
@@ -441,7 +466,7 @@ fn format_hir_args<'hir, I>(
     location: Location,
     environment: bool,
     arguments: I,
-) -> compile::Result<Box<[Box<str>]>>
+) -> Result<Box<[Box<str>]>>
 where
     I: IntoIterator<Item = &'hir hir::FnArg<'hir>>,
 {
@@ -476,7 +501,7 @@ fn format_ast_args<'a, I>(
     location: Location,
     environment: bool,
     arguments: I,
-) -> compile::Result<Box<[Box<str>]>>
+) -> Result<Box<[Box<str>]>>
 where
     I: IntoIterator<Item = &'a Span>,
 {

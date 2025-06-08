@@ -64,10 +64,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     Task::LoadFile {
                         kind,
                         source_id,
+                        span,
                         mod_item,
                         mod_item_id,
                     } => {
-                        let result = self.load_file(kind, source_id, mod_item, mod_item_id);
+                        let result = self.load_file(kind, source_id, &span, mod_item, mod_item_id);
 
                         if let Err(error) = result {
                             self.q.diagnostics.error(source_id, error)?;
@@ -148,13 +149,14 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         &mut self,
         kind: LoadFileKind,
         source_id: SourceId,
+        span: &dyn Spanned,
         mod_item: ModId,
         mod_item_id: ItemId,
     ) -> compile::Result<()> {
         let Some(source) = self.q.sources.get(source_id) else {
             self.q
                 .diagnostics
-                .internal(source_id, "Missing queued source by id")?;
+                .internal(source_id, span, "Missing queued source by id")?;
             return Ok(());
         };
 

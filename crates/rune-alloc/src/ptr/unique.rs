@@ -51,6 +51,12 @@ impl<T> Unique<T>
 where
     T: Sized,
 {
+    /// Converts a `Unique<T>` into the underlying `NonNull<T>` pointer.
+    #[inline]
+    pub(crate) fn into_nonnull(self) -> NonNull<T> {
+        self.pointer
+    }
+
     /// Creates a new `Unique` that is dangling, but well-aligned.
     ///
     /// This is useful for initializing types which lazily allocate, like

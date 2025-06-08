@@ -335,9 +335,9 @@ macro_rules! assert_errors {
             };
 
             let e = match e.into_kind() {
-                rune::diagnostics::FatalDiagnosticKind::CompileError(e) => (e),
+                rune::diagnostics::FatalDiagnosticKind::Compile(e) => (e),
                 actual => {
-                    expected!("compile error", CompileError(e), actual)
+                    expected!("compile error", Compile(e), actual)
                 }
             };
 
