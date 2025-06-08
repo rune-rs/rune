@@ -28,9 +28,10 @@ use crate::source;
 use crate::{Hash, Item, ItemBuf, SourceId};
 
 /// An error raised by the compiler.
-#[derive(Debug)]
+#[derive(Debug, Spanned)]
 pub struct Error {
     // The span the error is associated with.
+    #[rune(span)]
     span: Span,
     // Errors are exempt from fallible allocations since they're not commonly
     // constructed.
@@ -75,14 +76,8 @@ impl Error {
     }
 }
 
-impl Spanned for Error {
-    #[inline]
-    fn span(&self) -> Span {
-        self.span
-    }
-}
-
 impl core::error::Error for Error {
+    #[inline]
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         self.kind.source()
     }
@@ -629,6 +624,9 @@ pub(crate) enum ErrorKind {
     #[cfg(feature = "fmt")]
     UnsupportedDelimiter {
         expectation: Expectation,
+    },
+    MissingFunction {
+        hash: Hash,
     },
 }
 
@@ -1249,6 +1247,9 @@ impl fmt::Display for ErrorKind {
             #[cfg(feature = "fmt")]
             ErrorKind::UnsupportedDelimiter { expectation } => {
                 write!(f, "Unsupported delimiter {expectation}")?;
+            }
+            ErrorKind::MissingFunction { hash, .. } => {
+                write!(f, "Missing function with hash {hash}")?;
             }
         }
 

@@ -3,8 +3,6 @@
 //! A unit consists of a sequence of instructions, and lookaside tables for
 //! metadata like function locations.
 
-use core::fmt;
-
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, try_format, Box, HashMap, String, Vec};
@@ -22,29 +20,6 @@ use crate::runtime::{
 };
 use crate::sync::Arc;
 use crate::{Context, Diagnostics, Hash, Item, SourceId};
-
-/// Errors that can be raised when linking units.
-#[derive(Debug)]
-#[allow(missing_docs)]
-#[non_exhaustive]
-pub enum LinkerError {
-    MissingFunction {
-        hash: Hash,
-        spans: Vec<(Span, SourceId)>,
-    },
-}
-
-impl fmt::Display for LinkerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LinkerError::MissingFunction { hash, .. } => {
-                write!(f, "Missing function with hash {hash}")
-            }
-        }
-    }
-}
-
-impl core::error::Error for LinkerError {}
 
 /// Instructions from a single source file.
 #[derive(Debug, Default)]
@@ -783,13 +758,12 @@ impl UnitBuilder {
     ) -> alloc::Result<()> {
         for (hash, spans) in &self.required_functions {
             if self.functions.get(hash).is_none() && context.lookup_function(*hash).is_none() {
-                diagnostics.error(
-                    SourceId::empty(),
-                    LinkerError::MissingFunction {
-                        hash: *hash,
-                        spans: spans.try_clone()?,
-                    },
-                )?;
+                for &(span, source_id) in spans {
+                    diagnostics.error(
+                        source_id,
+                        compile::Error::new(span, ErrorKind::MissingFunction { hash: *hash }),
+                    )?;
+                }
             }
         }
 

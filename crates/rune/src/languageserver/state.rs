@@ -13,9 +13,9 @@ use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, LinkerError, Located, Location, MetaError, MetaRef, SourceMeta, WithSpan,
+    self, CompileVisitor, Located, Location, MetaError, MetaRef, SourceMeta, WithSpan,
 };
-use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use crate::diagnostics::Diagnostic;
 use crate::doc::VisitorData;
 use crate::item::ComponentRef;
 use crate::languageserver::connection::Output;
@@ -685,35 +685,9 @@ impl<'a> State<'a> {
             tracing::trace!(?diagnostic, id_to_url = ?build.id_to_url, "script diagnostic");
 
             match diagnostic {
-                Diagnostic::Fatal(f) => match f.kind() {
-                    FatalDiagnosticKind::CompileError(e) => {
-                        self.report(build, reporter, f.source_id(), e, to_error)?;
-                    }
-                    FatalDiagnosticKind::LinkError(e) => match e {
-                        LinkerError::MissingFunction { hash, spans } => {
-                            for (span, source_id) in spans {
-                                let (Some(url), Some(source)) = (
-                                    build.id_to_url.get(source_id),
-                                    build.sources.get(*source_id),
-                                ) else {
-                                    continue;
-                                };
-
-                                let range = self.encoding.source_range(source, *span)?;
-
-                                let diagnostics = reporter.entry(url);
-
-                                diagnostics.try_push(to_error(
-                                    range,
-                                    format_args!("Missing function with hash `{}`", hash),
-                                )?)?;
-                            }
-                        }
-                    },
-                    FatalDiagnosticKind::Internal(e) => {
-                        report_without_span(build, reporter, f.source_id(), e, to_error)?;
-                    }
-                },
+                Diagnostic::Fatal(e) => {
+                    self.report(build, reporter, e.source_id(), e, to_error)?;
+                }
                 Diagnostic::Warning(e) => {
                     self.report(build, reporter, e.source_id(), e, to_warning)?;
                 }
@@ -734,8 +708,7 @@ impl<'a> State<'a> {
         report: R,
     ) -> Result<()>
     where
-        E: fmt::Display,
-        E: Spanned,
+        E: Spanned + fmt::Display,
         R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
     {
         let span = error.span();
@@ -892,28 +865,6 @@ impl fmt::Display for ServerSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.content)
     }
-}
-
-/// Convert the given span and error into an error diagnostic.
-fn report_without_span<E, R>(
-    build: &Build,
-    reporter: &mut Reporter,
-    source_id: SourceId,
-    error: E,
-    report: R,
-) -> Result<()>
-where
-    E: fmt::Display,
-    R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
-{
-    let Some(url) = build.id_to_url.get(&source_id) else {
-        return Ok(());
-    };
-
-    let range = lsp::Range::default();
-    let diagnostics = reporter.entry(url);
-    diagnostics.try_push(report(range, error)?)?;
-    Ok(())
 }
 
 /// Convert the given span and error into an error diagnostic.

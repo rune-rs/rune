@@ -500,6 +500,7 @@ impl Indexer<'_, '_> {
                     root: self.root.map(|p| p.try_to_owned()).transpose()?,
                 },
                 source_id,
+                span: ast.span(),
                 mod_item,
                 mod_item_id,
             })?;

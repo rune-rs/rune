@@ -10,3 +10,5 @@ cfg_if! {
         }
     }
 }
+
+pub(crate) use core::hint::assert_unchecked;

@@ -40,7 +40,6 @@ pub use self::source_loader::FileSourceLoader;
 pub use self::source_loader::{NoopSourceLoader, SourceLoader};
 
 mod unit_builder;
-pub use self::unit_builder::LinkerError;
 pub(crate) use self::unit_builder::UnitBuilder;
 
 pub(crate) mod v1;

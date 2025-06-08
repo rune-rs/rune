@@ -60,8 +60,6 @@ pub use rune_alloc::path;
 #[doc(inline)]
 pub use rune_alloc::str;
 #[doc(inline)]
-pub use rune_alloc::sync;
-#[doc(inline)]
 pub use rune_alloc::{boxed, Box};
 #[doc(inline)]
 pub use rune_alloc::{btree_map, BTreeMap};

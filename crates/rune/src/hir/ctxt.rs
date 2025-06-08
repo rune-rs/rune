@@ -6,6 +6,7 @@ use crate::ast::{self, Spanned};
 use crate::compile::{meta, DynLocation, Error, ItemId, Result};
 use crate::grammar::{Ignore, Node};
 use crate::hir;
+use crate::policy::Policies;
 use crate::query::{GenericsParameters, Query, SecondaryBuildEntry};
 use crate::SourceId;
 
@@ -21,6 +22,7 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     pub(super) arena: &'hir hir::arena::Arena,
     pub(crate) q: Query<'a, 'arena>,
     pub(super) source_id: SourceId,
+    pub(crate) p: Policies,
     pub(super) const_eval: bool,
     pub(super) secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
     pub(super) in_template: bool,
@@ -40,9 +42,10 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         arena: &'hir hir::arena::Arena,
         q: Query<'a, 'arena>,
         source_id: SourceId,
+        p: Policies,
         secondary_builds: &'a mut Vec<SecondaryBuildEntry<'hir>>,
     ) -> alloc::Result<Self> {
-        Self::inner(arena, q, source_id, false, Some(secondary_builds))
+        Self::inner(arena, q, source_id, p, false, Some(secondary_builds))
     }
 
     /// Construct a new context used in a constant context where the resulting
@@ -51,14 +54,16 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
         arena: &'hir hir::arena::Arena,
         q: Query<'a, 'arena>,
         source_id: SourceId,
+        p: Policies,
     ) -> alloc::Result<Self> {
-        Self::inner(arena, q, source_id, true, None)
+        Self::inner(arena, q, source_id, p, true, None)
     }
 
     fn inner(
         arena: &'hir hir::arena::Arena,
         q: Query<'a, 'arena>,
         source_id: SourceId,
+        p: Policies,
         const_eval: bool,
         secondary_builds: Option<&'a mut Vec<SecondaryBuildEntry<'hir>>>,
     ) -> alloc::Result<Self> {
@@ -68,6 +73,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             arena,
             q,
             source_id,
+            p,
             const_eval,
             secondary_builds,
             in_template: false,

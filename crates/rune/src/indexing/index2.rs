@@ -733,6 +733,7 @@ impl<'a> Processor<'a> {
                     root: idx.root.map(|p| p.try_to_owned()).transpose()?,
                 },
                 source_id,
+                span: p.span(),
                 mod_item,
                 mod_item_id,
             })?;
