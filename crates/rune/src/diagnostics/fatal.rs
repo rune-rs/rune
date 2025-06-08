@@ -7,6 +7,8 @@ use crate::ast::{Span, Spanned};
 use crate::compile::{self, LinkerError};
 use crate::SourceId;
 
+use super::PolicyDiagnostic;
+
 /// Fatal diagnostic emitted during compilation. Fatal diagnostics indicates an
 /// unrecoverable issue.
 #[derive(Debug)]
@@ -24,7 +26,7 @@ impl FatalDiagnostic {
     }
 
     /// The kind of the load error.
-    pub fn kind(&self) -> &FatalDiagnosticKind {
+    pub(crate) fn kind(&self) -> &FatalDiagnosticKind {
         &self.kind
     }
 
@@ -34,11 +36,12 @@ impl FatalDiagnostic {
         *self.kind
     }
 
-    #[cfg(feature = "emit")]
-    pub(crate) fn span(&self) -> Option<Span> {
+    /// Get the span of the diagnostic if available.
+    pub fn span(&self) -> Option<Span> {
         match &*self.kind {
-            FatalDiagnosticKind::CompileError(error) => Some(error.span()),
-            FatalDiagnosticKind::LinkError(..) => None,
+            FatalDiagnosticKind::Compile(error) => Some(error.span()),
+            FatalDiagnosticKind::Policy(policy) => Some(policy.span),
+            FatalDiagnosticKind::Linker(..) => None,
             FatalDiagnosticKind::Internal(..) => None,
         }
     }
@@ -54,8 +57,8 @@ impl core::error::Error for FatalDiagnostic {
     #[inline]
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match &*self.kind {
-            FatalDiagnosticKind::CompileError(error) => Some(error),
-            FatalDiagnosticKind::LinkError(error) => Some(error),
+            FatalDiagnosticKind::Compile(error) => Some(error),
+            FatalDiagnosticKind::Linker(error) => Some(error),
             _ => None,
         }
     }
@@ -65,9 +68,10 @@ impl core::error::Error for FatalDiagnostic {
 #[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum FatalDiagnosticKind {
-    CompileError(compile::Error),
-    LinkError(LinkerError),
+pub(crate) enum FatalDiagnosticKind {
+    Compile(compile::Error),
+    Policy(PolicyDiagnostic),
+    Linker(LinkerError),
     /// An internal error.
     Internal(&'static str),
 }
@@ -76,8 +80,9 @@ impl fmt::Display for FatalDiagnosticKind {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FatalDiagnosticKind::CompileError(error) => error.fmt(f),
-            FatalDiagnosticKind::LinkError(error) => error.fmt(f),
+            FatalDiagnosticKind::Compile(error) => error.fmt(f),
+            FatalDiagnosticKind::Policy(policy) => policy.fmt(f),
+            FatalDiagnosticKind::Linker(error) => error.fmt(f),
             FatalDiagnosticKind::Internal(message) => message.fmt(f),
         }
     }
@@ -86,13 +91,13 @@ impl fmt::Display for FatalDiagnosticKind {
 impl From<compile::Error> for FatalDiagnosticKind {
     #[inline]
     fn from(error: compile::Error) -> Self {
-        FatalDiagnosticKind::CompileError(error)
+        FatalDiagnosticKind::Compile(error)
     }
 }
 
 impl From<LinkerError> for FatalDiagnosticKind {
     #[inline]
     fn from(error: LinkerError) -> Self {
-        FatalDiagnosticKind::LinkError(error)
+        FatalDiagnosticKind::Linker(error)
     }
 }

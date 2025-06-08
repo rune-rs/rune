@@ -6,6 +6,8 @@
 mod assembly;
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 
+pub(crate) mod policies;
+pub(crate) use self::policies::{Policies, Policy};
 pub(crate) mod attrs;
 
 pub(crate) mod error;

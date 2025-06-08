@@ -5,6 +5,8 @@ use crate::ast::Span;
 use crate::ast::Spanned;
 use crate::SourceId;
 
+use super::PolicyDiagnostic;
+
 /// Warning diagnostic emitted during compilation. Warning diagnostics indicates
 /// an recoverable issues.
 #[derive(Debug)]
@@ -17,17 +19,20 @@ pub struct WarningDiagnostic {
 
 impl WarningDiagnostic {
     /// The source id where the warning originates from.
+    #[inline]
     pub fn source_id(&self) -> SourceId {
         self.source_id
     }
 
     /// The kind of the warning.
     #[cfg(feature = "emit")]
+    #[inline]
     pub(crate) fn kind(&self) -> &WarningDiagnosticKind {
         &self.kind
     }
 
     #[cfg(test)]
+    #[inline]
     pub(crate) fn into_kind(self) -> WarningDiagnosticKind {
         self.kind
     }
@@ -36,8 +41,8 @@ impl WarningDiagnostic {
     #[cfg(feature = "emit")]
     pub(crate) fn context(&self) -> Option<Span> {
         match &self.kind {
-            WarningDiagnosticKind::LetPatternMightPanic { context, .. }
-            | WarningDiagnosticKind::RemoveTupleCallParams { context, .. }
+            WarningDiagnosticKind::Policy(policy) => policy.context,
+            WarningDiagnosticKind::RemoveTupleCallParams { context, .. }
             | WarningDiagnosticKind::NotUsed { context, .. }
             | WarningDiagnosticKind::UsedDeprecated { context, .. }
             | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
@@ -52,7 +57,7 @@ impl Spanned for WarningDiagnostic {
         match &self.kind {
             WarningDiagnosticKind::NotUsed { span, .. } => *span,
             WarningDiagnosticKind::Unreachable { span, .. } => *span,
-            WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,
+            WarningDiagnosticKind::Policy(policy) => policy.span,
             WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
             WarningDiagnosticKind::UnnecessarySemiColon { span, .. } => *span,
@@ -88,6 +93,8 @@ pub(crate) enum WarningDiagnosticKind {
         #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
+    /// A policy diagnostic set to warn.
+    Policy(PolicyDiagnostic),
     /// Unreachable code.
     Unreachable {
         /// The span that is not used.
@@ -95,15 +102,6 @@ pub(crate) enum WarningDiagnosticKind {
         /// The span which caused the code to be unreachable.
         #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         cause: Span,
-    },
-    /// Warning that an unconditional let pattern will panic if it doesn't
-    /// match.
-    LetPatternMightPanic {
-        /// The span of the pattern.
-        span: Span,
-        /// The context in which it is used.
-        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
-        context: Option<Span>,
     },
     /// Encountered a template string without an expansion.
     TemplateWithoutExpansions {
@@ -145,9 +143,7 @@ impl fmt::Display for WarningDiagnosticKind {
         match self {
             WarningDiagnosticKind::NotUsed { .. } => write!(f, "Not used"),
             WarningDiagnosticKind::Unreachable { .. } => write!(f, "Unreachable code"),
-            WarningDiagnosticKind::LetPatternMightPanic { .. } => {
-                write!(f, "Pattern might panic")
-            }
+            WarningDiagnosticKind::Policy(policy) => policy.fmt(f),
             WarningDiagnosticKind::TemplateWithoutExpansions { .. } => write!(
                 f,
                 "Using a template string without expansions, like `Hello World`"

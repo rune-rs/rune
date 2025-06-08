@@ -686,10 +686,13 @@ impl<'a> State<'a> {
 
             match diagnostic {
                 Diagnostic::Fatal(f) => match f.kind() {
-                    FatalDiagnosticKind::CompileError(e) => {
+                    FatalDiagnosticKind::Compile(e) => {
                         self.report(build, reporter, f.source_id(), e, to_error)?;
                     }
-                    FatalDiagnosticKind::LinkError(e) => match e {
+                    FatalDiagnosticKind::Policy(e) => {
+                        self.report(build, reporter, f.source_id(), e, to_error)?;
+                    }
+                    FatalDiagnosticKind::Linker(e) => match e {
                         LinkerError::MissingFunction { hash, spans } => {
                             for (span, source_id) in spans {
                                 let (Some(url), Some(source)) = (
@@ -734,8 +737,7 @@ impl<'a> State<'a> {
         report: R,
     ) -> Result<()>
     where
-        E: fmt::Display,
-        E: Spanned,
+        E: Spanned + fmt::Display,
         R: Fn(lsp::Range, E) -> alloc::Result<lsp::Diagnostic>,
     {
         let span = error.span();

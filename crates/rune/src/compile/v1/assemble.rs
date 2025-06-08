@@ -8,7 +8,8 @@ use crate::alloc::prelude::*;
 use crate::alloc::BTreeMap;
 use crate::ast::{self, Spanned};
 use crate::compile::ir;
-use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, WithSpan};
+use crate::compile::{self, Assembly, ErrorKind, ItemId, ModId, Options, Policies, WithSpan};
+use crate::diagnostics::PolicyDiagnosticKind::PatternMightPanic;
 use crate::hir;
 use crate::query::{ConstFn, Query, Used};
 use crate::runtime::ConstInstance;
@@ -68,6 +69,8 @@ pub(crate) struct Ctxt<'a, 'hir, 'arena> {
     pub(crate) select_branches: Vec<(Label, &'hir hir::ExprSelectBranch<'hir>)>,
     /// Values to drop.
     pub(crate) drop: Vec<inst::Address>,
+    /// Compilation policies for the current context.
+    pub(crate) policies: Policies,
 }
 
 impl<'hir> Ctxt<'_, 'hir, '_> {
@@ -383,8 +386,13 @@ where
     let false_label = cx.asm.new_label("pattern_panic");
 
     if matches!(converge!(f(cx, &false_label)?), Pattern::Refutable) {
-        cx.q.diagnostics
-            .let_pattern_might_panic(cx.source_id, span, cx.context())?;
+        cx.q.diagnostics.policy(
+            cx.source_id,
+            cx.policies.pattern_might_panic,
+            PatternMightPanic,
+            span,
+            cx.context(),
+        )?;
 
         let match_label = cx.asm.new_label("patter_match");
 

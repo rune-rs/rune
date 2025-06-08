@@ -2,10 +2,6 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::{Span, Spanned};
 use crate::compile::v1;
-use crate::compile::{
-    self, Assembly, CompileVisitor, Context, ErrorKind, Location, Options, Pool, Prelude,
-    SourceLoader, UnitBuilder,
-};
 use crate::hir;
 use crate::indexing::FunctionAst;
 use crate::macros::Storage;
@@ -15,6 +11,11 @@ use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
 use crate::{Diagnostics, Sources};
+
+use super::{
+    Assembly, CompileVisitor, Context, Error, ErrorKind, Location, Options, Policies, Pool,
+    Prelude, Result, SourceLoader, UnitBuilder,
+};
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(
@@ -74,10 +75,7 @@ pub(crate) fn compile(
         });
 
         if let Err(error) = result {
-            worker
-                .q
-                .diagnostics
-                .error(source_id, compile::Error::from(error))?;
+            worker.q.diagnostics.error(source_id, Error::from(error))?;
         }
     }
 
@@ -139,15 +137,12 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
             options: self.options,
             select_branches: Vec::new(),
             drop: Vec::new(),
+            policies: Policies::default(),
         })
     }
 
     #[tracing::instrument(skip_all)]
-    fn compile(
-        mut self,
-        entry: BuildEntry,
-        unit_storage: &mut dyn UnitEncoder,
-    ) -> compile::Result<()> {
+    fn compile(mut self, entry: BuildEntry, unit_storage: &mut dyn UnitEncoder) -> Result<()> {
         use self::v1::assemble;
 
         let BuildEntry { item_meta, build } = entry;
@@ -169,7 +164,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     .query_meta(&item_meta.location, item_meta.item, used)?
                     .is_none()
                 {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         item_meta.location.span,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).try_to_owned()?,
@@ -395,7 +390,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 };
 
                 if let Some(item) = missing {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         location,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item).try_to_owned()?,
@@ -416,7 +411,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                     self.q
                         .import(&location, item_meta.module, item_meta.item, used, used)?
                 else {
-                    return Err(compile::Error::new(
+                    return Err(Error::new(
                         location.span,
                         ErrorKind::MissingItem {
                             item: self.q.pool.item(item_meta.item).try_to_owned()?,
@@ -441,7 +436,7 @@ fn format_hir_args<'hir, I>(
     location: Location,
     environment: bool,
     arguments: I,
-) -> compile::Result<Box<[Box<str>]>>
+) -> Result<Box<[Box<str>]>>
 where
     I: IntoIterator<Item = &'hir hir::FnArg<'hir>>,
 {
@@ -476,7 +471,7 @@ fn format_ast_args<'a, I>(
     location: Location,
     environment: bool,
     arguments: I,
-) -> compile::Result<Box<[Box<str>]>>
+) -> Result<Box<[Box<str>]>>
 where
     I: IntoIterator<Item = &'a Span>,
 {
