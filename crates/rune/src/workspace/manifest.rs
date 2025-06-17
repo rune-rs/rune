@@ -247,8 +247,6 @@ impl Package {
 
         if let (Some(path), true) = (&self.root, self.auto_srcs) {
             let path = path.join("src");
-            tracing::debug!(path = ?path, "checking");
-
             let files = find_rune_files(&path)?;
             for file in files {
                 let (path, name) = file?;
