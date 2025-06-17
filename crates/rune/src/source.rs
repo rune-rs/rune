@@ -133,13 +133,13 @@ impl Source {
     cfg_std! {
         /// Read and load a source from the given filesystem path.
         pub fn from_path(path: impl AsRef<Path>) -> Result<Self, FromPathError> {
-            let name = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
+            let filepath = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
             let source = Box::try_from(std::fs::read_to_string(path.as_ref())?)?;
             let path = Some(path.as_ref().try_into()?);
             let line_starts = line_starts(source.as_ref()).try_collect::<Box<[_]>>()?;
 
             Ok(Self {
-                name: SourceName::Name(name),
+                name: SourceName::FilePath(filepath),
                 source,
                 path,
                 line_starts,
@@ -188,6 +188,8 @@ impl Source {
         match &self.name {
             SourceName::Memory => "<memory>",
             SourceName::Name(name) => name,
+            #[cfg(feature = "std")]
+            SourceName::FilePath(filepath) => filepath
         }
     }
 
@@ -403,7 +405,7 @@ impl SourceLine<'_> {
 }
 
 /// Holder for the name of a source.
-#[derive(Default, Debug, TryClone, PartialEq, Eq)]
+#[derive(Default, Debug, TryClone)]
 enum SourceName {
     /// An in-memory source, will use `<memory>` when the source is being
     /// referred to in diagnostics.
@@ -411,7 +413,30 @@ enum SourceName {
     Memory,
     /// A named source.
     Name(Box<str>),
+
+    #[cfg(feature = "std")]
+    /// A filepath, in lossy utf8, to the source.
+    FilePath(Box<str>)
 }
+
+impl PartialEq for SourceName
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        match (self, other)
+        {
+            (SourceName::Memory, SourceName::Memory) => true,
+            (SourceName::Name(a), SourceName::Name(b)) => a == b,
+            #[cfg(feature = "std")]
+            (SourceName::FilePath(a), SourceName::FilePath(b)) |
+            (SourceName::FilePath(a), SourceName::Name(b)) |
+            (SourceName::Name(a), SourceName::FilePath(b)) => a == b,
+            _ => false
+        }
+    }
+}
+
+impl Eq for SourceName { }
 
 #[inline(always)]
 fn line_starts(source: &str) -> impl Iterator<Item = usize> + '_ {
