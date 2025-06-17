@@ -177,6 +177,11 @@ macro_rules! span {
     };
 }
 
+mod sources_builder
+{
+    mod source_info;
+}
+
 pub mod alloc;
 #[doc(inline)]
 pub use rune_alloc::sync;
