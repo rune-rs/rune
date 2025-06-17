@@ -20,7 +20,7 @@ use crate::doc::VisitorData;
 use crate::item::ComponentRef;
 use crate::languageserver::connection::Output;
 use crate::languageserver::Language;
-use crate::workspace::{self, WorkspaceError};
+use crate::workspace::{self, FileSourceLoader, Manifest, WorkspaceError, MANIFEST_FILE};
 use crate::{self as rune, Diagnostics};
 use crate::{BuildError, Context, Hash, Item, Options, Source, SourceId, Sources, Unit};
 
@@ -453,6 +453,53 @@ impl<'a> State<'a> {
             };
 
             workspace_results.try_push((diagnostics, build))?;
+        } else if let Some((url, _)) = &self.workspace.sources.iter().next() {
+            let mut workspace_manifest = None;
+
+            if url.scheme() == "file" {
+                let mut path = PathBuf::from(url.path());
+                path.pop();
+
+                while path.parent().is_some() {
+                    let candidate = path.join(MANIFEST_FILE);
+                    if candidate.exists() {
+                        workspace_manifest = Some(candidate);
+                    }
+
+                    path.pop();
+                }
+            }
+
+            if let Some(workspace_manifest) = workspace_manifest {
+                let source = Source::from_path(&workspace_manifest)?;
+                let mut sources = Sources::new();
+                let id = sources.insert(source)?;
+
+                let mut diagnostics = workspace::Diagnostics::default();
+                let mut source_loader = FileSourceLoader::new();
+                let mut manifest = Manifest::default();
+
+                let mut loader = workspace::ManifestLoader::new(
+                    id,
+                    &mut sources,
+                    &mut diagnostics,
+                    &mut source_loader,
+                    &mut manifest,
+                );
+                loader.load_manifest()?;
+
+                self.workspace.sources.clear();
+
+                for package in manifest.find_all(workspace::WorkspaceFilter::All)? {
+                    for source in package.package.find_all(workspace::WorkspaceFilter::All)? {
+                        self.workspace.insert_source(
+                            crate::languageserver::url::from_file_path(source.path.clone())?,
+                            String::try_from(std::fs::read_to_string(source.path)?)?,
+                            Language::Rune,
+                        )?;
+                    }
+                }
+            }
         }
 
         for (url, source) in &self.workspace.sources {
@@ -478,7 +525,7 @@ impl<'a> State<'a> {
             script_results.try_push(self.build_scripts(build, None)?)?;
         }
 
-        // We need to pupulate diagnostics for everything we know about, in
+        // We need to populate diagnostics for everything we know about, in
         // order to clear errors which might've previously been set.
         for url in self.workspace.removed.drain(..) {
             reporter.ensure(&url);

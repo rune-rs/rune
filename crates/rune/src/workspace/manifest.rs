@@ -43,6 +43,8 @@ pub enum WorkspaceFilter<'a> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum FoundKind {
+    /// The found entry is a source file.
+    Source,
     /// The found entry is a binary.
     Binary,
     /// The found entry is a test.
@@ -57,6 +59,7 @@ impl fmt::Display for FoundKind {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            FoundKind::Source => "src".fmt(f),
             FoundKind::Binary => "bin".fmt(f),
             FoundKind::Test => "test".fmt(f),
             FoundKind::Example => "example".fmt(f),
@@ -135,10 +138,24 @@ impl Manifest {
     /// Find every single entrypoint available.
     pub fn find_all(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         let mut output = Vec::new();
+        output.try_extend(self.find_srcs()?)?;
         output.try_extend(self.find_bins(m)?)?;
         output.try_extend(self.find_tests(m)?)?;
         output.try_extend(self.find_examples(m)?)?;
         output.try_extend(self.find_benches(m)?)?;
+        Ok(output)
+    }
+
+    /// Find all source entry points in the workspace.
+    pub fn find_srcs(&self) -> Result<Vec<FoundPackage<'_>>> {
+        let mut output = Vec::new();
+
+        for package in self.packages.iter() {
+            for found in package.find_srcs()? {
+                output.try_push(FoundPackage { found, package })?;
+            }
+        }
+
         Ok(output)
     }
 
@@ -175,6 +192,8 @@ pub struct Package {
     pub version: Version,
     /// The root of the package.
     pub root: Option<PathBuf>,
+    /// Automatically detect sources.
+    pub auto_srcs: bool,
     /// Automatically detect binaries.
     pub auto_bins: bool,
     /// Automatically detect tests.
@@ -214,6 +233,7 @@ impl Package {
     /// Find every single entrypoint available.
     pub fn find_all(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         let mut output = Vec::new();
+        output.try_extend(self.find_srcs()?)?;
         output.try_extend(self.find_bins(m)?)?;
         output.try_extend(self.find_tests(m)?)?;
         output.try_extend(self.find_examples(m)?)?;
@@ -221,7 +241,31 @@ impl Package {
         Ok(output)
     }
 
-    /// Find all binaries matching the given name in the workspace.
+    /// Find all source entry points in the package.
+    pub fn find_srcs(&self) -> Result<Vec<Found>> {
+        let mut output = Vec::new();
+
+        if let (Some(path), true) = (&self.root, self.auto_srcs) {
+            let path = path.join("src");
+            tracing::debug!(path = ?path, "checking");
+
+            let files = find_rune_files(&path)?;
+            for file in files {
+                let (path, name) = file?;
+                if ["lib", "main"].iter().any(|entry| *entry == name) {
+                    output.try_push(Found {
+                        kind: FoundKind::Source,
+                        path,
+                        name,
+                    })?
+                }
+            }
+        }
+
+        Ok(output)
+    }
+
+    /// Find all binaries matching the given name in the package.
     pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
     }
@@ -231,7 +275,7 @@ impl Package {
         self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
     }
 
-    /// Find all examples matching the given name in the workspace.
+    /// Find all examples matching the given name in the package.
     pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| {
             p.auto_examples
@@ -244,7 +288,8 @@ impl Package {
     }
 }
 
-pub(crate) struct Loader<'a> {
+/// Loader for manifests
+pub struct Loader<'a> {
     id: SourceId,
     sources: &'a mut Sources,
     diagnostics: &'a mut Diagnostics,
@@ -465,6 +510,7 @@ impl<'a> Loader<'a> {
             name,
             version,
             root: root.map(|p| p.into()),
+            auto_srcs: true,
             auto_bins: true,
             auto_tests: true,
             auto_examples: true,
