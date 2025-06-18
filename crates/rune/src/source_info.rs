@@ -11,7 +11,7 @@ use serde::{
 use musli::{Decode, Decoder};
 
 /// Deserialized information for constructing an actual Source module.
-pub enum Source
+pub enum SourceInfo
 {
     /// An unnamed module.
     Memory
@@ -70,7 +70,7 @@ where
 }
 
 #[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for Source
+impl<'de> Deserialize<'de> for SourceInfo
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -105,7 +105,7 @@ impl<'de> Deserialize<'de> for Source
 }
 
 #[cfg(feature = "musli")]
-impl<'de, M, A> Decode<'de, M, A> for Source
+impl<'de, M, A> Decode<'de, M, A> for SourceInfo
 where
     A: musli::Allocator
 {
@@ -257,5 +257,3 @@ where
         )
     }
 }
-
-pub use Source as SourceInfo;
