@@ -142,13 +142,13 @@ impl Source {
     cfg_std! {
         /// Read and load a source from the given filesystem path.
         pub fn from_path(path: impl AsRef<Path>) -> Result<Self, FromPathError> {
-            let filepath = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
+            let name = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
             let source = Box::try_from(std::fs::read_to_string(path.as_ref())?)?;
             let path = Some(path.as_ref().try_into()?);
             let line_starts = line_starts(source.as_ref()).try_collect::<Box<[_]>>()?;
 
             Ok(Self {
-                name: SourceName::FilePath(filepath),
+                name: SourceName::Name(name),
                 source,
                 path,
                 line_starts,
@@ -196,9 +196,7 @@ impl Source {
     pub fn name(&self) -> &str {
         match &self.name {
             SourceName::Memory => "<memory>",
-            SourceName::Name(name) => name,
-            #[cfg(feature = "std")]
-            SourceName::FilePath(filepath) => filepath
+            SourceName::Name(name) => name
         }
     }
 
@@ -351,7 +349,7 @@ impl Source {
     /// Constructs a new Source based on deserialized source information.
     #[cfg(any(feature = "serde", feature = "musli"))]
     #[inline]
-    fn from_source_info(info: SourceInfo) -> Result<Self, FromPathError>
+    fn from_source_info(info: SourceInfo) -> alloc::Result<Self>
     {
         match info
         {
@@ -404,19 +402,11 @@ impl Source {
                 Ok(Self
                 {
                     name: SourceName::Name(name),
-                   source,
-                   path,
-                   line_starts
+                    source,
+                    path,
+                    line_starts
                 }
                 )
-            }
-
-            SourceInfo::Imported
-            {
-                path
-            } =>
-            {
-                Self::from_path(&*path)
             }
         }
     }
@@ -487,39 +477,15 @@ impl SourceLine<'_> {
 }
 
 /// Holder for the name of a source.
-#[derive(Default, Debug, TryClone)]
+#[derive(Default, Debug, TryClone, PartialEq, Eq)]
 enum SourceName {
     /// An in-memory source, will use `<memory>` when the source is being
     /// referred to in diagnostics.
     #[default]
     Memory,
     /// A named source.
-    Name(Box<str>),
-
-    #[cfg(feature = "std")]
-    /// A filepath, in lossy utf8, to the source.
-    FilePath(Box<str>)
+    Name(Box<str>)
 }
-
-impl PartialEq for SourceName
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool
-    {
-        match (self, other)
-        {
-            (SourceName::Memory, SourceName::Memory) => true,
-            (SourceName::Name(a), SourceName::Name(b)) => a == b,
-            #[cfg(feature = "std")]
-            (SourceName::FilePath(a), SourceName::FilePath(b)) |
-            (SourceName::FilePath(a), SourceName::Name(b)) |
-            (SourceName::Name(a), SourceName::FilePath(b)) => a == b,
-            _ => false
-        }
-    }
-}
-
-impl Eq for SourceName { }
 
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Source
@@ -588,27 +554,6 @@ impl Serialize for Source
                 }
 
                 named.end()
-            }
-
-            #[cfg(feature = "std")]
-            SourceName::FilePath(_) =>
-            {
-                let mut imported =
-                serializer.serialize_struct_variant("Source", 2, "Imported", 1)?;
-
-                let Some(ref path) = self.path
-                else
-                {
-                    unreachable!()
-                };
-
-                match path.as_os_str().to_str()
-                {
-                    Some(pth) => imported.serialize_field("path", pth)?,
-                    None => return Err(S::Error::custom("Path has to be valid UTF-8"))
-                }
-
-                imported.end()
             }
         }
     }
@@ -689,26 +634,6 @@ impl<M> Encode<M> for Source
 
                     named.finish_map()
                 }
-            }
-
-            #[cfg(feature = "std")]
-            SourceName::FilePath(_) =>
-            {
-                let mut imported = encoder.encode_map_variant("Imported", 1)?;
-
-                let Some(ref path) = self.path
-                else
-                {
-                    unreachable!()
-                };
-
-                match path.as_os_str().to_str()
-                {
-                    Some(pth) => imported.insert_entry("path", pth)?,
-                    None => return Err(context.message("Path has to be valid UTF-8"))
-                }
-
-                imported.finish_map()
             }
         }
     }

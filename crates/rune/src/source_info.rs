@@ -35,14 +35,6 @@ pub enum Source
         /// we want to deserialize it as a regular string.
         #[cfg_attr(feature = "serde", serde(default, deserialize_with = "try_path_serde"))]
         path: Option<Box<str>>
-    },
-
-    /// A module imported from a file path.
-    #[cfg(feature = "std")]
-    Imported
-    {
-        #[cfg_attr(feature = "serde", serde(deserialize_with = "try_read_serde"))]
-        path: Box<str>
     }
 }
 
@@ -102,8 +94,6 @@ where
         {
             Memory,
             Named,
-            #[cfg(feature = "std")]
-            Imported
         }
 
         // A visitor for SourceTag.
@@ -118,14 +108,7 @@ where
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
             {
-                #[cfg(feature = "std")]
-                {
-                    f.write_str("Expecting variant tag `Memory`, `Named`, or `Imported`")
-                }
-                #[cfg(not(feature = "std"))]
-                {
-                    f.write_str("Expecting variant tag `Memory` or `Named`")
-                }
+                f.write_str("Expecting variant tag `Memory` or `Named`")
             }
 
             fn visit_ref(self, context: C, value: &str) -> Result<SourceTag, C::Error>
@@ -134,8 +117,6 @@ where
                 {
                     "Memory" => Ok(SourceTag::Memory),
                     "Named" => Ok(SourceTag::Named),
-                    #[cfg(feature = "std")]
-                    "Imported" => Ok(SourceTag::Imported),
                     _ => Err(context.message(format_args!("Unknown tag variant `{}`", value)))
                 }
             }
@@ -309,54 +290,6 @@ where
                             {
                                 name,
                                 source,
-                                path
-                            }
-                        )
-                    }
-                    )
-                }
-                #[cfg(feature = "std")]
-                SourceTag::Imported =>
-                {
-                    contents.decode_map_hint(1, |imported|
-                    {
-                        let mut path = None;
-
-                        while let Some(mut entry) = imported.decode_entry()?
-                        {
-                            let key : &str =
-                            entry
-                            .decode_key()?
-                            .decode_string(GenericVisitor)?;
-
-                            match key
-                            {
-                                "path"
-                                if path.is_none()
-                                =>
-                                {
-                                    let value =
-                                    entry
-                                    .decode_value()?
-                                    .decode_string(GenericVisitor)?;
-
-                                    path = Some(musli_try_box(value, &context)?);
-                                }
-
-                                "path" => return Err(context.message(format_args!("Duplicate field `{}`", key))),
-                                _ => return Err(context.message(format_args!("Unknown field `{}`", key)))
-                            }
-                        }
-
-                        let Some(path) = path
-                        else
-                        {
-                            return Err(context.message("Missing `path` field!"))
-                        };
-
-                        Ok(
-                            Self::Imported
-                            {
                                 path
                             }
                         )
