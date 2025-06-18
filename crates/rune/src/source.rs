@@ -28,6 +28,15 @@ use crate::ast::Span;
 #[cfg(feature = "emit")]
 use crate::termcolor::{self, WriteColor};
 
+#[cfg(feature = "serde")]
+use serde::{Serialize, Deserialize, Deserializer, Serializer};
+
+#[cfg(feature = "musli")]
+use musli::{Decode, Encode, Decoder, Encoder, Context, Allocator};
+
+#[cfg(any(feature = "serde", feature = "musli"))]
+use crate::sources_builder::SourceInfo;
+
 /// Error raised when constructing a source.
 #[derive(Debug)]
 pub struct FromPathError {
@@ -338,6 +347,75 @@ impl Source {
     pub(crate) fn len(&self) -> usize {
         self.source.len()
     }
+
+    #[cfg(any(feature = "serde", feature = "musli"))]
+    fn from_source_info(info: SourceInfo) -> Result<Self, FromPathError>
+    {
+        match info
+        {
+            SourceInfo::Memory
+            {
+                source
+            } =>
+            {
+                let line_starts = line_starts(&*source).try_collect::<Box<[_]>>()?;
+
+                Ok(Self
+                {
+                    name: SourceName::Memory,
+                    source,
+                    path: None,
+                    line_starts
+                }
+                )
+            }
+            SourceInfo::Named
+            {
+                name,
+                source,
+                path
+            } =>
+            {
+                let path =
+                match path
+                {
+                    Some(current) =>
+                    {
+
+                        let working : Box<Path> =
+                        {
+                            let binding : &Path = AsRef::<Path>::as_ref(&*current);
+
+                            binding.try_into()?
+                        };
+
+                        drop(current);
+
+                        Some(working)
+                    }
+                    None => None
+                };
+
+                let line_starts = line_starts(&*source).try_collect::<Box<[_]>>()?;
+
+                Ok(Self
+                {
+                    name: SourceName::Name(name),
+                   source,
+                   path,
+                   line_starts
+                }
+                )
+            }
+            SourceInfo::Imported
+            {
+                path
+            } =>
+            {
+                Self::from_path(&*path)
+            }
+        }
+    }
 }
 
 impl fmt::Debug for Source {
@@ -437,6 +515,187 @@ impl PartialEq for SourceName
 }
 
 impl Eq for SourceName { }
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Source
+{
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        use serde::de::Error;
+
+        let info = SourceInfo::deserialize(d)?;
+
+        match Self::from_source_info(info)
+        {
+            Ok(out) => Ok(out),
+            Err(e) => Err(D::Error::custom(e))
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Source
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        use serde::ser::{Error, SerializeStructVariant};
+
+        match self.name
+        {
+            SourceName::Memory
+            =>
+            {
+                let mut base =
+                serializer.serialize_struct_variant("Source", 0, "Memory", 1)?;
+
+                base.serialize_field("source", &*self.source)?;
+
+                base.end()
+            }
+            SourceName::Name(ref n)
+            =>
+            {
+                let mut base =
+                serializer.serialize_struct_variant("Source", 1, "Named", 3)?;
+
+                base.serialize_field("name", &*n)?;
+
+                base.serialize_field("source", &*self.source)?;
+
+                if let Some(ref path) = self.path
+                {
+                    match path.as_os_str().to_str()
+                    {
+                        Some(s) => base.serialize_field("path", s)?,
+                        None => return Err(S::Error::custom("Path has to be valid UTF8!"))
+                    }
+                }
+                else
+                {
+                    base.skip_field("path")?;
+                }
+
+                base.end()
+            }
+            #[cfg(feature = "std")]
+            SourceName::FilePath(_) =>
+            {
+                let mut base =
+                serializer.serialize_struct_variant("Source", 2, "Imported", 1)?;
+
+                let path =
+                match self.path
+                {
+                    Some(ref pth) => pth,
+                    _ => unreachable!()
+                };
+
+                match path.as_os_str().to_str()
+                {
+                    Some(s) => base.serialize_field("path", s)?,
+                    None => return Err(S::Error::custom("Path has to be valid UTF8!"))
+                }
+
+                base.end()
+            }
+        }
+    }
+}
+
+#[cfg(feature = "musli")]
+impl<'de, M, A> Decode<'de, M, A> for Source
+where
+    A: Allocator
+{
+    fn decode<D>(decoder: D) -> Result<Self, D::Error>
+    where
+        D: Decoder<'de>
+    {
+        let ctx = decoder.cx();
+
+        let info : SourceInfo = decoder.decode()?;
+
+        match Self::from_source_info(info)
+        {
+            Ok(o) => Ok(o),
+            Err(e) => Err(ctx.custom(e))
+        }
+    }
+}
+
+#[cfg(feature = "musli")]
+impl<M> Encode<M> for Source
+{
+    type Encode = Self;
+
+    fn encode<E>(&self, encoder: E) -> Result<(), <E as Encoder>::Error>
+    where
+        E: Encoder<Mode = M>
+    {
+        use musli::en::MapEncoder;
+
+        let ctx = encoder.cx();
+
+        match self.name
+        {
+            SourceName::Memory =>
+            {
+                let mut v = encoder.encode_map_variant("Memory", 1)?;
+                v.insert_entry("source", &*self.source)?;
+                v.finish_map()
+            }
+            SourceName::Name(ref n) =>
+            {
+                if let Some(ref path) = self.path
+                {
+                    let mut v = encoder.encode_map_variant("Named", 3)?;
+                    v.insert_entry("name", n)?;
+                    v.insert_entry("source", &*self.source)?;
+                    match path.as_os_str().to_str()
+                    {
+                        Some(s) => v.insert_entry("path", s)?,
+                        None => return Err(ctx.message("Path has to be valid UTF8!"))
+                    }
+                    v.finish_map()
+                }
+                else
+                {
+                    let mut v = encoder.encode_map_variant("Named", 2)?;
+                    v.insert_entry("name", n)?;
+                    v.insert_entry("source", &*self.source)?;
+                    v.finish_map()
+                }
+            }
+            SourceName::FilePath(_) =>
+            {
+                let mut v = encoder.encode_map_variant("Imported", 1)?;
+
+                let path =
+                match self.path
+                {
+                    Some(ref pth) => pth,
+                    _ => unreachable!()
+                };
+
+                match path.as_os_str().to_str()
+                {
+                    Some(s) => v.insert_entry("path", s)?,
+                    None => return Err(ctx.message("Path has to be valid UTF8!"))
+                }
+
+                v.finish_map()
+            }
+        }
+    }
+
+    fn as_encode(&self) -> &Self {
+        self
+    }
+}
 
 #[inline(always)]
 fn line_starts(source: &str) -> impl Iterator<Item = usize> + '_ {

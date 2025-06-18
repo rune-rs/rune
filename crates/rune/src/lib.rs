@@ -177,9 +177,12 @@ macro_rules! span {
     };
 }
 
-mod sources_builder
+#[cfg(any(feature = "serde", feature = "musli"))]
+pub(crate) mod sources_builder
 {
     mod source_info;
+
+    pub use source_info::SourceInfo;
 }
 
 pub mod alloc;

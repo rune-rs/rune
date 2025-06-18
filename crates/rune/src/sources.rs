@@ -2,9 +2,9 @@ use core::fmt;
 use core::num;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli::{Decode, Encode, Encoder, Decoder};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
 
 use crate as rune;
 use crate::alloc;
@@ -173,6 +173,159 @@ impl<'a> files::Files<'a> for Sources {
                 max: source.line_count(),
             })?;
         Ok(range)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Sources
+{
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        use serde::de::{Visitor, SeqAccess, Error};
+
+        struct SourcesVisitor;
+
+        impl<'de> Visitor<'de> for SourcesVisitor
+        {
+            type Value = Vec<Source>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+            {
+                f.write_str("A sequence of Source objects")
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Vec<Source>, A::Error>
+            where
+                A: SeqAccess<'de>
+            {
+                let mut table = Vec::new();
+                let mut counter = 0_u32;
+
+                while let Some(source) = sequence.next_element()?
+                {
+                    if counter != u32::MAX
+                    {
+                        counter += 1;
+                        if let Err(e) = table.try_push(source)
+                        {
+                            return Err(A::Error::custom(e));
+                        }
+                    }
+                    else
+                    {
+                        return Err(A::Error::custom("Source table exceeded max storage!"));
+                    }
+                }
+
+                Ok(table)
+            }
+        }
+
+        let sources = d.deserialize_seq(SourcesVisitor)?;
+
+        Ok(Self
+        {
+            sources
+        }
+        )
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Sources
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        use serde::ser::SerializeSeq;
+
+        let mut base = serializer.serialize_seq(Some(self.sources.len()))?;
+
+        for source in self.sources.iter()
+        {
+            base.serialize_element(source)?;
+        }
+
+        base.end()
+    }
+}
+
+#[cfg(feature = "musli")]
+impl<'de, M, A> Decode<'de, M, A> for Sources
+where
+    A: musli::Allocator
+{
+    fn decode<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Decoder<'de>
+    {
+        use musli::{Context, de::SequenceDecoder};
+
+        let cx = d.cx();
+
+        let sources =
+        d.decode_sequence(|seq|
+        {
+            let mut table = Vec::new();
+            let mut counter = 0_u32;
+
+            while let Some(item) = seq.try_decode_next()?
+            {
+                let source = item.decode::<Source>()?;
+
+                if counter != u32::MAX
+                {
+                    counter += 1;
+                    if let Err(e) = table.try_push(source)
+                    {
+                        return Err(cx.custom(e));
+                    }
+                }
+                else
+                {
+                    return Err(cx.message("Source table exceeded max storage!"));
+                }
+            }
+
+            Ok(table)
+        }
+        )?;
+
+        Ok(Self
+        {
+            sources
+        }
+        )
+    }
+}
+
+#[cfg(feature = "musli")]
+impl<M> Encode<M> for Sources
+{
+    type Encode = Self;
+
+    fn encode<E>(&self, e: E) -> Result<(), E::Error>
+    where
+        E: Encoder<Mode = M>
+    {
+        use musli::en::SequenceEncoder;
+
+        let mut sources = e.encode_sequence(self.sources.len())?;
+
+        for source in self.sources.iter()
+        {
+            sources.push(source)?;
+        }
+
+        sources.finish_sequence()
+    }
+
+    fn as_encode(&self) -> &Self
+    {
+        self
     }
 }
 
