@@ -32,10 +32,10 @@ use crate::termcolor::{self, WriteColor};
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode, Decoder, Encoder, Context, Allocator};
+use musli::{Decode, Encode, Decoder, Encoder, Context};
 
 #[cfg(any(feature = "serde", feature = "musli"))]
-use crate::sources_builder::SourceInfo;
+use crate::SourceInfo;
 
 /// Error raised when constructing a source.
 #[derive(Debug)]
@@ -348,7 +348,9 @@ impl Source {
         self.source.len()
     }
 
+    /// Constructs a new Source based on deserialized source information.
     #[cfg(any(feature = "serde", feature = "musli"))]
+    #[inline]
     fn from_source_info(info: SourceInfo) -> Result<Self, FromPathError>
     {
         match info
@@ -358,7 +360,7 @@ impl Source {
                 source
             } =>
             {
-                let line_starts = line_starts(&*source).try_collect::<Box<[_]>>()?;
+                let line_starts = line_starts(&source).try_collect::<Box<[_]>>()?;
 
                 Ok(Self
                 {
@@ -369,6 +371,7 @@ impl Source {
                 }
                 )
             }
+
             SourceInfo::Named
             {
                 name,
@@ -396,7 +399,7 @@ impl Source {
                     None => None
                 };
 
-                let line_starts = line_starts(&*source).try_collect::<Box<[_]>>()?;
+                let line_starts = line_starts(&source).try_collect::<Box<[_]>>()?;
 
                 Ok(Self
                 {
@@ -407,6 +410,7 @@ impl Source {
                 }
                 )
             }
+
             SourceInfo::Imported
             {
                 path
@@ -499,6 +503,7 @@ enum SourceName {
 
 impl PartialEq for SourceName
 {
+    #[inline]
     fn eq(&self, other: &Self) -> bool
     {
         match (self, other)
@@ -519,13 +524,14 @@ impl Eq for SourceName { }
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Source
 {
-    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>
     {
         use serde::de::Error;
 
-        let info = SourceInfo::deserialize(d)?;
+        let info = SourceInfo::deserialize(deserializer)?;
 
         match Self::from_source_info(info)
         {
@@ -538,6 +544,7 @@ impl<'de> Deserialize<'de> for Source
 #[cfg(feature = "serde")]
 impl Serialize for Source
 {
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer
@@ -549,58 +556,59 @@ impl Serialize for Source
             SourceName::Memory
             =>
             {
-                let mut base =
+                let mut memory =
                 serializer.serialize_struct_variant("Source", 0, "Memory", 1)?;
 
-                base.serialize_field("source", &*self.source)?;
+                memory.serialize_field("source", &*self.source)?;
 
-                base.end()
+                memory.end()
             }
-            SourceName::Name(ref n)
+
+            SourceName::Name(ref name)
             =>
             {
-                let mut base =
+                let mut named =
                 serializer.serialize_struct_variant("Source", 1, "Named", 3)?;
 
-                base.serialize_field("name", &*n)?;
+                named.serialize_field("name", name)?;
 
-                base.serialize_field("source", &*self.source)?;
+                named.serialize_field("source", &*self.source)?;
 
                 if let Some(ref path) = self.path
                 {
                     match path.as_os_str().to_str()
                     {
-                        Some(s) => base.serialize_field("path", s)?,
-                        None => return Err(S::Error::custom("Path has to be valid UTF8!"))
+                        Some(pth) => named.serialize_field("path", pth)?,
+                        None => return Err(S::Error::custom("Path has to be valid UTF-8"))
                     }
                 }
                 else
                 {
-                    base.skip_field("path")?;
+                    named.skip_field("path")?;
                 }
 
-                base.end()
+                named.end()
             }
+
             #[cfg(feature = "std")]
             SourceName::FilePath(_) =>
             {
-                let mut base =
+                let mut imported =
                 serializer.serialize_struct_variant("Source", 2, "Imported", 1)?;
 
-                let path =
-                match self.path
+                let Some(ref path) = self.path
+                else
                 {
-                    Some(ref pth) => pth,
-                    _ => unreachable!()
+                    unreachable!()
                 };
 
                 match path.as_os_str().to_str()
                 {
-                    Some(s) => base.serialize_field("path", s)?,
-                    None => return Err(S::Error::custom("Path has to be valid UTF8!"))
+                    Some(pth) => imported.serialize_field("path", pth)?,
+                    None => return Err(S::Error::custom("Path has to be valid UTF-8"))
                 }
 
-                base.end()
+                imported.end()
             }
         }
     }
@@ -609,20 +617,21 @@ impl Serialize for Source
 #[cfg(feature = "musli")]
 impl<'de, M, A> Decode<'de, M, A> for Source
 where
-    A: Allocator
+    A: musli::Allocator
 {
+    #[inline]
     fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
         D: Decoder<'de>
     {
-        let ctx = decoder.cx();
+        let context = decoder.cx();
 
         let info : SourceInfo = decoder.decode()?;
 
         match Self::from_source_info(info)
         {
             Ok(o) => Ok(o),
-            Err(e) => Err(ctx.custom(e))
+            Err(e) => Err(context.custom(e))
         }
     }
 }
@@ -632,66 +641,79 @@ impl<M> Encode<M> for Source
 {
     type Encode = Self;
 
-    fn encode<E>(&self, encoder: E) -> Result<(), <E as Encoder>::Error>
+    #[inline]
+    fn encode<E>(&self, encoder: E) -> Result<(), E::Error>
     where
         E: Encoder<Mode = M>
     {
         use musli::en::MapEncoder;
 
-        let ctx = encoder.cx();
+        let context = encoder.cx();
 
         match self.name
         {
             SourceName::Memory =>
             {
-                let mut v = encoder.encode_map_variant("Memory", 1)?;
-                v.insert_entry("source", &*self.source)?;
-                v.finish_map()
+                let mut memory = encoder.encode_map_variant("Memory", 1)?;
+
+                memory.insert_entry("source", &*self.source)?;
+
+                memory.finish_map()
             }
-            SourceName::Name(ref n) =>
+
+            SourceName::Name(ref name) =>
             {
                 if let Some(ref path) = self.path
                 {
-                    let mut v = encoder.encode_map_variant("Named", 3)?;
-                    v.insert_entry("name", n)?;
-                    v.insert_entry("source", &*self.source)?;
+                    let mut named = encoder.encode_map_variant("Named", 3)?;
+
+                    named.insert_entry("name", name)?;
+
+                    named.insert_entry("source", &*self.source)?;
+
                     match path.as_os_str().to_str()
                     {
-                        Some(s) => v.insert_entry("path", s)?,
-                        None => return Err(ctx.message("Path has to be valid UTF8!"))
+                        Some(pth) => named.insert_entry("path", pth)?,
+                        None => return Err(context.message("Path has to be valid UTF-8"))
                     }
-                    v.finish_map()
+
+                    named.finish_map()
                 }
                 else
                 {
-                    let mut v = encoder.encode_map_variant("Named", 2)?;
-                    v.insert_entry("name", n)?;
-                    v.insert_entry("source", &*self.source)?;
-                    v.finish_map()
+                    let mut named = encoder.encode_map_variant("Named", 2)?;
+
+                    named.insert_entry("name", name)?;
+
+                    named.insert_entry("source", &*self.source)?;
+
+                    named.finish_map()
                 }
             }
+
+            #[cfg(feature = "std")]
             SourceName::FilePath(_) =>
             {
-                let mut v = encoder.encode_map_variant("Imported", 1)?;
+                let mut imported = encoder.encode_map_variant("Imported", 1)?;
 
-                let path =
-                match self.path
+                let Some(ref path) = self.path
+                else
                 {
-                    Some(ref pth) => pth,
-                    _ => unreachable!()
+                    unreachable!()
                 };
 
                 match path.as_os_str().to_str()
                 {
-                    Some(s) => v.insert_entry("path", s)?,
-                    None => return Err(ctx.message("Path has to be valid UTF8!"))
+                    Some(pth) => imported.insert_entry("path", pth)?,
+                    None => return Err(context.message("Path has to be valid UTF-8"))
                 }
 
-                v.finish_map()
+                imported.finish_map()
             }
         }
     }
 
+    #[inline]
     fn as_encode(&self) -> &Self {
         self
     }

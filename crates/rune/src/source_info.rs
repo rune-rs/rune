@@ -11,9 +11,6 @@ use serde::{
 use musli::{Decode, Decoder};
 
 /// Deserialized information for constructing an actual Source module.
-///
-/// It shares the same name in order to prevent further headaches from
-/// both musli and serde.
 #[cfg_attr(feature = "serde", derive(Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub enum Source
@@ -50,11 +47,12 @@ pub enum Source
 }
 
 #[cfg(feature = "serde")]
-fn try_read_serde<'de, D>(d: D) -> Result<Box<str>, D::Error>
+#[inline]
+fn try_read_serde<'de, D>(deserializer: D) -> Result<Box<str>, D::Error>
 where
     D: Deserializer<'de>
 {
-    let str_ : &str = Deserialize::deserialize(d)?;
+    let str_ : &str = Deserialize::deserialize(deserializer)?;
 
     match Box::try_from(str_)
     {
@@ -64,11 +62,12 @@ where
 }
 
 #[cfg(feature = "serde")]
-fn try_path_serde<'de, D>(d: D) -> Result<Option<Box<str>>, D::Error>
+#[inline]
+fn try_path_serde<'de, D>(deserializer: D) -> Result<Option<Box<str>>, D::Error>
 where
     D: Deserializer<'de>
 {
-    Ok(Some(try_read_serde(d)?))
+    Ok(Some(try_read_serde(deserializer)?))
 }
 
 #[cfg(feature = "musli")]
@@ -76,22 +75,29 @@ impl<'de, M, A> Decode<'de, M, A> for Source
 where
     A: musli::Allocator
 {
+    // With serde, we can  easily implement a proper deserializer with derive macros.
+    //
+    // Musli, on the other hand, was a different story. For now, in order to encapsulate the
+    // SourceInfo properly, we have to manually implement it.
+    #[inline]
     fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
         D: Decoder<'de>
     {
         use core::fmt;
+
         use musli::{
             Context,
             de::{
-                unsized_visitor,
-                UnsizedVisitor,
-                VariantDecoder,
+                EntryDecoder,
                 MapDecoder,
-                EntryDecoder
+                UnsizedVisitor,
+                unsized_visitor,
+                VariantDecoder
             }
         };
 
+        // An tag descriptor for the Source's discriminant.
         enum SourceTag
         {
             Memory,
@@ -100,9 +106,8 @@ where
             Imported
         }
 
+        // A visitor for SourceTag.
         struct TagVisitor;
-
-        struct GenericVisitor;
 
         #[unsized_visitor]
         impl<'de, C> UnsizedVisitor<'de, C, str> for TagVisitor
@@ -123,7 +128,7 @@ where
                 }
             }
 
-            fn visit_ref(self, ctx: C, value: &str) -> Result<SourceTag, C::Error>
+            fn visit_ref(self, context: C, value: &str) -> Result<SourceTag, C::Error>
             {
                 match value
                 {
@@ -131,23 +136,24 @@ where
                     "Named" => Ok(SourceTag::Named),
                     #[cfg(feature = "std")]
                     "Imported" => Ok(SourceTag::Imported),
-                    _ => Err(ctx.message(format_args!("Unknown tag variant `{}`", value)))
+                    _ => Err(context.message(format_args!("Unknown tag variant `{}`", value)))
                 }
             }
         }
 
+        // A generic visitor for &str.
+        struct GenericVisitor;
+
         #[unsized_visitor]
         impl<'de, C> UnsizedVisitor<'de, C, str> for GenericVisitor
         where
-        C: Context
+            C: Context
         {
             type Ok = &'de str;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
             {
-                {
-                    f.write_str("Expecting a valid sequence of UTF8 bytes")
-                }
+                f.write_str("Expecting a valid sequence of UTF8 bytes")
             }
 
             fn visit_borrowed(self, _: C, value: &'de str) -> Result<&'de str, C::Error>
@@ -156,54 +162,67 @@ where
             }
         }
 
-        fn musli_try_box<C>(val: &str, c: &C) -> Result<Box<str>, C::Error>
+        // Tries to create a boxed string from a borrowed str value.
+        fn musli_try_box<C>(val: &str, context: &C) -> Result<Box<str>, C::Error>
         where
             C: Context
         {
             match Box::try_from(val)
             {
                 Ok(o) => Ok(o),
-                Err(e) => Err(c.custom(e))
+                Err(e) => Err(context.custom(e))
             }
         }
 
         decoder.decode_variant(|variant|
         {
-            let tag : SourceTag = variant.decode_tag()?.decode_string(TagVisitor)?;
+            let tag : SourceTag =
+            variant
+            .decode_tag()?
+            .decode_string(TagVisitor)?;
+
             let contents = variant.decode_value()?;
 
-            let cx = contents.cx();
+            let context = contents.cx();
 
             match tag
             {
                 SourceTag::Memory =>
                 {
-                    contents.decode_map_hint(1, |c|
+                    contents.decode_map_hint(1, |memory|
                     {
-                        let mut found = None;
+                        let mut source = None;
 
-                        while let Some(mut item) = c.decode_entry()?
+                        while let Some(mut entry) = memory.decode_entry()?
                         {
-                            let key : &str = item.decode_key()?.decode_string(GenericVisitor)?;
+                            let key : &str =
+                            entry
+                            .decode_key()?
+                            .decode_string(GenericVisitor)?;
 
                             match key
                             {
                                 "source"
-                                if found.is_none()
+                                if source.is_none()
                                 =>
                                 {
-                                    let value = item.decode_value()?.decode_string(GenericVisitor)?;
-                                    found = Some(musli_try_box(value, &cx)?);
+                                    let value =
+                                    entry
+                                    .decode_value()?
+                                    .decode_string(GenericVisitor)?;
+
+                                    source = Some(musli_try_box(value, &context)?);
                                 }
-                                "source" => return Err(cx.message(format_args!("Duplicate field `{}`", key))),
-                                _ => return Err(cx.message(format_args!("Unknown field `{}`", key)))
+                                "source" => return Err(context.message(format_args!("Duplicate field `{}`", key))),
+
+                                _ => return Err(context.message(format_args!("Unknown field `{}`", key)))
                             }
                         }
 
-                        let Some(source) = found
+                        let Some(source) = source
                         else
                         {
-                            return Err(cx.message("Missing `source` field!"))
+                            return Err(context.message("Missing `source` field!"));
                         };
 
                         Ok(
@@ -217,15 +236,16 @@ where
                 }
                 SourceTag::Named =>
                 {
-                    contents.decode_map( |c|
+                    contents.decode_map(|named|
                     {
-                        let mut source = None;
-                        let mut path = None;
-                        let mut name = None;
+                        let (mut name, mut source, mut path) = (None, None, None);
 
-                        while let Some(mut item) = c.decode_entry()?
+                        while let Some(mut entry) = named.decode_entry()?
                         {
-                            let key : &str = item.decode_key()?.decode_string(GenericVisitor)?;
+                            let key : &str =
+                            entry
+                            .decode_key()?
+                            .decode_string(GenericVisitor)?;
 
                             match key
                             {
@@ -233,38 +253,55 @@ where
                                 if name.is_none()
                                 =>
                                 {
-                                    let value = item.decode_value()?.decode_string(GenericVisitor)?;
-                                    name = Some(musli_try_box(value, &cx)?);
+                                    let value =
+                                    entry
+                                    .decode_value()?
+                                    .decode_string(GenericVisitor)?;
+
+                                    name = Some(musli_try_box(value, &context)?);
                                 }
+
                                 "source"
                                 if source.is_none()
                                 =>
                                 {
-                                    let value = item.decode_value()?.decode_string(GenericVisitor)?;
-                                    source = Some(musli_try_box(value, &cx)?);
+                                    let value =
+                                    entry
+                                    .decode_value()?
+                                    .decode_string(GenericVisitor)?;
+
+                                    source = Some(musli_try_box(value, &context)?);
                                 }
+
                                 "path"
                                 if path.is_none()
                                 =>
                                 {
-                                    let value = item.decode_value()?.decode_string(GenericVisitor)?;
-                                    path = Some(musli_try_box(value, &cx)?);
+                                    let value =
+                                    entry
+                                    .decode_value()?
+                                    .decode_string(GenericVisitor)?;
+
+                                    path = Some(musli_try_box(value, &context)?);
                                 }
-                                "source" | "name" | "path" => return Err(cx.message(format_args!("Duplicate field `{}`", key))),
-                                _ => return Err(cx.message(format_args!("Unknown field `{}`", key)))
+
+                                "source" | "name" | "path" =>
+                                return Err(context.message(format_args!("Duplicate field `{}`", key))),
+
+                                _ => return Err(context.message(format_args!("Unknown field `{}`", key)))
                             }
                         }
 
                         let Some(name) = name
                         else
                         {
-                            return Err(cx.message("Missing `name` field!"))
+                            return Err(context.message("Missing `name` field!"))
                         };
 
                         let Some(source) = source
                         else
                         {
-                            return Err(cx.message("Missing `source` field!"))
+                            return Err(context.message("Missing `source` field!"))
                         };
 
                         Ok(
@@ -281,32 +318,40 @@ where
                 #[cfg(feature = "std")]
                 SourceTag::Imported =>
                 {
-                    contents.decode_map_hint(1, |c|
+                    contents.decode_map_hint(1, |imported|
                     {
-                        let mut found = None;
+                        let mut path = None;
 
-                        while let Some(mut item) = c.decode_entry()?
+                        while let Some(mut entry) = imported.decode_entry()?
                         {
-                            let key : &str = item.decode_key()?.decode_string(GenericVisitor)?;
+                            let key : &str =
+                            entry
+                            .decode_key()?
+                            .decode_string(GenericVisitor)?;
 
                             match key
                             {
                                 "path"
-                                if found.is_none()
+                                if path.is_none()
                                 =>
                                 {
-                                    let value = item.decode_value()?.decode_string(GenericVisitor)?;
-                                    found = Some(musli_try_box(value, &cx)?);
+                                    let value =
+                                    entry
+                                    .decode_value()?
+                                    .decode_string(GenericVisitor)?;
+
+                                    path = Some(musli_try_box(value, &context)?);
                                 }
-                                "path" => return Err(cx.message(format_args!("Duplicate field `{}`", key))),
-                                _ => return Err(cx.message(format_args!("Unknown field `{}`", key)))
+
+                                "path" => return Err(context.message(format_args!("Duplicate field `{}`", key))),
+                                _ => return Err(context.message(format_args!("Unknown field `{}`", key)))
                             }
                         }
 
-                        let Some(path) = found
+                        let Some(path) = path
                         else
                         {
-                            return Err(cx.message("Missing `path` field!"))
+                            return Err(context.message("Missing `path` field!"))
                         };
 
                         Ok(

@@ -179,12 +179,17 @@ impl<'a> files::Files<'a> for Sources {
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Sources
 {
-    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>
     {
-        use serde::de::{Visitor, SeqAccess, Error};
+        use serde::de::{Error, SeqAccess, Visitor};
 
+        // A built-in sequence visitor for importing Sources.
+        //
+        // This guarantees that we catch Allocation errors and
+        // table overflows during deserialization.
         struct SourcesVisitor;
 
         impl<'de> Visitor<'de> for SourcesVisitor
@@ -193,7 +198,7 @@ impl<'de> Deserialize<'de> for Sources
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
             {
-                f.write_str("A sequence of Source objects")
+                f.write_str("A collection of Source objects")
             }
 
             fn visit_seq<A>(self, mut sequence: A) -> Result<Vec<Source>, A::Error>
@@ -201,6 +206,8 @@ impl<'de> Deserialize<'de> for Sources
                 A: SeqAccess<'de>
             {
                 let mut table = Vec::new();
+
+                // For preventing Source ID overflows.
                 let mut counter = 0_u32;
 
                 while let Some(source) = sequence.next_element()?
@@ -208,6 +215,7 @@ impl<'de> Deserialize<'de> for Sources
                     if counter != u32::MAX
                     {
                         counter += 1;
+
                         if let Err(e) = table.try_push(source)
                         {
                             return Err(A::Error::custom(e));
@@ -215,7 +223,7 @@ impl<'de> Deserialize<'de> for Sources
                     }
                     else
                     {
-                        return Err(A::Error::custom("Source table exceeded max storage!"));
+                        return Err(A::Error::custom("source table exceeded max capacity"));
                     }
                 }
 
@@ -223,12 +231,14 @@ impl<'de> Deserialize<'de> for Sources
             }
         }
 
-        let sources = d.deserialize_seq(SourcesVisitor)?;
+        let sources : Vec<Source> =
+        deserializer.deserialize_seq(SourcesVisitor)?;
 
-        Ok(Self
-        {
-            sources
-        }
+        Ok(
+            Self
+            {
+                sources
+            }
         )
     }
 }
@@ -236,20 +246,21 @@ impl<'de> Deserialize<'de> for Sources
 #[cfg(feature = "serde")]
 impl Serialize for Sources
 {
+    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer
     {
         use serde::ser::SerializeSeq;
 
-        let mut base = serializer.serialize_seq(Some(self.sources.len()))?;
+        let mut sequence = serializer.serialize_seq(Some(self.sources.len()))?;
 
         for source in self.sources.iter()
         {
-            base.serialize_element(source)?;
+            sequence.serialize_element(source)?;
         }
 
-        base.end()
+        sequence.end()
     }
 }
 
@@ -258,35 +269,39 @@ impl<'de, M, A> Decode<'de, M, A> for Sources
 where
     A: musli::Allocator
 {
-    fn decode<D>(d: D) -> Result<Self, D::Error>
+    #[inline]
+    fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
         D: Decoder<'de>
     {
         use musli::{Context, de::SequenceDecoder};
 
-        let cx = d.cx();
+        let context = decoder.cx();
 
-        let sources =
-        d.decode_sequence(|seq|
+        let sources : Vec<Source> =
+        decoder.decode_sequence(|seq|
         {
             let mut table = Vec::new();
+
+            // For preventing Source ID overflows.
             let mut counter = 0_u32;
 
-            while let Some(item) = seq.try_decode_next()?
+            while let Some(element) = seq.try_decode_next()?
             {
-                let source = item.decode::<Source>()?;
+                let source = element.decode::<Source>()?;
 
                 if counter != u32::MAX
                 {
                     counter += 1;
+
                     if let Err(e) = table.try_push(source)
                     {
-                        return Err(cx.custom(e));
+                        return Err(context.custom(e));
                     }
                 }
                 else
                 {
-                    return Err(cx.message("Source table exceeded max storage!"));
+                    return Err(context.message("Source table exceeded max capacity"));
                 }
             }
 
@@ -294,10 +309,11 @@ where
         }
         )?;
 
-        Ok(Self
-        {
-            sources
-        }
+        Ok(
+            Self
+            {
+                sources
+            }
         )
     }
 }
@@ -307,13 +323,14 @@ impl<M> Encode<M> for Sources
 {
     type Encode = Self;
 
-    fn encode<E>(&self, e: E) -> Result<(), E::Error>
+    #[inline]
+    fn encode<E>(&self, encoder: E) -> Result<(), E::Error>
     where
         E: Encoder<Mode = M>
     {
         use musli::en::SequenceEncoder;
 
-        let mut sources = e.encode_sequence(self.sources.len())?;
+        let mut sources = encoder.encode_sequence(self.sources.len())?;
 
         for source in self.sources.iter()
         {
@@ -323,6 +340,7 @@ impl<M> Encode<M> for Sources
         sources.finish_sequence()
     }
 
+    #[inline]
     fn as_encode(&self) -> &Self
     {
         self

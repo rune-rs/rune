@@ -44,7 +44,7 @@
 //! * [Stack isolation 📖][support-stack-isolation] between function calls.
 //!
 //! <br>
-//!
+//!de::SequenceDecoder
 //! ## Rune scripts
 //!
 //! You can run Rune programs with the bundled CLI:
@@ -178,12 +178,10 @@ macro_rules! span {
 }
 
 #[cfg(any(feature = "serde", feature = "musli"))]
-pub(crate) mod sources_builder
-{
-    mod source_info;
+mod source_info;
 
-    pub use source_info::SourceInfo;
-}
+#[cfg(any(feature = "serde", feature = "musli"))]
+pub(crate) use source_info::SourceInfo;
 
 pub mod alloc;
 #[doc(inline)]
