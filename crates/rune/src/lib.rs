@@ -44,7 +44,7 @@
 //! * [Stack isolation 📖][support-stack-isolation] between function calls.
 //!
 //! <br>
-//!de::SequenceDecoder
+//!
 //! ## Rune scripts
 //!
 //! You can run Rune programs with the bundled CLI:
