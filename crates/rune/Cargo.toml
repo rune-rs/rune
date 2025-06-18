@@ -84,6 +84,8 @@ tokio = { version = "1.28.1", features = ["full"] }
 static_assertions = "1.1.0"
 futures-executor = "0.3.28"
 trybuild = "1.0.80"
+ron = "0.10.1"
+musli = { "version" = "0.0.131", features = ["wire"] }
 
 [package.metadata.docs.rs]
 all-features = true
