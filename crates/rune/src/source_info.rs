@@ -11,31 +11,38 @@ use serde::{
 use musli::{Decode, Decoder};
 
 /// Deserialized information for constructing an actual Source module.
-#[cfg_attr(feature = "serde", derive(Deserialize))]
-#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub enum Source
 {
     /// An unnamed module.
     Memory
     {
-        #[cfg_attr(feature = "serde", serde(deserialize_with = "try_read_serde"))]
         source: Box<str>
     },
 
     /// A named module.
     Named
     {
-        #[cfg_attr(feature = "serde", serde(deserialize_with = "try_read_serde"))]
         name: Box<str>,
 
-        #[cfg_attr(feature = "serde", serde(deserialize_with = "try_read_serde"))]
         source: Box<str>,
 
         /// Sometimes, the path gets included in a named source. If that field is present,
         /// we want to deserialize it as a regular string.
-        #[cfg_attr(feature = "serde", serde(default, deserialize_with = "try_path_serde"))]
         path: Option<Box<str>>
     }
+}
+
+#[cfg(feature = "serde")]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename = "Source")]
+struct DecodedSourceInfo
+{
+    #[serde(default, deserialize_with = "try_optional_serde")]
+    name: Option<Box<str>>,
+    #[serde(deserialize_with = "try_read_serde")]
+    source: Box<str>,
+    #[serde(default, deserialize_with = "try_optional_serde")]
+    path: Option<Box<str>>
 }
 
 #[cfg(feature = "serde")]
@@ -55,11 +62,46 @@ where
 
 #[cfg(feature = "serde")]
 #[inline]
-fn try_path_serde<'de, D>(deserializer: D) -> Result<Option<Box<str>>, D::Error>
+fn try_optional_serde<'de, D>(deserializer: D) -> Result<Option<Box<str>>, D::Error>
 where
     D: Deserializer<'de>
 {
     Ok(Some(try_read_serde(deserializer)?))
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Source
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        let info = DecodedSourceInfo::deserialize(deserializer)?;
+
+        match (info.name, info.path)
+        {
+            (None, Some(_)) => Err(D::Error::custom("`path` exists; missing field `name`")),
+            (None, None) =>
+            Ok(
+                Self::Memory
+                {
+                    source: info.source
+                }
+            ),
+            (Some(name), path) =>
+            {
+                let output =
+                Self::Named
+                {
+                    name,
+                    source: info.source,
+                    path
+                };
+
+                Ok(output)
+            }
+        }
+    }
 }
 
 #[cfg(feature = "musli")]
@@ -84,43 +126,9 @@ where
                 EntryDecoder,
                 MapDecoder,
                 UnsizedVisitor,
-                unsized_visitor,
-                VariantDecoder
+                unsized_visitor
             }
         };
-
-        // An tag descriptor for the Source's discriminant.
-        enum SourceTag
-        {
-            Memory,
-            Named,
-        }
-
-        // A visitor for SourceTag.
-        struct TagVisitor;
-
-        #[unsized_visitor]
-        impl<'de, C> UnsizedVisitor<'de, C, str> for TagVisitor
-        where
-            C: Context
-        {
-            type Ok = SourceTag;
-
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
-            {
-                f.write_str("Expecting variant tag `Memory` or `Named`")
-            }
-
-            fn visit_ref(self, context: C, value: &str) -> Result<SourceTag, C::Error>
-            {
-                match value
-                {
-                    "Memory" => Ok(SourceTag::Memory),
-                    "Named" => Ok(SourceTag::Named),
-                    _ => Err(context.message(format_args!("Unknown tag variant `{}`", value)))
-                }
-            }
-        }
 
         // A generic visitor for &str.
         struct GenericVisitor;
@@ -155,146 +163,94 @@ where
             }
         }
 
-        decoder.decode_variant(|variant|
+        decoder.decode_map(|map|
         {
-            let tag : SourceTag =
-            variant
-            .decode_tag()?
-            .decode_string(TagVisitor)?;
+            let context = map.cx();
 
-            let contents = variant.decode_value()?;
+            let (mut name, mut source, mut path) = (None, None, None);
 
-            let context = contents.cx();
-
-            match tag
+            while let Some(mut entry) = map.decode_entry()?
             {
-                SourceTag::Memory =>
+                let key =
+                entry
+                .decode_key()?
+                .decode_string(GenericVisitor)?;
+
+                match key
                 {
-                    contents.decode_map_hint(1, |memory|
+                    "name"
+                    if name.is_none()
+                    =>
                     {
-                        let mut source = None;
+                        let value =
+                        entry
+                        .decode_value()?
+                        .decode_string(GenericVisitor)?;
 
-                        while let Some(mut entry) = memory.decode_entry()?
-                        {
-                            let key : &str =
-                            entry
-                            .decode_key()?
-                            .decode_string(GenericVisitor)?;
-
-                            match key
-                            {
-                                "source"
-                                if source.is_none()
-                                =>
-                                {
-                                    let value =
-                                    entry
-                                    .decode_value()?
-                                    .decode_string(GenericVisitor)?;
-
-                                    source = Some(musli_try_box(value, &context)?);
-                                }
-                                "source" => return Err(context.message(format_args!("Duplicate field `{}`", key))),
-
-                                _ => return Err(context.message(format_args!("Unknown field `{}`", key)))
-                            }
-                        }
-
-                        let Some(source) = source
-                        else
-                        {
-                            return Err(context.message("Missing `source` field!"));
-                        };
-
-                        Ok(
-                            Self::Memory
-                            {
-                                source
-                            }
-                        )
+                        name = Some(musli_try_box(value, &context)?);
                     }
-                    )
+
+                    "source"
+                    if source.is_none()
+                    =>
+                    {
+                        let value =
+                        entry
+                        .decode_value()?
+                        .decode_string(GenericVisitor)?;
+
+                        source = Some(musli_try_box(value, &context)?);
+                    }
+
+                    "path"
+                    if path.is_none()
+                    =>
+                    {
+                        let value =
+                        entry
+                        .decode_value()?
+                        .decode_string(GenericVisitor)?;
+
+                        path = Some(musli_try_box(value, &context)?);
+                    }
+
+                    "name" | "source" | "path" =>
+                    return Err(context.message(format_args!("duplicate field `{}`", key))),
+
+                    _ =>
+                    return Err(context.message(format_args!("unknown field `{}`", key)))
                 }
-                SourceTag::Named =>
-                {
-                    contents.decode_map(|named|
+            }
+
+            let Some(source) = source
+            else
+            {
+                return Err(context.message("missing field `source`"));
+            };
+
+            match (name, path)
+            {
+                (None, Some(_)) => Err(context.message("`path` exists; missing field `name`")),
+
+                (None, None) =>
+                Ok(
+                    Source::Memory
                     {
-                        let (mut name, mut source, mut path) = (None, None, None);
-
-                        while let Some(mut entry) = named.decode_entry()?
-                        {
-                            let key : &str =
-                            entry
-                            .decode_key()?
-                            .decode_string(GenericVisitor)?;
-
-                            match key
-                            {
-                                "name"
-                                if name.is_none()
-                                =>
-                                {
-                                    let value =
-                                    entry
-                                    .decode_value()?
-                                    .decode_string(GenericVisitor)?;
-
-                                    name = Some(musli_try_box(value, &context)?);
-                                }
-
-                                "source"
-                                if source.is_none()
-                                =>
-                                {
-                                    let value =
-                                    entry
-                                    .decode_value()?
-                                    .decode_string(GenericVisitor)?;
-
-                                    source = Some(musli_try_box(value, &context)?);
-                                }
-
-                                "path"
-                                if path.is_none()
-                                =>
-                                {
-                                    let value =
-                                    entry
-                                    .decode_value()?
-                                    .decode_string(GenericVisitor)?;
-
-                                    path = Some(musli_try_box(value, &context)?);
-                                }
-
-                                "source" | "name" | "path" =>
-                                return Err(context.message(format_args!("Duplicate field `{}`", key))),
-
-                                _ => return Err(context.message(format_args!("Unknown field `{}`", key)))
-                            }
-                        }
-
-                        let Some(name) = name
-                        else
-                        {
-                            return Err(context.message("Missing `name` field!"))
-                        };
-
-                        let Some(source) = source
-                        else
-                        {
-                            return Err(context.message("Missing `source` field!"))
-                        };
-
-                        Ok(
-                            Self::Named
-                            {
-                                name,
-                                source,
-                                path
-                            }
-                        )
+                        source
                     }
-                    )
+                ),
+
+                (Some(name), path) =>
+                {
+                    let output =
+                    Source::Named
+                    {
+                        name,
+                        source,
+                        path
+                    };
+
+                    Ok(output)
                 }
             }
         }

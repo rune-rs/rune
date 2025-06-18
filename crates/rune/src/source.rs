@@ -515,7 +515,7 @@ impl Serialize for Source
     where
         S: Serializer
     {
-        use serde::ser::{Error, SerializeStructVariant};
+        use serde::ser::{Error, SerializeStruct};
 
         match self.name
         {
@@ -523,7 +523,7 @@ impl Serialize for Source
             =>
             {
                 let mut memory =
-                serializer.serialize_struct_variant("Source", 0, "Memory", 1)?;
+                serializer.serialize_struct("Source", 1)?;
 
                 memory.serialize_field("source", &*self.source)?;
 
@@ -533,27 +533,34 @@ impl Serialize for Source
             SourceName::Name(ref name)
             =>
             {
-                let mut named =
-                serializer.serialize_struct_variant("Source", 1, "Named", 3)?;
-
-                named.serialize_field("name", name)?;
-
-                named.serialize_field("source", &*self.source)?;
-
                 if let Some(ref path) = self.path
                 {
+                    let mut named =
+                    serializer.serialize_struct("Source", 3)?;
+
+                    named.serialize_field("name", name)?;
+
+                    named.serialize_field("source", &*self.source)?;
+
                     match path.as_os_str().to_str()
                     {
                         Some(pth) => named.serialize_field("path", pth)?,
                         None => return Err(S::Error::custom("Path has to be valid UTF-8"))
                     }
+
+                    named.end()
                 }
                 else
                 {
-                    named.skip_field("path")?;
-                }
+                    let mut named =
+                    serializer.serialize_struct("Source", 2)?;
 
-                named.end()
+                    named.serialize_field("name", name)?;
+
+                    named.serialize_field("source", &*self.source)?;
+
+                    named.end()
+                }
             }
         }
     }
@@ -599,7 +606,7 @@ impl<M> Encode<M> for Source
         {
             SourceName::Memory =>
             {
-                let mut memory = encoder.encode_map_variant("Memory", 1)?;
+                let mut memory = encoder.encode_map(1)?;
 
                 memory.insert_entry("source", &*self.source)?;
 
@@ -610,7 +617,7 @@ impl<M> Encode<M> for Source
             {
                 if let Some(ref path) = self.path
                 {
-                    let mut named = encoder.encode_map_variant("Named", 3)?;
+                    let mut named = encoder.encode_map(3)?;
 
                     named.insert_entry("name", name)?;
 
@@ -626,7 +633,7 @@ impl<M> Encode<M> for Source
                 }
                 else
                 {
-                    let mut named = encoder.encode_map_variant("Named", 2)?;
+                    let mut named = encoder.encode_map(2)?;
 
                     named.insert_entry("name", name)?;
 
