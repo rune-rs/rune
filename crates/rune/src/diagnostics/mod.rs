@@ -30,22 +30,28 @@
 //! # Ok::<_, rune::support::Error>(())
 //! ```
 
-pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
+pub use self::fatal::FatalDiagnostic;
+pub(crate) use self::fatal::FatalDiagnosticKind;
 mod fatal;
 
+mod policy;
+pub(crate) use self::policy::{PolicyDiagnostic, PolicyDiagnosticKind};
+
+mod warning;
 pub use self::warning::WarningDiagnostic;
 pub(crate) use self::warning::WarningDiagnosticKind;
-mod warning;
 
+mod runtime_warning;
 pub use self::runtime_warning::RuntimeWarningDiagnostic;
 pub(crate) use self::runtime_warning::RuntimeWarningDiagnosticKind;
-mod runtime_warning;
 
 use rune_alloc::String;
 use rust_alloc::boxed::Box;
 
 use crate::alloc::{self, Vec};
-use crate::ast::Spanned;
+use crate::ast::{OptionSpanned, Spanned};
+use crate::compile;
+use crate::policy::Policy;
 use crate::{Hash, SourceId};
 
 #[cfg(feature = "emit")]
@@ -194,62 +200,44 @@ impl Diagnostics {
     ///
     /// This should be used for programming invariants of the compiler which are
     /// broken for some reason.
+    #[inline]
     pub(crate) fn internal(
         &mut self,
         source_id: SourceId,
+        span: &dyn Spanned,
         message: &'static str,
     ) -> alloc::Result<()> {
-        self.error(source_id, FatalDiagnosticKind::Internal(message))
-    }
-
-    /// Indicate that a value is produced but never used.
-    pub(crate) fn not_used(
-        &mut self,
-        source_id: SourceId,
-        span: &dyn Spanned,
-        context: Option<&dyn Spanned>,
-    ) -> alloc::Result<()> {
-        self.warning(
-            source_id,
-            WarningDiagnosticKind::NotUsed {
-                span: span.span(),
-                context: context.map(Spanned::span),
-            },
-        )
-    }
-
-    /// Indicate that a value is produced but never used.
-    pub(crate) fn unreachable(
-        &mut self,
-        source_id: SourceId,
-        span: &dyn Spanned,
-        cause: &dyn Spanned,
-    ) -> alloc::Result<()> {
-        self.warning(
-            source_id,
-            WarningDiagnosticKind::Unreachable {
-                span: span.span(),
-                cause: cause.span(),
-            },
-        )
+        self.error(source_id, compile::Error::msg(span, message))
     }
 
     /// Indicate that a binding pattern might panic.
     ///
     /// Like `let (a, b) = value`.
-    pub(crate) fn let_pattern_might_panic(
+    pub(crate) fn policy(
         &mut self,
         source_id: SourceId,
         span: &dyn Spanned,
-        context: Option<&dyn Spanned>,
+        policy: Policy,
+        diagnostic: PolicyDiagnosticKind,
+        context: impl OptionSpanned,
     ) -> alloc::Result<()> {
-        self.warning(
-            source_id,
-            WarningDiagnosticKind::LetPatternMightPanic {
-                span: span.span(),
-                context: context.map(Spanned::span),
-            },
-        )
+        let diagnostic = PolicyDiagnostic {
+            span: span.span(),
+            context: context.option_span(),
+            kind: diagnostic,
+        };
+
+        match policy {
+            Policy::Allow => {}
+            Policy::Warn => {
+                self.warning(source_id, WarningDiagnosticKind::Policy(diagnostic))?;
+            }
+            Policy::Deny => {
+                self.error(source_id, FatalDiagnosticKind::Policy(diagnostic))?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Indicate that we encountered a template string without any expansion

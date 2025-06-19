@@ -179,6 +179,8 @@ macro_rules! span {
 
 pub mod alloc;
 #[doc(inline)]
+pub use rune_alloc::rc;
+#[doc(inline)]
 pub use rune_alloc::sync;
 
 /// Helper prelude for `#[no_std]` support.
@@ -251,6 +253,7 @@ pub mod macros;
 pub mod modules;
 
 pub mod parse;
+pub(crate) mod policy;
 
 pub(crate) mod grammar;
 
