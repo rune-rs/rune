@@ -28,3 +28,78 @@ fn test_control_flow() {
     assert_eq!(foo(0), "less than one");
     assert_eq!(foo(10), "something else");
 }
+
+#[test]
+fn converging_if_branches() {
+    fn inner1(cond) {
+        if cond == 0 {
+            1
+        } else {
+            return 2;
+        }
+    }
+
+    assert_eq!(inner1(0), 1);
+    assert_eq!(inner1(1), 2);
+    assert_eq!(inner1(2), 2);
+
+    fn inner2(cond) {
+        if cond == 0 {
+            return 1;
+        } else {
+            2
+        }
+    }
+
+    assert_eq!(inner2(0), 1);
+    assert_eq!(inner2(1), 2);
+    assert_eq!(inner2(2), 2);
+}
+
+#[test]
+fn converging_if_else() {
+    fn inner1(cond) {
+        if cond == 0 {
+            1
+        } else if cond == 1 {
+            return 2;
+        } else {
+            return 3;
+        }
+    }
+
+    assert_eq!(inner1(0), 1);
+    assert_eq!(inner1(1), 2);
+    assert_eq!(inner1(2), 3);
+    assert_eq!(inner1(3), 3);
+
+    fn inner2(cond) {
+        if cond == 0 {
+            return 1;
+        } else if cond == 1 {
+            2
+        } else {
+            return 3;
+        }
+    }
+
+    assert_eq!(inner2(0), 1);
+    assert_eq!(inner2(1), 2);
+    assert_eq!(inner2(2), 3);
+    assert_eq!(inner2(3), 3);
+
+    fn inner3(cond) {
+        if cond == 0 {
+            return 1;
+        } else if cond == 1 {
+            return 2;
+        } else {
+            3
+        }
+    }
+
+    assert_eq!(inner3(0), 1);
+    assert_eq!(inner3(1), 2);
+    assert_eq!(inner3(2), 3);
+    assert_eq!(inner3(3), 3);
+}

@@ -2398,12 +2398,6 @@ fn expr_if<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
-    let output_addr = if hir.fallback.is_none() {
-        needs.try_alloc_output()?
-    } else {
-        None
-    };
-
     let end_label = cx.asm.new_label("if_end");
 
     let values = hir
@@ -2433,19 +2427,30 @@ fn expr_if<'a, 'hir>(
         }
     }
 
+    let mut output_addr = None;
+
     // use fallback as fall through.
-    let asm = if let Some(b) = hir.fallback {
-        block(cx, b, needs)?
-    } else if let Some(out) = output_addr {
-        cx.asm.push(inst::Kind::unit(out), span)?;
-        Asm::new(span, ())
-    } else {
-        Asm::new(span, ())
+    let mut all_diverging = 'asm: {
+        if let Some(b) = hir.fallback {
+            break 'asm block(cx, b, needs)?.diverging();
+        }
+
+        if branches.is_empty() {
+            break 'asm true;
+        }
+
+        output_addr = needs.try_alloc_output()?;
+
+        if let Some(out) = output_addr {
+            cx.asm.push(inst::Kind::unit(out), span)?;
+        }
+
+        false
     };
 
-    if asm.converging() {
-        cx.asm.jump(&end_label, span)?;
-    }
+    // TODO: Is there a way to avoid emitting this jump if all branches
+    // diverges?
+    cx.asm.jump(&end_label, span)?;
 
     let mut it = branches.into_iter().peekable();
 
@@ -2453,32 +2458,39 @@ fn expr_if<'a, 'hir>(
         cx.asm.label(&label)?;
 
         let scope = cx.scopes.restore(scope);
+        let mut ignore;
 
-        let asm = if hir.fallback.is_none() {
-            let asm = block(cx, &branch.block, &mut Any::ignore(branch))?;
+        let needs = if hir.fallback.is_some() {
+            &mut *needs
+        } else {
+            ignore = Any::ignore(branch);
+            &mut ignore
+        };
 
-            if asm.converging() {
+        if block(cx, &branch.block, needs)?.converging() {
+            all_diverging = false;
+
+            if hir.fallback.is_none() {
                 if let Some(out) = output_addr {
                     cx.asm.push(inst::Kind::unit(out), span)?;
                 }
-
-                Asm::new(span, ())
-            } else {
-                Asm::diverge(span)
             }
-        } else {
-            block(cx, &branch.block, needs)?
-        };
+
+            if it.peek().is_some() {
+                cx.asm.jump(&end_label, branch)?;
+            }
+        }
 
         cx.scopes.pop(branch, scope)?;
-
-        if asm.converging() && it.peek().is_some() {
-            cx.asm.jump(&end_label, branch)?;
-        }
     }
 
-    cx.asm.label(&end_label)?;
     linear.free()?;
+    cx.asm.label(&end_label)?;
+
+    if all_diverging {
+        return Ok(Asm::diverge(span));
+    }
+
     Ok(Asm::new(span, ()))
 }
 

@@ -34,3 +34,36 @@ fn diverging_condition_match() {
 
     assert!(inner());
 }
+
+#[test]
+fn divering_if_branches() {
+    fn inner(cond) {
+        if cond == 0 {
+            return 1;
+        } else {
+            return 2;
+        }
+    }
+
+    assert_eq!(inner(0), 1);
+    assert_eq!(inner(1), 2);
+    assert_eq!(inner(2), 2);
+}
+
+#[test]
+fn divering_if_else() {
+    fn inner(cond) {
+        if cond == 0 {
+            return 1;
+        } else if cond == 1 {
+            return 2;
+        } else {
+            return 3;
+        }
+    }
+
+    assert_eq!(inner(0), 1);
+    assert_eq!(inner(1), 2);
+    assert_eq!(inner(2), 3);
+    assert_eq!(inner(3), 3);
+}
