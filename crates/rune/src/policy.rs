@@ -37,6 +37,7 @@ struct Inner {
     pub(crate) map: HashMap<Name, Policy>,
 }
 
+#[derive(Clone)]
 pub(crate) struct Policies {
     inner: Rc<Inner>,
 }

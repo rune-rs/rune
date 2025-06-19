@@ -16,6 +16,7 @@ use crate::compile::{self, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::module::{DocFunction, ModuleItemCommon};
 use crate::parse::ResolveContext;
 use crate::runtime::{Call, FieldMap, Protocol};
+use crate::policy::Policies;
 use crate::{Hash, Item, ItemBuf};
 
 /// A meta reference to an item being compiled.
@@ -327,20 +328,26 @@ pub struct FieldMeta {
 }
 
 /// Item and the module that the item belongs to.
-#[derive(Debug, TryClone, Clone, Copy)]
-#[try_clone(copy)]
+#[derive(Debug, TryClone, Clone)]
 #[non_exhaustive]
 pub(crate) struct ItemMeta {
     /// The location of the item.
+    #[try_clone(copy)]
     pub(crate) location: Location,
     /// The name of the item.
+    #[try_clone(copy)]
     pub(crate) item: ItemId,
     /// The visibility of the item.
+    #[try_clone(copy)]
     pub(crate) visibility: Visibility,
     /// The module associated with the item.
+    #[try_clone(copy)]
     pub(crate) module: ModId,
     /// The impl item associated with the item.
+    #[try_clone(copy)]
     pub(crate) impl_item: Option<ItemId>,
+    /// Policies that apply to the item.
+    pub(crate) policies: Policies,
 }
 
 impl ItemMeta {
