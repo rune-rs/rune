@@ -44,7 +44,7 @@ macro_rules! sources {
 /// A collection of source files.
 #[derive(Debug, Default)]
 #[cfg_attr(feature = "musli", derive(Encode), musli(transparent))]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(all(test, any(feature = "musli", feature = "serde")), derive(PartialEq))]
 pub struct Sources {
     /// Sources associated.
     sources: Vec<Source>,
