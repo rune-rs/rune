@@ -91,7 +91,7 @@ impl core::error::Error for FromPathError {
 /// A single source file.
 #[derive(Default, TryClone)]
 #[cfg_attr(feature = "musli", derive(Encode))]
-#[cfg_attr(all(test, feature = "musli"), derive(PartialEq))]
+#[cfg_attr(all(test, any(feature = "serde", feature = "musli")), derive(PartialEq))]
 pub struct Source {
     /// The name of the source.
     #[cfg_attr(feature = "musli", musli(skip_encoding_if = SourceName::is_memory, with = self::musli_source_name))]
