@@ -1,10 +1,11 @@
 use core::fmt;
 use core::num;
 
-#[cfg(feature = "musli")]
-use musli::{Decode, Encode, Encoder, Decoder};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[cfg(feature = "musli")]
+use musli::{Context, Decode, Decoder, Encode, mode};
 
 use crate as rune;
 use crate::alloc;
@@ -42,6 +43,8 @@ macro_rules! sources {
 
 /// A collection of source files.
 #[derive(Debug, Default)]
+#[cfg_attr(feature = "musli", derive(Encode), musli(transparent))]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Sources {
     /// Sources associated.
     sources: Vec<Source>,
@@ -207,27 +210,19 @@ impl<'de> Deserialize<'de> for Sources
             {
                 let mut table = Vec::new();
 
-                // For preventing Source ID overflows.
-                let mut counter = 0_u32;
-
                 while let Some(source) = sequence.next_element()?
                 {
-                    if counter != u32::MAX
+                    if let Err(e) = table.try_push(source)
                     {
-                        counter += 1;
-
-                        if let Err(e) = table.try_push(source)
-                        {
-                            return Err(A::Error::custom(e));
-                        }
-                    }
-                    else
-                    {
-                        return Err(A::Error::custom("source table exceeded max capacity"));
+                        return Err(A::Error::custom(e));
                     }
                 }
 
-                Ok(table)
+                match u32::try_from(table.len())
+                {
+                    Ok(_) => Ok(table),
+                    Err(_) => Err(A::Error::custom("Sources table exceeded max capacity!"))
+                }
             }
         }
 
@@ -265,85 +260,44 @@ impl Serialize for Sources
 }
 
 #[cfg(feature = "musli")]
-impl<'de, M, A> Decode<'de, M, A> for Sources
+impl<'de, A> Decode<'de, mode::Text, A> for Sources
 where
     A: musli::Allocator
 {
-    #[inline]
     fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
-        D: Decoder<'de>
+        D: Decoder<'de, Mode = mode::Text>
     {
-        use musli::{Context, de::SequenceDecoder};
-
         let context = decoder.cx();
 
-        let sources : Vec<Source> =
-        decoder.decode_sequence(|seq|
+        let sources : Vec<Source> = decoder.decode()?;
+
+        match u32::try_from(sources.len())
         {
-            let mut table = Vec::new();
-
-            // For preventing Source ID overflows.
-            let mut counter = 0_u32;
-
-            while let Some(element) = seq.try_decode_next()?
-            {
-                let source = element.decode::<Source>()?;
-
-                if counter != u32::MAX
-                {
-                    counter += 1;
-
-                    if let Err(e) = table.try_push(source)
-                    {
-                        return Err(context.custom(e));
-                    }
-                }
-                else
-                {
-                    return Err(context.message("Source table exceeded max capacity"));
-                }
-            }
-
-            Ok(table)
+            Ok(_) => Ok(Self { sources }),
+            Err(_) => Err(context.message("Sources table exceeded max capacity!"))
         }
-        )?;
-
-        Ok(
-            Self
-            {
-                sources
-            }
-        )
     }
 }
 
 #[cfg(feature = "musli")]
-impl<M> Encode<M> for Sources
+impl<'de, A> Decode<'de, mode::Binary, A> for Sources
+where
+    A: musli::Allocator
 {
-    type Encode = Self;
-
-    #[inline]
-    fn encode<E>(&self, encoder: E) -> Result<(), E::Error>
+    fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
-        E: Encoder<Mode = M>
+    D: Decoder<'de, Mode = mode::Binary>
     {
-        use musli::en::SequenceEncoder;
+        let context = decoder.cx();
 
-        let mut sources = encoder.encode_sequence(self.sources.len())?;
+        let sources : Vec<Source> = decoder.decode()?;
 
-        for source in self.sources.iter()
+        match u32::try_from(sources.len())
         {
-            sources.push(source)?;
+            Ok(_) => Ok(Self { sources }),
+            Err(_) => Err(context.message("Sources table exceeded max capacity!"))
         }
-
-        sources.finish_sequence()
-    }
-
-    #[inline]
-    fn as_encode(&self) -> &Self
-    {
-        self
     }
 }
 

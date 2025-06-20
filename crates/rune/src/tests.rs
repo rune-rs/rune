@@ -477,6 +477,8 @@ mod deprecation;
 mod derive_constructor;
 #[cfg(not(miri))]
 mod destructuring;
+#[cfg(any(feature = "serde", feature = "musli"))]
+mod encoding_decoding;
 #[cfg(not(miri))]
 mod esoteric_impls;
 #[cfg(not(miri))]

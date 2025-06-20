@@ -8,7 +8,7 @@ use serde::{
 };
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Decoder};
+use musli::{Decode, Decoder, Context, mode};
 
 /// Deserialized information for constructing an actual Source module.
 pub enum SourceInfo
@@ -23,26 +23,75 @@ pub enum SourceInfo
     Named
     {
         name: Box<str>,
-
         source: Box<str>,
-
-        /// Sometimes, the path gets included in a named source. If that field is present,
-        /// we want to deserialize it as a regular string.
         path: Option<Box<str>>
     }
 }
 
-#[cfg(feature = "serde")]
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields, rename = "Source")]
+#[cfg_attr(feature = "serde", derive(Deserialize), serde(deny_unknown_fields, rename = "Source"))]
+#[cfg_attr(feature = "musli", derive(Decode))]
 struct DecodedSourceInfo
 {
-    #[serde(default, deserialize_with = "try_optional_serde")]
+    #[cfg_attr(feature = "serde", serde(default, deserialize_with = "try_optional_serde"))]
+    #[cfg_attr(feature = "musli", musli(default, with = self::try_optional_musli))]
     name: Option<Box<str>>,
-    #[serde(deserialize_with = "try_read_serde")]
+
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "try_read_serde"))]
     source: Box<str>,
-    #[serde(default, deserialize_with = "try_optional_serde")]
+
+    #[cfg_attr(feature = "serde", serde(default, deserialize_with = "try_optional_serde"))]
+    #[cfg_attr(feature = "musli", musli(default, with = self::try_optional_musli))]
     path: Option<Box<str>>
+}
+
+impl DecodedSourceInfo
+{
+    fn build(self) -> Option<SourceInfo>
+    {
+        match (self.name, self.path)
+        {
+            (None, Some(_)) => None,
+
+            (None, None) =>
+            {
+                Some(
+                    SourceInfo::Memory
+                    {
+                        source: self.source
+                    }
+                )
+            }
+
+            (Some(name), path) =>
+            {
+                Some(
+                    {
+                        SourceInfo::Named
+                        {
+                            name,
+                            source: self.source,
+                            path
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+#[cfg(feature = "musli")]
+mod try_optional_musli
+{
+    use musli::Decoder;
+    use crate::alloc::Box;
+
+    #[inline]
+    pub fn decode<'de, D>(decoder: D) -> Result<Option<Box<str>>, D::Error>
+    where
+        D: Decoder<'de>
+    {
+        Ok(Some(decoder.decode()?))
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -51,13 +100,44 @@ fn try_read_serde<'de, D>(deserializer: D) -> Result<Box<str>, D::Error>
 where
     D: Deserializer<'de>
 {
-    let str_ : &str = Deserialize::deserialize(deserializer)?;
+    use core::fmt;
 
-    match Box::try_from(str_)
+    use serde::de::{Error, Visitor};
+
+    // This only exists so that we can deseralize strings, regardless of
+    // their borrow status.
+    struct StringVisitor;
+
+    impl<'de> Visitor<'de> for StringVisitor
     {
-        Ok(o) => Ok(o),
-        Err(e) => Err(D::Error::custom(e))
+        type Value = Box<str>;
+
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+        {
+            f.write_str("A valid UTF-8 string")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Box<str>, E>
+        where
+            E: Error
+        {
+            match Box::try_from(v)
+            {
+                Ok(v) => Ok(v),
+                Err(e) => Err(E::custom(e))
+            }
+        }
+
+        fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Box<str>, E>
+        where
+            E: Error
+        {
+            self.visit_str(v)
+        }
     }
+
+
+    deserializer.deserialize_string(StringVisitor)
 }
 
 #[cfg(feature = "serde")]
@@ -78,182 +158,57 @@ impl<'de> Deserialize<'de> for SourceInfo
     {
         let info = DecodedSourceInfo::deserialize(deserializer)?;
 
-        match (info.name, info.path)
+        match info.build()
         {
-            (None, Some(_)) => Err(D::Error::custom("`path` exists; missing field `name`")),
-            (None, None) =>
-            Ok(
-                Self::Memory
-                {
-                    source: info.source
-                }
-            ),
-            (Some(name), path) =>
-            {
-                let output =
-                Self::Named
-                {
-                    name,
-                    source: info.source,
-                    path
-                };
+            Some(output) => Ok(output),
+            None => Err(D::Error::custom("`path` exists; missing field `name`"))
+        }
+    }
+}
 
-                Ok(output)
-            }
+// With musli, derive(Decode) seems to only work on two modes: Text and Binary.
+//
+// Since we cannot implement a generic Mode, we have to implement Decode twice.
+#[cfg(feature = "musli")]
+impl<'de, A> Decode<'de, mode::Text, A> for SourceInfo
+where
+    A: musli::Allocator
+{
+    #[inline]
+    fn decode<D>(decoder: D) -> Result<Self, D::Error>
+    where
+        D: Decoder<'de, Mode = mode::Text>
+    {
+        let context = decoder.cx();
+
+        let info : DecodedSourceInfo = decoder.decode()?;
+
+        match info.build()
+        {
+            Some(output) => Ok(output),
+            None => Err(context.message("`path` exists; missing field `name`"))
         }
     }
 }
 
 #[cfg(feature = "musli")]
-impl<'de, M, A> Decode<'de, M, A> for SourceInfo
+impl<'de, A> Decode<'de, mode::Binary, A> for SourceInfo
 where
     A: musli::Allocator
 {
-    // With serde, we can  easily implement a proper deserializer with derive macros.
-    //
-    // Musli, on the other hand, was a different story. For now, in order to encapsulate the
-    // SourceInfo properly, we have to manually implement it.
     #[inline]
     fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
-        D: Decoder<'de>
+        D: Decoder<'de, Mode = mode::Binary>
     {
-        use core::fmt;
+        let context = decoder.cx();
 
-        use musli::{
-            Context,
-            de::{
-                EntryDecoder,
-                MapDecoder,
-                UnsizedVisitor,
-                unsized_visitor
-            }
-        };
+        let info : DecodedSourceInfo = decoder.decode()?;
 
-        // A generic visitor for &str.
-        struct GenericVisitor;
-
-        #[unsized_visitor]
-        impl<'de, C> UnsizedVisitor<'de, C, str> for GenericVisitor
-        where
-            C: Context
+        match info.build()
         {
-            type Ok = &'de str;
-
-            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
-            {
-                f.write_str("Expecting a valid sequence of UTF8 bytes")
-            }
-
-            fn visit_borrowed(self, _: C, value: &'de str) -> Result<&'de str, C::Error>
-            {
-                Ok(value)
-            }
+            Some(output) => Ok(output),
+            None => Err(context.message("`path` exists; missing field `name`"))
         }
-
-        // Tries to create a boxed string from a borrowed str value.
-        fn musli_try_box<C>(val: &str, context: &C) -> Result<Box<str>, C::Error>
-        where
-            C: Context
-        {
-            match Box::try_from(val)
-            {
-                Ok(o) => Ok(o),
-                Err(e) => Err(context.custom(e))
-            }
-        }
-
-        decoder.decode_map(|map|
-        {
-            let context = map.cx();
-
-            let (mut name, mut source, mut path) = (None, None, None);
-
-            while let Some(mut entry) = map.decode_entry()?
-            {
-                let key =
-                entry
-                .decode_key()?
-                .decode_string(GenericVisitor)?;
-
-                match key
-                {
-                    "name"
-                    if name.is_none()
-                    =>
-                    {
-                        let value =
-                        entry
-                        .decode_value()?
-                        .decode_string(GenericVisitor)?;
-
-                        name = Some(musli_try_box(value, &context)?);
-                    }
-
-                    "source"
-                    if source.is_none()
-                    =>
-                    {
-                        let value =
-                        entry
-                        .decode_value()?
-                        .decode_string(GenericVisitor)?;
-
-                        source = Some(musli_try_box(value, &context)?);
-                    }
-
-                    "path"
-                    if path.is_none()
-                    =>
-                    {
-                        let value =
-                        entry
-                        .decode_value()?
-                        .decode_string(GenericVisitor)?;
-
-                        path = Some(musli_try_box(value, &context)?);
-                    }
-
-                    "name" | "source" | "path" =>
-                    return Err(context.message(format_args!("duplicate field `{}`", key))),
-
-                    _ =>
-                    return Err(context.message(format_args!("unknown field `{}`", key)))
-                }
-            }
-
-            let Some(source) = source
-            else
-            {
-                return Err(context.message("missing field `source`"));
-            };
-
-            match (name, path)
-            {
-                (None, Some(_)) => Err(context.message("`path` exists; missing field `name`")),
-
-                (None, None) =>
-                Ok(
-                    Source::Memory
-                    {
-                        source
-                    }
-                ),
-
-                (Some(name), path) =>
-                {
-                    let output =
-                    Source::Named
-                    {
-                        name,
-                        source,
-                        path
-                    };
-
-                    Ok(output)
-                }
-            }
-        }
-        )
     }
 }
