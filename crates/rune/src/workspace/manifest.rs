@@ -32,7 +32,7 @@ pub enum WorkspaceFilter<'a> {
 }
 
 /// The kind of a found entry.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum FoundKind {
     /// The found entry is a binary.
