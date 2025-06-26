@@ -349,7 +349,7 @@ impl<'a> CommandSharedRef<'a> {
 
     #[inline]
     fn find_libs(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
-        self.find(all_targets, AssetKind::Lib, None)
+        self.find(all_targets, AssetKind::Lib, self.shared.lib.as_deref())
     }
 
     #[inline]

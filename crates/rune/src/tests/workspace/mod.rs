@@ -3,4 +3,6 @@
 prelude!();
 
 #[test]
-pub fn test() {}
+pub fn test() {
+    
+}

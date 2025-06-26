@@ -1,8 +1,5 @@
 use std::ffi::OsStr;
 use std::fmt;
-use std::fs;
-use std::io;
-use std::iter;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
@@ -676,49 +673,4 @@ fn find_binary_entry_points(path: &Path) -> Result<Vec<(PathBuf, String)>> {
     }
 
     Ok(entry_points)
-}
-
-/// Find all rune files in the given path.
-fn find_rune_files(path: &Path) -> Result<impl Iterator<Item = Result<(PathBuf, String)>>> {
-    let mut dir = match fs::read_dir(path) {
-        Ok(dir) => Some(dir),
-        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
-        Err(e) => return Err(e.into()),
-    };
-
-    Ok(iter::from_fn(move || loop {
-        let e = dir.as_mut()?.next()?;
-
-        let e = match e {
-            Ok(e) => e,
-            Err(err) => return Some(Err(err.into())),
-        };
-
-        let m = match e.metadata() {
-            Ok(m) => m,
-            Err(err) => return Some(Err(err.into())),
-        };
-
-        if !m.is_file() {
-            continue;
-        }
-
-        let path = e.path();
-
-        let (Some(name), Some(ext)) = (path.file_stem().and_then(OsStr::to_str), path.extension())
-        else {
-            continue;
-        };
-
-        if ext != OsStr::new("rn") {
-            continue;
-        }
-
-        let name = match String::try_from(name) {
-            Ok(name) => name,
-            Err(error) => return Some(Err(error.into())),
-        };
-
-        return Some(Ok((path, name)));
-    }))
 }
