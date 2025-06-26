@@ -1,0 +1,17 @@
+#[test]
+fn smoke() {
+    assert!(true)
+}
+
+/// ```rune
+/// assert!(true);
+/// ```
+fn doc_test() {
+}
+
+mod contained {
+    #[test]
+    fn smoulder() {
+        assert!(true)
+    }
+}

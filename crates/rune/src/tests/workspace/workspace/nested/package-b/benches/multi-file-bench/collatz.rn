@@ -1,0 +1,11 @@
+pub(super) fn helper(value, steps) {
+    if value == 1 {
+        return steps;
+    }
+
+    if value % 2 == 0 {
+        helper(value / 2, steps + 1)
+    } else {
+        helper(3 * value + 1, steps + 1)
+    }
+}

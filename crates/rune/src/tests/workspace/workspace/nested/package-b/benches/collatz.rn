@@ -1,0 +1,18 @@
+fn collatz_helper(value, steps) {
+    if value == 1 {
+        return steps;
+    }
+
+    if value % 2 == 0 {
+        collatz_helper(value / 2, steps + 1)
+    } else {
+        collatz_helper(3 * value + 1, steps + 1)
+    }
+}
+
+#[bench]
+pub fn collatz(b) {
+    b.iter(|| {
+        assert!(collatz_helper(1000, 0) == 111)
+    })
+}
