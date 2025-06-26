@@ -1,0 +1,8 @@
+mod collatz;
+
+#[bench]
+pub fn bench_collatz(b) {
+    b.iter(|| {
+        assert!(collatz::helper(1000, 0) == 111)
+    })
+}

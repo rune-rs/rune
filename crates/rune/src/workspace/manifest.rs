@@ -5,7 +5,7 @@ use std::io;
 use std::iter;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use relative_path::{RelativePath, RelativePathBuf};
 use semver::Version;
 use serde::de::IntoDeserializer;
@@ -21,11 +21,6 @@ use crate::workspace::{
     glob, Diagnostics, SourceLoader, WorkspaceError, WorkspaceErrorKind, MANIFEST_FILE,
 };
 use crate::{SourceId, Sources};
-
-const BIN: &str = "bin";
-const TESTS: &str = "tests";
-const EXAMPLES: &str = "examples";
-const BENCHES: &str = "benches";
 
 /// A workspace filter which in combination with functions such as
 /// [Manifest::find_bins] can be used to selectively find things in the
@@ -43,10 +38,10 @@ pub enum WorkspaceFilter<'a> {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum FoundKind {
-    /// The found entry is a source file.
-    Source,
     /// The found entry is a binary.
     Binary,
+    /// The found entry is a source file.
+    Library,
     /// The found entry is a test.
     Test,
     /// The found entry is an example.
@@ -55,11 +50,23 @@ pub enum FoundKind {
     Bench,
 }
 
+impl FoundKind {
+    fn all() -> [Self; 5] {
+        [
+            Self::Binary,
+            Self::Library,
+            Self::Test,
+            Self::Example,
+            Self::Bench,
+        ]
+    }
+}
+
 impl fmt::Display for FoundKind {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FoundKind::Source => "src".fmt(f),
+            FoundKind::Library => "lib".fmt(f),
             FoundKind::Binary => "bin".fmt(f),
             FoundKind::Test => "test".fmt(f),
             FoundKind::Example => "example".fmt(f),
@@ -117,17 +124,16 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    fn find_paths<'m>(
-        &'m self,
-        m: WorkspaceFilter<'_>,
+    /// Find all entrypoints of a specific kind.
+    pub fn find_by_kind(
+        &self,
+        filter: WorkspaceFilter<'_>,
         kind: FoundKind,
-        auto_path: &Path,
-        auto_find: fn(&Package) -> bool,
-    ) -> Result<Vec<FoundPackage<'m>>> {
+    ) -> Result<Vec<FoundPackage<'_>>> {
         let mut output = Vec::new();
 
         for package in self.packages.iter() {
-            for found in package.find_paths(m, kind, auto_path, auto_find)? {
+            for found in package.find_by_kind(filter, kind)? {
                 output.try_push(FoundPackage { found, package })?;
             }
         }
@@ -136,49 +142,12 @@ impl Manifest {
     }
 
     /// Find every single entrypoint available.
-    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
+    pub fn find_all(&self, filter: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
         let mut output = Vec::new();
-        output.try_extend(self.find_srcs()?)?;
-        output.try_extend(self.find_bins(m)?)?;
-        output.try_extend(self.find_tests(m)?)?;
-        output.try_extend(self.find_examples(m)?)?;
-        output.try_extend(self.find_benches(m)?)?;
-        Ok(output)
-    }
-
-    /// Find all source entry points in the workspace.
-    pub fn find_srcs(&self) -> Result<Vec<FoundPackage<'_>>> {
-        let mut output = Vec::new();
-
-        for package in self.packages.iter() {
-            for found in package.find_srcs()? {
-                output.try_push(FoundPackage { found, package })?;
-            }
+        for kind in FoundKind::all() {
+            output.try_extend(self.find_by_kind(filter, kind)?)?;
         }
-
         Ok(output)
-    }
-
-    /// Find all binaries matching the given name in the workspace.
-    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
-        self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
-    }
-
-    /// Find all tests associated with the given base name.
-    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
-        self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
-    }
-
-    /// Find all examples matching the given name in the workspace.
-    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
-        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| {
-            p.auto_examples
-        })
-    }
-
-    /// Find all benches matching the given name in the workspace.
-    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> Result<Vec<FoundPackage<'_>>> {
-        self.find_paths(m, FoundKind::Bench, Path::new(BENCHES), |p| p.auto_benches)
     }
 }
 
@@ -192,10 +161,10 @@ pub struct Package {
     pub version: Version,
     /// The root of the package.
     pub root: Option<PathBuf>,
-    /// Automatically detect sources.
-    pub auto_srcs: bool,
     /// Automatically detect binaries.
     pub auto_bins: bool,
+    /// Automatically detect libraries.
+    pub auto_libs: bool,
     /// Automatically detect tests.
     pub auto_tests: bool,
     /// Automatically detect examples.
@@ -205,84 +174,149 @@ pub struct Package {
 }
 
 impl Package {
-    fn find_paths(
-        &self,
-        m: WorkspaceFilter<'_>,
-        kind: FoundKind,
-        auto_path: &Path,
-        auto_find: fn(&Package) -> bool,
-    ) -> Result<Vec<Found>> {
-        let mut output = Vec::new();
-
-        if let (Some(path), true) = (&self.root, auto_find(self)) {
-            let path = path.join(auto_path);
-            let results = find_rune_files(&path)?;
-
-            for result in results {
-                let (path, name) = result?;
-
-                if m.matches(&name) {
-                    output.try_push(Found { kind, path, name })?;
-                }
-            }
+    fn auto_find(&self, kind: FoundKind) -> bool {
+        match kind {
+            FoundKind::Binary => self.auto_bins,
+            FoundKind::Library => self.auto_libs,
+            FoundKind::Test => self.auto_tests,
+            FoundKind::Example => self.auto_examples,
+            FoundKind::Bench => self.auto_benches,
         }
+    }
 
-        Ok(output)
+    fn find_by_kind(&self, filter: WorkspaceFilter<'_>, kind: FoundKind) -> Result<Vec<Found>> {
+        match kind {
+            FoundKind::Binary => self.find_bins(filter),
+            FoundKind::Library => self
+                .find_lib(filter)
+                .and_then(|lib| lib.into_iter().try_collect().map_err(anyhow::Error::from)),
+            FoundKind::Test => self.find_tests(filter),
+            FoundKind::Bench => self.find_benches(filter),
+            FoundKind::Example => self.find_examples(filter),
+        }
     }
 
     /// Find every single entrypoint available.
-    pub fn find_all(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
+    pub fn find_all(&self, filter: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
         let mut output = Vec::new();
-        output.try_extend(self.find_srcs()?)?;
-        output.try_extend(self.find_bins(m)?)?;
-        output.try_extend(self.find_tests(m)?)?;
-        output.try_extend(self.find_examples(m)?)?;
-        output.try_extend(self.find_benches(m)?)?;
-        Ok(output)
-    }
-
-    /// Find all source entry points in the package.
-    pub fn find_srcs(&self) -> Result<Vec<Found>> {
-        let mut output = Vec::new();
-
-        if let (Some(path), true) = (&self.root, self.auto_srcs) {
-            let path = path.join("src");
-            let files = find_rune_files(&path)?;
-            for file in files {
-                let (path, name) = file?;
-                if ["lib", "main"].iter().any(|entry| *entry == name) {
-                    output.try_push(Found {
-                        kind: FoundKind::Source,
-                        path,
-                        name,
-                    })?
-                }
-            }
+        for kind in FoundKind::all() {
+            output.try_extend(self.find_by_kind(filter, kind)?)?;
         }
-
         Ok(output)
     }
 
     /// Find all binaries matching the given name in the package.
-    pub fn find_bins(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
-        self.find_paths(m, FoundKind::Binary, Path::new(BIN), |p| p.auto_bins)
+    pub fn find_bins(&self, filter: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
+        if !self.auto_find(FoundKind::Binary) {
+            return Ok(Vec::new());
+        }
+
+        let Some(root) = &self.root else {
+            return Ok(Vec::new());
+        };
+
+        let src_path = root.join("src");
+
+        let mut found = Vec::new();
+
+        let bin_entry_point = src_path.join("main.rn");
+        if bin_entry_point.exists() && bin_entry_point.is_file() && filter.matches(&self.name) {
+            found.try_push(Found {
+                kind: FoundKind::Binary,
+                path: bin_entry_point,
+                name: self.name.try_clone()?,
+            })?;
+        }
+
+        let bin_directory = src_path.join("bin");
+        if bin_directory.exists() && bin_directory.is_dir() {
+            for (path, name) in find_binary_entry_points(&bin_directory)? {
+                if filter.matches(&name) {
+                    found.try_push(Found {
+                        kind: FoundKind::Binary,
+                        path,
+                        name,
+                    })?;
+                }
+            }
+        }
+
+        Ok(found)
+    }
+
+    /// Find a library entry point matching the given name in the package, if one exists.
+    pub fn find_lib(&self, filter: WorkspaceFilter<'_>) -> Result<Option<Found>> {
+        if !self.auto_find(FoundKind::Library) {
+            return Ok(None);
+        }
+
+        let Some(root) = &self.root else {
+            return Ok(None);
+        };
+
+        let src_path = root.join("src");
+
+        let mut lib = None;
+
+        let lib_entry_point = src_path.join("lib.rn");
+        if lib_entry_point.exists() && lib_entry_point.is_file() {
+            if !filter.matches(&self.name) {
+                return Ok(None);
+            }
+
+            lib = Some(Found {
+                kind: FoundKind::Library,
+                path: lib_entry_point,
+                name: self.name.try_clone()?,
+            });
+        }
+
+        Ok(lib)
+    }
+
+    fn find_in_directory(
+        &self,
+        filter: WorkspaceFilter<'_>,
+        kind: FoundKind,
+        directory: &str,
+    ) -> Result<Vec<Found>> {
+        if !self.auto_find(kind) {
+            return Ok(Vec::new());
+        }
+
+        let Some(root) = &self.root else {
+            return Ok(Vec::new());
+        };
+
+        let directory_path = root.join(directory);
+        if !directory_path.exists() || !directory_path.is_dir() {
+            return Ok(Vec::new());
+        }
+
+        let mut found = Vec::new();
+
+        for (path, name) in find_binary_entry_points(&directory_path)? {
+            if filter.matches(&name) {
+                found.try_push(Found { kind, path, name })?;
+            }
+        }
+
+        Ok(found)
     }
 
     /// Find all tests associated with the given base name.
-    pub fn find_tests(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
-        self.find_paths(m, FoundKind::Test, Path::new(TESTS), |p| p.auto_tests)
+    pub fn find_tests(&self, filter: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
+        self.find_in_directory(filter, FoundKind::Test, "tests")
     }
 
     /// Find all examples matching the given name in the package.
-    pub fn find_examples(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
-        self.find_paths(m, FoundKind::Example, Path::new(EXAMPLES), |p| {
-            p.auto_examples
-        })
+    pub fn find_examples(&self, filter: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
+        self.find_in_directory(filter, FoundKind::Example, "examples")
     }
 
     /// Find all benches matching the given name in the workspace.
-    pub fn find_benches(&self, m: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
-        self.find_paths(m, FoundKind::Bench, Path::new(BENCHES), |p| p.auto_benches)
+    pub fn find_benches(&self, filter: WorkspaceFilter<'_>) -> Result<Vec<Found>> {
+        self.find_in_directory(filter, FoundKind::Bench, "benches")
     }
 }
 
@@ -508,7 +542,7 @@ impl<'a> Loader<'a> {
             name,
             version,
             root: root.map(|p| p.into()),
-            auto_srcs: true,
+            auto_libs: true,
             auto_bins: true,
             auto_tests: true,
             auto_examples: true,
@@ -601,6 +635,47 @@ where
     let deserializer = f.into_deserializer();
     let value = T::deserialize(deserializer).map_err(|e| WorkspaceError::new(span, e))?;
     Ok(value)
+}
+
+/// Find binary entry points in the given directory
+fn find_binary_entry_points(path: &Path) -> Result<Vec<(PathBuf, String)>> {
+    let mut entry_points = Vec::new();
+
+    for entry in path.read_dir()? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_file() && entry.path().extension() == Some(OsStr::new("rn")) {
+            entry_points.try_push((
+                entry.path(),
+                entry
+                    .path()
+                    .file_stem()
+                    .ok_or_else(|| anyhow!("failed to find file stem for {:?}", entry.path()))?
+                    .to_string_lossy()
+                    .try_to_owned()?,
+            ))?;
+        } else if file_type.is_dir() {
+            let main = entry.path().join("main.rn");
+            if main.exists() && main.is_file() {
+                entry_points.try_push((
+                    main,
+                    entry
+                        .path()
+                        .file_name()
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "failed to find trailing directory name for {:?}",
+                                entry.path()
+                            )
+                        })?
+                        .to_string_lossy()
+                        .try_to_owned()?,
+                ))?;
+            }
+        }
+    }
+
+    Ok(entry_points)
 }
 
 /// Find all rune files in the given path.
