@@ -19,9 +19,8 @@ use crate::workspace::{
 };
 use crate::{SourceId, Sources};
 
-/// A workspace filter which in combination with functions such as
-/// [Manifest::find_bins] can be used to selectively find things in the
-/// workspace.
+/// A workspace filter which in combination with [Manifest::find_by_kind]
+/// can be used to selectively find things in the workspace.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum WorkspaceFilter<'a> {
