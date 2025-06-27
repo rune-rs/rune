@@ -52,9 +52,9 @@ impl<'a> ComponentRef<'a> {
 impl fmt::Display for ComponentRef<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Crate(s) => write!(fmt, "::{}", s),
-            Self::Str(s) => write!(fmt, "{}", s),
-            Self::Id(n) => write!(fmt, "${}", n),
+            Self::Crate(s) => write!(fmt, "::{s}"),
+            Self::Str(s) => write!(fmt, "{s}"),
+            Self::Id(n) => write!(fmt, "${n}"),
         }
     }
 }

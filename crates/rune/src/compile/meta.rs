@@ -558,7 +558,7 @@ impl fmt::Display for AssociatedKind {
             AssociatedKind::IndexFn(protocol, index) => {
                 write!(f, ".{index}<{}>", protocol.name)
             }
-            AssociatedKind::Instance(name) => write!(f, "{}", name),
+            AssociatedKind::Instance(name) => write!(f, "{name}"),
         }
     }
 }

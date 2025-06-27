@@ -227,7 +227,7 @@ async fn inner_compile(
                                         kind: WasmDiagnosticKind::Error,
                                         start,
                                         end,
-                                        message: format!("missing function (hash: {})", hash),
+                                        message: format!("missing function (hash: {hash})"),
                                     });
                                 }
                             }

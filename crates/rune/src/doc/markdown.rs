@@ -117,7 +117,7 @@ where
                     escape_html(&mut self.out, &name)?;
                     self.write("\">")?;
                     let number = *self.numbers.entry(name).or_try_insert(len)?;
-                    write!(&mut self.out, "{}", number)?;
+                    write!(&mut self.out, "{number}")?;
                     self.write("</a></sup>")?;
                 }
                 TaskListMarker(true) => {
@@ -155,7 +155,7 @@ where
             } => {
                 self.write("<")?;
 
-                write!(&mut self.out, "{}", level)?;
+                write!(&mut self.out, "{level}")?;
 
                 if let Some(id) = id {
                     self.write(" id=\"")?;
@@ -230,7 +230,7 @@ where
             }
             Tag::List(Some(start)) => {
                 self.write("<ol start=\"")?;
-                write!(&mut self.out, "{}", start)?;
+                write!(&mut self.out, "{start}")?;
                 self.write("\">")?;
             }
             Tag::List(None) => {
@@ -294,7 +294,7 @@ where
                 self.write("\"><sup class=\"footnote-definition-label\">")?;
                 let len = self.numbers.len() + 1;
                 let number = *self.numbers.entry(name).or_try_insert(len)?;
-                write!(&mut self.out, "{}", number)?;
+                write!(&mut self.out, "{number}")?;
                 self.write("</sup>")?;
             }
             Tag::HtmlBlock => {}
@@ -390,7 +390,7 @@ where
             }
             TagEnd::Heading(level) => {
                 self.write("</")?;
-                write!(&mut self.out, "{}", level)?;
+                write!(&mut self.out, "{level}")?;
                 self.write(">")?;
             }
             TagEnd::Table => {
@@ -490,7 +490,7 @@ where
                 FootnoteReference(name) => {
                     let len = self.numbers.len() + 1;
                     let number = *self.numbers.entry(name).or_try_insert(len)?;
-                    write!(self.out, "[{}]", number)?;
+                    write!(self.out, "[{number}]")?;
                 }
                 TaskListMarker(true) => self.write("[x]")?,
                 TaskListMarker(false) => self.write("[ ]")?,

@@ -236,7 +236,7 @@ impl Expander<'_> {
         let Tokens { to_tokens, .. } = &self.tokens;
 
         for (n, field) in named.unnamed.iter().enumerate() {
-            let ident = syn::Ident::new(&format!("f{}", n), field.span());
+            let ident = syn::Ident::new(&format!("f{n}"), field.span());
             let attrs = self.cx.field_attrs(&field.attrs);
 
             idents.push(ident.clone());

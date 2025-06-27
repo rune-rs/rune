@@ -58,13 +58,13 @@ impl DocVisitor {
                 if let Some(collected) = against.get(i) {
                     assert_eq!(collected, expected, "mismatched docstring");
                 } else {
-                    panic!("missing docstrings, expected: {:?}", expected);
+                    panic!("missing docstrings, expected: {expected:?}");
                 }
             }
 
             if expected.len() < against.len() {
                 let (_, extras) = against.split_at(expected.len());
-                panic!("extra docstrings: {:?}", extras);
+                panic!("extra docstrings: {extras:?}");
             }
         }
 

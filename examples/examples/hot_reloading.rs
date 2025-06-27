@@ -42,12 +42,12 @@ async fn main() -> Result<()> {
             match event.kind {
                 path_reloader::EventKind::Added => {
                     if let Err(error) = vm.call(["hello"], ()) {
-                        println!("Error: {}", error);
+                        println!("Error: {error}");
                     }
                 }
                 path_reloader::EventKind::Removed => {
                     if let Err(error) = vm.call(["goodbye"], ()) {
-                        println!("Error: {}", error);
+                        println!("Error: {error}");
                     }
                 }
             }

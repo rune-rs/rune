@@ -52,6 +52,6 @@ fn main() -> rune::support::Result<()> {
 
     let mut foo = Foo::default();
     let _ = vm.call(["main"], (&mut foo,))?;
-    println!("{:?}", foo);
+    println!("{foo:?}");
     Ok(())
 }

@@ -60,7 +60,7 @@ fn main() -> Result<()> {
     for arg in it {
         match arg.as_str() {
             "--version" => {
-                println!("Rune language server {}", VERSION);
+                println!("Rune language server {VERSION}");
                 return Ok(());
             }
             "language-server" => {

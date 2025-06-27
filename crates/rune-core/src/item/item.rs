@@ -468,7 +468,7 @@ impl fmt::Display for Item {
 
 impl fmt::Debug for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -536,7 +536,7 @@ impl fmt::Display for Unqualified<'_> {
                 }
             }
 
-            write!(f, "{}", last)?;
+            write!(f, "{last}")?;
         } else {
             f.write_str("{root}")?;
         }
