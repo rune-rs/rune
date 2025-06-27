@@ -116,7 +116,7 @@ impl<K, V> BTreeMap<K, V> {
         let mut keys = self.keys();
         if let Some(mut previous) = keys.next() {
             for next in keys {
-                assert!(previous < next, "{:?} >= {:?}", previous, next);
+                assert!(previous < next, "{previous:?} >= {next:?}");
                 previous = next;
             }
         }

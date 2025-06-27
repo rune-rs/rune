@@ -242,11 +242,11 @@ impl fmt::Debug for OwnedTuple {
         let last = it.next_back();
 
         for el in it {
-            write!(f, "{:?}, ", el)?;
+            write!(f, "{el:?}, ")?;
         }
 
         if let Some(last) = last {
-            write!(f, "{:?}", last)?;
+            write!(f, "{last:?}")?;
         }
 
         write!(f, ")")?;

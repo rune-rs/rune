@@ -8104,7 +8104,7 @@ mod test_map {
         map.insert(2, 1);
         map.insert(3, 4);
 
-        #[allow(clippy::no_effect)] // false positive lint
+        #[allow(clippy::no_effect, clippy::unnecessary_operation)] // false positive lint
         map[&4];
     }
 
@@ -9265,7 +9265,7 @@ mod test_map {
             }
 
             for (k, v) in map {
-                println!("{}, {}", k, v);
+                println!("{k}, {v}");
             }
         }
 
@@ -9375,8 +9375,7 @@ mod test_map {
             for ((key, value), (panic_in_clone, panic_in_drop)) in guard.iter().zip(iter) {
                 if *key != check_count {
                     return Err(format!(
-                        "key != check_count,\nkey: `{}`,\ncheck_count: `{}`",
-                        key, check_count
+                        "key != check_count,\nkey: `{key}`,\ncheck_count: `{check_count}`",
                     ));
                 }
                 if value.dropped
@@ -9403,8 +9402,7 @@ mod test_map {
 
             if count != check_count {
                 return Err(format!(
-                    "count != check_count,\ncount: `{}`,\ncheck_count: `{}`",
-                    count, check_count
+                    "count != check_count,\ncount: `{count}`,\ncheck_count: `{check_count}`",
                 ));
             }
             core::mem::forget(guard);

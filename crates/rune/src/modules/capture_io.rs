@@ -35,7 +35,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module
         .function("print", move |m: &str| {
-            write!(o.inner.lock(), "{}", m).map_err(VmError::panic)
+            write!(o.inner.lock(), "{m}").map_err(VmError::panic)
         })
         .build()?;
 
@@ -43,7 +43,7 @@ pub fn module(io: &CaptureIo) -> Result<Module, ContextError> {
 
     module
         .function("println", move |m: &str| {
-            writeln!(o.inner.lock(), "{}", m).map_err(VmError::panic)
+            writeln!(o.inner.lock(), "{m}").map_err(VmError::panic)
         })
         .build()?;
 

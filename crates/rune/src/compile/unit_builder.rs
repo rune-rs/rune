@@ -864,28 +864,28 @@ impl UnitBuilder {
 
             match inst {
                 AssemblyInst::Jump { label } => {
-                    write!(comment, "label:{}", label)?;
+                    write!(comment, "label:{label}")?;
                     let jump = build_label(label)?;
                     storage
                         .encode(Inst::new(inst::Kind::Jump { jump }))
                         .with_span(span)?;
                 }
                 AssemblyInst::JumpIf { addr, label } => {
-                    write!(comment, "label:{}", label)?;
+                    write!(comment, "label:{label}")?;
                     let jump = build_label(label)?;
                     storage
                         .encode(Inst::new(inst::Kind::JumpIf { cond: addr, jump }))
                         .with_span(span)?;
                 }
                 AssemblyInst::JumpIfNot { addr, label } => {
-                    write!(comment, "label:{}", label)?;
+                    write!(comment, "label:{label}")?;
                     let jump = build_label(label)?;
                     storage
                         .encode(Inst::new(inst::Kind::JumpIfNot { cond: addr, jump }))
                         .with_span(span)?;
                 }
                 AssemblyInst::IterNext { addr, label, out } => {
-                    write!(comment, "label:{}", label)?;
+                    write!(comment, "label:{label}")?;
                     let jump = build_label(label)?;
                     storage
                         .encode(Inst::new(inst::Kind::IterNext { addr, jump, out }))

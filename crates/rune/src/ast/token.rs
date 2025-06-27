@@ -30,11 +30,11 @@ impl Token {
             }
             Kind::Ident(s) => {
                 let literal = cx.literal_source(*s, self.span).ok_or(fmt::Error)?;
-                write!(f, "{}", literal)?;
+                write!(f, "{literal}")?;
             }
             Kind::Label(s) => {
                 let literal = cx.literal_source(*s, self.span).ok_or(fmt::Error)?;
-                write!(f, "'{}", literal)?;
+                write!(f, "'{literal}")?;
             }
             Kind::Byte(s) => match s {
                 CopySource::Text(source_id) => {
@@ -44,10 +44,10 @@ impl Token {
                         .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
-                    write!(f, "{}", s)?;
+                    write!(f, "{s}")?;
                 }
                 CopySource::Inline(b) => {
-                    write!(f, "{:?}", b)?;
+                    write!(f, "{b:?}")?;
                 }
             },
             Kind::ByteStr(s) => match s {
@@ -65,7 +65,7 @@ impl Token {
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
 
-                    write!(f, "b\"{}\"", s)?;
+                    write!(f, "b\"{s}\"")?;
                 }
                 StrSource::Synthetic(id) => {
                     let b = cx.idx.q.storage.get_byte_string(*id).ok_or(fmt::Error)?;
@@ -86,11 +86,11 @@ impl Token {
                         .sources
                         .source(text.source_id, span)
                         .ok_or(fmt::Error)?;
-                    write!(f, "\"{}\"", s)?;
+                    write!(f, "\"{s}\"")?;
                 }
                 StrSource::Synthetic(id) => {
                     let s = cx.idx.q.storage.get_string(*id).ok_or(fmt::Error)?;
-                    write!(f, "{:?}", s)?;
+                    write!(f, "{s:?}")?;
                 }
             },
             Kind::Char(s) => match s {
@@ -101,10 +101,10 @@ impl Token {
                         .sources
                         .source(*source_id, self.span)
                         .ok_or(fmt::Error)?;
-                    write!(f, "{}", s)?;
+                    write!(f, "{s}")?;
                 }
                 CopySource::Inline(c) => {
-                    write!(f, "{:?}", c)?;
+                    write!(f, "{c:?}")?;
                 }
             },
             Kind::Number(s) => match s {
@@ -115,16 +115,16 @@ impl Token {
                         .sources
                         .source(text.source_id, self.span)
                         .ok_or(fmt::Error)?;
-                    write!(f, "{}", s)?;
+                    write!(f, "{s}")?;
                 }
                 NumberSource::Synthetic(id) => {
                     let n = cx.idx.q.storage.get_number(*id).ok_or(fmt::Error)?;
-                    write!(f, "{}", n)?;
+                    write!(f, "{n}")?;
                 }
             },
             other => {
                 let s = other.as_literal_str().ok_or(fmt::Error)?;
-                write!(f, "{}", s)?;
+                write!(f, "{s}")?;
             }
         }
 
@@ -366,8 +366,8 @@ impl From<f64> for Number {
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.value {
-            NumberValue::Float(n) => write!(f, "{}", n),
-            NumberValue::Integer(n) => write!(f, "{}", n),
+            NumberValue::Float(n) => write!(f, "{n}"),
+            NumberValue::Integer(n) => write!(f, "{n}"),
         }
     }
 }

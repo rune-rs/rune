@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
             .output()?;
 
         let rev = std::str::from_utf8(&output.stdout)?.trim();
-        format!("git-{}", rev)
+        format!("git-{rev}")
     };
 
     fs::write(out_dir.join("version.txt"), version).context("writing version.txt")?;

@@ -954,8 +954,6 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "Missing static object keys for hash `{hash}` and slot `{slot}`",
-                    hash = hash,
-                    slot = slot
                 )?;
             }
             ErrorKind::StaticObjectKeysHashConflict {
@@ -1062,7 +1060,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Expected byte literal to be closed")?;
             }
             ErrorKind::UnexpectedChar { c } => {
-                write!(f, "Unexpected character `{c}`", c = c)?;
+                write!(f, "Unexpected character `{c}`")?;
             }
             ErrorKind::PrecedenceGroupRequired => {
                 write!(f, "Group required in expression to determine precedence")?;
@@ -1148,7 +1146,7 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Cycle in import")?;
             }
             ErrorKind::ImportRecursionLimit { count, .. } => {
-                write!(f, "Import recursion limit reached ({count})", count = count)?;
+                write!(f, "Import recursion limit reached ({count})")?;
             }
             ErrorKind::LastUseComponent => {
                 write!(f, "Missing last use component")?;
@@ -1159,16 +1157,11 @@ impl fmt::Display for ErrorKind {
             ErrorKind::TypeRttiConflict { hash } => {
                 write!(
                     f,
-                    "Tried to insert runtime type information, but conflicted with hash `{hash}`",
-                    hash = hash
+                    "Tried to insert runtime type information, but conflicted with hash `{hash}`"
                 )?;
             }
             ErrorKind::ArenaWriteSliceOutOfBounds { index } => {
-                write!(
-                    f,
-                    "Writing arena slice out of bounds for index {index}",
-                    index = index
-                )?;
+                write!(f, "Writing arena slice out of bounds for index {index}")?;
             }
             ErrorKind::ArenaAllocError { requested } => {
                 write!(f, "Allocation error for {requested} bytes")?;

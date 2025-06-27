@@ -152,8 +152,7 @@ impl GuardCheck {
     fn ensure_not_dropped(&self, what: &str) {
         assert!(
             !self.dropped.get(),
-            "value has was previously dropped: {}",
-            what
+            "value has was previously dropped: {what}",
         );
     }
 }

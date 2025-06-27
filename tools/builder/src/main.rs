@@ -270,8 +270,8 @@ impl Build {
 impl fmt::Display for Build {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Channel(channel) => write!(f, "{}", channel)?,
-            Self::Version(version) => write!(f, "{}", version)?,
+            Self::Channel(channel) => write!(f, "{channel}")?,
+            Self::Version(version) => write!(f, "{version}")?,
         }
 
         Ok(())

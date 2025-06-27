@@ -59,19 +59,19 @@ fn main() -> rune::support::Result<()> {
 
     let output = vm.call(["main"], (External::First(42),))?;
     let output: External = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
 
     let output = vm.call(["main"], (External::Second(42, 12345),))?;
     let output: External = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
 
     let output = vm.call(["main"], (External::Third,))?;
     let output: External = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
 
     let output = vm.call(["main"], (External::Fourth { a: 42, b: 2 },))?;
     let output: External = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
     Ok(())
 }
 

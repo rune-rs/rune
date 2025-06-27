@@ -40,6 +40,6 @@ fn main() -> rune::support::Result<()> {
     let output = vm.call(["calc"], (input,))?;
     let output: Vec<i64> = rune::from_value(output)?;
 
-    println!("{:?}", output);
+    println!("{output:?}");
     Ok(())
 }

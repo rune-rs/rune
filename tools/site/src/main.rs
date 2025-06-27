@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     let bin = target.join("zola");
 
     if !bin.is_file() {
-        println!("Downloading: {}", url);
+        println!("Downloading: {url}");
         let bytes = reqwest::blocking::get(&url)?.bytes()?;
         let decoder = GzDecoder::new(io::Cursor::new(bytes.as_ref()));
         let mut archive = Archive::new(decoder);

@@ -180,28 +180,28 @@ where
 
     if shared.verbose && unchanged > 0 {
         io.stdout.set_color(&col.green)?;
-        write!(io.stdout, "{}", unchanged)?;
+        write!(io.stdout, "{unchanged}")?;
         io.stdout.reset()?;
         writeln!(io.stdout, " unchanged")?;
     }
 
     if shared.verbose && changed > 0 {
         io.stdout.set_color(&col.yellow)?;
-        write!(io.stdout, "{}", changed)?;
+        write!(io.stdout, "{changed}")?;
         io.stdout.reset()?;
         writeln!(io.stdout, " changed")?;
     }
 
     if shared.verbose || failed > 0 {
         io.stdout.set_color(&col.red)?;
-        write!(io.stdout, "{}", failed)?;
+        write!(io.stdout, "{failed}")?;
         io.stdout.reset()?;
         writeln!(io.stdout, " failed")?;
     }
 
     if shared.verbose || failed_builds > 0 {
         io.stdout.set_color(&col.red)?;
-        write!(io.stdout, "{}", failed_builds)?;
+        write!(io.stdout, "{failed_builds}")?;
         io.stdout.reset()?;
         writeln!(io.stdout, " failed builds")?;
     }

@@ -300,7 +300,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:X}", n)?;
+                write!(f.buf_mut(), "{n:X}")?;
                 self.format_fill(f, align, fill, sign)?;
             }
             _ => {
@@ -315,7 +315,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:x}", n)?;
+                write!(f.buf_mut(), "{n:x}")?;
                 self.format_fill(f, align, fill, sign)?;
             }
             _ => {
@@ -330,7 +330,7 @@ impl FormatSpec {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
                 let (n, align, fill, sign) = self.int_traits(*n);
-                write!(f.buf_mut(), "{:b}", n)?;
+                write!(f.buf_mut(), "{n:b}")?;
                 self.format_fill(f, align, fill, sign)?;
             }
             _ => {
@@ -404,7 +404,7 @@ where
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(value) => write!(f, "{}", value),
+            Some(value) => write!(f, "{value}"),
             None => write!(f, "?"),
         }
     }

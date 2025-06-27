@@ -1567,7 +1567,7 @@ impl fmt::Display for InstValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unit => write!(f, "()")?,
-            Self::Bool(v) => write!(f, "{}", v)?,
+            Self::Bool(v) => write!(f, "{v}")?,
             Self::Char(v) => write!(f, "{v:?}")?,
             Self::Unsigned(v) => write!(f, "{v}u64")?,
             Self::Integer(v) => write!(f, "{v}i64")?,

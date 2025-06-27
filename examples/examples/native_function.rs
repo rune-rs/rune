@@ -37,7 +37,7 @@ fn main() -> rune::support::Result<()> {
     let output = vm.call(["main"], (1u32,))?;
     let output: i64 = rune::from_value(output)?;
 
-    println!("{}", output);
+    println!("{output}");
     Ok(())
 }
 
