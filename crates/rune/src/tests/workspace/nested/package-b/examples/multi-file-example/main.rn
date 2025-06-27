@@ -1,0 +1,5 @@
+mod lib;
+
+pub fn main() {
+    println!("running {}", lib::get_name());
+}

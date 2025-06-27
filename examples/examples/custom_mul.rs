@@ -48,7 +48,7 @@ fn main() -> rune::support::Result<()> {
     let output = vm.call(["main"], (Foo { field: 5 },))?;
     let output: Foo = rune::from_value(output)?;
 
-    println!("output: {:?}", output);
+    println!("output: {output:?}");
     Ok(())
 }
 

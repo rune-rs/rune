@@ -86,7 +86,7 @@ pub(super) async fn run(
         let mut bencher = Bencher::default();
 
         if let Err(error) = vm.call(*hash, (&mut bencher,)) {
-            writeln!(io.stdout, "{}: Error in benchmark", item)?;
+            writeln!(io.stdout, "{item}: Error in benchmark")?;
             error.emit(io.stdout, sources)?;
             any_error = true;
 
@@ -116,7 +116,7 @@ pub(super) async fn run(
             };
 
             if let Err(e) = bench_fn(io, item, args, f) {
-                writeln!(io.stdout, "{}: Error in bench iteration: {}", item, e)?;
+                writeln!(io.stdout, "{item}: Error in bench iteration: {e}")?;
 
                 if let Some(capture_io) = capture_io {
                     if !capture_io.is_empty() {

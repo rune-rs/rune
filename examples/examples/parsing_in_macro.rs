@@ -41,7 +41,7 @@ pub fn main() -> rune::support::Result<()> {
     let output = vm.execute(["main"], ())?.complete()?;
     let output: (u32, u32) = rune::from_value(output)?;
 
-    println!("{:?}", output);
+    println!("{output:?}");
     Ok(())
 }
 

@@ -33,8 +33,8 @@ impl fmt::Display for Expectation {
         match self {
             Expectation::Description(s) => s.fmt(f),
             Expectation::Keyword(k) => write!(f, "`{k}` keyword"),
-            Expectation::Delimiter(d) => write!(f, "`{}` delimiter", d),
-            Expectation::Punctuation(p) => write!(f, "`{}`", p),
+            Expectation::Delimiter(d) => write!(f, "`{d}` delimiter"),
+            Expectation::Punctuation(p) => write!(f, "`{p}`"),
             Expectation::OpenDelimiter => write!(f, "`(`, `[`, or `{{`"),
             Expectation::Boolean => write!(f, "true or false"),
             Expectation::Literal => write!(f, r#"literal like `"a string"` or 42"#),

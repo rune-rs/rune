@@ -102,7 +102,7 @@ fn dbg_impl(
     let mut stdout = stdout.lock();
 
     for value in memory.slice_at(addr, args)? {
-        writeln!(stdout, "{:?}", value).map_err(VmError::panic)?;
+        writeln!(stdout, "{value:?}").map_err(VmError::panic)?;
     }
 
     memory.store(out, ())?;
