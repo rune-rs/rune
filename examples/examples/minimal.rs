@@ -33,6 +33,6 @@ fn main() -> rune::support::Result<()> {
     let output = vm.execute(["main"], (33i64,))?.complete()?;
     let output: i64 = rune::from_value(output)?;
 
-    println!("output: {}", output);
+    println!("output: {output}");
     Ok(())
 }

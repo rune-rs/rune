@@ -173,7 +173,7 @@ impl<'a> Entry<'a> {
                     o.write_all(about.as_bytes())?;
                     writeln!(o)?;
                     writeln!(o)?;
-                    writeln!(o, "{}", e)?;
+                    writeln!(o, "{e}")?;
                     o.flush()?;
                     ExitCode::Failure
                 } else {
@@ -182,7 +182,7 @@ impl<'a> Entry<'a> {
                     o.write_all(about.as_bytes())?;
                     writeln!(o)?;
                     writeln!(o)?;
-                    writeln!(o, "{}", e)?;
+                    writeln!(o, "{e}")?;
                     o.flush()?;
                     ExitCode::Success
                 };
@@ -719,10 +719,10 @@ fn format_errors<O>(o: &mut O, error: &Error) -> io::Result<()>
 where
     O: ?Sized + io::Write,
 {
-    writeln!(o, "Error: {}", error)?;
+    writeln!(o, "Error: {error}")?;
 
     for error in error.chain().skip(1) {
-        writeln!(o, "Caused by: {}", error)?;
+        writeln!(o, "Caused by: {error}")?;
     }
 
     Ok(())

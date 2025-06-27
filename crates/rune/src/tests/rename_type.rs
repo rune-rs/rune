@@ -18,7 +18,7 @@ fn test_rename() -> Result<()> {
             assert_eq!(item, ItemBuf::with_item(["Bar"])?);
         }
         actual => {
-            panic!("Expected conflicting type but got: {:?}", actual);
+            panic!("Expected conflicting type but got: {actual:?}");
         }
     }
 

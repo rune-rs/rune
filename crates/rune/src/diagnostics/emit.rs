@@ -222,10 +222,7 @@ impl VmError {
                     ]);
                 }
                 VmErrorKind::BadArgumentCount { actual, expected } => {
-                    notes.extend([
-                        format!("Expected `{}`", expected),
-                        format!("Got `{}`", actual),
-                    ]);
+                    notes.extend([format!("Expected `{expected}`"), format!("Got `{actual}`")]);
                 }
                 _ => {}
             };
@@ -387,17 +384,17 @@ impl Unit {
                     writeln!(out)?;
                 }
 
-                writeln!(out, "fn {} ({}):", signature, hash)?;
+                writeln!(out, "fn {signature} ({hash}):")?;
             }
 
             for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
-                writeln!(out, "{}:", label)?;
+                writeln!(out, "{label}:")?;
             }
 
             write!(out, "  {n:04} = {inst}")?;
 
             if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-                write!(out, " // {}", comment)?;
+                write!(out, " // {comment}")?;
             }
 
             writeln!(out)?;
@@ -442,7 +439,7 @@ where
             if let Some(binding) = sources.source(this.source_id(), *span) {
                 let mut note = String::new();
                 writeln!(note, "Hint: Rewrite to:")?;
-                writeln!(note, "if {} {{", binding)?;
+                writeln!(note, "if {binding} {{")?;
                 writeln!(note, "    // ..")?;
                 writeln!(note, "}}")?;
                 notes.push(note.into_std());
@@ -451,7 +448,7 @@ where
         WarningDiagnosticKind::RemoveTupleCallParams { variant, .. } => {
             if let Some(variant) = sources.source(this.source_id(), *variant) {
                 let mut note = String::new();
-                writeln!(note, "Hint: Rewrite to `{}`", variant)?;
+                writeln!(note, "Hint: Rewrite to `{variant}`")?;
                 notes.push(note.into_std());
             }
         }
@@ -506,13 +503,13 @@ where
                 Some(e) => e.try_to_string()?,
                 None => hash.try_to_string()?,
             };
-            writeln!(message, "Used deprecated function: {}", name)?;
+            writeln!(message, "Used deprecated function: {name}")?;
 
             // Deprecation message if it's availble
             if let Some(context) = context {
                 if let Some(deprecation) = context.lookup_deprecation(hash) {
                     let mut note = String::new();
-                    writeln!(note, "Deprecated: {}", deprecation)?;
+                    writeln!(note, "Deprecated: {deprecation}")?;
                     notes.push(note.into_std());
                 }
             }
@@ -558,7 +555,7 @@ where
 
     match this.kind() {
         FatalDiagnosticKind::Internal(message) => {
-            writeln!(out, "internal error: {}", message)?;
+            writeln!(out, "internal error: {message}")?;
             return Ok(());
         }
         FatalDiagnosticKind::LinkError(error) => {
@@ -574,10 +571,7 @@ where
                     }
 
                     let diagnostic = d::Diagnostic::error()
-                        .with_message(format!(
-                            "linker error: missing function with hash `{}`",
-                            hash
-                        ))
+                        .with_message(format!("linker error: missing function with hash `{hash}`",))
                         .with_labels(labels);
 
                     term::emit(out, config, sources, &diagnostic)?;
@@ -711,7 +705,7 @@ where
 
                 if let Some(binding) = binding {
                     let mut note = String::new();
-                    writeln!(note, "Hint: Rewrite to `{};`", binding)?;
+                    writeln!(note, "Hint: Rewrite to `{binding};`")?;
                     notes.push(note.into_std());
                 }
             }
@@ -740,7 +734,7 @@ where
 
                 labels.push(
                     d::Label::secondary(this.source_id(), span.range())
-                        .with_message(format!("Missing {}: {}", pl, fields)),
+                        .with_message(format!("Missing {pl}: {fields}")),
                 );
 
                 notes.push(

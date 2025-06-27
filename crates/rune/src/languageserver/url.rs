@@ -88,7 +88,7 @@ fn path_to_file_url_segments_windows(path: &Path, buf: &mut String) -> Result<()
                 };
 
                 let host = url::Host::parse(server)?;
-                write!(buf, "{}", host)?;
+                write!(buf, "{host}")?;
                 buf.try_push('/')?;
 
                 let Some(share) = share.to_str() else {

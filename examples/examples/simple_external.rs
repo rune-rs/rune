@@ -47,7 +47,7 @@ fn main() -> rune::support::Result<()> {
 
     let output = vm.call(["main"], (External { value: 42 },))?;
     let output: External = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
     assert_eq!(output.value, 42);
     Ok(())
 }

@@ -705,7 +705,7 @@ impl<'a> State<'a> {
 
                                 diagnostics.try_push(to_error(
                                     range,
-                                    format_args!("Missing function with hash `{}`", hash),
+                                    format_args!("Missing function with hash `{hash}`"),
                                 )?)?;
                             }
                         }
