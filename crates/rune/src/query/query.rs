@@ -24,6 +24,7 @@ use crate::item::ComponentRef;
 use crate::item::IntoComponent;
 use crate::macros::Storage;
 use crate::parse::{NonZeroId, Resolve};
+use crate::policy::Policies;
 #[cfg(feature = "doc")]
 use crate::runtime::Call;
 use crate::runtime::ConstValue;
@@ -1688,10 +1689,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
             Indexed::ConstExpr(c) => {
                 let ir = {
+                    let p = Policies::new()?;
+
                     let mut hir_ctx = crate::hir::Ctxt::with_const(
                         self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
+                        p,
                     )?;
 
                     let hir = match c {
@@ -1734,10 +1738,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
             Indexed::ConstBlock(c) => {
                 let ir = {
+                    let p = Policies::new()?;
+
                     let mut hir_ctx = crate::hir::Ctxt::with_const(
                         self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
+                        p,
                     )?;
 
                     let hir = match &c {
@@ -1780,10 +1787,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
             }
             Indexed::ConstFn(c) => {
                 let (ir_fn, hir) = {
+                    let p = Policies::new()?;
+
                     let mut cx = crate::hir::Ctxt::with_const(
                         self.const_arena,
                         self.borrow(),
                         item_meta.location.source_id,
+                        p,
                     )?;
 
                     let hir = match &c {

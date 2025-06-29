@@ -9,20 +9,25 @@ use codespan_reporting::term;
 pub use codespan_reporting::term::termcolor;
 use codespan_reporting::term::termcolor::WriteColor;
 
+use rust_alloc::string::String as RustString;
+use rust_alloc::vec::Vec as RustVec;
+
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::ast::{Span, Spanned};
-use crate::compile::{ErrorKind, LinkerError, Location};
-use crate::diagnostics::{
-    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, RuntimeWarningDiagnostic,
-    RuntimeWarningDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
-};
+use crate::compile::{ErrorKind, Location};
 use crate::hash::Hash;
 use crate::runtime::DebugInfo;
 use crate::runtime::{DebugInst, Protocol, Unit, VmError, VmErrorAt, VmErrorKind};
 use crate::Context;
 use crate::{Diagnostics, SourceId, Sources};
+
+use super::{
+    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, PolicyDiagnostic, PolicyDiagnosticKind,
+    RuntimeWarningDiagnostic, RuntimeWarningDiagnosticKind, WarningDiagnostic,
+    WarningDiagnosticKind,
+};
 
 struct StackFrame {
     source_id: SourceId,
@@ -196,8 +201,8 @@ impl VmError {
             }
         }
 
-        let mut labels = rust_alloc::vec::Vec::new();
-        let mut notes = rust_alloc::vec::Vec::new();
+        let mut labels = RustVec::new();
+        let mut notes = RustVec::new();
 
         let get = |at: &VmErrorAt| -> Option<&DebugInst> {
             let l = self.stacktrace().get(at.index())?;
@@ -429,8 +434,8 @@ fn warning_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut notes = rust_alloc::vec::Vec::new();
-    let mut labels = rust_alloc::vec::Vec::new();
+    let mut notes = RustVec::new();
+    let mut labels = RustVec::new();
 
     labels.push(
         d::Label::primary(this.source_id(), this.span().range())
@@ -438,15 +443,8 @@ where
     );
 
     match this.kind() {
-        WarningDiagnosticKind::LetPatternMightPanic { span, .. } => {
-            if let Some(binding) = sources.source(this.source_id(), *span) {
-                let mut note = String::new();
-                writeln!(note, "Hint: Rewrite to:")?;
-                writeln!(note, "if {} {{", binding)?;
-                writeln!(note, "    // ..")?;
-                writeln!(note, "}}")?;
-                notes.push(note.into_std());
-            }
+        WarningDiagnosticKind::Policy(policy) => {
+            policy_notes(policy, sources, this.source_id(), &mut labels, &mut notes)?;
         }
         WarningDiagnosticKind::RemoveTupleCallParams { variant, .. } => {
             if let Some(variant) = sources.source(this.source_id(), *variant) {
@@ -454,12 +452,6 @@ where
                 writeln!(note, "Hint: Rewrite to `{}`", variant)?;
                 notes.push(note.into_std());
             }
-        }
-        WarningDiagnosticKind::Unreachable { cause, .. } => {
-            labels.push(
-                d::Label::secondary(this.source_id(), cause.range())
-                    .with_message("This code diverges"),
-            );
         }
         _ => {}
     };
@@ -491,8 +483,8 @@ fn runtime_warning_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut notes = rust_alloc::vec::Vec::new();
-    let mut labels = rust_alloc::vec::Vec::new();
+    let mut notes = RustVec::new();
+    let mut labels = RustVec::new();
     let mut message = String::new();
 
     match this.kind {
@@ -546,48 +538,17 @@ fn fatal_diagnostics_emit<O>(
 where
     O: WriteColor,
 {
-    let mut labels = rust_alloc::vec::Vec::new();
-    let mut notes = rust_alloc::vec::Vec::new();
+    let mut labels = RustVec::new();
+    let mut notes = RustVec::new();
 
-    if let Some(span) = this.span() {
-        labels.push(
-            d::Label::primary(this.source_id(), span.range())
-                .with_message(this.kind().try_to_string()?),
-        );
-    }
+    labels.push(
+        d::Label::primary(this.source_id(), this.span().range())
+            .with_message(this.kind().try_to_string()?),
+    );
 
     match this.kind() {
-        FatalDiagnosticKind::Internal(message) => {
-            writeln!(out, "internal error: {}", message)?;
-            return Ok(());
-        }
-        FatalDiagnosticKind::LinkError(error) => {
-            match error {
-                LinkerError::MissingFunction { hash, spans } => {
-                    let mut labels = rust_alloc::vec::Vec::new();
-
-                    for (span, source_id) in spans {
-                        labels.push(
-                            d::Label::primary(*source_id, span.range())
-                                .with_message("called here."),
-                        );
-                    }
-
-                    let diagnostic = d::Diagnostic::error()
-                        .with_message(format!(
-                            "linker error: missing function with hash `{}`",
-                            hash
-                        ))
-                        .with_labels(labels);
-
-                    term::emit(out, config, sources, &diagnostic)?;
-                }
-            }
-
-            return Ok(());
-        }
-        FatalDiagnosticKind::CompileError(error) => {
-            format_compile_error(
+        FatalDiagnosticKind::Compile(error) => {
+            format_compile_notes(
                 this,
                 sources,
                 error.span(),
@@ -595,6 +556,9 @@ where
                 &mut labels,
                 &mut notes,
             )?;
+        }
+        FatalDiagnosticKind::Policy(policy) => {
+            policy_notes(policy, sources, this.source_id(), &mut labels, &mut notes)?;
         }
     };
 
@@ -606,13 +570,13 @@ where
     term::emit(out, config, sources, &diagnostic)?;
     return Ok(());
 
-    fn format_compile_error(
+    fn format_compile_notes(
         this: &FatalDiagnostic,
         sources: &Sources,
         span: Span,
         kind: &ErrorKind,
-        labels: &mut rust_alloc::vec::Vec<d::Label<SourceId>>,
-        notes: &mut rust_alloc::vec::Vec<rust_alloc::string::String>,
+        labels: &mut RustVec<d::Label<SourceId>>,
+        notes: &mut RustVec<RustString>,
     ) -> Result<(), EmitError> {
         match kind {
             ErrorKind::ImportCycle { path } => {
@@ -766,4 +730,34 @@ where
 
         Ok(())
     }
+}
+
+/// Helper to emit diagnostics for a warning.
+fn policy_notes(
+    diagnostic: &PolicyDiagnostic,
+    sources: &Sources,
+    source_id: SourceId,
+    labels: &mut RustVec<d::Label<SourceId>>,
+    notes: &mut RustVec<RustString>,
+) -> Result<(), EmitError> {
+    match &diagnostic.kind {
+        PolicyDiagnosticKind::PatternMightPanic => {
+            if let Some(binding) = sources.source(source_id, diagnostic.span) {
+                let mut note = String::new();
+                writeln!(note, "Hint: Rewrite to:")?;
+                writeln!(note, "if {} {{", binding)?;
+                writeln!(note, "    // ..")?;
+                writeln!(note, "}}")?;
+                notes.push(note.into_std());
+            }
+        }
+        PolicyDiagnosticKind::Unreachable { cause, .. } => {
+            labels.push(
+                d::Label::secondary(source_id, cause.range()).with_message("This code diverges"),
+            );
+        }
+        _ => {}
+    }
+
+    Ok(())
 }

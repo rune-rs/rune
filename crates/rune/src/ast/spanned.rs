@@ -71,10 +71,21 @@ where
     }
 }
 
+impl<T> Spanned for rust_alloc::boxed::Box<T>
+where
+    T: Spanned,
+{
+    #[inline]
+    fn span(&self) -> Span {
+        Spanned::span(&**self)
+    }
+}
+
 impl<T> Spanned for &T
 where
     T: ?Sized + Spanned,
 {
+    #[inline]
     fn span(&self) -> Span {
         Spanned::span(*self)
     }
@@ -84,6 +95,7 @@ impl<T> Spanned for &mut T
 where
     T: ?Sized + Spanned,
 {
+    #[inline]
     fn span(&self) -> Span {
         Spanned::span(*self)
     }
@@ -93,6 +105,7 @@ impl<S> Spanned for (S, NonZeroId)
 where
     S: Spanned,
 {
+    #[inline]
     fn span(&self) -> Span {
         self.0.span()
     }
@@ -110,6 +123,7 @@ impl<T> OptionSpanned for [T]
 where
     T: Spanned,
 {
+    #[inline]
     fn option_span(&self) -> Option<Span> {
         let span = self.first()?.span();
 
