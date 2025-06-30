@@ -1,0 +1,5 @@
+mod module;
+
+pub fn main() {
+    module::print_name();
+}

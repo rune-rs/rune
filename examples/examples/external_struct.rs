@@ -62,7 +62,7 @@ fn main() -> rune::support::Result<()> {
 
     let output = vm.call(["main"], (Request { url: "/".into() },))?;
     let output: Response = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
 
     let output = vm.call(
         ["main"],
@@ -71,7 +71,7 @@ fn main() -> rune::support::Result<()> {
         },),
     )?;
     let output: Response = rune::from_value(output)?;
-    println!("{:?}", output);
+    println!("{output:?}");
 
     Ok(())
 }

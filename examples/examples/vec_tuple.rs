@@ -37,6 +37,6 @@ fn main() -> rune::support::Result<()> {
     let output = vm.call(["calc"], (input,))?;
     let VecTuple((a, b)): VecTuple<(u32, String)> = rune::from_value(output)?;
 
-    println!("({:?}, {:?})", a, b);
+    println!("({a:?}, {b:?})");
     Ok(())
 }

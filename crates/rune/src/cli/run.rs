@@ -166,7 +166,7 @@ pub(super) async fn run(
         writeln!(io.stdout, "# types")?;
 
         for (i, (hash, ty)) in context.iter_types().enumerate() {
-            writeln!(io.stdout, "{:04} = {} ({})", i, ty, hash)?;
+            writeln!(io.stdout, "{i:04} = {ty} ({hash})")?;
         }
     }
 
@@ -195,9 +195,9 @@ pub(super) async fn run(
 
             for (hash, kind) in functions {
                 if let Some(signature) = unit.debug_info().and_then(|d| d.functions.get(&hash)) {
-                    writeln!(io.stdout, "{} = {}", hash, signature)?;
+                    writeln!(io.stdout, "{hash} = {signature}")?;
                 } else {
-                    writeln!(io.stdout, "{} = {}", hash, kind)?;
+                    writeln!(io.stdout, "{hash} = {kind}")?;
                 }
             }
         }
@@ -222,7 +222,7 @@ pub(super) async fn run(
             writeln!(io.stdout, "# object keys")?;
 
             for (hash, keys) in keys {
-                writeln!(io.stdout, "{} = {:?}", hash, keys)?;
+                writeln!(io.stdout, "{hash} = {keys:?}")?;
             }
         }
 
@@ -320,7 +320,7 @@ pub(super) async fn run(
 
             let values = stack.get(frame.top..stack_top).expect("bad stack slice");
 
-            writeln!(io.stdout, "  frame #{} (+{})", count, frame.top)?;
+            writeln!(io.stdout, "  frame #{count} (+{})", frame.top)?;
 
             if values.is_empty() {
                 writeln!(io.stdout, "    *empty*")?;
@@ -382,13 +382,13 @@ where
         }
 
         if let Some((hash, signature)) = vm.unit().debug_info().and_then(|d| d.function_at(ip)) {
-            writeln!(o, "fn {} ({}):", signature, hash)?;
+            writeln!(o, "fn {signature} ({hash}):")?;
         }
 
         let debug = vm.unit().debug_info().and_then(|d| d.instruction_at(ip));
 
         for label in debug.map(|d| d.labels.as_slice()).unwrap_or_default() {
-            writeln!(o, "{}:", label)?;
+            writeln!(o, "{label}:")?;
         }
 
         if dump_stack {
@@ -414,13 +414,13 @@ where
         }
 
         if let Some((inst, _)) = vm.unit().instruction_at(ip).map_err(VmError::from)? {
-            write!(o, "  {:04} = {}", ip, inst)?;
+            write!(o, "  {ip:04} = {inst}")?;
         } else {
-            write!(o, "  {:04} = *out of bounds*", ip)?;
+            write!(o, "  {ip:04} = *out of bounds*")?;
         }
 
         if let Some(comment) = debug.and_then(|d| d.comment.as_ref()) {
-            write!(o, " // {}", comment)?;
+            write!(o, " // {comment}")?;
         }
 
         writeln!(o)?;

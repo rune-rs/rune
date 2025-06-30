@@ -706,7 +706,7 @@ impl Context {
                         other => {
                             return Err(syn::Error::new(
                                 meta.input.span(),
-                                format!("Unsupported `#[rune(parse = ..)]` argument `{}`", other),
+                                format!("Unsupported `#[rune(parse = ..)]` argument `{other}`"),
                             ));
                         }
                     };

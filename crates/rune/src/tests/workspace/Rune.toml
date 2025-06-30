@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "package-a",
+    "nested/package-b"
+]

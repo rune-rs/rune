@@ -33,6 +33,6 @@ fn main() -> rune::support::Result<()> {
     let output = vm.call(["calc"], ((1u32, 2u32),))?;
     let output: (i32, i32) = rune::from_value(output)?;
 
-    println!("{:?}", output);
+    println!("{output:?}");
     Ok(())
 }

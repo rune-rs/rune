@@ -81,7 +81,7 @@ impl FormatArgs {
         if let Some((key, span)) = unused_named.into_iter().next() {
             return Err(compile::Error::msg(
                 span,
-                format!("unused named argument `{}`", key),
+                format!("unused named argument `{key}`"),
             ));
         }
 
@@ -542,7 +542,7 @@ fn expand_format_spec<'a>(
                         c => {
                             return Err(compile::Error::msg(
                                 span,
-                                format!("unsupported char `{}` in spec", c),
+                                format!("unsupported char `{c}` in spec"),
                             ));
                         }
                     }
@@ -560,9 +560,8 @@ fn expand_format_spec<'a>(
                     return Err(compile::Error::msg(
                         span,
                         format!(
-                            "missing positional argument #{} \
+                            "missing positional argument #{count} \
                             which is required for position parameter",
-                            count
                         ),
                     ));
                 }
@@ -622,7 +621,7 @@ fn expand_format_spec<'a>(
                     None => {
                         return Err(compile::Error::msg(
                             span,
-                            format!("missing positional argument #{}", n),
+                            format!("missing positional argument #{n}"),
                         ));
                     }
                 };
