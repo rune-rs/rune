@@ -137,6 +137,16 @@ by calling, for example, `rune run --bin named-executable`, which shows this:
 
 (Similar filters exist for `--lib`, `--example`, `--bench`, and `--test`.)
 
+If we're only interested in targets from one of the workspace packages, it's
+possible to restrict the list of targets using the `--package` or `-p` command
+line flag:
+
+```text
+$ rune run --bin named-executable -p a
+     Running bin `package-a/src/bin/named-executable.rn` (from a)
+... output
+```
+
 We can get a fuller view of all of the entry points that Rune sees by calling
 something like `rune check`, which shows the following:
 

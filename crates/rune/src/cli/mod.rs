@@ -572,6 +572,13 @@ impl Inputs {
             }
         }
 
+        if let Some(package) = &cmd.shared.package {
+            build_paths.retain(|path| match path {
+                BuildPath::Path(_, _) => true,
+                BuildPath::Package(found_package) => found_package.package.name.as_str() == package,
+            })
+        }
+
         Ok(build_paths)
     }
 }
@@ -686,6 +693,11 @@ struct SharedFlags {
     /// requires a `Rune.toml` manifest.
     #[arg(long)]
     bench: Option<String>,
+
+    /// Only include targets from the given package.
+    /// This requires a `Rune.toml` workspace manifest.
+    #[arg(long, short = 'p')]
+    package: Option<String>,
 
     /// Include all targets, and not just the ones which are default for the
     /// current command.
