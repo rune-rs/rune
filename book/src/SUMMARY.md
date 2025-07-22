@@ -14,6 +14,7 @@
   - [Instance functions](./instance_functions.md)
   - [Field functions](./field_functions.md)
   - [Traits](./traits.md)
+  - [Workspaces and packages](./workspaces.md)
 - [Built-in types](./types.md)
   - [Primitives and references](./primitives.md)
   - [Vectors](./vectors.md)

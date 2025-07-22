@@ -176,7 +176,6 @@ impl Expander<'_> {
 
         let output = if !meta_args.is_empty() {
             quote_spanned! { named.span() =>
-                #[automatically_derived]
                 impl #ident {
                     #[doc = "Parse #ident and attach the given meta"]
                     pub fn parse_with_meta(#parser_ident: &mut #parser<'_>, #(#meta_args,)*)

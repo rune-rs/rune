@@ -1,0 +1,6 @@
+mod lib;
+
+#[test]
+fn fire() {
+    lib::check();
+}

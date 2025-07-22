@@ -29,7 +29,7 @@ use rust_alloc::vec::Vec;
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::workspace::{self, WorkspaceFilter};
+use crate::workspace::{self, FoundKind, WorkspaceFilter};
 
 use anyhow::{bail, Context as _, Error, Result};
 use clap::{Parser, Subcommand, ValueEnum};
@@ -348,6 +348,11 @@ impl<'a> CommandSharedRef<'a> {
     }
 
     #[inline]
+    fn find_libs(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
+        self.find(all_targets, AssetKind::Lib, self.shared.lib.as_deref())
+    }
+
+    #[inline]
     fn find_tests(&self, all_targets: bool) -> Option<WorkspaceFilter<'a>> {
         self.find(all_targets, AssetKind::Test, self.shared.test.as_deref())
     }
@@ -378,6 +383,7 @@ struct HashFlags {
 
 enum AssetKind {
     Bin,
+    Lib,
     Test,
     Bench,
 }
@@ -529,7 +535,15 @@ impl Inputs {
         if let Some(filter) = cmd.find_bins(c.all_targets) {
             c.filtered |= !matches!(filter, WorkspaceFilter::All);
 
-            for p in self.manifest.find_bins(filter)? {
+            for p in self.manifest.find_by_kind(filter, FoundKind::Binary)? {
+                build_paths.try_push(BuildPath::Package(p))?;
+            }
+        }
+
+        if let Some(filter) = cmd.find_libs(c.all_targets) {
+            c.filtered |= !matches!(filter, WorkspaceFilter::All);
+
+            for p in self.manifest.find_by_kind(filter, FoundKind::Library)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
@@ -537,7 +551,7 @@ impl Inputs {
         if let Some(filter) = cmd.find_tests(c.all_targets) {
             c.filtered |= !matches!(filter, WorkspaceFilter::All);
 
-            for p in self.manifest.find_tests(filter)? {
+            for p in self.manifest.find_by_kind(filter, FoundKind::Test)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
@@ -545,7 +559,7 @@ impl Inputs {
         if let Some(filter) = cmd.find_examples(c.all_targets) {
             c.filtered |= !matches!(filter, WorkspaceFilter::All);
 
-            for p in self.manifest.find_examples(filter)? {
+            for p in self.manifest.find_by_kind(filter, FoundKind::Example)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
         }
@@ -553,9 +567,16 @@ impl Inputs {
         if let Some(filter) = cmd.find_benches(c.all_targets) {
             c.filtered |= !matches!(filter, WorkspaceFilter::All);
 
-            for p in self.manifest.find_benches(filter)? {
+            for p in self.manifest.find_by_kind(filter, FoundKind::Bench)? {
                 build_paths.try_push(BuildPath::Package(p))?;
             }
+        }
+
+        if let Some(package) = &cmd.shared.package {
+            build_paths.retain(|path| match path {
+                BuildPath::Path(_, _) => true,
+                BuildPath::Package(found_package) => found_package.package.name.as_str() == package,
+            })
         }
 
         Ok(build_paths)
@@ -653,6 +674,11 @@ struct SharedFlags {
     #[arg(long)]
     bin: Option<String>,
 
+    /// Run with the following library from a loaded manifest. This requires a
+    /// `Rune.toml` manifest.
+    #[arg(long)]
+    lib: Option<String>,
+
     /// Run with the following test from a loaded manifest. This requires a
     /// `Rune.toml` manifest.
     #[arg(long)]
@@ -667,6 +693,11 @@ struct SharedFlags {
     /// requires a `Rune.toml` manifest.
     #[arg(long)]
     bench: Option<String>,
+
+    /// Only include targets from the given package.
+    /// This requires a `Rune.toml` workspace manifest.
+    #[arg(long, short = 'p')]
+    package: Option<String>,
 
     /// Include all targets, and not just the ones which are default for the
     /// current command.
