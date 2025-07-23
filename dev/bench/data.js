@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1752457698786,
+  "lastUpdate": 1753235239813,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -33197,6 +33197,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 381,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Dan Stoza",
+            "username": "dstoza",
+            "email": "dstoza@gmail.com"
+          },
+          "committer": {
+            "name": "GitHub",
+            "username": "web-flow",
+            "email": "noreply@github.com"
+          },
+          "id": "a51a6a9aba598b719ff174106c4a6ed14d8ddb88",
+          "message": "Refine support for workspaces (#950)\n\n* Add support for workspaces to language server; add src directory detection to workspaces\n* Add book section about workspaces\n* Add a --package/-p flag to filter command line targets",
+          "timestamp": "2025-07-22T17:50:36Z",
+          "url": "https://github.com/rune-rs/rune/commit/a51a6a9aba598b719ff174106c4a6ed14d8ddb88"
+        },
+        "date": 1753235239116,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11602587,
+            "range": "± 225994",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4519708,
+            "range": "± 218378",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1831,
+            "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1348,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 173287,
+            "range": "± 1371",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1083146,
+            "range": "± 18849",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 257093530,
+            "range": "± 4639957",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 232423436,
+            "range": "± 369295",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 545369,
+            "range": "± 1664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 5780954,
+            "range": "± 25520",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 30755433,
+            "range": "± 169183",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 4987468,
+            "range": "± 21329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 221606,
+            "range": "± 3966",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2474381,
+            "range": "± 18564",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 406,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
