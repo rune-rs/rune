@@ -177,6 +177,12 @@ macro_rules! span {
     };
 }
 
+#[cfg(any(feature = "serde", feature = "musli"))]
+mod source_info;
+
+#[cfg(any(feature = "serde", feature = "musli"))]
+pub(crate) use source_info::SourceInfo;
+
 pub mod alloc;
 #[doc(inline)]
 pub use rune_alloc::sync;
