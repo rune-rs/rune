@@ -3,7 +3,7 @@ mod size_hint {
 
     /// This presumably exists to prevent denial of service attacks.
     ///
-    /// Original discussion: https://github.com/serde-rs/serde/issues/1114.
+    /// Original discussion: <https://github.com/serde-rs/serde/issues/1114>.
     #[cfg_attr(feature = "inline-more", inline)]
     pub(super) fn cautious(hint: Option<usize>) -> usize {
         cmp::min(hint.unwrap_or(0), 4096)

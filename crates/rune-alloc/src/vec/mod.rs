@@ -290,8 +290,8 @@ where
 ///
 /// However, the pointer might not actually point to allocated memory. In
 /// particular, if you construct a `Vec` with capacity 0 via [`Vec::new`],
-/// [`try_vec![]`], [`Vec::try_with_capacity(0)`], or by calling
-/// [`try_shrink_to_fit`] on an empty Vec, it will not allocate memory.
+/// [`try_vec![]`], [`Vec::try_with_capacity`] with an argument of 0, or by
+/// calling [`try_shrink_to_fit`] on an empty Vec, it will not allocate memory.
 /// Similarly, if you store zero-sized types inside a `Vec`, it will not
 /// allocate space for them. *Note that in this case the `Vec` might not report
 /// a [`capacity`] of 0*. `Vec` will allocate if and only if
@@ -303,7 +303,6 @@ where
 /// it.
 ///
 /// [`try_vec![]`]: try_vec!
-/// [`Vec::try_with_capacity(0)`]: Vec::try_with_capacity
 ///
 /// If a `Vec` *has* allocated memory, then the memory it points to is on the heap
 /// (as defined by the allocator Rust is configured to use by default), and its
@@ -335,13 +334,13 @@ where
 /// `Vec` will never perform a "small optimization" where elements are actually
 /// stored on the stack for two reasons:
 ///
-/// * It would make it more difficult for unsafe code to correctly manipulate
-///   a `Vec`. The contents of a `Vec` wouldn't have a stable address if it were
+/// * It would make it more difficult for unsafe code to correctly manipulate a
+///   `Vec`. The contents of a `Vec` wouldn't have a stable address if it were
 ///   only moved, and it would be more difficult to determine if a `Vec` had
 ///   actually allocated memory.
 ///
-/// * It would penalize the general case, incurring an additional branch
-///   on every access.
+/// * It would penalize the general case, incurring an additional branch on
+///   every access.
 ///
 /// `Vec` will never automatically shrink itself, even if completely empty. This
 /// ensures no unnecessary allocations or deallocations occur. Emptying a `Vec`
@@ -349,12 +348,12 @@ where
 /// allocator. If you wish to free up unused memory, use [`try_shrink_to_fit`]
 /// or [`try_shrink_to`].
 ///
-/// [`try_push`] and [`try_insert`] will never (re)allocate if the reported capacity is
-/// sufficient. [`try_push`] and [`try_insert`] *will* (re)allocate if
-/// <code>[len] == [capacity]</code>. That is, the reported capacity is completely
-/// accurate, and can be relied on. It can even be used to manually free the memory
-/// allocated by a `Vec` if desired. Bulk insertion methods *may* reallocate, even
-/// when not necessary.
+/// [`try_push`] and [`try_insert`] will never (re)allocate if the reported
+/// capacity is sufficient. [`try_push`] and [`try_insert`] *will* (re)allocate
+/// if <code>[len] == [capacity]</code>. That is, the reported capacity is
+/// completely accurate, and can be relied on. It can even be used to manually
+/// free the memory allocated by a `Vec` if desired. Bulk insertion methods
+/// *may* reallocate, even when not necessary.
 ///
 /// `Vec` does not guarantee any particular growth strategy when reallocating
 /// when full, nor when [`try_reserve`] is called. The current strategy is basic
@@ -369,16 +368,16 @@ where
 ///
 /// [`Vec::try_with_capacity(n)`]: Vec::try_with_capacity
 ///
-/// `Vec` will not specifically overwrite any data that is removed from it,
-/// but also won't specifically preserve it. Its uninitialized memory is
-/// scratch space that it may use however it wants. It will generally just do
-/// whatever is most efficient or otherwise easy to implement. Do not rely on
-/// removed data to be erased for security purposes. Even if you drop a `Vec`, its
-/// buffer may simply be reused by another allocation. Even if you zero a `Vec`'s memory
-/// first, that might not actually happen because the optimizer does not consider
-/// this a side-effect that must be preserved. There is one case which we will
-/// not break, however: using `unsafe` code to write to the excess capacity,
-/// and then increasing the length to match, is always valid.
+/// `Vec` will not specifically overwrite any data that is removed from it, but
+/// also won't specifically preserve it. Its uninitialized memory is scratch
+/// space that it may use however it wants. It will generally just do whatever
+/// is most efficient or otherwise easy to implement. Do not rely on removed
+/// data to be erased for security purposes. Even if you drop a `Vec`, its
+/// buffer may simply be reused by another allocation. Even if you zero a
+/// `Vec`'s memory first, that might not actually happen because the optimizer
+/// does not consider this a side-effect that must be preserved. There is one
+/// case which we will not break, however: using `unsafe` code to write to the
+/// excess capacity, and then increasing the length to match, is always valid.
 ///
 /// Currently, `Vec` does not guarantee the order in which elements are dropped.
 /// The order has changed in the past and may change again.
