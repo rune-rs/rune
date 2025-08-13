@@ -1,10 +1,11 @@
 use core::fmt;
 use core::num;
 
-#[cfg(feature = "musli")]
-use musli::{Decode, Encode};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[cfg(feature = "musli")]
+use musli::{Context, Decode, Decoder, Encode, mode};
 
 use crate as rune;
 use crate::alloc;
@@ -42,6 +43,8 @@ macro_rules! sources {
 
 /// A collection of source files.
 #[derive(Debug, Default)]
+#[cfg_attr(feature = "musli", derive(Encode), musli(transparent))]
+#[cfg_attr(all(test, any(feature = "musli", feature = "serde")), derive(PartialEq))]
 pub struct Sources {
     /// Sources associated.
     sources: Vec<Source>,
@@ -173,6 +176,128 @@ impl<'a> files::Files<'a> for Sources {
                 max: source.line_count(),
             })?;
         Ok(range)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Sources
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        use serde::de::{Error, SeqAccess, Visitor};
+
+        // A built-in sequence visitor for importing Sources.
+        //
+        // This guarantees that we catch Allocation errors and
+        // table overflows during deserialization.
+        struct SourcesVisitor;
+
+        impl<'de> Visitor<'de> for SourcesVisitor
+        {
+            type Value = Vec<Source>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+            {
+                f.write_str("A collection of Source objects")
+            }
+
+            fn visit_seq<A>(self, mut sequence: A) -> Result<Vec<Source>, A::Error>
+            where
+                A: SeqAccess<'de>
+            {
+                let mut table = Vec::new();
+
+                while let Some(source) = sequence.next_element()?
+                {
+                    if let Err(e) = table.try_push(source)
+                    {
+                        return Err(A::Error::custom(e));
+                    }
+                }
+
+                match u32::try_from(table.len())
+                {
+                    Ok(_) => Ok(table),
+                    Err(_) => Err(A::Error::custom("Sources table exceeded max capacity!"))
+                }
+            }
+        }
+
+        let sources : Vec<Source> =
+        deserializer.deserialize_seq(SourcesVisitor)?;
+
+        Ok(
+            Self
+            {
+                sources
+            }
+        )
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Sources
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        use serde::ser::SerializeSeq;
+
+        let mut sequence = serializer.serialize_seq(Some(self.sources.len()))?;
+
+        for source in self.sources.iter()
+        {
+            sequence.serialize_element(source)?;
+        }
+
+        sequence.end()
+    }
+}
+
+#[cfg(feature = "musli")]
+impl<'de, A> Decode<'de, mode::Text, A> for Sources
+where
+    A: musli::Allocator
+{
+    fn decode<D>(decoder: D) -> Result<Self, D::Error>
+    where
+        D: Decoder<'de, Mode = mode::Text>
+    {
+        let context = decoder.cx();
+
+        let sources : Vec<Source> = decoder.decode()?;
+
+        match u32::try_from(sources.len())
+        {
+            Ok(_) => Ok(Self { sources }),
+            Err(_) => Err(context.message("Sources table exceeded max capacity!"))
+        }
+    }
+}
+
+#[cfg(feature = "musli")]
+impl<'de, A> Decode<'de, mode::Binary, A> for Sources
+where
+    A: musli::Allocator
+{
+    fn decode<D>(decoder: D) -> Result<Self, D::Error>
+    where
+    D: Decoder<'de, Mode = mode::Binary>
+    {
+        let context = decoder.cx();
+
+        let sources : Vec<Source> = decoder.decode()?;
+
+        match u32::try_from(sources.len())
+        {
+            Ok(_) => Ok(Self { sources }),
+            Err(_) => Err(context.message("Sources table exceeded max capacity!"))
+        }
     }
 }
 
