@@ -319,6 +319,9 @@ impl Module {
     ///         /// A global ten value.
     ///     });
     ///
+    /// module.constant("VEC", [1, 2, 3].as_slice())
+    ///     .build()?;
+    ///
     /// module.constant("TEN", 10)
     ///     .build_associated::<MyType>()?
     ///     .docs(docstring! {
