@@ -1,6 +1,6 @@
 # Streams
 
-Streams are the asynchronous version of [Generators](./7_generators.md).
+Streams are the asynchronous version of [Generators](./generators.md).
 
 They have almost identical `next` and `resume` functions, but each must be used
 with `.await`, and we are now allowed to use asynchronous functions inside of
