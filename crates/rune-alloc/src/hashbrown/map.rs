@@ -7839,7 +7839,7 @@ mod test_map {
         map.insert(2, 1);
         map.insert(3, 4);
 
-        #[allow(clippy::no_effect)] // false positive lint
+        #[allow(clippy::unnecessary_operation)] // false positive lint
         map[&4];
     }
 

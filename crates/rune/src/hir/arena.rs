@@ -102,6 +102,7 @@ impl Arena {
     }
 
     /// Allocate a new object of the given type.
+    #[allow(clippy::mut_from_ref)]
     pub(crate) fn alloc<T>(&self, object: T) -> Result<&mut T, ArenaAllocError> {
         assert!(!mem::needs_drop::<T>());
 

@@ -168,7 +168,7 @@ impl FormatSpec {
             return VmResult::Ok(());
         }
 
-        let mut filler = iter::repeat(fill).take(w);
+        let mut filler = iter::repeat_n(fill, w);
 
         match align {
             Alignment::Left => {
