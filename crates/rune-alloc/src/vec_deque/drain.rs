@@ -155,8 +155,8 @@ impl<T, A: Allocator> Drop for Drain<'_, T, A> {
                 // SAFETY: We just checked that `self.remaining != 0`.
                 let (front, back) = guard.0.as_slices();
                 // since idx is a logical index, we don't need to worry about wrapping.
-                guard.0.idx += ptr::slice_len(front);
-                guard.0.remaining -= ptr::slice_len(front);
+                guard.0.idx += front.len();
+                guard.0.remaining -= front.len();
                 ptr::drop_in_place(front);
                 guard.0.remaining = 0;
                 ptr::drop_in_place(back);
