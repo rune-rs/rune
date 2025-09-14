@@ -22,7 +22,7 @@ macro_rules! if_zst {
     }};
     ($this:ident, $len:ident => $zst_body:expr, $end:ident => $other_body:expr,) => {{
         if T::IS_ZST {
-            let $len = ptr::addr($this.end_or_len);
+            let $len = $this.end_or_len.addr();
             $zst_body
         } else {
             // SAFETY: for non-ZSTs, the type invariant ensures it cannot be null
@@ -50,7 +50,7 @@ macro_rules! len {
                 // To get rid of some bounds checks (see `position`), we use ptr_sub instead of
                 // offset_from (Tested by `codegen/slice-position-bounds-check`.)
                 // SAFETY: by the type invariant pointers are aligned and `start <= end`
-                unsafe { ptr::sub_ptr(end.as_ptr(), $self.ptr.as_ptr()) }
+                unsafe { end.as_ptr().offset_from_unsigned($self.ptr.as_ptr()) }
             },
         )
     }};

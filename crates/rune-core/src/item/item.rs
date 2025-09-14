@@ -392,7 +392,7 @@ impl Item {
 
     /// Display an unqalified variant of the item which does not include `::` if
     /// a crate is present.
-    pub fn unqalified(&self) -> Unqalified {
+    pub fn unqalified(&self) -> Unqalified<'_> {
         Unqalified::new(self)
     }
 }
