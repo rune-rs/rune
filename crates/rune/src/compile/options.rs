@@ -53,10 +53,10 @@ impl FmtOptions {
 
         match head {
             "error-recovery" => {
-                self.error_recovery = tail.map_or(true, |s| s == "true");
+                self.error_recovery = tail.is_none_or(|s| s == "true");
             }
             "force-newline" => {
-                self.force_newline = tail.map_or(true, |s| s == "true");
+                self.force_newline = tail.is_none_or(|s| s == "true");
             }
             _ => {
                 return Err(ParseOptionError {
@@ -334,25 +334,25 @@ impl Options {
 
             match head {
                 "memoize-instance-fn" => {
-                    self.memoize_instance_fn = tail.map_or(true, |s| s == "true");
+                    self.memoize_instance_fn = tail.is_none_or(|s| s == "true");
                 }
                 "debug-info" => {
-                    self.debug_info = tail.map_or(true, |s| s == "true");
+                    self.debug_info = tail.is_none_or(|s| s == "true");
                 }
                 "link-checks" => {
-                    self.link_checks = tail.map_or(true, |s| s == "true");
+                    self.link_checks = tail.is_none_or(|s| s == "true");
                 }
                 "macros" => {
-                    self.macros = tail.map_or(true, |s| s == "true");
+                    self.macros = tail.is_none_or(|s| s == "true");
                 }
                 "bytecode" => {
-                    self.bytecode = tail.map_or(true, |s| s == "true");
+                    self.bytecode = tail.is_none_or(|s| s == "true");
                 }
                 "function-body" => {
-                    self.function_body = tail.map_or(true, |s| s == "true");
+                    self.function_body = tail.is_none_or(|s| s == "true");
                 }
                 "test-std" => {
-                    self.test_std = tail.map_or(true, |s| s == "true");
+                    self.test_std = tail.is_none_or(|s| s == "true");
                 }
                 "lowering" => {
                     self.lowering = match tail {
@@ -367,10 +367,10 @@ impl Options {
                     };
                 }
                 "print-tree" if cfg!(feature = "std") => {
-                    self.print_tree = tail.map_or(true, |s| s == "true");
+                    self.print_tree = tail.is_none_or(|s| s == "true");
                 }
                 "v2" => {
-                    self.v2 = tail.map_or(true, |s| s == "true");
+                    self.v2 = tail.is_none_or(|s| s == "true");
                 }
                 "max-macro-depth" => {
                     let Some(Ok(number)) = tail.map(str::parse) else {

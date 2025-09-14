@@ -262,7 +262,7 @@ impl<A: Allocator> Eq for ItemBuf<A> {}
 
 impl<A: Allocator> PartialOrd for ItemBuf<A> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.content.cmp(&other.content))
+        Some(self.cmp(other))
     }
 }
 

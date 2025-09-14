@@ -4197,7 +4197,7 @@ mod test_map {
             }),
         });
 
-        for (idx, panic_in_clone) in core::iter::repeat(DISARMED).take(7).enumerate() {
+        for (idx, panic_in_clone) in core::iter::repeat_n(DISARMED, 7).enumerate() {
             let idx = idx as u64;
             table
                 .insert(

@@ -80,7 +80,7 @@ impl core::error::Error for BuildError {
 /// [`BuildError`] doesn't provide any diagnostics on what went wrong. To get
 /// rich diagnostics you should instead associated a [`Diagnostics`] type
 /// through [`Build::with_diagnostics`] and examine it before handling any
-/// [`Err(BuildError)`] produced.
+/// `Err(BuildError)` produced.
 ///
 /// Uses the [Source::name] when generating diagnostics to reference the file.
 ///

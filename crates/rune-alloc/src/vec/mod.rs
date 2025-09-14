@@ -287,8 +287,8 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 ///
 /// However, the pointer might not actually point to allocated memory. In
 /// particular, if you construct a `Vec` with capacity 0 via [`Vec::new`],
-/// [`try_vec![]`], [`Vec::try_with_capacity(0)`], or by calling
-/// [`try_shrink_to_fit`] on an empty Vec, it will not allocate memory.
+/// [`try_vec![]`], [`Vec::try_with_capacity_in`] (with an argument of 0), or by
+/// calling [`try_shrink_to_fit`] on an empty Vec, it will not allocate memory.
 /// Similarly, if you store zero-sized types inside a `Vec`, it will not
 /// allocate space for them. *Note that in this case the `Vec` might not report
 /// a [`capacity`] of 0*. `Vec` will allocate if and only if
@@ -300,7 +300,6 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// it.
 ///
 /// [`try_vec![]`]: try_vec!
-/// [`Vec::try_with_capacity(0)`]: Vec::try_with_capacity
 ///
 /// If a `Vec` *has* allocated memory, then the memory it points to is on the heap
 /// (as defined by the allocator Rust is configured to use by default), and its
@@ -358,13 +357,13 @@ pub fn try_from_elem<T: TryClone>(elem: T, n: usize) -> Result<Vec<T>, Error> {
 /// and it may prove desirable to use a non-constant growth factor. Whatever
 /// strategy is used will of course guarantee *O*(1) amortized [`try_push`].
 ///
-/// `try_vec![x; n]`, `try_vec![a, b, c, d]`, and [`Vec::try_with_capacity(n)`],
-/// will all produce a `Vec` with exactly the requested capacity. If <code>[len]
-/// == [capacity]</code>, (as is the case for the [`try_vec!`] macro), then a
-/// `Vec<T>` can be converted to and from a [`Box<[T]>`][owned slice] without
-/// reallocating or moving the elements.
+/// `try_vec![x; n]`, `try_vec![a, b, c, d]`, and
+/// [`Vec::try_with_capacity_in(n)`], will all produce a `Vec` with exactly the
+/// requested capacity. If <code>[len] == [capacity]</code>, (as is the case for
+/// the [`try_vec!`] macro), then a `Vec<T>` can be converted to and from a
+/// [`Box<[T]>`][owned slice] without reallocating or moving the elements.
 ///
-/// [`Vec::try_with_capacity(n)`]: Vec::try_with_capacity
+/// [`Vec::try_with_capacity_in(n)`]: Vec::try_with_capacity_in
 ///
 /// `Vec` will not specifically overwrite any data that is removed from it,
 /// but also won't specifically preserve it. Its uninitialized memory is
