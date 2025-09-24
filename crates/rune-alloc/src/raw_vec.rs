@@ -218,7 +218,7 @@ where
             // and could hypothetically handle differences between stride and size, but this memory
             // has already been allocated so we know it can't overflow and currently rust does not
             // support such types. So we can do better by skipping some checks and avoid an unwrap.
-            assert!(mem::size_of::<T>() % mem::align_of::<T>() == 0);
+            assert!(mem::size_of::<T>().is_multiple_of(mem::align_of::<T>()));
 
             unsafe {
                 let align = mem::align_of::<T>();
@@ -354,7 +354,7 @@ where
 
     fn shrink(&mut self, cap: usize) -> Result<(), AllocError> {
         // See current_memory() why this assert is here
-        assert!(mem::size_of::<T>() % mem::align_of::<T>() == 0);
+        assert!(mem::size_of::<T>().is_multiple_of(mem::align_of::<T>()));
         assert!(
             cap <= self.capacity(),
             "Tried to shrink to a larger capacity"
