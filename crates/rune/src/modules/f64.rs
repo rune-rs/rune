@@ -5,7 +5,123 @@ use core::num::ParseFloatError;
 
 use crate as rune;
 use crate::runtime::{VmError, VmErrorKind};
-use crate::{ContextError, Module};
+use crate::{docstring, ContextError, Module};
+
+/// Mathematical constants mirroring Rust's [core::f64::consts].
+pub mod consts {
+    use crate as rune;
+    use crate::{docstring, ContextError, Module};
+
+    /// Mathematical constants mirroring Rust's [core::f64::consts].
+    #[rune::module(::std::f64::consts)]
+    pub fn module() -> Result<Module, ContextError> {
+        let mut m = Module::from_meta(self::module__meta)?;
+
+        m.constant("E", core::f64::consts::E)
+            .build()?
+            .docs(docstring!(
+                /// Euler's number (e)
+            ))?;
+
+        m.constant("FRAC_1_PI", core::f64::consts::FRAC_1_PI)
+            .build()?
+            .docs(docstring!(
+                /// 1 / π
+            ))?;
+        m.constant("FRAC_1_SQRT_2", core::f64::consts::FRAC_1_SQRT_2)
+            .build()?
+            .docs(docstring!(
+                /// 1 / sqrt(2)
+            ))?;
+        m.constant("FRAC_2_PI", core::f64::consts::FRAC_2_PI)
+            .build()?
+            .docs(docstring!(
+                /// 2 / π
+            ))?;
+        m.constant("FRAC_2_SQRT_PI", core::f64::consts::FRAC_2_SQRT_PI)
+            .build()?
+            .docs(docstring!(
+                /// 2 / sqrt(π)
+            ))?;
+
+        m.constant("FRAC_PI_2", core::f64::consts::FRAC_PI_2)
+            .build()?
+            .docs(docstring!(
+                /// π/2
+            ))?;
+        m.constant("FRAC_PI_3", core::f64::consts::FRAC_PI_3)
+            .build()?
+            .docs(docstring!(
+                /// π/3
+            ))?;
+        m.constant("FRAC_PI_4", core::f64::consts::FRAC_PI_4)
+            .build()?
+            .docs(docstring!(
+                /// π/4
+            ))?;
+        m.constant("FRAC_PI_6", core::f64::consts::FRAC_PI_6)
+            .build()?
+            .docs(docstring!(
+                /// π/6
+            ))?;
+        m.constant("FRAC_PI_8", core::f64::consts::FRAC_PI_8)
+            .build()?
+            .docs(docstring!(
+                /// π/8
+            ))?;
+
+        m.constant("LN_2", core::f64::consts::LN_2)
+            .build()?
+            .docs(docstring!(
+                /// ln(2)
+            ))?;
+        m.constant("LN_10", core::f64::consts::LN_10)
+            .build()?
+            .docs(docstring!(
+                /// ln(10)
+            ))?;
+        m.constant("LOG2_10", core::f64::consts::LOG2_10)
+            .build()?
+            .docs(docstring!(
+                /// log<sub>2</sub>(10)
+            ))?;
+        m.constant("LOG2_E", core::f64::consts::LOG2_E)
+            .build()?
+            .docs(docstring!(
+                /// log<sub>2</sub>(e)
+            ))?;
+        m.constant("LOG10_2", core::f64::consts::LOG10_2)
+            .build()?
+            .docs(docstring!(
+                /// log<sub>10</sub>(2)
+            ))?;
+        m.constant("LOG10_E", core::f64::consts::LOG10_E)
+            .build()?
+            .docs(docstring!(
+                /// log<sub>10</sub>(e)
+            ))?;
+
+        m.constant("PI", core::f64::consts::PI)
+            .build()?
+            .docs(docstring!(
+                /// Archimede's constant (π)
+            ))?;
+        m.constant("SQRT_2", core::f64::consts::SQRT_2)
+            .build()?
+            .docs(docstring!(
+                /// sqrt(2)
+            ))?;
+        m.constant("TAU", core::f64::consts::TAU)
+            .build()?
+            .docs(docstring!(
+                /// The full circle constant (τ)
+                ///
+                /// Equal to 2π
+            ))?;
+
+        Ok(m)
+    }
+}
 
 /// Floating point numbers.
 ///
@@ -55,17 +171,108 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(cmp__meta)?;
     m.implement_trait::<f64>(rune::item!(::std::cmp::Ord))?;
 
-    m.constant("EPSILON", f64::EPSILON).build()?;
-    m.constant("MIN", f64::MIN).build()?;
-    m.constant("MAX", f64::MAX).build()?;
-    m.constant("MIN_POSITIVE", f64::MIN_POSITIVE).build()?;
-    m.constant("MIN_EXP", f64::MIN_EXP).build()?;
-    m.constant("MAX_EXP", f64::MAX_EXP).build()?;
-    m.constant("MIN_10_EXP", f64::MIN_10_EXP).build()?;
-    m.constant("MAX_10_EXP", f64::MAX_10_EXP).build()?;
-    m.constant("NAN", f64::NAN).build()?;
-    m.constant("INFINITY", f64::INFINITY).build()?;
-    m.constant("NEG_INFINITY", f64::NEG_INFINITY).build()?;
+    m.constant("EPSILON", f64::EPSILON)
+        .build()?
+        .docs(docstring!(
+            /// [Machine epsilon] value for `f64`.
+            ///
+            /// This is the difference between `1.0` and the next larger representable number.
+            ///
+            /// Equal to 2<sup>1 - MANTISSA_DIGITS</sup>.
+            ///
+            /// [Machine epsilon]: https://en.wikipedia.org/wiki/Machine_epsilon
+        ))?;
+    m.constant("MIN", f64::MIN).build()?.docs(docstring!(
+        /// The smallest finite `f64` value.
+        ///
+        /// Equal to -[`MAX`].
+        ///
+        /// [`MAX`]: f64::MAX
+    ))?;
+    m.constant("MAX", f64::MAX).build()?.docs(docstring!(
+        /// Largest finite `f64` value.
+        ///
+        /// Equal to
+        /// (1 - 2<sup>-MANTISSA_DIGITS</sup>) 2<sup>[`MAX_EXP`]</sup>.
+        ///
+        /// [`MAX_EXP`]: f64::MAX_EXP
+    ))?;
+    m.constant("MIN_POSITIVE", f64::MIN_POSITIVE)
+        .build()?
+        .docs(docstring!(
+            /// Smallest positive normal `f64` value.
+            ///
+            /// Equal to 2<sup>[`MIN_EXP`] - 1</sup>.
+            ///
+            /// [`MIN_EXP`]: f64::MIN_EXP
+        ))?;
+    m.constant("MIN_EXP", f64::MIN_EXP)
+        .build()?
+        .docs(docstring!(
+            /// One greater than the minimum possible *normal* power of 2 exponent
+            /// for a significand bounded by 1 ≤ x < 2 (i.e. the IEEE definition).
+            ///
+            /// This corresponds to the exact minimum possible *normal* power of 2 exponent
+            /// for a significand bounded by 0.5 ≤ x < 1 (i.e. the C definition).
+            /// In other words, all normal numbers representable by this type are
+            /// greater than or equal to 0.5 × 2<sup><i>MIN_EXP</i></sup>.
+        ))?;
+    m.constant("MAX_EXP", f64::MAX_EXP)
+        .build()?
+        .docs(docstring!(
+            /// One greater than the maximum possible power of 2 exponent
+            /// for a significand bounded by 1 ≤ x < 2 (i.e. the IEEE definition).
+            ///
+            /// This corresponds to the exact maximum possible power of 2 exponent
+            /// for a significand bounded by 0.5 ≤ x < 1 (i.e. the C definition).
+            /// In other words, all numbers representable by this type are
+            /// strictly less than 2<sup><i>MAX_EXP</i></sup>.
+        ))?;
+    m.constant("MIN_10_EXP", f64::MIN_10_EXP)
+        .build()?
+        .docs(docstring!(
+            /// Minimum <i>x</i> for which 10<sup><i>x</i></sup> is normal.
+            ///
+            /// Equal to ceil(log<sub>10</sub> [`MIN_POSITIVE`]).
+            ///
+            /// [`MIN_POSITIVE`]: f64::MIN_POSITIVE
+        ))?;
+    m.constant("MAX_10_EXP", f64::MAX_10_EXP)
+        .build()?
+        .docs(docstring!(
+            /// Maximum <i>x</i> for which 10<sup><i>x</i></sup> is normal.
+            ///
+            /// Equal to floor(log<sub>10</sub> [`MAX`]).
+            ///
+            /// [`MAX`]: f64::MAX
+        ))?;
+    m.constant("NAN", f64::NAN).build()?.docs(docstring!(
+        /// Not a number (NaN).
+        ///
+        ///
+        /// Note that IEEE 754 doesn't define just a single NaN value; a plethora of bit patterns
+        /// are considered to be NaN. Furthermore, the standard makes a difference between a
+        /// "signaling" and a "quiet" NaN, and allows inspecting its "payload" (the unspecified
+        /// bits in the bit pattern) and its sign. See the [Rust documentation of NaN bit
+        /// patterns](https://doc.rust-lang.org/core/primitive.f32.html#nan-bit-patterns) for more
+        /// info.
+        ///
+        /// This constant is guaranteed to be a quiet NaN (on targets that follow the Rust assumptions
+        /// that the quiet/signaling bit being set to 1 indicates a quiet NaN). Beyond that, nothing is
+        /// guaranteed about the specific bit pattern chosen here: both payload and sign are arbitrary.
+        /// The concrete bit pattern may change across Rust versions and target platforms.
+    ))?;
+    m.constant("INFINITY", f64::INFINITY)
+        .build()?
+        .docs(docstring!(
+            /// Positive infinity (∞).
+        ))?;
+    m.constant("NEG_INFINITY", f64::NEG_INFINITY)
+        .build()?
+        .docs(docstring!(
+            /// Negative infinity (−∞).
+        ))?;
+
     Ok(m)
 }
 
