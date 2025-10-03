@@ -17,3 +17,20 @@ fn test_f64_consts() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_f64_trig() -> Result<()> {
+    let context = Context::with_default_modules()?;
+    let value: f64 = run(
+        &context,
+        r#"
+            let x = std::f64::consts::FRAC_PI_4;
+            (x.tan() - 1.0).abs()
+        "#,
+        (),
+        true,
+    )?;
+    assert!(value < 1e-14);
+
+    Ok(())
+}
