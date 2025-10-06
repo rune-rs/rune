@@ -487,6 +487,8 @@ mod external_generic;
 mod external_match;
 #[cfg(not(miri))]
 mod external_ops;
+#[cfg(not(miri))]
+mod f64;
 mod function_guardedargs;
 #[cfg(not(miri))]
 mod getter_setter;
