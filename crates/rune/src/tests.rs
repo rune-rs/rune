@@ -4,6 +4,10 @@
 #![allow(clippy::approx_constant)]
 #![cfg_attr(miri, allow(unused))]
 
+/// A convenience prelude for tests.
+///
+/// Import by adding `prelude!();` to your test module.
+#[allow(unused_imports)]
 pub(crate) mod prelude {
     pub(crate) use crate as rune;
     pub(crate) use crate::alloc;

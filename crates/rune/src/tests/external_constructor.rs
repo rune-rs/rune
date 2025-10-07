@@ -1,6 +1,6 @@
 prelude!();
 
-use rune::{from_value, prepare, sources};
+use rune::{from_value, prepare};
 use rune::{Any, Context, ContextError, Module, Vm};
 
 /// Tests pattern matching and constructing over an external variant from within

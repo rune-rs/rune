@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
