@@ -894,6 +894,11 @@ impl ServerSource {
         self.modify_range(start, end, content)
     }
 
+    /// Modify the full range of the file.
+    pub(super) fn modify_lsp_full_range(&mut self, content: &str) -> Result<()> {
+        self.modify_range(0, self.content.len_chars(), content)
+    }
+
     fn modify_range(&mut self, start: usize, end: usize, content: &str) -> Result<()> {
         self.content.try_remove(start..end)?;
 

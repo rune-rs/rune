@@ -325,8 +325,10 @@ async fn did_change_text_document(
         for change in params.content_changes {
             if let Some(range) = change.range {
                 source.modify_lsp_range(&s.encoding, range, &change.text)?;
-                interest = true;
+            } else {
+                source.modify_lsp_full_range(&change.text)?;
             }
+            interest = true;
         }
     } else {
         tracing::warn!(
