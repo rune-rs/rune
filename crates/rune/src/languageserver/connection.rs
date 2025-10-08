@@ -3,9 +3,9 @@ use core::fmt;
 use rust_alloc::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
-use tokio::io;
 use tokio::io::{
-    AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader,
+    self, AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _,
+    BufReader,
 };
 use tokio::sync::Mutex;
 
@@ -19,12 +19,27 @@ pub(super) struct Frame<'a> {
 }
 
 /// Input connection.
-pub(super) struct Input {
+pub struct Input {
     buf: rust_alloc::vec::Vec<u8>,
-    stdin: BufReader<io::Stdin>,
+    stdin: std::boxed::Box<dyn AsyncBufRead + Unpin>,
 }
 
 impl Input {
+    /// Create a new input connection.
+    pub fn new(reader: std::boxed::Box<dyn AsyncBufRead + Unpin>) -> Self {
+        Self {
+            buf: rust_alloc::vec::Vec::new(),
+            stdin: reader,
+        }
+    }
+
+    /// Create a new input connection from stdin.
+    pub fn from_stdin() -> Result<Self> {
+        let stdin = io::stdin();
+        let reader = std::boxed::Box::new(BufReader::new(stdin));
+        Ok(Self::new(reader))
+    }
+
     /// Get the next input frame.
     pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
         let headers = match Headers::read(&mut self.buf, &mut self.stdin).await? {
@@ -47,11 +62,25 @@ impl Input {
 
 /// Output connection.
 #[derive(Clone)]
-pub(super) struct Output {
-    stdout: Arc<Mutex<io::Stdout>>,
+pub struct Output {
+    stdout: Arc<Mutex<std::boxed::Box<dyn AsyncWrite + Unpin>>>,
 }
 
 impl Output {
+    /// Create a new output connection.
+    pub fn new(stdout: std::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
+        Self {
+            stdout: Arc::new(Mutex::new(stdout)),
+        }
+    }
+
+    /// Create a new output connection from stdout.
+    pub fn from_stdout() -> Result<Self> {
+        let stdout = io::stdout();
+        let writer = std::boxed::Box::new(stdout);
+        Ok(Self::new(writer))
+    }
+
     /// Send the given response.
     pub(super) async fn response<R>(&self, id: Option<envelope::RequestId>, result: R) -> Result<()>
     where
@@ -153,23 +182,6 @@ impl Output {
         stdout.flush().await?;
         Ok(())
     }
-}
-
-/// Setup a stdin/stdout connection.
-pub(super) fn stdio() -> Result<(Input, Output)> {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-
-    let input = Input {
-        buf: rust_alloc::vec::Vec::new(),
-        stdin: BufReader::new(stdin),
-    };
-
-    let output = Output {
-        stdout: Arc::new(Mutex::new(stdout)),
-    };
-
-    Ok((input, output))
 }
 
 #[derive(Debug)]
