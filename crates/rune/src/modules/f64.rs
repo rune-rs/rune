@@ -974,11 +974,11 @@ fn exp2(this: f64) -> f64 {
 /// Returns the natural logarithm of the number.
 ///
 /// This returns NaN when the number is negative, and negative infinity when number is zero.
-/// let one = 1.0_f64;
 ///
 /// # Examples
 ///
 /// ```rune
+/// let one = 1.0;
 /// // e^1
 /// let e = one.exp();
 ///
