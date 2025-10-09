@@ -1,7 +1,5 @@
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 use anyhow::{anyhow, bail, Result};
 use tokio::io::{
     self, AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _,
@@ -21,12 +19,12 @@ pub(super) struct Frame<'a> {
 /// Input connection.
 pub struct Input {
     buf: rust_alloc::vec::Vec<u8>,
-    stdin: std::boxed::Box<dyn AsyncBufRead + Unpin>,
+    stdin: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>,
 }
 
 impl Input {
     /// Create a new input connection.
-    pub fn new(reader: std::boxed::Box<dyn AsyncBufRead + Unpin>) -> Self {
+    pub fn new(reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>) -> Self {
         Self {
             buf: rust_alloc::vec::Vec::new(),
             stdin: reader,
@@ -36,7 +34,7 @@ impl Input {
     /// Create a new input connection from stdin.
     pub fn from_stdin() -> Result<Self> {
         let stdin = io::stdin();
-        let reader = std::boxed::Box::new(BufReader::new(stdin));
+        let reader = rust_alloc::boxed::Box::new(BufReader::new(stdin));
         Ok(Self::new(reader))
     }
 
@@ -61,23 +59,22 @@ impl Input {
 }
 
 /// Output connection.
-#[derive(Clone)]
 pub struct Output {
-    stdout: Arc<Mutex<std::boxed::Box<dyn AsyncWrite + Unpin>>>,
+    stdout: Mutex<rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>>,
 }
 
 impl Output {
     /// Create a new output connection.
-    pub fn new(stdout: std::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
+    pub fn new(stdout: rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
         Self {
-            stdout: Arc::new(Mutex::new(stdout)),
+            stdout: Mutex::new(stdout),
         }
     }
 
     /// Create a new output connection from stdout.
     pub fn from_stdout() -> Result<Self> {
         let stdout = io::stdout();
-        let writer = std::boxed::Box::new(stdout);
+        let writer = rust_alloc::boxed::Box::new(stdout);
         Ok(Self::new(writer))
     }
 
