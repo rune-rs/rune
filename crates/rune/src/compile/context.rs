@@ -365,6 +365,7 @@ impl Context {
 
         this.install(crate::modules::char::module()?)?;
         this.install(crate::modules::f64::module()?)?;
+        this.install(crate::modules::f64::consts::module()?)?;
         this.install(crate::modules::tuple::module()?)?;
         this.install(crate::modules::fmt::module()?)?;
         this.install(crate::modules::future::module()?)?;
