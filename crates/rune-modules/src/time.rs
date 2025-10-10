@@ -200,6 +200,10 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     m.function_meta(Instant::elapsed__meta)?;
     m.function_meta(Instant::add__meta)?;
     m.function_meta(Instant::add_assign__meta)?;
+    m.function_meta(Instant::sub__meta)?;
+    m.function_meta(Instant::sub_assign__meta)?;
+    m.function_meta(Instant::sub_instant__meta)?;
+    m.function_meta(Instant::sub_instant_assign__meta)?;
     m.function_meta(Instant::partial_eq__meta)?;
     m.implement_trait::<Instant>(item!(::std::cmp::PartialEq))?;
     m.function_meta(Instant::eq__meta)?;
@@ -686,7 +690,7 @@ impl Duration {
         Ok(Self { inner })
     }
 
-    /// Add a duration to this instant and return a new instant.
+    /// Add a duration to this instant.
     ///
     /// # Examples
     ///
@@ -1138,7 +1142,7 @@ impl Instant {
         Ok(Self { inner })
     }
 
-    /// Add a duration to this instant and return a new instant.
+    /// Add a duration to this instant.
     ///
     /// # Examples
     ///
@@ -1161,6 +1165,89 @@ impl Instant {
 
         self.inner = inner;
         Ok(())
+    }
+
+    /// Subtract a duration and return a new Instant.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use time::{Duration, Instant};
+    ///
+    /// let first = Instant::now();
+    /// let second = first - Duration::SECOND;
+    /// ```
+    #[rune::function(keep, instance, protocol = SUB)]
+    #[inline]
+    fn sub(&self, duration: &Duration) -> VmResult<Self> {
+        let Some(inner) = self.inner.checked_sub(duration.inner) else {
+            vm_panic!("overflow when subtract duration from instant")
+        };
+
+        VmResult::Ok(Self { inner })
+    }
+
+    /// Subtract a duration from this instant.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use time::{Duration, Instant};
+    ///
+    /// let first = Instant::now();
+    /// first -= Duration::SECOND;
+    /// ```
+    #[rune::function(keep, instance, protocol = SUB_ASSIGN)]
+    #[inline]
+    fn sub_assign(&mut self, duration: &Duration) -> VmResult<()> {
+        let Some(inner) = self.inner.checked_sub(duration.inner) else {
+            vm_panic!("overflow when subtract duration from instant")
+        };
+
+        self.inner = inner;
+        VmResult::Ok(())
+    }
+
+    /// Subtract a instant and return a new Duration.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use time::{Duration, Instant};
+    ///
+    /// let first = Instant::now();
+    /// let duration = first - Instant::now();
+    /// ```
+    #[rune::function(keep, instance, protocol = SUB)]
+    #[inline]
+    fn sub_instant(&self, instant: &Instant) -> VmResult<Duration> {
+        let Some(inner) = self.inner.checked_duration_since(instant.inner) else {
+            vm_panic!("overflow when subtract instant")
+        };
+
+        VmResult::Ok(Duration::from_std(inner))
+    }
+
+    /// Subtract a instant from this instant.
+    ///
+    /// # Examples
+    ///
+    /// ```rune
+    /// use std::ops::partial_eq;
+    /// use time::{Duration, Instant};
+    ///
+    /// let first = Instant::now();
+    /// first -= Instant::now();
+    /// ```
+    #[rune::function(keep, instance, protocol = SUB_ASSIGN)]
+    #[inline]
+    fn sub_instant_assign(&mut self, instant: &Instant) -> VmResult<()> {
+        let Some(inner) = self.inner.checked_duration_since(instant.inner) else {
+            vm_panic!("overflow when subtract instant")
+        };
+
+        self.inner -= inner;
+        VmResult::Ok(())
     }
 
     /// Test two instants for partial equality.
