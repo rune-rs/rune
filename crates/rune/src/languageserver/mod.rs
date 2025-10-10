@@ -195,10 +195,12 @@ where
         tracing::info!("Starting server");
         state.rebuild()?;
 
+        let mut content = rust_alloc::vec::Vec::new();
+
         while !state.is_stopped() {
             tokio::select! {
                 _ = rebuild.as_mut() => {
-                    tracing::info!("rebuilding project");
+                    tracing::info!("Rebuilding project");
                     state.rebuild()?;
                     rebuild.set(rebuild_notify.notified());
                 },
@@ -210,13 +212,12 @@ where
                         self.output.flush().await.context("flushing output")?;
                     }
                 },
-                frame = input.next() => {
-                    let frame = match frame? {
-                        Some(frame) => frame,
-                        None => break,
+                frame = input.next(&mut content) => {
+                    if !frame? {
+                        break;
                     };
 
-                    let incoming: envelope::IncomingMessage = serde_json::from_slice(frame.content)?;
+                    let incoming: envelope::IncomingMessage<'_> = serde_json::from_slice(&content)?;
                     tracing::trace!(?incoming);
 
                     // If server is not initialized, reject incoming requests.
@@ -234,7 +235,7 @@ where
 
                     macro_rules! handle {
                         ($(req($req_ty:ty, $req_handle:ident)),* $(, notif($notif_ty:ty, $notif_handle:ident))* $(,)?) => {
-                            match incoming.method.as_str() {
+                            match incoming.method {
                                 $(<$req_ty>::METHOD => {
                                     let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
                                     let result = $req_handle(&mut state, params)?;
@@ -268,6 +269,8 @@ where
                         notif(lsp::notification::DidSaveTextDocument, did_save_text_document),
                         notif(lsp::notification::Initialized, initialized),
                     }
+
+                    content.clear();
                 },
             }
         }

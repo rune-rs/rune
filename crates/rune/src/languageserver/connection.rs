@@ -1,21 +1,23 @@
 use core::fmt;
+use core::str;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context as _, Result};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt as _, AsyncRead, AsyncReadExt as _, BufReader};
 
 use crate::alloc::prelude::*;
 use crate::languageserver::envelope;
 
-/// An input frame.
-#[derive(Debug)]
-pub(super) struct Frame<'a> {
-    pub(super) content: &'a [u8],
+enum State {
+    /// Initial state, before header has been received.
+    Initial,
+    /// Reading state, when a header has been received.
+    Reading(usize),
 }
 
 /// Input connection.
 pub(super) struct Input<I> {
-    buf: rust_alloc::vec::Vec<u8>,
     reader: BufReader<I>,
+    state: State,
 }
 
 impl<I> Input<I>
@@ -25,28 +27,46 @@ where
     /// Create a new input connection.
     pub(super) fn new(reader: I) -> Self {
         Self {
-            buf: rust_alloc::vec::Vec::new(),
             reader: BufReader::new(reader),
+            state: State::Initial,
         }
     }
 
     /// Get the next input frame.
-    pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
-        let headers = match Headers::read(&mut self.buf, &mut self.reader).await? {
-            Some(headers) => headers,
-            None => return Ok(None),
-        };
+    pub(super) async fn next(&mut self, buf: &mut rust_alloc::vec::Vec<u8>) -> Result<bool> {
+        loop {
+            match self.state {
+                State::Initial => {
+                    let Some(headers) = Headers::read(buf, &mut self.reader).await? else {
+                        return Ok(false);
+                    };
 
-        tracing::trace!("headers: {:?}", headers);
+                    tracing::trace!(?headers, "Received headers");
 
-        let length = match headers.content_length {
-            Some(length) => length as usize,
-            None => bail!("missing content-length"),
-        };
+                    let len = match headers.content_length {
+                        Some(length) => length as usize,
+                        None => bail!("Missing content-length in header"),
+                    };
 
-        self.buf.resize(length, 0u8);
-        self.reader.read_exact(&mut self.buf[..]).await?;
-        Ok(Some(Frame { content: &self.buf }))
+                    buf.resize(len, 0u8);
+                    self.state = State::Reading(0);
+                }
+                State::Reading(ref mut at) => {
+                    let n = self.reader.read(&mut buf[*at..]).await?;
+
+                    *at += n;
+
+                    if *at == buf.len() {
+                        self.state = State::Initial;
+                        return Ok(true);
+                    }
+
+                    if n == 0 {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -195,12 +215,12 @@ impl Outbound {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(super) enum ContentType {
     JsonRPC,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub(super) struct Headers {
     pub(super) content_length: Option<u32>,
     pub(super) content_type: Option<ContentType>,
@@ -216,10 +236,9 @@ impl Headers {
         S: ?Sized + Unpin + AsyncBufRead,
     {
         let mut headers = Headers::default();
+        let mut any = false;
 
         loop {
-            buf.clear();
-
             let len = match reader.read_until(b'\n', buf).await {
                 Ok(len) => len,
                 Err(error) => return Err(error.into()),
@@ -229,11 +248,11 @@ impl Headers {
                 return Ok(None);
             }
 
-            debug_assert!(len == buf.len());
-            let buf = &buf[..len];
+            debug_assert_eq!(len, buf.len());
 
-            let buf = std::str::from_utf8(buf)?;
-            let line = buf.trim();
+            let line = buf.get(..len).unwrap_or_default();
+            let line = str::from_utf8(line).context("decoding line")?;
+            let line = line.trim();
 
             if line.is_empty() {
                 break;
@@ -245,28 +264,40 @@ impl Headers {
 
             let key = key.trim();
             let value = value.trim();
-            let key = key.to_lowercase();
 
-            match key.as_str() {
-                "content-type" => match value {
-                    "application/vscode-jsonrpc; charset=utf-8" => {
-                        headers.content_type = Some(ContentType::JsonRPC);
+            'done: {
+                if key.eq_ignore_ascii_case("content-type") {
+                    match value {
+                        "application/vscode-jsonrpc; charset=utf-8" => {
+                            headers.content_type = Some(ContentType::JsonRPC);
+                        }
+                        value => {
+                            return Err(anyhow!("Unsupported content-type `{value}`"));
+                        }
                     }
-                    value => {
-                        return Err(anyhow!("bad value: {:?}", value));
-                    }
-                },
-                "content-length" => {
+
+                    any = true;
+                    break 'done;
+                }
+
+                if key.eq_ignore_ascii_case("content-length") {
                     let value = value
                         .parse::<u32>()
                         .map_err(|e| anyhow!("bad content-length: {}: {}", value, e))?;
 
                     headers.content_length = Some(value);
-                }
-                key => {
-                    return Err(anyhow!("header not supported: {:?}", key));
-                }
+                    any = true;
+                    break 'done;
+                };
+
+                bail!("Unsupported header `{key}`");
             }
+
+            buf.clear();
+        }
+
+        if !any {
+            return Ok(None);
         }
 
         Ok(Some(headers))
