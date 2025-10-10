@@ -560,10 +560,6 @@ impl<'a> State<'a> {
         }
 
         for (url, diagnostics) in reporter.by_url {
-            if diagnostics.is_empty() {
-                continue;
-            }
-
             tracing::info!(
                 url = ?url.try_to_string()?,
                 diagnostics = diagnostics.len(),

@@ -15,11 +15,11 @@ pub(super) enum RequestId {
 }
 
 #[derive(Debug, TryClone, Deserialize)]
-pub(super) struct IncomingMessage {
+pub(super) struct IncomingMessage<'a> {
     #[allow(unused)]
     pub(super) jsonrpc: V2,
     pub(super) id: Option<RequestId>,
-    pub(super) method: String,
+    pub(super) method: &'a str,
     #[serde(default)]
     #[try_clone(with = Clone::clone)]
     pub(super) params: serde_json::Value,
