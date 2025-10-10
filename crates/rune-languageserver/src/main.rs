@@ -16,6 +16,7 @@
 //!
 //! A language server for the Rune Language, an embeddable dynamic programming language for Rust.
 use anyhow::{bail, Result};
+use rune::languageserver::{Input, Output};
 use rune::Options;
 use std::env;
 use std::path::PathBuf;
@@ -80,7 +81,11 @@ fn main() -> Result<()> {
         .enable_all()
         .build()?;
 
-    let result = runtime.block_on(rune::languageserver::run(context, options));
+    let result = runtime.block_on(rune::languageserver::run(
+        context,
+        options,
+        (Input::from_stdin()?, Output::from_stdout()?),
+    ));
 
     match result {
         Ok(()) => {

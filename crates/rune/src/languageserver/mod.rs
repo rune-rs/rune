@@ -18,7 +18,6 @@ use serde::Deserialize;
 use tokio::sync::Notify;
 
 use crate::alloc::String;
-use crate::languageserver::connection::stdio;
 use crate::languageserver::envelope::Code;
 use crate::languageserver::state::State;
 use crate::support::Result;
@@ -27,15 +26,19 @@ use crate::{Context, Options};
 
 use self::state::StateEncoding;
 
+pub use connection::{Input, Output};
+
 enum Language {
     Rune,
     Other,
 }
 
 /// Run a language server with the given options.
-pub async fn run(context: Context, options: Options) -> Result<()> {
-    let (mut input, output) = stdio()?;
-
+pub async fn run(
+    context: Context,
+    options: Options,
+    (mut input, output): (Input, Output),
+) -> Result<()> {
     let rebuild_notify = Notify::new();
 
     let rebuild = rebuild_notify.notified();
@@ -322,8 +325,10 @@ async fn did_change_text_document(
         for change in params.content_changes {
             if let Some(range) = change.range {
                 source.modify_lsp_range(&s.encoding, range, &change.text)?;
-                interest = true;
+            } else {
+                source.modify_lsp_full_range(&change.text)?;
             }
+            interest = true;
         }
     } else {
         tracing::warn!(

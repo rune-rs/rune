@@ -1,11 +1,9 @@
 use core::fmt;
 
-use rust_alloc::sync::Arc;
-
 use anyhow::{anyhow, bail, Result};
-use tokio::io;
 use tokio::io::{
-    AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader,
+    self, AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _,
+    BufReader,
 };
 use tokio::sync::Mutex;
 
@@ -19,15 +17,30 @@ pub(super) struct Frame<'a> {
 }
 
 /// Input connection.
-pub(super) struct Input {
+pub struct Input {
     buf: rust_alloc::vec::Vec<u8>,
-    stdin: BufReader<io::Stdin>,
+    reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>,
 }
 
 impl Input {
+    /// Create a new input connection.
+    pub fn new(reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>) -> Self {
+        Self {
+            buf: rust_alloc::vec::Vec::new(),
+            reader,
+        }
+    }
+
+    /// Create a new input connection from stdin.
+    pub fn from_stdin() -> Result<Self> {
+        let stdin = io::stdin();
+        let reader = rust_alloc::boxed::Box::new(BufReader::new(stdin));
+        Ok(Self::new(reader))
+    }
+
     /// Get the next input frame.
     pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
-        let headers = match Headers::read(&mut self.buf, &mut self.stdin).await? {
+        let headers = match Headers::read(&mut self.buf, &mut self.reader).await? {
             Some(headers) => headers,
             None => return Ok(None),
         };
@@ -40,18 +53,31 @@ impl Input {
         };
 
         self.buf.resize(length, 0u8);
-        self.stdin.read_exact(&mut self.buf[..]).await?;
+        self.reader.read_exact(&mut self.buf[..]).await?;
         Ok(Some(Frame { content: &self.buf }))
     }
 }
 
 /// Output connection.
-#[derive(Clone)]
-pub(super) struct Output {
-    stdout: Arc<Mutex<io::Stdout>>,
+pub struct Output {
+    writer: Mutex<rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>>,
 }
 
 impl Output {
+    /// Create a new output connection.
+    pub fn new(writer: rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
+        Self {
+            writer: Mutex::new(writer),
+        }
+    }
+
+    /// Create a new output connection from stdout.
+    pub fn from_stdout() -> Result<Self> {
+        let stdout = io::stdout();
+        let writer = rust_alloc::boxed::Box::new(stdout);
+        Ok(Self::new(writer))
+    }
+
     /// Send the given response.
     pub(super) async fn response<R>(&self, id: Option<envelope::RequestId>, result: R) -> Result<()>
     where
@@ -148,28 +174,11 @@ impl Output {
         write!(m, "\r\n")?;
         m.append(bytes);
 
-        let mut stdout = self.stdout.lock().await;
+        let mut stdout = self.writer.lock().await;
         stdout.write_all(&m).await?;
         stdout.flush().await?;
         Ok(())
     }
-}
-
-/// Setup a stdin/stdout connection.
-pub(super) fn stdio() -> Result<(Input, Output)> {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-
-    let input = Input {
-        buf: rust_alloc::vec::Vec::new(),
-        stdin: BufReader::new(stdin),
-    };
-
-    let output = Output {
-        stdout: Arc::new(Mutex::new(stdout)),
-    };
-
-    Ok((input, output))
 }
 
 #[derive(Debug)]
