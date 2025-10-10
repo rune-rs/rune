@@ -29,7 +29,7 @@ byte-code = ["alloc", "musli/storage", "musli/std", "rune-alloc/std"]
 capture-io = ["alloc", "parking_lot"]
 disable-io = ["alloc"]
 fmt = ["alloc", "anyhow"]
-std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "once_cell/std", "anyhow?/std", "syntree/std"]
+std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "once_cell/std", "anyhow?/std", "syntree/std", "tokio?/io-std"]
 alloc = ["rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc"]
 musli = ["dep:musli", "rune-core/musli", "rune-alloc/musli"]
 serde = ["dep:serde", "rune-alloc/serde", "relative-path?/serde"]
@@ -62,7 +62,7 @@ rust-embed = { version = "8.7.2", optional = true }
 semver = { version = "1.0.17", optional = true, features = ["serde"] }
 serde-hashkey = { version = "0.4.5", optional = true }
 syntect = { version = "5.2.0", optional = true, default-features = false, features = ["default-fancy"] }
-tokio = { version = "1.28.1", features = ["rt-multi-thread", "fs", "macros", "sync", "io-std", "io-util"], optional = true }
+tokio = { version = "1.28.1", features = ["rt-multi-thread", "fs", "macros", "sync", "io-util"], optional = true }
 toml = { version = "0.8.19", optional = true, features = ["parse"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"], optional = true }
 webbrowser = { version = "1.0.2", optional = true }

@@ -16,7 +16,7 @@ categories = ["parser-implementations"]
 default-run = "rune"
 
 [dependencies]
-rune = { version = "0.14.0", path = "../rune", features = ["cli"] }
+rune = { version = "0.14.0", path = "../rune", features = ["cli", "tracing"] }
 rune-modules = { version = "0.14.0", path = "../rune-modules", features = ["full"] }
 
 [build-dependencies]

@@ -18,7 +18,7 @@ use crate::compile::{
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
 use crate::item::ComponentRef;
-use crate::languageserver::connection::Output;
+use crate::languageserver::connection::Outbound;
 use crate::languageserver::Language;
 use crate::workspace::{self, FileSourceLoader, Manifest, WorkspaceError, MANIFEST_FILE};
 use crate::{self as rune, Diagnostics};
@@ -169,14 +169,15 @@ impl fmt::Display for StateEncoding {
 
 /// Shared server state.
 pub(super) struct State<'a> {
+    /// The encoding used for project files.
     pub(super) encoding: StateEncoding,
     /// The output abstraction.
-    pub(super) output: Output,
+    pub(super) out: Outbound,
     /// Sender to indicate interest in rebuilding the project.
     /// Can be triggered on modification.
     rebuild_notify: &'a Notify,
     /// The rune context to build for.
-    context: crate::Context,
+    context: Context,
     /// Build options.
     options: Options,
     /// Indicate if the server is initialized.
@@ -189,15 +190,10 @@ pub(super) struct State<'a> {
 
 impl<'a> State<'a> {
     /// Construct a new state.
-    pub(super) fn new(
-        output: Output,
-        rebuild_notify: &'a Notify,
-        context: Context,
-        options: Options,
-    ) -> Self {
+    pub(super) fn new(rebuild_notify: &'a Notify, context: Context, options: Options) -> Self {
         Self {
             encoding: StateEncoding::Utf16,
-            output,
+            out: Outbound::new(),
             rebuild_notify,
             context,
             options,
@@ -235,7 +231,7 @@ impl<'a> State<'a> {
     }
 
     /// Find definition at the given uri and LSP position.
-    pub(super) async fn goto_definition(
+    pub(super) fn goto_definition(
         &self,
         uri: &Url,
         position: lsp::Position,
@@ -414,7 +410,7 @@ impl<'a> State<'a> {
     }
 
     /// Rebuild the project.
-    pub(super) async fn rebuild(&mut self) -> Result<()> {
+    pub(super) fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.
         let mut visited = HashSet::new();
         // Workspace results.
@@ -564,6 +560,10 @@ impl<'a> State<'a> {
         }
 
         for (url, diagnostics) in reporter.by_url {
+            if diagnostics.is_empty() {
+                continue;
+            }
+
             tracing::info!(
                 url = ?url.try_to_string()?,
                 diagnostics = diagnostics.len(),
@@ -576,9 +576,8 @@ impl<'a> State<'a> {
                 version: None,
             };
 
-            self.output
-                .notification::<lsp::notification::PublishDiagnostics>(diagnostics)
-                .await?;
+            self.out
+                .notification::<lsp::notification::PublishDiagnostics>(diagnostics)?;
         }
 
         Ok(())
@@ -1170,7 +1169,7 @@ impl CompileVisitor for Visitor {
         let index = self.indexes.entry(source_id).or_try_default()?;
 
         if let Some(_def) = index.definitions.insert(span.span(), definition) {
-            tracing::warn!("replaced definition: {:?}", _def.kind);
+            tracing::debug!("replaced definition: {:?}", _def.kind);
         }
 
         Ok(())
@@ -1187,7 +1186,7 @@ impl CompileVisitor for Visitor {
         let index = self.indexes.entry(location.source_id).or_try_default()?;
 
         if let Some(_def) = index.definitions.insert(location.span, definition) {
-            tracing::warn!("replaced definition: {:?}", _def.kind);
+            tracing::debug!("replaced definition: {:?}", _def.kind);
         }
 
         Ok(())
