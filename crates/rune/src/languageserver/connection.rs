@@ -1,13 +1,7 @@
 use core::fmt;
 
-#[cfg(feature = "std")]
-use tokio::io::{Stdin, Stdout};
-
 use anyhow::{anyhow, bail, Result};
-use tokio::io::{
-    self, AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _,
-    BufReader,
-};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt as _, AsyncRead, AsyncReadExt as _, BufReader};
 
 use crate::alloc::prelude::*;
 use crate::languageserver::envelope;
@@ -19,35 +13,23 @@ pub(super) struct Frame<'a> {
 }
 
 /// Input connection.
-pub struct Input<I> {
+pub(super) struct Input<I> {
     buf: rust_alloc::vec::Vec<u8>,
-    reader: I,
-}
-
-impl<I> Input<I> {
-    /// Create a new input connection.
-    pub fn new(reader: I) -> Self {
-        Self {
-            buf: rust_alloc::vec::Vec::new(),
-            reader,
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl Input<BufReader<Stdin>> {
-    /// Create a new input connection from stdin.
-    pub fn from_stdin() -> Self {
-        let stdin = io::stdin();
-        let reader = BufReader::new(stdin);
-        Self::new(reader)
-    }
+    reader: BufReader<I>,
 }
 
 impl<I> Input<I>
 where
-    I: Unpin + AsyncBufRead,
+    I: Unpin + AsyncRead,
 {
+    /// Create a new input connection.
+    pub(super) fn new(reader: I) -> Self {
+        Self {
+            buf: rust_alloc::vec::Vec::new(),
+            reader: BufReader::new(reader),
+        }
+    }
+
     /// Get the next input frame.
     pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
         let headers = match Headers::read(&mut self.buf, &mut self.reader).await? {
@@ -69,14 +51,14 @@ where
 }
 
 /// Buffer for outbound data.
-pub(crate) struct Outbound {
+pub(super) struct Outbound {
     scratch: rust_alloc::vec::Vec<u8>,
     buf: rust_alloc::vec::Vec<u8>,
     write: usize,
 }
 
 impl Outbound {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             scratch: rust_alloc::vec::Vec::new(),
             buf: rust_alloc::vec::Vec::new(),
@@ -85,17 +67,17 @@ impl Outbound {
     }
 
     /// Check if the buffer is empty.
-    pub(crate) fn is_empty(&self) -> bool {
+    pub(super) fn is_empty(&self) -> bool {
         self.write >= self.buf.len()
     }
 
     /// Get slice of readable data.
-    pub(crate) fn readable(&self) -> &[u8] {
+    pub(super) fn readable(&self) -> &[u8] {
         self.buf.get(self.write..).unwrap_or_default()
     }
 
     /// Advance the write position by the given amount.
-    pub(crate) fn advance(&mut self, n: usize) {
+    pub(super) fn advance(&mut self, n: usize) {
         self.write += n;
 
         if self.write >= self.buf.len() {
@@ -210,42 +192,6 @@ impl Outbound {
         self.buf.extend_from_slice(&self.scratch);
         self.scratch.clear();
         Ok(())
-    }
-}
-
-/// Output connection.
-pub struct Output<W> {
-    writer: W,
-}
-
-impl<W> Output<W> {
-    /// Create a new output connection.
-    pub fn new(writer: W) -> Self {
-        Self { writer }
-    }
-}
-
-#[cfg(feature = "std")]
-impl Output<Stdout> {
-    /// Create a new output connection from stdout.
-    pub fn from_stdout() -> Self {
-        let stdout = io::stdout();
-        Self::new(stdout)
-    }
-}
-
-impl<W> Output<W>
-where
-    W: Unpin + AsyncWrite,
-{
-    #[inline]
-    pub(crate) async fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.writer.write(buf).await
-    }
-
-    #[inline]
-    pub(crate) async fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush().await
     }
 }
 

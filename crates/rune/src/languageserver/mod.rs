@@ -16,7 +16,9 @@ use anyhow::Context as _;
 use lsp::notification::Notification;
 use lsp::request::Request;
 use serde::Deserialize;
-use tokio::io::{AsyncBufRead, AsyncWrite};
+#[cfg(feature = "std")]
+use tokio::io::{self, Stdin, Stdout};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt as _};
 use tokio::sync::Notify;
 
 use crate::alloc::String;
@@ -26,114 +28,257 @@ use crate::support::Result;
 use crate::workspace::MANIFEST_FILE;
 use crate::{Context, Options};
 
+use self::connection::Input;
 use self::state::StateEncoding;
 
-pub use connection::{Input, Output};
+/// Construct a new empty builder without any configured I/O.
+///
+/// In order to actually call build, the input and output streams must be
+/// configured using [`with_input`], and [`with_output`], or a method such as
+/// [`with_stdio`].
+///
+/// [`with_input`]: Builder::with_input
+/// [`with_output`]: Builder::with_output
+/// [`with_stdio`]: Builder::with_stdio
+///
+/// # Examples
+///
+/// ```no_run
+/// use rune::Context;
+/// use rune::languageserver;
+///
+/// let context = Context::with_default_modules()?;
+///
+/// let languageserver = languageserver::builder()
+///     .with_context(context)
+///     .with_stdio()
+///     .build()?;
+///
+/// # Ok::<_, rune::support::Error>(())
+/// ```
+pub fn builder() -> Builder<Unset, Unset> {
+    Builder {
+        input: Unset,
+        output: Unset,
+        context: None,
+        options: None,
+    }
+}
+
+/// A builder for a language server.
+///
+/// See [`builder()`] for more details.
+pub struct Builder<I, O> {
+    input: I,
+    output: O,
+    context: Option<Context>,
+    options: Option<Options>,
+}
+
+/// Unset placeholder I/O types for language server.
+///
+/// These must be replaced in order to actually construct a language server.
+///
+/// See [`builder()`] for more details.
+pub struct Unset;
+
+impl<I, O> Builder<I, O> {
+    /// Associate the specified input with the builder.
+    pub fn with_input<T>(self, input: T) -> Builder<T, O>
+    where
+        T: Unpin + AsyncRead,
+    {
+        Builder {
+            input,
+            output: self.output,
+            context: self.context,
+            options: self.options,
+        }
+    }
+
+    /// Associate the specified output with the builder.
+    pub fn with_output<T>(self, output: T) -> Builder<I, T>
+    where
+        T: Unpin + AsyncWrite,
+    {
+        Builder {
+            input: self.input,
+            output,
+            context: self.context,
+            options: self.options,
+        }
+    }
+
+    /// Associate [`Stdin`] and [`Stdout`] as the input and output of the
+    /// builder.
+    #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn with_stdio(self) -> Builder<Stdin, Stdout> {
+        self.with_input(io::stdin()).with_output(io::stdout())
+    }
+
+    /// Associate the specified context with the builder.
+    ///
+    /// If none is specified, a default context will be constructed.
+    pub fn with_context(self, context: Context) -> Self {
+        Self {
+            input: self.input,
+            output: self.output,
+            context: Some(context),
+            options: self.options,
+        }
+    }
+
+    /// Associate the specified options with the builder.
+    pub fn with_options(self, options: Options) -> Self {
+        Self {
+            input: self.input,
+            output: self.output,
+            context: self.context,
+            options: Some(options),
+        }
+    }
+
+    /// Build a new language server using the provided options.
+    pub fn build(self) -> Result<LanguageServer<I, O>>
+    where
+        I: Unpin + AsyncRead,
+        O: Unpin + AsyncWrite,
+    {
+        let context = match self.context {
+            Some(context) => context,
+            None => Context::with_default_modules()?,
+        };
+
+        let options = match self.options {
+            Some(options) => options,
+            None => Options::from_default_env()?,
+        };
+
+        Ok(LanguageServer {
+            input: self.input,
+            output: self.output,
+            context,
+            options,
+        })
+    }
+}
 
 enum Language {
     Rune,
     Other,
 }
 
-/// Run a language server with the given options.
-pub async fn run(
+/// The instance of a language server, as constructed through [`builder()`].
+pub struct LanguageServer<I, O> {
+    input: I,
+    output: O,
     context: Context,
     options: Options,
-    mut input: Input<impl Unpin + AsyncBufRead>,
-    mut output: Output<impl Unpin + AsyncWrite>,
-) -> Result<()> {
-    let rebuild_notify = Notify::new();
+}
 
-    let rebuild = rebuild_notify.notified();
-    tokio::pin!(rebuild);
+impl<I, O> LanguageServer<I, O>
+where
+    I: Unpin + AsyncRead,
+    O: Unpin + AsyncWrite,
+{
+    /// Run a language server.
+    pub async fn run(mut self) -> Result<()> {
+        let mut input = Input::new(self.input);
 
-    let mut state = State::new(&rebuild_notify, context, options);
-    tracing::info!("Starting server");
-    state.rebuild()?;
+        let rebuild_notify = Notify::new();
 
-    while !state.is_stopped() {
-        tokio::select! {
-            _ = rebuild.as_mut() => {
-                tracing::info!("rebuilding project");
-                state.rebuild()?;
-                rebuild.set(rebuild_notify.notified());
-            },
-            len = output.write(state.out.readable()), if !state.out.is_empty() => {
-                let len = len.context("writing output")?;
-                state.out.advance(len);
+        let rebuild = rebuild_notify.notified();
+        tokio::pin!(rebuild);
 
-                if state.out.is_empty() {
-                    output.flush().await.context("flushing output")?;
-                }
-            },
-            frame = input.next() => {
-                let frame = match frame? {
-                    Some(frame) => frame,
-                    None => break,
-                };
+        let mut state = State::new(&rebuild_notify, self.context, self.options);
+        tracing::info!("Starting server");
+        state.rebuild()?;
 
-                let incoming: envelope::IncomingMessage = serde_json::from_slice(frame.content)?;
-                tracing::trace!(?incoming);
+        while !state.is_stopped() {
+            tokio::select! {
+                _ = rebuild.as_mut() => {
+                    tracing::info!("rebuilding project");
+                    state.rebuild()?;
+                    rebuild.set(rebuild_notify.notified());
+                },
+                len = self.output.write(state.out.readable()), if !state.out.is_empty() => {
+                    let len = len.context("writing output")?;
+                    state.out.advance(len);
 
-                // If server is not initialized, reject incoming requests.
-                if !state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
-                    state.out
-                        .error(
-                            incoming.id,
-                            Code::InvalidRequest,
-                            "Server not initialized",
-                            None::<()>,
-                        )?;
+                    if state.out.is_empty() {
+                        self.output.flush().await.context("flushing output")?;
+                    }
+                },
+                frame = input.next() => {
+                    let frame = match frame? {
+                        Some(frame) => frame,
+                        None => break,
+                    };
 
-                    continue;
-                }
+                    let incoming: envelope::IncomingMessage = serde_json::from_slice(frame.content)?;
+                    tracing::trace!(?incoming);
 
-                macro_rules! handle {
-                    ($(req($req_ty:ty, $req_handle:ident)),* $(, notif($notif_ty:ty, $notif_handle:ident))* $(,)?) => {
-                        match incoming.method.as_str() {
-                            $(<$req_ty>::METHOD => {
-                                let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
-                                let result = $req_handle(&mut state, params)?;
-                                state.out.response(incoming.id, result)?;
-                            })*
-                            $(<$notif_ty>::METHOD => {
-                                let params = <$notif_ty as Notification>::Params::deserialize(incoming.params)?;
-                                let () = $notif_handle(&mut state, params)?;
-                            })*
-                            _ => {
-                                state.out.log(
-                                    lsp::MessageType::INFO,
-                                    format!("Unhandled method `{}`", incoming.method),
-                                )?;
-                                state.out.method_not_found(incoming.id)?;
+                    // If server is not initialized, reject incoming requests.
+                    if !state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
+                        state.out
+                            .error(
+                                incoming.id,
+                                Code::InvalidRequest,
+                                "Server not initialized",
+                                None::<()>,
+                            )?;
+
+                        continue;
+                    }
+
+                    macro_rules! handle {
+                        ($(req($req_ty:ty, $req_handle:ident)),* $(, notif($notif_ty:ty, $notif_handle:ident))* $(,)?) => {
+                            match incoming.method.as_str() {
+                                $(<$req_ty>::METHOD => {
+                                    let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
+                                    let result = $req_handle(&mut state, params)?;
+                                    state.out.response(incoming.id, result)?;
+                                })*
+                                $(<$notif_ty>::METHOD => {
+                                    let params = <$notif_ty as Notification>::Params::deserialize(incoming.params)?;
+                                    let () = $notif_handle(&mut state, params)?;
+                                })*
+                                _ => {
+                                    state.out.log(
+                                        lsp::MessageType::INFO,
+                                        format!("Unhandled method `{}`", incoming.method),
+                                    )?;
+                                    state.out.method_not_found(incoming.id)?;
+                                }
                             }
                         }
                     }
-                }
 
-                handle! {
-                    req(lsp::request::Initialize, initialize),
-                    req(lsp::request::Shutdown, shutdown),
-                    req(lsp::request::GotoDefinition, goto_definition),
-                    req(lsp::request::Completion, completion),
-                    req(lsp::request::Formatting, formatting),
-                    req(lsp::request::RangeFormatting, range_formatting),
-                    notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
-                    notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
-                    notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
-                    notif(lsp::notification::DidSaveTextDocument, did_save_text_document),
-                    notif(lsp::notification::Initialized, initialized),
-                }
-            },
+                    handle! {
+                        req(lsp::request::Initialize, initialize),
+                        req(lsp::request::Shutdown, shutdown),
+                        req(lsp::request::GotoDefinition, goto_definition),
+                        req(lsp::request::Completion, completion),
+                        req(lsp::request::Formatting, formatting),
+                        req(lsp::request::RangeFormatting, range_formatting),
+                        notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
+                        notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
+                        notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
+                        notif(lsp::notification::DidSaveTextDocument, did_save_text_document),
+                        notif(lsp::notification::Initialized, initialized),
+                    }
+                },
+            }
         }
-    }
 
-    while !state.out.is_empty() {
-        let len = output.write(state.out.readable()).await?;
-        state.out.advance(len);
-    }
+        while !state.out.is_empty() {
+            let len = self.output.write(state.out.readable()).await?;
+            state.out.advance(len);
+        }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 fn is_utf8(params: &lsp::InitializeParams) -> bool {

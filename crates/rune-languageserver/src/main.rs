@@ -17,7 +17,7 @@
 //! A language server for the Rune Language, an embeddable dynamic programming language for Rust.
 
 use anyhow::{anyhow, bail, Result};
-use rune::languageserver::{Input, Output};
+use rune::languageserver;
 use rune::Options;
 use std::env;
 use std::fs::File;
@@ -78,12 +78,13 @@ async fn main() -> Result<()> {
     let context = rune_modules::default_context()?;
     let options = Options::from_default_env()?;
 
-    let input = Input::from_stdin();
-    let output = Output::from_stdout();
+    let languageserver = languageserver::builder()
+        .with_context(context)
+        .with_options(options)
+        .with_stdio()
+        .build()?;
 
-    let result = rune::languageserver::run(context, options, input, output).await;
-
-    match result {
+    match languageserver.run().await {
         Ok(()) => {
             tracing::info!("Server shutting down");
         }
