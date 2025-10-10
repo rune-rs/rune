@@ -19,7 +19,7 @@ pub(super) struct Frame<'a> {
 /// Input connection.
 pub struct Input {
     buf: rust_alloc::vec::Vec<u8>,
-    stdin: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>,
+    reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>,
 }
 
 impl Input {
@@ -27,7 +27,7 @@ impl Input {
     pub fn new(reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>) -> Self {
         Self {
             buf: rust_alloc::vec::Vec::new(),
-            stdin: reader,
+            reader,
         }
     }
 
@@ -40,7 +40,7 @@ impl Input {
 
     /// Get the next input frame.
     pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
-        let headers = match Headers::read(&mut self.buf, &mut self.stdin).await? {
+        let headers = match Headers::read(&mut self.buf, &mut self.reader).await? {
             Some(headers) => headers,
             None => return Ok(None),
         };
@@ -53,21 +53,21 @@ impl Input {
         };
 
         self.buf.resize(length, 0u8);
-        self.stdin.read_exact(&mut self.buf[..]).await?;
+        self.reader.read_exact(&mut self.buf[..]).await?;
         Ok(Some(Frame { content: &self.buf }))
     }
 }
 
 /// Output connection.
 pub struct Output {
-    stdout: Mutex<rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>>,
+    writer: Mutex<rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>>,
 }
 
 impl Output {
     /// Create a new output connection.
-    pub fn new(stdout: rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
+    pub fn new(writer: rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
         Self {
-            stdout: Mutex::new(stdout),
+            writer: Mutex::new(writer),
         }
     }
 
@@ -174,7 +174,7 @@ impl Output {
         write!(m, "\r\n")?;
         m.append(bytes);
 
-        let mut stdout = self.stdout.lock().await;
+        let mut stdout = self.writer.lock().await;
         stdout.write_all(&m).await?;
         stdout.flush().await?;
         Ok(())
