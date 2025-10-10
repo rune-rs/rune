@@ -1,11 +1,13 @@
 use core::fmt;
 
+#[cfg(feature = "std")]
+use tokio::io::{Stdin, Stdout};
+
 use anyhow::{anyhow, bail, Result};
 use tokio::io::{
     self, AsyncBufRead, AsyncBufReadExt as _, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _,
     BufReader,
 };
-use tokio::sync::Mutex;
 
 use crate::alloc::prelude::*;
 use crate::languageserver::envelope;
@@ -17,27 +19,35 @@ pub(super) struct Frame<'a> {
 }
 
 /// Input connection.
-pub struct Input {
+pub struct Input<I> {
     buf: rust_alloc::vec::Vec<u8>,
-    reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>,
+    reader: I,
 }
 
-impl Input {
+impl<I> Input<I> {
     /// Create a new input connection.
-    pub fn new(reader: rust_alloc::boxed::Box<dyn AsyncBufRead + Unpin>) -> Self {
+    pub fn new(reader: I) -> Self {
         Self {
             buf: rust_alloc::vec::Vec::new(),
             reader,
         }
     }
+}
 
+#[cfg(feature = "std")]
+impl Input<BufReader<Stdin>> {
     /// Create a new input connection from stdin.
-    pub fn from_stdin() -> Result<Self> {
+    pub fn from_stdin() -> Self {
         let stdin = io::stdin();
-        let reader = rust_alloc::boxed::Box::new(BufReader::new(stdin));
-        Ok(Self::new(reader))
+        let reader = BufReader::new(stdin);
+        Self::new(reader)
     }
+}
 
+impl<I> Input<I>
+where
+    I: Unpin + AsyncBufRead,
+{
     /// Get the next input frame.
     pub(super) async fn next(&mut self) -> Result<Option<Frame<'_>>> {
         let headers = match Headers::read(&mut self.buf, &mut self.reader).await? {
@@ -58,28 +68,45 @@ impl Input {
     }
 }
 
-/// Output connection.
-pub struct Output {
-    writer: Mutex<rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>>,
+/// Buffer for outbound data.
+pub(crate) struct Outbound {
+    scratch: rust_alloc::vec::Vec<u8>,
+    buf: rust_alloc::vec::Vec<u8>,
+    write: usize,
 }
 
-impl Output {
-    /// Create a new output connection.
-    pub fn new(writer: rust_alloc::boxed::Box<dyn AsyncWrite + Unpin>) -> Self {
+impl Outbound {
+    pub(crate) fn new() -> Self {
         Self {
-            writer: Mutex::new(writer),
+            scratch: rust_alloc::vec::Vec::new(),
+            buf: rust_alloc::vec::Vec::new(),
+            write: 0,
         }
     }
 
-    /// Create a new output connection from stdout.
-    pub fn from_stdout() -> Result<Self> {
-        let stdout = io::stdout();
-        let writer = rust_alloc::boxed::Box::new(stdout);
-        Ok(Self::new(writer))
+    /// Check if the buffer is empty.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.write >= self.buf.len()
     }
 
-    /// Send the given response.
-    pub(super) async fn response<R>(&self, id: Option<envelope::RequestId>, result: R) -> Result<()>
+    /// Get slice of readable data.
+    pub(crate) fn readable(&self) -> &[u8] {
+        self.buf.get(self.write..).unwrap_or_default()
+    }
+
+    /// Advance the write position by the given amount.
+    pub(crate) fn advance(&mut self, n: usize) {
+        self.write += n;
+
+        if self.write >= self.buf.len() {
+            debug_assert_eq!(self.write, self.buf.len());
+            self.buf.clear();
+            self.write = 0;
+        }
+    }
+
+    /// Write the given response.
+    pub(super) fn response<R>(&mut self, id: Option<envelope::RequestId>, result: R) -> Result<()>
     where
         R: serde::Serialize,
     {
@@ -90,34 +117,37 @@ impl Output {
             error: None::<envelope::ResponseError<()>>,
         };
 
-        let mut bytes = serde_json::to_vec(&response)?;
-        self.write_response(&mut bytes).await?;
+        serde_json::to_writer(&mut self.scratch, &response)?;
+        self.write_buf()?;
         Ok(())
     }
 
-    /// Respond that the given method is not supported.
-    pub(super) async fn method_not_found(&self, id: Option<envelope::RequestId>) -> Result<()> {
+    /// Write that the given method is not supported.
+    pub(super) fn method_not_found(&mut self, id: Option<envelope::RequestId>) -> Result<()> {
         self.error(
             id,
             envelope::Code::MethodNotFound,
             "Method not found",
             None::<()>,
-        )
-        .await?;
+        )?;
         Ok(())
     }
 
-    /// Send the given error as response.
-    pub(super) async fn error<D>(
-        &self,
+    /// Write the given error as response.
+    pub(super) fn error<D>(
+        &mut self,
         id: Option<envelope::RequestId>,
         code: envelope::Code,
-        message: &'static str,
+        message: impl AsRef<str>,
         data: Option<D>,
     ) -> Result<()>
     where
         D: serde::Serialize,
     {
+        let message = message.as_ref();
+
+        tracing::error!(?code, "{message}");
+
         let response = envelope::ResponseMessage {
             jsonrpc: envelope::V2,
             id,
@@ -129,13 +159,13 @@ impl Output {
             }),
         };
 
-        let mut bytes = serde_json::to_vec(&response)?;
-        self.write_response(&mut bytes).await?;
+        serde_json::to_writer(&mut self.scratch, &response)?;
+        self.write_buf()?;
         Ok(())
     }
 
-    /// Send the given notification
-    pub(super) async fn notification<N>(&self, notification: N::Params) -> Result<()>
+    /// Write the given notification
+    pub(super) fn notification<N>(&mut self, notification: N::Params) -> Result<()>
     where
         N: lsp::notification::Notification,
     {
@@ -145,39 +175,77 @@ impl Output {
             params: notification,
         };
 
-        let mut bytes = serde_json::to_vec(&notification)?;
-        self.write_response(&mut bytes).await?;
+        serde_json::to_writer(&mut self.scratch, &notification)?;
+        self.write_buf()?;
         Ok(())
     }
 
-    /// Send a log message.
-    pub(super) async fn log<M>(&self, typ: lsp::MessageType, message: M) -> Result<()>
+    /// Write a log message.
+    pub(super) fn log<M>(&mut self, typ: lsp::MessageType, message: M) -> Result<()>
     where
         M: fmt::Display,
     {
+        match typ {
+            lsp::MessageType::ERROR => tracing::error!("LOG: {message}"),
+            lsp::MessageType::WARNING => tracing::warn!("LOG: {message}"),
+            lsp::MessageType::INFO => tracing::info!("LOG: {message}"),
+            lsp::MessageType::LOG => tracing::debug!("LOG: {message}"),
+            _ => tracing::debug!("LOG: {message}"),
+        }
+
         self.notification::<lsp::notification::LogMessage>(lsp::LogMessageParams {
             typ,
             message: message.try_to_string()?.into_std(),
-        })
-        .await?;
+        })?;
 
         Ok(())
     }
 
-    /// Write the given response body.
-    async fn write_response(&self, bytes: &mut rust_alloc::vec::Vec<u8>) -> Result<()> {
+    /// Write the given response body based on the scratch buffer.
+    fn write_buf(&mut self) -> Result<()> {
         use std::io::Write as _;
 
-        let mut m = rust_alloc::vec::Vec::new();
-
-        write!(m, "Content-Length: {}\r\n", bytes.len())?;
-        write!(m, "\r\n")?;
-        m.append(bytes);
-
-        let mut stdout = self.writer.lock().await;
-        stdout.write_all(&m).await?;
-        stdout.flush().await?;
+        write!(self.buf, "Content-Length: {}\r\n", self.scratch.len())?;
+        write!(self.buf, "\r\n")?;
+        self.buf.extend_from_slice(&self.scratch);
+        self.scratch.clear();
         Ok(())
+    }
+}
+
+/// Output connection.
+pub struct Output<W> {
+    writer: W,
+}
+
+impl<W> Output<W> {
+    /// Create a new output connection.
+    pub fn new(writer: W) -> Self {
+        Self { writer }
+    }
+}
+
+#[cfg(feature = "std")]
+impl Output<Stdout> {
+    /// Create a new output connection from stdout.
+    pub fn from_stdout() -> Self {
+        let stdout = io::stdout();
+        Self::new(stdout)
+    }
+}
+
+impl<W> Output<W>
+where
+    W: Unpin + AsyncWrite,
+{
+    #[inline]
+    pub(crate) async fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.writer.write(buf).await
+    }
+
+    #[inline]
+    pub(crate) async fn flush(&mut self) -> io::Result<()> {
+        self.writer.flush().await
     }
 }
 
@@ -199,7 +267,7 @@ impl Headers {
         reader: &mut S,
     ) -> anyhow::Result<Option<Self>>
     where
-        S: Unpin + AsyncBufRead,
+        S: ?Sized + Unpin + AsyncBufRead,
     {
         let mut headers = Headers::default();
 

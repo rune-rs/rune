@@ -15,44 +15,46 @@
 //! <br>
 //!
 //! A language server for the Rune Language, an embeddable dynamic programming language for Rust.
-use anyhow::{bail, Result};
+
+use anyhow::{anyhow, bail, Result};
 use rune::languageserver::{Input, Output};
 use rune::Options;
 use std::env;
+use std::fs::File;
 use std::path::PathBuf;
-use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::EnvFilter;
 
 pub const VERSION: &str = include_str!(concat!(env!("OUT_DIR"), "/version.txt"));
 
-fn setup_logging() -> Result<Option<WorkerGuard>> {
-    let mut guard = None;
-
-    let env_filter = EnvFilter::from_env("RUNE_LOG");
+fn setup_logging() -> Result<()> {
+    let Ok(env_filter) = EnvFilter::try_from_env("RUNE_LOG") else {
+        return Ok(());
+    };
 
     // Set environment variable to get the language server to trace log to the
     // given file.
-    if let Some(log_path) = std::env::var_os("RUNE_LOG_FILE") {
-        let log_path = PathBuf::from(log_path);
+    let Some(log_path) = std::env::var_os("RUNE_LOG_FILE") else {
+        return Ok(());
+    };
 
-        if let (Some(d), Some(name)) = (log_path.parent(), log_path.file_name()) {
-            let file_appender = tracing_appender::rolling::never(d, name);
-            let (non_blocking, g) = tracing_appender::non_blocking(file_appender);
+    let log_path = PathBuf::from(log_path);
 
-            tracing_subscriber::fmt()
-                .with_env_filter(env_filter)
-                .with_writer(non_blocking)
-                .init();
-
-            guard = Some(g);
-        }
+    if let Some(d) = log_path.parent() {
+        _ = std::fs::create_dir_all(d);
     }
 
-    Ok(guard)
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_writer(File::options().append(true).create(true).open(log_path)?)
+        .try_init()
+        .map_err(|e| anyhow!("{e}"))?;
+
+    Ok(())
 }
 
-fn main() -> Result<()> {
-    let _guard = setup_logging()?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    setup_logging()?;
 
     let mut it = env::args();
     it.next();
@@ -74,18 +76,12 @@ fn main() -> Result<()> {
     }
 
     let context = rune_modules::default_context()?;
-
     let options = Options::from_default_env()?;
 
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
+    let input = Input::from_stdin();
+    let output = Output::from_stdout();
 
-    let result = runtime.block_on(rune::languageserver::run(
-        context,
-        options,
-        (Input::from_stdin()?, Output::from_stdout()?),
-    ));
+    let result = rune::languageserver::run(context, options, input, output).await;
 
     match result {
         Ok(()) => {

@@ -12,9 +12,11 @@ mod fs;
 mod state;
 mod url;
 
+use anyhow::Context as _;
 use lsp::notification::Notification;
 use lsp::request::Request;
 use serde::Deserialize;
+use tokio::io::{AsyncBufRead, AsyncWrite};
 use tokio::sync::Notify;
 
 use crate::alloc::String;
@@ -37,23 +39,32 @@ enum Language {
 pub async fn run(
     context: Context,
     options: Options,
-    (mut input, output): (Input, Output),
+    mut input: Input<impl Unpin + AsyncBufRead>,
+    mut output: Output<impl Unpin + AsyncWrite>,
 ) -> Result<()> {
     let rebuild_notify = Notify::new();
 
     let rebuild = rebuild_notify.notified();
     tokio::pin!(rebuild);
 
-    let mut state = State::new(output, &rebuild_notify, context, options);
+    let mut state = State::new(&rebuild_notify, context, options);
     tracing::info!("Starting server");
-    state.rebuild().await?;
+    state.rebuild()?;
 
     while !state.is_stopped() {
         tokio::select! {
             _ = rebuild.as_mut() => {
                 tracing::info!("rebuilding project");
-                state.rebuild().await?;
+                state.rebuild()?;
                 rebuild.set(rebuild_notify.notified());
+            },
+            len = output.write(state.out.readable()), if !state.out.is_empty() => {
+                let len = len.context("writing output")?;
+                state.out.advance(len);
+
+                if state.out.is_empty() {
+                    output.flush().await.context("flushing output")?;
+                }
             },
             frame = input.next() => {
                 let frame = match frame? {
@@ -66,14 +77,13 @@ pub async fn run(
 
                 // If server is not initialized, reject incoming requests.
                 if !state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
-                    state.output
+                    state.out
                         .error(
                             incoming.id,
                             Code::InvalidRequest,
                             "Server not initialized",
                             None::<()>,
-                        )
-                        .await?;
+                        )?;
 
                     continue;
                 }
@@ -83,21 +93,19 @@ pub async fn run(
                         match incoming.method.as_str() {
                             $(<$req_ty>::METHOD => {
                                 let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
-                                let result = $req_handle(&mut state, params).await?;
-                                state.output.response(incoming.id, result).await?;
+                                let result = $req_handle(&mut state, params)?;
+                                state.out.response(incoming.id, result)?;
                             })*
                             $(<$notif_ty>::METHOD => {
                                 let params = <$notif_ty as Notification>::Params::deserialize(incoming.params)?;
-                                let () = $notif_handle(&mut state, params).await?;
+                                let () = $notif_handle(&mut state, params)?;
                             })*
                             _ => {
-                                state.output
-                                .log(
+                                state.out.log(
                                     lsp::MessageType::INFO,
                                     format!("Unhandled method `{}`", incoming.method),
-                                )
-                                .await?;
-                                state.output.method_not_found(incoming.id).await?;
+                                )?;
+                                state.out.method_not_found(incoming.id)?;
                             }
                         }
                     }
@@ -118,6 +126,11 @@ pub async fn run(
                 }
             },
         }
+    }
+
+    while !state.out.is_empty() {
+        let len = output.write(state.out.readable()).await?;
+        state.out.advance(len);
     }
 
     Ok(())
@@ -142,15 +155,11 @@ fn is_utf8(params: &lsp::InitializeParams) -> bool {
 }
 
 /// Initialize the language state.
-async fn initialize(
-    s: &mut State<'_>,
-    params: lsp::InitializeParams,
-) -> Result<lsp::InitializeResult> {
+fn initialize(s: &mut State<'_>, params: lsp::InitializeParams) -> Result<lsp::InitializeResult> {
     s.initialize();
 
-    s.output
-        .log(lsp::MessageType::INFO, "Starting language server")
-        .await?;
+    s.out
+        .log(lsp::MessageType::INFO, "Starting language server")?;
 
     let position_encoding;
 
@@ -161,12 +170,10 @@ async fn initialize(
         position_encoding = None;
     }
 
-    s.output
-        .log(
-            lsp::MessageType::INFO,
-            format_args!("Using {} position encoding", s.encoding),
-        )
-        .await?;
+    s.out.log(
+        lsp::MessageType::INFO,
+        format_args!("Using {} position encoding", s.encoding),
+    )?;
 
     let capabilities = lsp::ServerCapabilities {
         position_encoding,
@@ -206,7 +213,7 @@ async fn initialize(
         }
 
         if let Ok(manifest_path) = manifest_uri.to_file_path() {
-            if fs::is_file(&manifest_path).await? {
+            if fs::is_file(&manifest_path)? {
                 tracing::trace!(?manifest_uri, ?manifest_path, "Activating workspace");
                 s.workspace.manifest_path = Some((manifest_uri, manifest_path));
                 rebuild = true;
@@ -224,34 +231,32 @@ async fn initialize(
     })
 }
 
-async fn shutdown(s: &mut State<'_>, _: ()) -> Result<()> {
+fn shutdown(s: &mut State<'_>, _: ()) -> Result<()> {
     s.stop();
     Ok(())
 }
 
 /// Handle initialized notification.
-async fn initialized(_: &mut State<'_>, _: lsp::InitializedParams) -> Result<()> {
+fn initialized(_: &mut State<'_>, _: lsp::InitializedParams) -> Result<()> {
     tracing::info!("Initialized");
     Ok(())
 }
 
 /// Handle initialized notification.
-async fn goto_definition(
+fn goto_definition(
     s: &mut State<'_>,
     params: lsp::GotoDefinitionParams,
 ) -> Result<Option<lsp::GotoDefinitionResponse>> {
-    let position = s
-        .goto_definition(
-            &params.text_document_position_params.text_document.uri,
-            params.text_document_position_params.position,
-        )
-        .await?;
+    let position = s.goto_definition(
+        &params.text_document_position_params.text_document.uri,
+        params.text_document_position_params.position,
+    )?;
 
     Ok(position.map(lsp::GotoDefinitionResponse::Scalar))
 }
 
 /// Handle initialized notification.
-async fn completion(
+fn completion(
     state: &mut State<'_>,
     params: lsp::CompletionParams,
 ) -> Result<Option<lsp::CompletionResponse>> {
@@ -267,7 +272,7 @@ async fn completion(
 }
 
 /// Handle formatting request.
-async fn formatting(
+fn formatting(
     state: &mut State<'_>,
     params: lsp::DocumentFormattingParams,
 ) -> Result<Option<rust_alloc::vec::Vec<lsp::TextEdit>>> {
@@ -277,7 +282,7 @@ async fn formatting(
 }
 
 /// Handle formatting request.
-async fn range_formatting(
+fn range_formatting(
     state: &mut State<'_>,
     params: lsp::DocumentRangeFormattingParams,
 ) -> Result<Option<rust_alloc::vec::Vec<lsp::TextEdit>>> {
@@ -287,10 +292,7 @@ async fn range_formatting(
 }
 
 /// Handle open text document.
-async fn did_open_text_document(
-    s: &mut State<'_>,
-    params: lsp::DidOpenTextDocumentParams,
-) -> Result<()> {
+fn did_open_text_document(s: &mut State<'_>, params: lsp::DidOpenTextDocumentParams) -> Result<()> {
     let lagnuage = match params.text_document.language_id.as_str() {
         "rune" => Language::Rune,
         _ => Language::Other,
@@ -315,7 +317,7 @@ async fn did_open_text_document(
 }
 
 /// Handle open text document.
-async fn did_change_text_document(
+fn did_change_text_document(
     s: &mut State<'_>,
     params: lsp::DidChangeTextDocumentParams,
 ) -> Result<()> {
@@ -345,7 +347,7 @@ async fn did_change_text_document(
 }
 
 /// Handle open text document.
-async fn did_close_text_document(
+fn did_close_text_document(
     s: &mut State<'_>,
     params: lsp::DidCloseTextDocumentParams,
 ) -> Result<()> {
@@ -355,10 +357,7 @@ async fn did_close_text_document(
 }
 
 /// Handle saving of text documents.
-async fn did_save_text_document(
-    s: &mut State<'_>,
-    _: lsp::DidSaveTextDocumentParams,
-) -> Result<()> {
+fn did_save_text_document(s: &mut State<'_>, _: lsp::DidSaveTextDocumentParams) -> Result<()> {
     s.rebuild_interest();
     Ok(())
 }
