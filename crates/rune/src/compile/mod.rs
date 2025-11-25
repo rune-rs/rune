@@ -77,5 +77,11 @@ pub(crate) use self::with_span::{HasSpan, WithSpan};
 mod compile;
 pub(crate) use self::compile::compile;
 
+#[cfg(feature = "gradual-typing")]
+pub(crate) mod typeck;
+
+#[cfg(feature = "gradual-typing")]
+pub mod type_info;
+
 /// Helper alias for compile results.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
