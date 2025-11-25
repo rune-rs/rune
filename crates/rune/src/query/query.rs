@@ -80,6 +80,13 @@ impl QueryInner<'_> {
     pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
     }
+
+    /// Iterate over all indexed entries.
+    ///
+    /// This is used by the type checking pass to access function definitions.
+    pub(crate) fn indexed_entries(&self) -> impl Iterator<Item = &crate::indexing::Entry> + '_ {
+        self.indexed.values().flat_map(|entries| entries.iter())
+    }
 }
 
 pub(crate) struct QuerySource<'a, 'arena> {
@@ -1619,6 +1626,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     constructor: None,
                     parameters: Hash::EMPTY,
                     enum_hash: enum_meta.hash,
+                    field_types: None, // Enum variants don't have field type annotations yet
                 }
             }
             Indexed::Struct(st) => meta::Kind::Struct {
@@ -1626,6 +1634,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 constructor: None,
                 parameters: Hash::EMPTY,
                 enum_hash: Hash::EMPTY,
+                field_types: st.field_types.try_clone()?,
             },
             Indexed::Function(f) => {
                 let kind = meta::Kind::Function {

@@ -442,6 +442,9 @@ impl<'a> Processor<'a> {
                 is_bench: false,
                 impl_item: None,
                 args: Vec::new(),
+                is_async: false,
+                param_types: None,
+                return_type: None,
             }),
         })?;
 
@@ -556,6 +559,10 @@ impl<'a> Processor<'a> {
                 is_bench,
                 impl_item: idx.item.impl_item,
                 args,
+                // TODO: Extract type info from Node AST when gradual-typing is enabled
+                is_async: false,
+                param_types: None,
+                return_type: None,
             }),
         };
 
@@ -910,7 +917,13 @@ fn item_struct(
 
     let fields = p.pump()?.parse(|p| fields(idx, p))?;
 
-    idx.q.index_struct(item_meta, indexing::Struct { fields })?;
+    idx.q.index_struct(
+        item_meta,
+        indexing::Struct {
+            fields,
+            field_types: None, // Grammar-based parsing doesn't have type info yet
+        },
+    )?;
 
     idx.items.pop(guard).with_span(&*p)?;
 

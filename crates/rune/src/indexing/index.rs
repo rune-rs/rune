@@ -1,7 +1,5 @@
 use core::mem::take;
 
-use tracing::instrument_ast;
-
 use crate::alloc::prelude::*;
 use crate::alloc::VecDeque;
 use crate::ast::{self, OptionSpanned, Spanned};
@@ -13,6 +11,8 @@ use crate::parse::{Resolve, ResolveContext};
 use crate::query::{DeferEntry, ImplItem, ImplItemKind};
 use crate::runtime::Call;
 use crate::worker::{Import, ImportKind, ImportState};
+use crate::{SourceId, Sources};
+use tracing::instrument_ast;
 
 use super::{ast_to_visibility, validate_call, Indexer};
 
@@ -221,6 +221,9 @@ pub(crate) fn empty_block_fn(
             is_bench: false,
             impl_item: None,
             args: Vec::new(),
+            is_async: false,
+            param_types: None,
+            return_type: None,
         }),
     })?;
 
@@ -244,11 +247,10 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
     for (arg, _) in &mut ast.args {
         match arg {
             ast::FnArg::Pat(p) => pat(idx, p)?,
-            ast::FnArg::Typed(_) => {
-                return Err(compile::Error::msg(
-                    arg,
-                    "Type annotations are not yet fully supported",
-                ));
+            ast::FnArg::Typed(typed) => {
+                // Type annotations are now supported (gradual typing)
+                // Just index the pattern part
+                pat(idx, &mut typed.pat)?;
             }
             _ => {}
         }
@@ -324,12 +326,8 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
         ));
     }
 
-    if ast.output.is_some() {
-        return Err(compile::Error::msg(
-            &ast,
-            "Adding a return type in functions is not supported",
-        ));
-    }
+    // Return type annotations are now supported (gradual typing)
+    // Type checking will happen during HIR lowering
 
     let is_instance = ast.is_instance();
 
@@ -359,6 +357,9 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
     let name = ast.name;
     let args = ast.args.iter().map(|(a, _)| a.span()).try_collect()?;
 
+    let (is_async, param_types, return_type) =
+        extract_type_info(idx.q.sources, item_meta.location.source_id, &ast)?;
+
     let entry = indexing::Entry {
         item_meta,
         indexed: Indexed::Function(indexing::Function {
@@ -369,6 +370,9 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
             is_bench,
             impl_item: idx.item.impl_item,
             args,
+            is_async,
+            param_types,
+            return_type,
         }),
     };
 
@@ -965,13 +969,8 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
             ));
         }
 
-        if field.ty.is_some() {
-            return Err(compile::Error::msg(
-                field,
-                "Static typing on fields is not supported",
-            ));
-        }
-
+        // Type annotations are now supported (gradual typing)
+        // The type will be checked during type checking phase, not indexing
         let name = field.name.resolve(cx)?;
 
         for doc in docs {
@@ -998,8 +997,18 @@ fn item_struct(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStruct) -> compile::
     idx.item = idx_item;
     idx.items.pop(guard).with_span(&ast)?;
 
+    // Collect field type annotations for gradual typing (before body is moved)
+    let field_types = collect_field_types(resolve_context!(idx.q), &ast.body)?;
+
     let fields = convert_fields(resolve_context!(idx.q), ast.body)?;
-    idx.q.index_struct(item_meta, indexing::Struct { fields })?;
+
+    idx.q.index_struct(
+        item_meta,
+        indexing::Struct {
+            fields,
+            field_types,
+        },
+    )?;
     Ok(())
 }
 
@@ -1260,11 +1269,10 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
             ast::FnArg::Pat(p) => {
                 pat(idx, p)?;
             }
-            ast::FnArg::Typed(_) => {
-                return Err(compile::Error::msg(
-                    arg,
-                    "Type annotations are not yet fully supported",
-                ));
+            ast::FnArg::Typed(typed) => {
+                // Type annotations are now supported (gradual typing)
+                // Just index the pattern part
+                pat(idx, &mut typed.pat)?;
             }
         }
     }
@@ -1377,4 +1385,98 @@ fn convert_fields(cx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<
             })
         }
     })
+}
+
+/// Collect field type annotations for gradual typing.
+fn collect_field_types(
+    cx: ResolveContext<'_>,
+    body: &ast::Fields,
+) -> compile::Result<Option<Box<[(Box<str>, Option<ast::Type>)]>>> {
+    match body {
+        ast::Fields::Named(st) => {
+            let mut field_types = Vec::try_with_capacity(st.len())?;
+
+            for (ast::Field { name, ty, .. }, _) in st.iter() {
+                let field_name = name.resolve(cx)?;
+
+                // Store ALL fields with Option<Type> - None for untyped fields
+                let field_type = match ty {
+                    Some((_, t)) => Some(t.try_clone()?),
+                    None => None,
+                };
+
+                field_types.try_push((field_name.try_into()?, field_type))?;
+            }
+
+            if field_types.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(field_types.try_into()?))
+            }
+        }
+        _ => Ok(None), // Tuple structs and empty structs don't have type annotations
+    }
+}
+
+/// Extract type annotations from an AST function.
+fn extract_type_info(
+    sources: &Sources,
+    source_id: SourceId,
+    ast: &ast::ItemFn,
+) -> compile::Result<(
+    bool,
+    Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+    Option<Box<str>>,
+)> {
+    use crate::alloc::Box;
+    use crate::ast::Spanned;
+
+    let is_async = ast.async_token.is_some();
+
+    // Extract parameter types
+    let mut param_types = Vec::new();
+    for (arg, _) in ast.args.iter() {
+        let (name, ty_opt) = match arg {
+            ast::FnArg::SelfValue(_) => (Box::try_from("self")?, None),
+            ast::FnArg::Pat(pat) => {
+                let name = sources
+                    .source(source_id, pat.span())
+                    .map(Box::try_from)
+                    .transpose()?
+                    .unwrap_or_else(|| Box::try_from("_").unwrap_or_default());
+                (name, None)
+            }
+            ast::FnArg::Typed(typed) => {
+                let name = sources
+                    .source(source_id, typed.pat.span())
+                    .map(Box::try_from)
+                    .transpose()?
+                    .unwrap_or_else(|| Box::try_from("_").unwrap_or_default());
+                let ty = sources
+                    .source(source_id, typed.ty.span())
+                    .map(Box::try_from)
+                    .transpose()?;
+                (name, ty)
+            }
+        };
+        param_types.try_push((name, ty_opt))?;
+    }
+
+    let param_types = if param_types.is_empty() {
+        None
+    } else {
+        Some(param_types.try_into_boxed_slice()?)
+    };
+
+    // Extract return type
+    let return_type = if let Some((_, ty)) = &ast.output {
+        sources
+            .source(source_id, ty.span())
+            .map(Box::try_from)
+            .transpose()?
+    } else {
+        None
+    };
+
+    Ok((is_async, param_types, return_type))
 }

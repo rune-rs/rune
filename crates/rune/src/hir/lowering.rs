@@ -44,6 +44,11 @@ pub(crate) fn item_fn<'hir>(
 ) -> compile::Result<hir::ItemFn<'hir>> {
     alloc_with!(cx, ast);
 
+    // Type check the function if it has type annotations (gradual typing)
+    // This integrates type checking into the HIR lowering pass
+    let options = cx.q.options;
+    hir::check_function_if_annotated(&mut cx.q, cx.source_id, ast, options)?;
+
     Ok(hir::ItemFn {
         span: ast.span(),
         args: iter!(&ast.args, |(ast, _)| fn_arg(cx, ast)?),
@@ -331,6 +336,18 @@ fn expr_object<'hir>(
         ast::ObjectIdent::Named(path) => {
             let named = cx.q.convert_path(path)?;
             let parameters = generics_parameters(cx, &named)?;
+
+            // Type check struct field assignments if types are present (gradual typing)
+            // Do this before we look up metadata to avoid borrow checker issues
+            let options = cx.q.options;
+            hir::check_struct_literal_if_typed_with_item(
+                &mut cx.q,
+                cx.source_id,
+                ast,
+                named.item,
+                options,
+            )?;
+
             let meta = cx.lookup_meta(path, named.item, parameters)?;
             let item = cx.q.pool.item(meta.item_meta.item);
 
@@ -1138,11 +1155,10 @@ fn fn_arg<'hir>(
             hir::FnArg::SelfValue(ast.span(), id)
         }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat_binding(cx, ast)?)),
-        ast::FnArg::Typed(_) => {
-            return Err(compile::Error::msg(
-                ast,
-                "Type annotations are not yet fully supported",
-            ));
+        ast::FnArg::Typed(typed) => {
+            // Type annotations are now supported (gradual typing)
+            // Lower just the pattern part - type checking happens in item_fn
+            hir::FnArg::Pat(alloc!(pat_binding(cx, &typed.pat)?))
         }
     })
 }

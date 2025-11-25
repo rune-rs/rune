@@ -6,6 +6,7 @@ mod scopes;
 
 use crate as rune;
 use crate::alloc::prelude::*;
+use crate::alloc::Box;
 use crate::ast::{self, Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{ItemId, ItemMeta};
@@ -89,6 +90,12 @@ pub(crate) struct Function {
     pub(crate) impl_item: Option<ItemId>,
     /// Spans of the arguments to the function for diagnostics.
     pub(crate) args: Vec<Span>,
+    /// Whether this function is async.
+    pub(crate) is_async: bool,
+    /// Type annotations for parameters (param_name, optional type string).
+    pub(crate) param_types: Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+    /// Return type annotation if present.
+    pub(crate) return_type: Option<Box<str>>,
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -106,6 +113,10 @@ pub(crate) struct Import {
 pub(crate) struct Struct {
     /// The fields of the struct.
     pub(crate) fields: meta::Fields,
+    /// Field type annotations (for gradual typing).
+    /// Maps field name to its optional type annotation AST.
+    /// None for a field means no type annotation was provided.
+    pub(crate) field_types: Option<Box<[(Box<str>, Option<ast::Type>)]>>,
 }
 
 #[derive(Debug, TryClone)]

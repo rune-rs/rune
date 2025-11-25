@@ -31,6 +31,10 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     pub(super) statements: Vec<hir::Stmt<'hir>>,
     pub(super) pattern_bindings: Vec<hir::Variable>,
     pub(super) label: Option<ast::Label>,
+    /// Type inference context for gradual typing (None if not type checking)
+    /// Note: Currently unused as type checking is done per-function
+    #[allow(dead_code)]
+    pub(super) type_inference: Option<()>,
 }
 
 impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
@@ -78,6 +82,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             statements: Vec::new(),
             pattern_bindings: Vec::new(),
             label: None,
+            type_inference: None,
         })
     }
 

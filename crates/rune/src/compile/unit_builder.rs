@@ -696,6 +696,7 @@ impl UnitBuilder {
     }
 
     /// Declare a new instance function at the current instruction pointer.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_function(
         &mut self,
         location: Location,
@@ -708,6 +709,9 @@ impl UnitBuilder {
         debug_args: Box<[Box<str>]>,
         unit_storage: &mut dyn UnitEncoder,
         size: usize,
+        is_async: bool,
+        param_types: Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+        return_type: Option<Box<str>>,
     ) -> compile::Result<()> {
         tracing::trace!("instance fn: {}", item);
 
@@ -719,7 +723,14 @@ impl UnitBuilder {
             args,
             captures,
         };
-        let signature = DebugSignature::new(item.try_to_owned()?, DebugArgs::Named(debug_args));
+
+        let signature = DebugSignature::with_types(
+            item.try_to_owned()?,
+            DebugArgs::Named(debug_args),
+            is_async,
+            param_types,
+            return_type,
+        );
 
         if let Some((type_hash, name)) = instance {
             let instance_fn = Hash::associated_function(type_hash, name);

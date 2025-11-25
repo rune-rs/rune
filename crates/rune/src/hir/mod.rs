@@ -18,3 +18,8 @@ pub(crate) mod interpreter;
 mod ctxt;
 pub(crate) use self::ctxt::Ctxt;
 use self::ctxt::Needs;
+
+pub(crate) mod typeck;
+pub(crate) use self::typeck::{
+    check_function_if_annotated, check_struct_literal_if_typed_with_item,
+};

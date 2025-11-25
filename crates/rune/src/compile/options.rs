@@ -126,6 +126,10 @@ pub struct Options {
     pub(crate) max_macro_depth: usize,
     /// Rune format options.
     pub(crate) fmt: FmtOptions,
+    /// Enable strict type checking (gradual typing).
+    ///
+    /// When enabled, type mismatches produce errors instead of warnings.
+    pub(crate) strict_types: bool,
 }
 
 impl Options {
@@ -143,6 +147,7 @@ impl Options {
         v2: false,
         max_macro_depth: 64,
         fmt: FmtOptions::DEFAULT,
+        strict_types: false,
     };
 
     /// Construct lossy rune options from the `RUNEFLAGS` environment variable.
@@ -305,6 +310,18 @@ impl Options {
                 default: "true",
                 options: BOOL,
             },
+            OptionMeta {
+                key: "strict-types",
+                unstable: false,
+                doc: &docstring! {
+                    /// Enable strict type checking.
+                    ///
+                    /// When enabled, type mismatches produce compilation
+                    /// errors instead of warnings.
+                },
+                default: "false",
+                options: BOOL,
+            },
         ];
 
         VALUES
@@ -384,6 +401,9 @@ impl Options {
 
                     self.max_macro_depth = number;
                 }
+                "strict-types" => {
+                    self.strict_types = tail.is_none_or(|s| s == "true");
+                }
                 other => {
                     let Some((head, tail)) = other.split_once('.') else {
                         return Err(ParseOptionError {
@@ -456,6 +476,15 @@ impl Options {
     #[inline]
     pub fn script(&mut self, enabled: bool) {
         self.script = enabled;
+    }
+
+    /// Enable strict type checking.
+    ///
+    /// When enabled, type mismatches produce compilation errors instead of
+    /// warnings. Defaults to `false` (warnings only).
+    #[inline]
+    pub fn strict_types(&mut self, enabled: bool) {
+        self.strict_types = enabled;
     }
 }
 

@@ -22,6 +22,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
+use crate::runtime::debug::{DebugArgs, DebugSignature};
 use crate::runtime::{Address, Call, ConstValue, DebugInfo, Inst, Rtti, StaticString};
 use crate::sync::Arc;
 use crate::Hash;
@@ -236,6 +237,161 @@ impl<S> Unit<S> {
     #[inline]
     pub(crate) fn constant(&self, hash: &Hash) -> Option<&ConstValue> {
         self.logic.constants.get(hash)
+    }
+
+    /// Iterate over all function signatures with type information.
+    ///
+    /// Returns an iterator of [`FunctionSignature`] for all functions in the unit.
+    ///
+    /// [`FunctionSignature`]: crate::compile::type_info::FunctionSignature
+    pub fn function_signatures(
+        &self,
+    ) -> impl Iterator<Item = crate::compile::type_info::FunctionSignature> + '_ {
+        let debug = self.debug_info();
+        debug
+            .into_iter()
+            .flat_map(|d| d.functions.iter())
+            .filter_map(|(hash, sig)| self.build_function_signature(*hash, sig))
+    }
+
+    /// Get signature for a specific function by hash.
+    ///
+    /// Returns `None` if the function is not found or debug info is unavailable.
+    pub fn function_signature(
+        &self,
+        hash: Hash,
+    ) -> Option<crate::compile::type_info::FunctionSignature> {
+        let debug = self.debug_info()?;
+        let sig = debug.functions.get(&hash)?;
+        self.build_function_signature(hash, sig)
+    }
+
+    /// Get signature for a function by name (last path component).
+    ///
+    /// Returns the first function found with the given name.
+    pub fn function_signature_by_name(
+        &self,
+        name: &str,
+    ) -> Option<crate::compile::type_info::FunctionSignature> {
+        let debug = self.debug_info()?;
+        for (hash, sig) in &debug.functions {
+            let last_component = sig.path.last().and_then(|c| c.as_str());
+            if last_component == Some(name) {
+                return self.build_function_signature(*hash, sig);
+            }
+        }
+        None
+    }
+
+    /// Build a FunctionSignature from a DebugSignature.
+    fn build_function_signature(
+        &self,
+        hash: Hash,
+        sig: &DebugSignature,
+    ) -> Option<crate::compile::type_info::FunctionSignature> {
+        use crate::alloc::prelude::*;
+        use crate::compile::type_info::{FunctionSignature, ParameterType};
+
+        let name = sig
+            .path
+            .last()
+            .and_then(|c| c.as_str())
+            .unwrap_or("")
+            .try_to_string()
+            .ok()?;
+        let path = sig.path.try_to_string().ok()?;
+
+        // Build parameters from param_types if available, otherwise from args
+        let parameters = if let Some(param_types) = &sig.param_types {
+            let mut params = Vec::new();
+            for (position, (param_name, type_str)) in param_types.iter().enumerate() {
+                let type_info = type_str.as_ref().map(|s| parse_type_string(s));
+                params
+                    .try_push(ParameterType {
+                        name: param_name.as_ref().try_to_string().ok()?,
+                        type_info,
+                        position,
+                    })
+                    .ok()?;
+            }
+            params
+        } else {
+            // Fall back to args for parameter names without types
+            match &sig.args {
+                DebugArgs::Named(names) => {
+                    let mut params = Vec::new();
+                    for (position, name) in names.iter().enumerate() {
+                        params
+                            .try_push(ParameterType {
+                                name: name.as_ref().try_to_string().ok()?,
+                                type_info: None,
+                                position,
+                            })
+                            .ok()?;
+                    }
+                    params
+                }
+                DebugArgs::TupleArgs(count) => {
+                    let mut params = Vec::new();
+                    for position in 0..*count {
+                        let mut name = String::new();
+                        use crate::alloc::fmt::TryWrite;
+                        write!(name, "arg{}", position).ok()?;
+                        params
+                            .try_push(ParameterType {
+                                name,
+                                type_info: None,
+                                position,
+                            })
+                            .ok()?;
+                    }
+                    params
+                }
+                DebugArgs::EmptyArgs => Vec::new(),
+            }
+        };
+
+        let return_type = sig.return_type.as_ref().map(|s| parse_type_string(s));
+
+        Some(FunctionSignature {
+            name,
+            path,
+            hash,
+            is_async: sig.is_async,
+            parameters,
+            return_type,
+        })
+    }
+}
+
+/// Parse a type string into AnnotatedType.
+fn parse_type_string(s: &str) -> crate::compile::type_info::AnnotatedType {
+    use crate::compile::type_info::AnnotatedType;
+
+    let s = s.trim();
+
+    // Handle tuple types
+    if s.starts_with('(') && s.ends_with(')') {
+        let inner = &s[1..s.len() - 1];
+        if inner.is_empty() {
+            return AnnotatedType::Tuple(Vec::new());
+        }
+        // Simple split by comma (doesn't handle nested tuples perfectly, but good enough for now)
+        let mut parts = Vec::new();
+        for p in inner.split(',') {
+            let _ = parts.try_push(parse_type_string(p.trim()));
+        }
+        return AnnotatedType::Tuple(parts);
+    }
+
+    // Handle never type
+    if s == "!" {
+        return AnnotatedType::Never;
+    }
+
+    // Named type
+    AnnotatedType::Named {
+        path: s.try_into().unwrap_or_default(),
     }
 }
 

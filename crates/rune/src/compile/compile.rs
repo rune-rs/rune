@@ -87,6 +87,9 @@ pub(crate) fn compile(
         return Ok(());
     }
 
+    // Type checking is now integrated into HIR lowering (see hir::lowering::item_fn)
+    // No separate pass needed
+
     loop {
         while let Some(entry) = worker.q.next_build_entry() {
             tracing::trace!(item = ?worker.q.pool.item(entry.item_meta.item), "next build entry");
@@ -268,6 +271,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         debug_args,
                         unit_storage,
                         size,
+                        f.is_async,
+                        f.param_types.try_clone()?,
+                        f.return_type.try_clone()?,
                     )?;
                 }
 
@@ -315,6 +321,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                                     debug_args,
                                     unit_storage,
                                     size,
+                                    false,
+                                    None,
+                                    None,
                                 )?;
                             }
                         }
@@ -346,6 +355,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                                     Default::default(),
                                     unit_storage,
                                     size,
+                                    true, // async blocks are always async
+                                    None,
+                                    None,
                                 )?;
                             }
                         }

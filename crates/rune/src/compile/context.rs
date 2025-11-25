@@ -768,6 +768,7 @@ impl Context {
                         constructor,
                         parameters,
                         enum_hash: Hash::EMPTY,
+                        field_types: None, // Native types don't have field type annotations
                     }
                 }
                 TypeSpecification::Enum(en) => {
@@ -854,6 +855,7 @@ impl Context {
                                 constructor,
                                 parameters: Hash::EMPTY,
                                 enum_hash: ty.hash,
+                                field_types: None, // Native variant types don't have field type annotations
                             },
                             #[cfg(feature = "doc")]
                             deprecated: variant.deprecated.try_clone()?,

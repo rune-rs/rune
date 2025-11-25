@@ -183,6 +183,10 @@ pub enum Kind {
         ///
         /// If this is not a variant, this is [Hash::EMPTY].
         enum_hash: Hash,
+        /// Field type annotations (for gradual typing).
+        /// Maps field name to its optional type annotation AST.
+        /// None for a field means no type annotation was provided.
+        field_types: Option<alloc::Box<[(alloc::Box<str>, Option<crate::ast::Type>)]>>,
     },
     /// An enum item.
     Enum {

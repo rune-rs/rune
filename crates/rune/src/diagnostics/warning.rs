@@ -41,6 +41,7 @@ impl WarningDiagnostic {
             | WarningDiagnosticKind::NotUsed { context, .. }
             | WarningDiagnosticKind::UsedDeprecated { context, .. }
             | WarningDiagnosticKind::TemplateWithoutExpansions { context, .. } => *context,
+            WarningDiagnosticKind::TypeMismatch { .. } => None,
             _ => None,
         }
     }
@@ -57,6 +58,7 @@ impl Spanned for WarningDiagnostic {
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
             WarningDiagnosticKind::UnnecessarySemiColon { span, .. } => *span,
             WarningDiagnosticKind::UsedDeprecated { span, .. } => *span,
+            WarningDiagnosticKind::TypeMismatch { span, .. } => *span,
         }
     }
 }
@@ -87,6 +89,17 @@ pub(crate) enum WarningDiagnosticKind {
         /// The context in which the value was not used.
         #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
+    },
+    /// Type mismatch detected during gradual type checking.
+    TypeMismatch {
+        /// The span where the mismatch was detected.
+        span: Span,
+        /// The expected type as a string.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
+        expected: String,
+        /// The actual type as a string.
+        #[cfg_attr(not(feature = "emit"), allow(dead_code))]
+        actual: String,
     },
     /// Unreachable code.
     Unreachable {
@@ -160,6 +173,11 @@ impl fmt::Display for WarningDiagnosticKind {
             }
             WarningDiagnosticKind::UsedDeprecated { message, .. } => {
                 write!(f, "Used deprecated function: {message}")
+            }
+            WarningDiagnosticKind::TypeMismatch {
+                expected, actual, ..
+            } => {
+                write!(f, "Type mismatch: expected `{expected}`, found `{actual}`")
             }
         }
     }

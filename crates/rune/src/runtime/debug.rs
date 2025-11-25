@@ -106,13 +106,47 @@ pub struct DebugSignature {
     pub path: ItemBuf,
     /// The number of arguments expected in the function.
     pub args: DebugArgs,
+    /// Whether this is an async function.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub is_async: bool,
+    /// Type annotations for parameters (name, type_string) pairs.
+    /// `None` type_string means the parameter is untyped.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub param_types: Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+    /// Return type annotation if present.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub return_type: Option<Box<str>>,
 }
 
 impl DebugSignature {
     /// Construct a new function signature.
     #[inline]
     pub fn new(path: ItemBuf, args: DebugArgs) -> Self {
-        Self { path, args }
+        Self {
+            path,
+            args,
+            is_async: false,
+            param_types: None,
+            return_type: None,
+        }
+    }
+
+    /// Construct a new function signature with type information.
+    #[inline]
+    pub fn with_types(
+        path: ItemBuf,
+        args: DebugArgs,
+        is_async: bool,
+        param_types: Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+        return_type: Option<Box<str>>,
+    ) -> Self {
+        Self {
+            path,
+            args,
+            is_async,
+            param_types,
+            return_type,
+        }
     }
 }
 

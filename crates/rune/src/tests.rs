@@ -112,6 +112,27 @@ pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Uni
     Ok(unit)
 }
 
+/// Compile the given source with custom options.
+#[doc(hidden)]
+pub fn compile_with_options(
+    source: &str,
+    diagnostics: &mut Diagnostics,
+    options: &Options,
+) -> Result<Unit, BuildError> {
+    let context = crate::Context::with_default_modules().expect("setting up default modules");
+
+    let mut sources = Sources::new();
+    sources.insert(Source::new("main", source)?)?;
+
+    let unit = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(diagnostics)
+        .with_options(options)
+        .build()?;
+
+    Ok(unit)
+}
+
 /// Construct a virtual machine for the given sources.
 #[doc(hidden)]
 pub fn vm(
@@ -497,6 +518,8 @@ mod function_guardedargs;
 #[cfg(not(miri))]
 mod getter_setter;
 #[cfg(not(miri))]
+mod gradual_typing;
+#[cfg(not(miri))]
 mod iterator;
 #[cfg(not(miri))]
 mod macros;
@@ -517,9 +540,9 @@ mod rename_type;
 #[cfg(not(miri))]
 mod result;
 #[cfg(not(miri))]
-mod static_typing;
-#[cfg(not(miri))]
 mod tuple;
+#[cfg(not(miri))]
+mod type_extraction;
 #[cfg(not(miri))]
 mod type_name_native;
 #[cfg(not(miri))]

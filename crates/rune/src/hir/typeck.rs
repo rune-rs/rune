@@ -1,29 +1,74 @@
-//! Type checking pass for gradual typing (Phase 2).
+//! Type checking during HIR lowering for gradual typing.
 //!
-//! This module implements type validation for explicitly annotated code
-//! in accordance with gradual typing semantics:
+//! This module implements type validation integrated into the HIR lowering process.
+//! Type checking happens as expressions are lowered, providing:
 //!
+//! - Single AST walk (better performance)
+//! - Type information available during lowering
+//! - Direct access to Query for hash→name resolution
+//!
+//! Gradual typing semantics:
 //! - Functions with return type annotations are checked against their body
 //! - Untyped code is treated as having type `Any` and bypasses checking
 //! - Type mismatches produce warnings by default, errors in strict mode
-//! - Type inference for expressions (literals, binary ops, blocks, etc.)
 //!
-//! Phase 2B adds local type inference:
+//! Type inference:
 //! - Type variables for inference
 //! - Unification algorithm
 //! - Variable binding tracking
-//! - Expression type inference
-//!
-//! See GRADUAL_TYPING_PLAN.md for the full implementation roadmap.
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{self, NumberSource, Spanned};
-use crate::compile::{self, Location, Options};
-use crate::diagnostics::WarningDiagnosticKind;
-use crate::indexing::{FunctionAst, Indexed};
+use crate::compile::{self, Options};
 use crate::query::{Query, Used};
 use crate::{Hash, SourceId, Sources};
+
+use once_cell::sync::Lazy;
+
+// ============================================================================
+// Builtin Type Hash Cache
+// ============================================================================
+
+/// Cache of builtin type hashes to avoid repeated computation.
+/// Maps type name to its hash value.
+static BUILTIN_TYPE_HASHES: Lazy<std::collections::HashMap<&'static str, u64>> = Lazy::new(|| {
+    let mut map = std::collections::HashMap::new();
+
+    // Helper to compute hash - these paths are known to be valid
+    let hash = |name: &str| -> u64 {
+        let item = crate::ItemBuf::with_crate("std")
+            .expect("std crate path should be valid")
+            .extended(name)
+            .expect("builtin type name should be valid");
+        Hash::type_hash(&item).into_inner()
+    };
+
+    map.insert("i64", hash("i64"));
+    map.insert("i32", hash("i32"));
+    map.insert("i16", hash("i16"));
+    map.insert("i8", hash("i8"));
+    map.insert("u64", hash("u64"));
+    map.insert("u32", hash("u32"));
+    map.insert("u16", hash("u16"));
+    map.insert("u8", hash("u8"));
+    map.insert("f64", hash("f64"));
+    map.insert("f32", hash("f32"));
+    map.insert("bool", hash("bool"));
+    map.insert("char", hash("char"));
+    map.insert("String", hash("String"));
+    map.insert("Bytes", hash("Bytes"));
+
+    map
+});
+
+/// Reverse mapping: hash value to type name for display purposes.
+static BUILTIN_HASH_NAMES: Lazy<std::collections::HashMap<u64, &'static str>> = Lazy::new(|| {
+    BUILTIN_TYPE_HASHES
+        .iter()
+        .map(|(&k, &v)| (v, k))
+        .collect()
+});
 
 // ============================================================================
 // Type Variables for Inference
@@ -65,7 +110,7 @@ impl TryClone for ResolvedType {
 
 impl ResolvedType {
     /// Convert AST type to resolved type.
-    fn from_ast_type(
+    pub(crate) fn from_ast_type(
         ty: &ast::Type,
         q: &mut Query<'_, '_>,
         _source_id: SourceId,
@@ -74,10 +119,27 @@ impl ResolvedType {
             ast::Type::Path(path) => {
                 // Resolve the path to get its hash
                 let named = q.convert_path(path)?;
-                let meta = q
-                    .query_meta(path, named.item, Used::Used)?
-                    .ok_or_else(|| compile::Error::msg(path, "Type not found"))?;
-                Ok(ResolvedType::Named(meta.hash))
+
+                // Try to query metadata first
+                if let Some(meta) = q.query_meta(path, named.item, Used::Used)? {
+                    Ok(ResolvedType::Named(meta.hash))
+                } else {
+                    // If metadata doesn't exist, it might be a built-in type
+                    // Compute the hash directly from the item
+                    let item = q.pool.item(named.item);
+                    let computed_hash = Hash::type_hash(item);
+
+                    // Check if this is a builtin type and use cached hash for consistency
+                    if let Some(last) = item.last() {
+                        if let Some(type_name) = last.as_str() {
+                            if let Some(&cached_hash) = BUILTIN_TYPE_HASHES.get(type_name) {
+                                return Ok(ResolvedType::Named(Hash::new(cached_hash)));
+                            }
+                        }
+                    }
+
+                    Ok(ResolvedType::Named(computed_hash))
+                }
             }
             ast::Type::Bang(_) => Ok(ResolvedType::Never),
             ast::Type::Tuple(tuple) => {
@@ -91,29 +153,24 @@ impl ResolvedType {
     }
 
     /// Get the type of a literal.
-    fn from_literal(lit: &ast::Lit) -> compile::Result<Self> {
-        use crate::ItemBuf;
-
+    ///
+    /// Uses cached builtin type hashes for performance.
+    pub(crate) fn from_literal(lit: &ast::Lit) -> compile::Result<Self> {
         Ok(match lit {
             ast::Lit::Bool(_) => {
-                let item = ItemBuf::with_item(["bool"])?;
-                ResolvedType::Named(Hash::type_hash(&item))
+                ResolvedType::Named(Hash::new(BUILTIN_TYPE_HASHES["bool"]))
             }
             ast::Lit::Byte(_) => {
-                let item = ItemBuf::with_item(["u8"])?;
-                ResolvedType::Named(Hash::type_hash(&item))
+                ResolvedType::Named(Hash::new(BUILTIN_TYPE_HASHES["u8"]))
             }
             ast::Lit::Str(_) => {
-                let item = ItemBuf::with_item(["String"])?;
-                ResolvedType::Named(Hash::type_hash(&item))
+                ResolvedType::Named(Hash::new(BUILTIN_TYPE_HASHES["String"]))
             }
             ast::Lit::ByteStr(_) => {
-                let item = ItemBuf::with_item(["Bytes"])?;
-                ResolvedType::Named(Hash::type_hash(&item))
+                ResolvedType::Named(Hash::new(BUILTIN_TYPE_HASHES["Bytes"]))
             }
             ast::Lit::Char(_) => {
-                let item = ItemBuf::with_item(["char"])?;
-                ResolvedType::Named(Hash::type_hash(&item))
+                ResolvedType::Named(Hash::new(BUILTIN_TYPE_HASHES["char"]))
             }
             ast::Lit::Number(num) => {
                 // Check if it's a float or integer
@@ -121,28 +178,40 @@ impl ResolvedType {
                     NumberSource::Text(text) => text.is_fractional,
                     NumberSource::Synthetic(_) => false,
                 };
-                let item = if is_float {
-                    ItemBuf::with_item(["f64"])?
+                let hash = if is_float {
+                    BUILTIN_TYPE_HASHES["f64"]
                 } else {
-                    ItemBuf::with_item(["i64"])?
+                    BUILTIN_TYPE_HASHES["i64"]
                 };
-                ResolvedType::Named(Hash::type_hash(&item))
+                ResolvedType::Named(Hash::new(hash))
             }
         })
     }
 
     /// Convert to display string for error messages.
-    fn to_display_string(&self, q: &Query<'_, '_>) -> compile::Result<String> {
+    pub(crate) fn to_display_string(&self, q: &Query<'_, '_>) -> compile::Result<String> {
+        self.to_display_string_impl(q)
+    }
+
+    /// Implementation of to_display_string.
+    /// Separated to avoid clippy's only_used_in_recursion warning.
+    /// Note: `q` is intentionally only used in recursive calls (for Tuple types).
+    #[allow(clippy::only_used_in_recursion)]
+    fn to_display_string_impl(&self, q: &Query<'_, '_>) -> compile::Result<String> {
         use crate::alloc::fmt::TryWrite;
 
         Ok(match self {
             ResolvedType::Named(hash) => {
-                // TODO: Implement hash-to-name lookup via Query
-                // For now, format as hex - this will be improved when we integrate
-                // type checking into HIR lowering where we have better access to type info
-                let _ = q; // Suppress unused warning
+                let hash_value = hash.into_inner();
+
+                // Fast lookup in cached builtin types
+                if let Some(&name) = BUILTIN_HASH_NAMES.get(&hash_value) {
+                    return Ok(String::try_from(name)?);
+                }
+
+                // Fallback to hex for unknown types
                 let mut s = String::new();
-                write!(s, "0x{:x}", hash.into_inner())?;
+                write!(s, "0x{:x}", hash_value)?;
                 s
             }
             ResolvedType::Tuple(types) => {
@@ -152,7 +221,7 @@ impl ResolvedType {
                     if i > 0 {
                         result.try_push_str(", ")?;
                     }
-                    result.try_push_str(&ty.to_display_string(q)?)?;
+                    result.try_push_str(&ty.to_display_string_impl(q)?)?;
                 }
                 result.try_push(')')?;
                 result
@@ -162,7 +231,6 @@ impl ResolvedType {
             ResolvedType::Variable(v) => {
                 let mut result = String::new();
                 result.try_push_str("?T")?;
-                use crate::alloc::fmt::TryWrite;
                 write!(result, "{}", v.0)?;
                 result
             }
@@ -172,7 +240,7 @@ impl ResolvedType {
     /// Check if two types are compatible under gradual typing semantics.
     ///
     /// Returns `true` if the types are compatible (no warning needed).
-    fn is_compatible_with(&self, other: &Self) -> bool {
+    pub(crate) fn is_compatible_with(&self, other: &Self) -> bool {
         // Any is compatible with everything
         if matches!(self, ResolvedType::Any) || matches!(other, ResolvedType::Any) {
             return true;
@@ -212,7 +280,7 @@ pub(crate) struct InferenceContext {
 
 impl InferenceContext {
     /// Create a new inference context.
-    pub fn new() -> alloc::Result<Self> {
+    pub(crate) fn new() -> alloc::Result<Self> {
         let mut scopes = Vec::new();
         scopes.try_push(HashMap::new())?;
         Ok(Self {
@@ -223,24 +291,34 @@ impl InferenceContext {
     }
 
     /// Create a fresh type variable.
-    pub fn fresh_var(&mut self) -> TypeVar {
+    pub(crate) fn fresh_var(&mut self) -> TypeVar {
         let var = TypeVar(self.next_var);
         self.next_var += 1;
         var
     }
 
     /// Push a new variable scope.
-    pub fn push_scope(&mut self) -> alloc::Result<()> {
+    pub(crate) fn push_scope(&mut self) -> alloc::Result<()> {
         self.scopes.try_push(HashMap::new())
     }
 
     /// Pop the current variable scope.
-    pub fn pop_scope(&mut self) {
-        self.scopes.pop();
+    /// Never pops the global scope (index 0).
+    pub(crate) fn pop_scope(&mut self) {
+        // Never pop the global scope
+        if self.scopes.len() > 1 {
+            self.scopes.pop();
+        } else {
+            // This would be a programming error - should never happen
+            debug_assert!(
+                false,
+                "Attempted to pop global scope in type checker - this is a bug"
+            );
+        }
     }
 
     /// Bind a variable name to a type in the current scope.
-    pub fn bind_var(&mut self, name: String, ty: ResolvedType) -> alloc::Result<()> {
+    pub(crate) fn bind_var(&mut self, name: String, ty: ResolvedType) -> alloc::Result<()> {
         if let Some(scope) = self.scopes.last_mut() {
             scope.try_insert(name, ty)?;
         }
@@ -248,7 +326,7 @@ impl InferenceContext {
     }
 
     /// Look up a variable's type by name.
-    pub fn lookup_var(&self, name: &str) -> compile::Result<ResolvedType> {
+    pub(crate) fn lookup_var(&self, name: &str) -> compile::Result<ResolvedType> {
         // Search from innermost to outermost scope
         for scope in self.scopes.iter().rev() {
             if let Some(ty) = scope.get(name) {
@@ -259,15 +337,36 @@ impl InferenceContext {
         Ok(ResolvedType::Any)
     }
 
+    /// Maximum recursion depth to prevent stack overflow on pathological types.
+    const MAX_RECURSION_DEPTH: usize = 128;
+
     /// Apply substitutions to resolve a type.
     ///
     /// Recursively replaces type variables with their substituted values.
-    pub fn apply(&self, ty: &ResolvedType) -> compile::Result<ResolvedType> {
+    pub(crate) fn apply(&self, ty: &ResolvedType) -> compile::Result<ResolvedType> {
+        self.apply_with_depth(ty, 0)
+    }
+
+    /// Apply substitutions with recursion depth tracking.
+    fn apply_with_depth(
+        &self,
+        ty: &ResolvedType,
+        depth: usize,
+    ) -> compile::Result<ResolvedType> {
+        if depth > Self::MAX_RECURSION_DEPTH {
+            return Err(compile::Error::new(
+                ast::Span::empty(),
+                compile::ErrorKind::Custom {
+                    error: anyhow::anyhow!("Type recursion limit exceeded - possible infinite type"),
+                },
+            ));
+        }
+
         Ok(match ty {
             ResolvedType::Variable(v) => {
                 if let Some(resolved) = self.substitutions.get(v) {
                     // Recursively apply in case the substitution contains more variables
-                    self.apply(resolved)?
+                    self.apply_with_depth(resolved, depth + 1)?
                 } else {
                     // Unresolved type variable - default to Any for gradual typing
                     ResolvedType::Any
@@ -276,7 +375,7 @@ impl InferenceContext {
             ResolvedType::Tuple(types) => {
                 let mut resolved = Vec::new();
                 for t in types {
-                    resolved.try_push(self.apply(t)?)?;
+                    resolved.try_push(self.apply_with_depth(t, depth + 1)?)?;
                 }
                 ResolvedType::Tuple(resolved)
             }
@@ -287,7 +386,7 @@ impl InferenceContext {
     /// Unify two types, updating the substitution map.
     ///
     /// Returns Ok(()) if unification succeeds, potentially adding new substitutions.
-    pub fn unify(&mut self, t1: &ResolvedType, t2: &ResolvedType) -> compile::Result<()> {
+    pub(crate) fn unify(&mut self, t1: &ResolvedType, t2: &ResolvedType) -> compile::Result<()> {
         let t1 = self.apply(t1)?;
         let t2 = self.apply(t2)?;
 
@@ -316,6 +415,42 @@ impl InferenceContext {
             _ => Ok(()),
         }
     }
+
+    /// Emit a type mismatch diagnostic.
+    pub(crate) fn emit_type_mismatch(
+        &self,
+        q: &mut Query<'_, '_>,
+        source_id: SourceId,
+        span: &dyn ast::Spanned,
+        expected: &ResolvedType,
+        actual: &ResolvedType,
+        options: &Options,
+    ) -> compile::Result<()> {
+        use crate::diagnostics::WarningDiagnosticKind;
+
+        let expected_str = expected.to_display_string(q)?;
+        let actual_str = actual.to_display_string(q)?;
+
+        if options.strict_types {
+            // In strict mode, emit an error
+            return Err(compile::Error::msg(
+                span.span(),
+                format!("Type mismatch: expected `{expected_str}`, found `{actual_str}`"),
+            ));
+        }
+
+        // In non-strict mode, emit a warning
+        q.diagnostics.warning(
+            source_id,
+            WarningDiagnosticKind::TypeMismatch {
+                span: span.span(),
+                expected: expected_str,
+                actual: actual_str,
+            },
+        )?;
+
+        Ok(())
+    }
 }
 
 /// Occurs check to prevent infinite types.
@@ -329,63 +464,41 @@ fn occurs_check(var: TypeVar, ty: &ResolvedType) -> bool {
     }
 }
 
-/// Perform type checking on all indexed functions.
-pub(crate) fn check_types(q: &mut Query<'_, '_>, options: &Options) -> compile::Result<()> {
-    // Collect all functions to check
-    let mut functions_to_check = Vec::new();
-
-    for entry in q.inner.indexed_entries() {
-        if let Indexed::Function(f) = &entry.indexed {
-            if let Ok(ast) = f.ast.try_clone() {
-                functions_to_check.try_push((entry.item_meta.location, ast))?;
-            }
-        }
-    }
-
-    // Check each function
-    for (location, ast) in functions_to_check {
-        check_function(q, location, &ast, options)?;
-    }
-
-    Ok(())
-}
-
-/// Check a single function for type mismatches.
-fn check_function(
+/// Check a function for type mismatches if it has a return type annotation.
+///
+/// This is called during HIR lowering to integrate type checking into the compilation pipeline.
+/// Returns Ok(()) if no type errors are found (or function has no annotations).
+pub(crate) fn check_function_if_annotated(
     q: &mut Query<'_, '_>,
-    location: Location,
-    ast: &FunctionAst,
+    source_id: SourceId,
+    ast: &ast::ItemFn,
     options: &Options,
 ) -> compile::Result<()> {
-    // Only check functions with full AST (ItemFn)
-    let item_fn = match ast {
-        FunctionAst::Item(item, _) => item,
-        _ => return Ok(()), // Skip non-Item functions for now
-    };
+    use crate::alloc::String;
 
     // Check if there's a return type annotation
-    let Some((_, return_type)) = &item_fn.output else {
+    let Some((_, return_type)) = &ast.output else {
         return Ok(()); // No return type annotation, nothing to check
     };
 
-    let expected_type = ResolvedType::from_ast_type(return_type, q, location.source_id)?;
+    let expected_type = ResolvedType::from_ast_type(return_type, q, source_id)?;
 
     // Create an inference context for type inference within this function
     let mut ctx = InferenceContext::new()?;
 
     // Register parameter types if annotated
-    for (arg, _) in item_fn.args.iter() {
+    for (arg, _) in ast.args.iter() {
         match arg {
             ast::FnArg::Typed(typed) => {
                 // Get parameter name from pattern
-                if let Some(name) = extract_pat_name(&typed.pat, q.sources, location.source_id) {
-                    let param_type = ResolvedType::from_ast_type(&typed.ty, q, location.source_id)?;
+                if let Some(name) = extract_pat_name(&typed.pat, q.sources, source_id) {
+                    let param_type = ResolvedType::from_ast_type(&typed.ty, q, source_id)?;
                     ctx.bind_var(name, param_type)?;
                 }
             }
             ast::FnArg::Pat(pat) => {
                 // Untyped parameter - bind as Any
-                if let Some(name) = extract_pat_name(pat, q.sources, location.source_id) {
+                if let Some(name) = extract_pat_name(pat, q.sources, source_id) {
                     ctx.bind_var(name, ResolvedType::Any)?;
                 }
             }
@@ -397,16 +510,15 @@ fn check_function(
     }
 
     // Infer the type of the function body using the context
-    let inferred_type =
-        infer_block_type_with_ctx(&mut ctx, q.sources, location.source_id, &item_fn.body)?;
+    let inferred_type = infer_block_type_with_ctx(&mut ctx, q.sources, source_id, &ast.body)?;
     let actual_type = ctx.apply(&inferred_type)?;
 
     // Check if the inferred type matches the expected return type
     if !actual_type.is_compatible_with(&expected_type) {
-        emit_type_mismatch(
+        ctx.emit_type_mismatch(
             q,
-            location.source_id,
-            item_fn.body.span(),
+            source_id,
+            &ast.body,
             &expected_type,
             &actual_type,
             options,
@@ -414,33 +526,29 @@ fn check_function(
     }
 
     // Also check for explicit return statements
-    check_block_return_type(
-        q,
-        location.source_id,
-        &item_fn.body,
-        &expected_type,
-        options,
-    )?;
+    check_block_return_type(&mut ctx, q, source_id, &ast.body, &expected_type, options)?;
 
     Ok(())
 }
 
 /// Extract a variable name from a pattern.
-fn extract_pat_name(pat: &ast::Pat, sources: &Sources, source_id: SourceId) -> Option<String> {
+fn extract_pat_name(
+    pat: &ast::Pat,
+    sources: &Sources,
+    source_id: SourceId,
+) -> Option<alloc::String> {
     match pat {
         ast::Pat::Path(path) => get_path_ident(&path.path, sources, source_id),
         ast::Pat::Binding(binding) => sources
             .source(source_id, binding.key.span())
-            .and_then(|s| String::try_from(s).ok()),
+            .and_then(|s| alloc::String::try_from(s).ok()),
         _ => None,
     }
 }
 
 /// Check that explicit return statements in the block match the expected type.
-///
-/// Note: The implicit return (last expression) is checked by `infer_block_type_with_ctx`,
-/// so we only check explicit `return` statements here to avoid duplicate warnings.
 fn check_block_return_type(
+    ctx: &mut InferenceContext,
     q: &mut Query<'_, '_>,
     source_id: SourceId,
     block: &ast::Block,
@@ -450,12 +558,12 @@ fn check_block_return_type(
     for stmt in &block.statements {
         match stmt {
             ast::Stmt::Expr(expr) => {
-                // Check for explicit returns within the expression (but not the expression itself)
-                check_expr_for_returns(q, source_id, expr, expected, options)?;
+                // Check for explicit returns within the expression
+                check_expr_for_returns(ctx, q, source_id, expr, expected, options)?;
             }
             ast::Stmt::Semi(semi) => {
                 // Check for explicit returns within the expression
-                check_expr_for_returns(q, source_id, &semi.expr, expected, options)?;
+                check_expr_for_returns(ctx, q, source_id, &semi.expr, expected, options)?;
             }
             _ => {}
         }
@@ -466,16 +574,17 @@ fn check_block_return_type(
 
 /// Check if an expression's type matches the expected type.
 fn check_expr_type(
+    ctx: &mut InferenceContext,
     q: &mut Query<'_, '_>,
     source_id: SourceId,
     expr: &ast::Expr,
     expected: &ResolvedType,
     options: &Options,
 ) -> compile::Result<()> {
-    let actual = infer_expr_type(expr)?;
+    let actual = infer_expr_type_with_ctx(ctx, q.sources, source_id, expr)?;
 
     if !actual.is_compatible_with(expected) {
-        emit_type_mismatch(q, source_id, expr.span(), expected, &actual, options)?;
+        ctx.emit_type_mismatch(q, source_id, expr, expected, &actual, options)?;
     }
 
     Ok(())
@@ -483,6 +592,7 @@ fn check_expr_type(
 
 /// Check an expression tree for return statements.
 fn check_expr_for_returns(
+    ctx: &mut InferenceContext,
     q: &mut Query<'_, '_>,
     source_id: SourceId,
     expr: &ast::Expr,
@@ -492,24 +602,24 @@ fn check_expr_for_returns(
     match expr {
         ast::Expr::Return(ret) => {
             if let Some(ret_expr) = &ret.expr {
-                check_expr_type(q, source_id, ret_expr, expected, options)?;
+                check_expr_type(ctx, q, source_id, ret_expr, expected, options)?;
             }
         }
         ast::Expr::Block(block) => {
-            check_block_return_type(q, source_id, &block.block, expected, options)?;
+            check_block_return_type(ctx, q, source_id, &block.block, expected, options)?;
         }
         ast::Expr::If(if_expr) => {
-            check_block_return_type(q, source_id, &if_expr.block, expected, options)?;
+            check_block_return_type(ctx, q, source_id, &if_expr.block, expected, options)?;
             for branch in &if_expr.expr_else_ifs {
-                check_block_return_type(q, source_id, &branch.block, expected, options)?;
+                check_block_return_type(ctx, q, source_id, &branch.block, expected, options)?;
             }
             if let Some(else_branch) = &if_expr.expr_else {
-                check_block_return_type(q, source_id, &else_branch.block, expected, options)?;
+                check_block_return_type(ctx, q, source_id, &else_branch.block, expected, options)?;
             }
         }
         ast::Expr::Match(match_expr) => {
             for (branch, _) in &match_expr.branches {
-                check_expr_for_returns(q, source_id, &branch.body, expected, options)?;
+                check_expr_for_returns(ctx, q, source_id, &branch.body, expected, options)?;
             }
         }
         // For other expression types, we just look for nested returns
@@ -578,14 +688,14 @@ fn infer_expr_type_with_ctx(
 
         // Unary operations
         ast::Expr::Unary(unary) => {
-            let operand = infer_expr_type_with_ctx(ctx, sources, source_id, &unary.expr)?;
+            let _operand = infer_expr_type_with_ctx(ctx, sources, source_id, &unary.expr)?;
             match &unary.op {
                 ast::UnOp::Not(_) => {
                     use crate::ItemBuf;
                     let item = ItemBuf::with_item(["bool"])?;
                     ResolvedType::Named(Hash::type_hash(&item))
                 }
-                ast::UnOp::Neg(_) => operand,
+                ast::UnOp::Neg(_) => _operand,
                 _ => ResolvedType::Any,
             }
         }
@@ -719,7 +829,7 @@ fn bind_pattern_vars(
         // Binding pattern (name @ pattern)
         ast::Pat::Binding(binding) => {
             if let Some(name) = sources.source(source_id, binding.key.span()) {
-                ctx.bind_var(String::try_from(name)?, ty.try_clone()?)?;
+                ctx.bind_var(alloc::String::try_from(name)?, ty.try_clone()?)?;
             }
             // Also bind the inner pattern
             bind_pattern_vars(ctx, sources, source_id, &binding.pat, ty)?;
@@ -733,7 +843,11 @@ fn bind_pattern_vars(
 }
 
 /// Get the identifier name from a simple path expression.
-fn get_path_ident(path: &ast::Path, sources: &Sources, source_id: SourceId) -> Option<String> {
+fn get_path_ident(
+    path: &ast::Path,
+    sources: &Sources,
+    source_id: SourceId,
+) -> Option<alloc::String> {
     // Only handle simple single-segment paths (local variables)
     if path.global.is_some() || !path.rest.is_empty() {
         return None;
@@ -742,58 +856,112 @@ fn get_path_ident(path: &ast::Path, sources: &Sources, source_id: SourceId) -> O
     if let ast::PathSegment::Ident(ident) = &path.first {
         sources
             .source(source_id, ident.span)
-            .and_then(|s| String::try_from(s).ok())
+            .and_then(|s| alloc::String::try_from(s).ok())
     } else {
         None
     }
 }
 
-/// Infer the type of an expression (simple version without context).
-fn infer_expr_type(expr: &ast::Expr) -> compile::Result<ResolvedType> {
-    Ok(match expr {
-        ast::Expr::Lit(lit) => ResolvedType::from_literal(&lit.lit)?,
-        ast::Expr::Tuple(tuple) => {
-            let mut types = Vec::new();
-            for (e, _) in tuple.items.iter() {
-                types.try_push(infer_expr_type(e)?)?;
-            }
-            ResolvedType::Tuple(types)
-        }
-        // For most expressions, we don't know the type without more context
-        // In gradual typing, unknown types are treated as Any
-        _ => ResolvedType::Any,
-    })
-}
+// ============================================================================
+// Struct Literal Type Checking
+// ============================================================================
 
-/// Emit a type mismatch warning or error.
-fn emit_type_mismatch(
+/// Check struct literal field assignments against declared field types.
+///
+/// This is called during HIR lowering when a struct literal is encountered.
+/// For each field assignment, we:
+/// 1. Look up the expected field type from the struct definition
+/// 2. Infer the actual type of the assigned expression
+/// 3. Check compatibility and emit warnings/errors
+pub(crate) fn check_struct_literal_if_typed_with_item(
     q: &mut Query<'_, '_>,
     source_id: SourceId,
-    span: ast::Span,
-    expected: &ResolvedType,
-    actual: &ResolvedType,
+    ast: &ast::ExprObject,
+    item_id: compile::ItemId,
     options: &Options,
 ) -> compile::Result<()> {
-    let expected_str = expected.to_display_string(q)?;
-    let actual_str = actual.to_display_string(q)?;
+    use crate::parse::Resolve;
 
-    if options.strict_types {
-        // In strict mode, emit an error
-        return Err(compile::Error::msg(
-            span,
-            format!("Type mismatch: expected `{expected_str}`, found `{actual_str}`"),
-        ));
+    // Look up the struct metadata using query_meta
+    let Some(meta) = q.query_meta(ast, item_id, Default::default())? else {
+        return Ok(()); // Struct not found in metadata - skip checking
+    };
+
+    // Extract field_types from the metadata
+    let field_types = match &meta.kind {
+        crate::compile::meta::Kind::Struct {
+            field_types: Some(types),
+            ..
+        } => types,
+        crate::compile::meta::Kind::Struct {
+            field_types: None, ..
+        } => return Ok(()), // No field types to check
+        _ => return Ok(()), // Not a struct - skip checking
+    };
+
+    // Clone the field types to avoid borrowing issues
+    // (we need to mutably borrow q later for type checking)
+    let mut field_types_owned = alloc::Vec::new();
+    for (name, ty_opt) in field_types.iter() {
+        field_types_owned.try_push((
+            name.try_clone()?,
+            match ty_opt {
+                Some(ty) => Some(ty.try_clone()?),
+                None => None,
+            },
+        ))?;
     }
 
-    // In non-strict mode, emit a warning
-    q.diagnostics.warning(
-        source_id,
-        WarningDiagnosticKind::TypeMismatch {
-            span,
-            expected: expected_str,
-            actual: actual_str,
-        },
-    )?;
+    // Create a map of field names to their types for quick lookup
+    let mut field_type_map = HashMap::new();
+    for (name, ty_opt) in &field_types_owned {
+        field_type_map.try_insert(name.as_ref(), ty_opt)?;
+    }
+
+    // Create resolve context for field names
+    let resolve_cx = crate::parse::ResolveContext {
+        sources: q.sources,
+        storage: q.storage,
+    };
+
+    // Pre-resolve all field names and pair them with their assignments
+    // This allows us to drop the borrow of q before type checking
+    let mut field_checks = alloc::Vec::new();
+    for (field, _) in ast.assignments.iter() {
+        let field_name = field.key.resolve(resolve_cx)?;
+
+        if let Some(Some(expected_ast_type)) = field_type_map.get(field_name.as_ref()) {
+            // Only check fields that have type annotations
+            if let Some((_, assigned_expr)) = &field.assign {
+                field_checks.try_push((expected_ast_type, assigned_expr))?;
+            }
+        }
+        // Skip fields without type annotations (None in the Option)
+    }
+
+    // Now we can type check without holding any immutable borrows
+    let mut ctx = InferenceContext::new()?;
+
+    for (expected_ast_type, assigned_expr) in field_checks {
+        let expected_type = ResolvedType::from_ast_type(expected_ast_type, q, source_id)?;
+
+        // Infer the type of the assigned expression
+        let actual_type = infer_expr_type_with_ctx(&mut ctx, q.sources, source_id, assigned_expr)?;
+
+        let actual_type_resolved = ctx.apply(&actual_type)?;
+
+        // Check if types are compatible
+        if !actual_type_resolved.is_compatible_with(&expected_type) {
+            ctx.emit_type_mismatch(
+                q,
+                source_id,
+                assigned_expr,
+                &expected_type,
+                &actual_type_resolved,
+                options,
+            )?;
+        }
+    }
 
     Ok(())
 }
