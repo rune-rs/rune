@@ -242,8 +242,15 @@ pub(crate) fn item_fn(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemFn) -> compil
     let idx_item = idx.item.replace(item_meta.item);
 
     for (arg, _) in &mut ast.args {
-        if let ast::FnArg::Pat(p) = arg {
-            pat(idx, p)?;
+        match arg {
+            ast::FnArg::Pat(p) => pat(idx, p)?,
+            ast::FnArg::Typed(_) => {
+                return Err(compile::Error::msg(
+                    arg,
+                    "Type annotations are not yet fully supported",
+                ));
+            }
+            _ => {}
         }
     }
 
@@ -1252,6 +1259,12 @@ fn expr_closure(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprClosure) -> compil
             }
             ast::FnArg::Pat(p) => {
                 pat(idx, p)?;
+            }
+            ast::FnArg::Typed(_) => {
+                return Err(compile::Error::msg(
+                    arg,
+                    "Type annotations are not yet fully supported",
+                ));
             }
         }
     }
