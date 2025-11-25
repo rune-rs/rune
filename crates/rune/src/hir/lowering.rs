@@ -1138,6 +1138,12 @@ fn fn_arg<'hir>(
             hir::FnArg::SelfValue(ast.span(), id)
         }
         ast::FnArg::Pat(ast) => hir::FnArg::Pat(alloc!(pat_binding(cx, ast)?)),
+        ast::FnArg::Typed(_) => {
+            return Err(compile::Error::msg(
+                ast,
+                "Type annotations are not yet fully supported",
+            ));
+        }
     })
 }
 
