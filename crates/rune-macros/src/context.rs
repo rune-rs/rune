@@ -97,18 +97,13 @@ pub(crate) struct ConstValueFieldAttrs {
 }
 
 /// The parsing implementations to build.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ParseKind {
     /// Generate default functions.
+    #[default]
     Default,
     /// Only generate meta parse function.
     MetaOnly,
-}
-
-impl Default for ParseKind {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 #[derive(Default)]

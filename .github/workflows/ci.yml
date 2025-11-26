@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@1.87
+    - uses: dtolnay/rust-toolchain@1.91
     - uses: Swatinem/rust-cache@v2
     - run: cargo build --workspace --lib
 

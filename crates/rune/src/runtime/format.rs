@@ -477,24 +477,19 @@ impl fmt::Display for Type {
 }
 
 /// The alignment requested.
-#[derive(Debug, Clone, Copy, TryClone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, TryClone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "musli", derive(Decode, Encode))]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub enum Alignment {
     /// Left alignment.
+    #[default]
     Left,
     /// Center alignment.
     Center,
     /// Right alignment.
     Right,
-}
-
-impl Default for Alignment {
-    fn default() -> Self {
-        Self::Left
-    }
 }
 
 impl str::FromStr for Alignment {
