@@ -9,9 +9,6 @@ use crate::{Any, Hash};
 
 use super::{AnyObj, AnyObjData, AnyTypeInfo, TypeInfo};
 
-/// The signature of a pointer coercion function.
-type TypeIdFn = fn() -> TypeId;
-
 /// The signature of a descriptive type name function.
 type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
 
@@ -29,7 +26,7 @@ pub(super) struct AnyObjVtable {
     /// The statically known kind of reference being stored.
     kind: Kind,
     /// Punt the inner pointer to the type corresponding to the type hash.
-    type_id: TypeIdFn,
+    type_id: TypeId,
     /// Static type information.
     type_info: AnyTypeInfo,
     /// Type hash of the interior type.
@@ -53,7 +50,7 @@ impl AnyObjVtable {
     {
         &Self {
             kind: Kind::Owned,
-            type_id: TypeId::of::<T>,
+            type_id: const { TypeId::of::<T>() },
             debug: debug_ref_impl::<T>,
             type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
@@ -76,7 +73,7 @@ impl AnyObjVtable {
     {
         &Self {
             kind: Kind::Shared,
-            type_id: TypeId::of::<T>,
+            type_id: const { TypeId::of::<T>() },
             debug: debug_ref_impl::<T>,
             type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
@@ -93,7 +90,7 @@ impl AnyObjVtable {
     {
         &Self {
             kind: Kind::Exclusive,
-            type_id: TypeId::of::<T>,
+            type_id: const { TypeId::of::<T>() },
             debug: debug_mut_impl::<T>,
             type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
@@ -108,7 +105,7 @@ impl AnyObjVtable {
     where
         T: 'static,
     {
-        (self.type_id)() == TypeId::of::<T>()
+        self.type_id == TypeId::of::<T>()
     }
 
     #[inline]

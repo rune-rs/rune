@@ -164,7 +164,7 @@ fn construct_struct() -> rune::support::Result<()> {
     let unit = Arc::try_new(unit)?;
     let mut vm = Vm::new(runtime, unit);
 
-    for (req, rsp) in vec![
+    for (req, rsp) in [
         (
             Request { url: "/".into() },
             Response {
