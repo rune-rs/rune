@@ -50,14 +50,10 @@ pub type MacroMeta = fn() -> alloc::Result<MacroMetaData>;
 pub struct FunctionData {
     pub(crate) item: ItemBuf,
     pub(crate) handler: FunctionHandler,
-    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
-    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
-    #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[meta::DocType]>,
-    #[cfg(feature = "doc")]
-    pub(crate) return_type: meta::DocType,
+    pub(crate) argument_types: Box<[meta::TypeHash]>,
+    pub(crate) return_type: meta::TypeHash,
 }
 
 impl FunctionData {
@@ -65,14 +61,10 @@ impl FunctionData {
         Self {
             item,
             handler,
-            #[cfg(feature = "doc")]
             is_async: false,
-            #[cfg(feature = "doc")]
             args: None,
-            #[cfg(feature = "doc")]
             argument_types: Box::default(),
-            #[cfg(feature = "doc")]
-            return_type: meta::DocType::empty(),
+            return_type: meta::TypeHash::empty(),
         }
     }
 
@@ -89,13 +81,9 @@ impl FunctionData {
             handler: FunctionHandler::new(move |stack, addr, args, output| {
                 f.call(stack, addr, args, output)
             })?,
-            #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
-            #[cfg(feature = "doc")]
             args: Some(F::ARGS),
-            #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
-            #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of()?,
         })
     }
@@ -258,14 +246,10 @@ impl Associated {
 pub struct AssociatedFunctionData {
     pub(crate) associated: Associated,
     pub(crate) handler: FunctionHandler,
-    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
-    #[cfg(feature = "doc")]
     pub(crate) args: Option<usize>,
-    #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[meta::DocType]>,
-    #[cfg(feature = "doc")]
-    pub(crate) return_type: meta::DocType,
+    pub(crate) argument_types: Box<[meta::TypeHash]>,
+    pub(crate) return_type: meta::TypeHash,
 }
 
 impl AssociatedFunctionData {
@@ -273,14 +257,10 @@ impl AssociatedFunctionData {
         Self {
             associated,
             handler,
-            #[cfg(feature = "doc")]
             is_async: false,
-            #[cfg(feature = "doc")]
             args: None,
-            #[cfg(feature = "doc")]
             argument_types: Box::default(),
-            #[cfg(feature = "doc")]
-            return_type: meta::DocType::empty(),
+            return_type: meta::TypeHash::empty(),
         }
     }
 
@@ -296,13 +276,9 @@ impl AssociatedFunctionData {
             handler: FunctionHandler::new(move |stack, addr, args, output| {
                 f.call(stack, addr, args, output)
             })?,
-            #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
-            #[cfg(feature = "doc")]
             args: Some(F::ARGS),
-            #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
-            #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of()?,
         })
     }
@@ -319,13 +295,9 @@ impl AssociatedFunctionData {
             handler: FunctionHandler::new(move |stack, addr, args, output| {
                 f.call(stack, addr, args, output)
             })?,
-            #[cfg(feature = "doc")]
             is_async: K::IS_ASYNC,
-            #[cfg(feature = "doc")]
             args: Some(F::ARGS),
-            #[cfg(feature = "doc")]
             argument_types: A::into_box()?,
-            #[cfg(feature = "doc")]
             return_type: F::Return::maybe_type_of()?,
         })
     }
@@ -524,7 +496,7 @@ pub struct FunctionMetaData {
 #[doc(hidden)]
 pub trait FunctionArgs {
     #[doc(hidden)]
-    fn into_box() -> alloc::Result<Box<[meta::DocType]>>;
+    fn into_box() -> alloc::Result<Box<[meta::TypeHash]>>;
 
     #[doc(hidden)]
     fn len() -> usize;
@@ -537,7 +509,7 @@ macro_rules! iter_function_args {
             $($ty: MaybeTypeOf,)*
         {
             #[inline]
-            fn into_box() -> alloc::Result<Box<[meta::DocType]>> {
+            fn into_box() -> alloc::Result<Box<[meta::TypeHash]>> {
                 try_vec![$(<$ty as MaybeTypeOf>::maybe_type_of()?),*].try_into_boxed_slice()
             }
 

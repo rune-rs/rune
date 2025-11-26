@@ -87,9 +87,6 @@ pub(crate) fn compile(
         return Ok(());
     }
 
-    // Type checking is now integrated into HIR lowering (see hir::lowering::item_fn)
-    // No separate pass needed
-
     loop {
         while let Some(entry) = worker.q.next_build_entry() {
             tracing::trace!(item = ?worker.q.pool.item(entry.item_meta.item), "next build entry");

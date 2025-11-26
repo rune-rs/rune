@@ -89,7 +89,7 @@ macro_rules! __vm_error {
             T: $crate::runtime::MaybeTypeOf,
         {
             #[inline]
-            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::DocType> {
+            fn maybe_type_of() -> $crate::alloc::Result<$crate::compile::meta::TypeHash> {
                 <T as $crate::runtime::MaybeTypeOf>::maybe_type_of()
             }
         }

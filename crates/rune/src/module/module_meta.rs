@@ -207,18 +207,19 @@ pub(crate) struct ModuleItem {
     pub(crate) kind: ModuleItemKind,
 }
 
+/// Type information for a function (arguments and return type).
 #[derive(Default, TryClone)]
-pub(crate) struct DocFunction {
-    #[cfg(feature = "doc")]
+pub(crate) struct FunctionType {
+    /// Whether this is an async function.
     #[try_clone(copy)]
     pub(crate) is_async: bool,
-    #[cfg(feature = "doc")]
+    /// Number of arguments (if known).
     #[try_clone(copy)]
     pub(crate) args: Option<usize>,
-    #[cfg(feature = "doc")]
-    pub(crate) argument_types: Box<[meta::DocType]>,
-    #[cfg(feature = "doc")]
-    pub(crate) return_type: meta::DocType,
+    /// Types of arguments.
+    pub(crate) argument_types: Box<[meta::TypeHash]>,
+    /// Return type.
+    pub(crate) return_type: meta::TypeHash,
 }
 
 #[derive(TryClone)]
@@ -227,8 +228,8 @@ pub(crate) struct ModuleFunction {
     pub(crate) handler: FunctionHandler,
     /// If the function is associated with a trait, this is the hash of that trait.
     pub(crate) trait_hash: Option<Hash>,
-    /// Documentation related to the function.
-    pub(crate) doc: DocFunction,
+    /// Type information for the function.
+    pub(crate) doc: FunctionType,
 }
 
 #[derive(TryClone)]
@@ -268,5 +269,5 @@ pub(crate) struct ModuleAttributeMacro {
 pub(crate) struct TraitFunction {
     pub(crate) name: AssociatedName,
     pub(crate) common: ModuleItemCommon,
-    pub(crate) doc: DocFunction,
+    pub(crate) doc: FunctionType,
 }

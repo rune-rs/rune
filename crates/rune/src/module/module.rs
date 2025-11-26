@@ -13,7 +13,7 @@ use crate::function_meta::{
 };
 use crate::item::IntoComponent;
 use crate::macros::{MacroContext, TokenStream};
-use crate::module::DocFunction;
+use crate::module::FunctionType;
 use crate::runtime::{
     Address, AnyTypeInfo, ConstConstructImpl, MaybeTypeOf, Memory, Output, Protocol, ToConstValue,
     TypeHash, TypeOf, VmError,
@@ -1139,14 +1139,10 @@ impl Module {
             kind: ModuleItemKind::Function(ModuleFunction {
                 handler: data.handler,
                 trait_hash: None,
-                doc: DocFunction {
-                    #[cfg(feature = "doc")]
+                doc: FunctionType {
                     is_async: data.is_async,
-                    #[cfg(feature = "doc")]
                     args: data.args,
-                    #[cfg(feature = "doc")]
                     return_type: data.return_type,
-                    #[cfg(feature = "doc")]
                     argument_types: data.argument_types,
                 },
             }),
@@ -1154,7 +1150,6 @@ impl Module {
 
         let last = self.items.last_mut().unwrap();
 
-        #[cfg(feature = "doc")]
         let last_fn = match &mut last.kind {
             ModuleItemKind::Function(f) => f,
             _ => unreachable!(),
@@ -1164,13 +1159,9 @@ impl Module {
             docs: &mut last.common.docs,
             #[cfg(feature = "doc")]
             deprecated: &mut last.common.deprecated,
-            #[cfg(feature = "doc")]
             is_async: &mut last_fn.doc.is_async,
-            #[cfg(feature = "doc")]
             args: &mut last_fn.doc.args,
-            #[cfg(feature = "doc")]
             return_type: &mut last_fn.doc.return_type,
-            #[cfg(feature = "doc")]
             argument_types: &mut last_fn.doc.argument_types,
         })
     }
@@ -1192,14 +1183,10 @@ impl Module {
             kind: ModuleAssociatedKind::Function(ModuleFunction {
                 handler: data.handler,
                 trait_hash: None,
-                doc: DocFunction {
-                    #[cfg(feature = "doc")]
+                doc: FunctionType {
                     is_async: data.is_async,
-                    #[cfg(feature = "doc")]
                     args: data.args,
-                    #[cfg(feature = "doc")]
                     return_type: data.return_type,
-                    #[cfg(feature = "doc")]
                     argument_types: data.argument_types,
                 },
             }),
@@ -1207,7 +1194,6 @@ impl Module {
 
         let last = self.associated.last_mut().unwrap();
 
-        #[cfg(feature = "doc")]
         let last_fn = match &mut last.kind {
             ModuleAssociatedKind::Function(f) => f,
             _ => unreachable!(),
@@ -1217,13 +1203,9 @@ impl Module {
             docs: &mut last.common.docs,
             #[cfg(feature = "doc")]
             deprecated: &mut last.common.deprecated,
-            #[cfg(feature = "doc")]
             is_async: &mut last_fn.doc.is_async,
-            #[cfg(feature = "doc")]
             args: &mut last_fn.doc.args,
-            #[cfg(feature = "doc")]
             return_type: &mut last_fn.doc.return_type,
-            #[cfg(feature = "doc")]
             argument_types: &mut last_fn.doc.argument_types,
         })
     }

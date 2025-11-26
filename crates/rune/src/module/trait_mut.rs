@@ -7,7 +7,7 @@ use crate::compile::context::{TraitContext, TraitHandler};
 use crate::compile::{ContextError, Docs};
 use crate::function_meta::ToInstance;
 
-use super::{DocFunction, ItemFnMut, ModuleItemCommon, TraitFunction};
+use super::{FunctionType, ItemFnMut, ModuleItemCommon, TraitFunction};
 
 /// Handle to a a trait inserted into a module which allows for mutation of its
 /// metadata.
@@ -74,7 +74,7 @@ impl TraitMut<'_> {
         self.functions.try_push(TraitFunction {
             name,
             common: ModuleItemCommon::default(),
-            doc: DocFunction::default(),
+            doc: FunctionType::default(),
         })?;
 
         let f = self.functions.last_mut().unwrap();
@@ -83,13 +83,9 @@ impl TraitMut<'_> {
             docs: &mut f.common.docs,
             #[cfg(feature = "doc")]
             deprecated: &mut f.common.deprecated,
-            #[cfg(feature = "doc")]
             is_async: &mut f.doc.is_async,
-            #[cfg(feature = "doc")]
             args: &mut f.doc.args,
-            #[cfg(feature = "doc")]
             return_type: &mut f.doc.return_type,
-            #[cfg(feature = "doc")]
             argument_types: &mut f.doc.argument_types,
         })
     }

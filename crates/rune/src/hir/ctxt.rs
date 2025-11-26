@@ -6,6 +6,7 @@ use crate::ast::{self, Spanned};
 use crate::compile::{meta, DynLocation, Error, ItemId, Result};
 use crate::grammar::{Ignore, Node};
 use crate::hir;
+use crate::hir::TypeCheckState;
 use crate::query::{GenericsParameters, Query, SecondaryBuildEntry};
 use crate::SourceId;
 
@@ -31,10 +32,8 @@ pub(crate) struct Ctxt<'hir, 'a, 'arena> {
     pub(super) statements: Vec<hir::Stmt<'hir>>,
     pub(super) pattern_bindings: Vec<hir::Variable>,
     pub(super) label: Option<ast::Label>,
-    /// Type inference context for gradual typing (None if not type checking)
-    /// Note: Currently unused as type checking is done per-function
-    #[allow(dead_code)]
-    pub(super) type_inference: Option<()>,
+    /// Type checking state for gradual typing (None if function has no type annotations)
+    pub(super) typeck: Option<TypeCheckState<'a>>,
 }
 
 impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
@@ -82,7 +81,7 @@ impl<'hir, 'a, 'arena> Ctxt<'hir, 'a, 'arena> {
             statements: Vec::new(),
             pattern_bindings: Vec::new(),
             label: None,
-            type_inference: None,
+            typeck: None,
         })
     }
 

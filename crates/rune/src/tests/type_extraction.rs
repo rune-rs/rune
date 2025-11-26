@@ -1,4 +1,4 @@
-//! Tests for type extraction API (Phase 3).
+//! Tests for type extraction API.
 //!
 //! These tests verify that embedders can query type information from compiled units.
 //! Run with: cargo test --features gradual-typing -p rune type_extraction
@@ -6,7 +6,7 @@
 prelude!();
 
 // ============================================================================
-// PHASE 3: Type Extraction API
+// Type Extraction API
 // ============================================================================
 
 /// Can extract function signature from compiled unit

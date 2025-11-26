@@ -20,9 +20,10 @@
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{self, NumberSource, Spanned};
-use crate::compile::{self, Options};
+use crate::compile::{self, meta, Options};
 use crate::query::{Query, Used};
-use crate::{Hash, SourceId, Sources};
+use crate::runtime::Protocol;
+use crate::{Context, Hash, SourceId, Sources};
 
 use once_cell::sync::Lazy;
 
@@ -268,26 +269,126 @@ impl ResolvedType {
 
 /// Context for type inference within a function.
 ///
-/// Tracks type variables, substitutions, and variable bindings.
-pub(crate) struct InferenceContext {
+/// Tracks type variables, substitutions, variable bindings, and provides
+/// access to the compilation context for protocol lookups.
+pub(crate) struct InferenceContext<'a> {
     /// Counter for generating fresh type variables
     next_var: usize,
     /// Substitution map: TypeVar -> ResolvedType
     substitutions: HashMap<TypeVar, ResolvedType>,
     /// Variable scope stack for tracking variable types by name
     scopes: Vec<HashMap<String, ResolvedType>>,
+    /// Reference to the compilation context for protocol lookups
+    context: &'a Context,
 }
 
-impl InferenceContext {
+/// State for type checking during HIR lowering.
+///
+/// This is stored in `Ctxt` when a function has type annotations, allowing
+/// type inference to happen during the lowering pass rather than as a separate
+/// AST walk.
+pub(crate) struct TypeCheckState<'a> {
+    /// The inference context for tracking types and substitutions
+    pub(crate) inference: InferenceContext<'a>,
+    /// The expected return type from the function signature (if annotated)
+    pub(crate) expected_return: Option<ResolvedType>,
+    /// Track the last inferred expression type (for implicit returns)
+    pub(crate) last_expr_type: ResolvedType,
+}
+
+impl<'a> TypeCheckState<'a> {
+    /// Create a new type check state for a function with type annotations.
+    pub(crate) fn new(
+        context: &'a Context,
+        expected_return: Option<ResolvedType>,
+    ) -> alloc::Result<Self> {
+        Ok(Self {
+            inference: InferenceContext::new(context)?,
+            expected_return,
+            last_expr_type: ResolvedType::Tuple(Vec::new()), // Unit by default
+        })
+    }
+
+    /// Infer the type of an expression during lowering.
+    ///
+    /// This mirrors the structure of lowering but focuses on type inference.
+    pub(crate) fn infer_expr(
+        &mut self,
+        sources: &Sources,
+        source_id: SourceId,
+        expr: &ast::Expr,
+    ) -> compile::Result<ResolvedType> {
+        infer_expr_type_with_ctx(&mut self.inference, sources, source_id, expr)
+    }
+
+    /// Infer the type of a block during lowering.
+    pub(crate) fn infer_block(
+        &mut self,
+        sources: &Sources,
+        source_id: SourceId,
+        block: &ast::Block,
+    ) -> compile::Result<ResolvedType> {
+        infer_block_type_with_ctx(&mut self.inference, sources, source_id, block)
+    }
+
+    /// Check a return expression against the expected type.
+    pub(crate) fn check_return(
+        &mut self,
+        q: &mut Query<'_, '_>,
+        source_id: SourceId,
+        expr: &ast::Expr,
+        options: &Options,
+    ) -> compile::Result<()> {
+        // Clone expected type to avoid borrow conflict
+        let expected = match &self.expected_return {
+            Some(e) => e.try_clone()?,
+            None => return Ok(()),
+        };
+        let actual = self.infer_expr(q.sources, source_id, expr)?;
+        if !actual.is_compatible_with(&expected) {
+            self.inference
+                .emit_type_mismatch(q, source_id, expr, &expected, &actual, options)?;
+        }
+        Ok(())
+    }
+
+    /// Finalize type checking at the end of a function.
+    ///
+    /// Checks that the inferred body type matches the expected return type.
+    pub(crate) fn finalize(
+        &mut self,
+        q: &mut Query<'_, '_>,
+        source_id: SourceId,
+        body_span: &dyn Spanned,
+        options: &Options,
+    ) -> compile::Result<()> {
+        if let Some(expected) = &self.expected_return {
+            let actual = self.inference.apply(&self.last_expr_type)?;
+            if !actual.is_compatible_with(expected) {
+                self.inference
+                    .emit_type_mismatch(q, source_id, body_span, expected, &actual, options)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a> InferenceContext<'a> {
     /// Create a new inference context.
-    pub(crate) fn new() -> alloc::Result<Self> {
+    pub(crate) fn new(context: &'a Context) -> alloc::Result<Self> {
         let mut scopes = Vec::new();
         scopes.try_push(HashMap::new())?;
         Ok(Self {
             next_var: 0,
             substitutions: HashMap::new(),
             scopes,
+            context,
         })
+    }
+
+    /// Get the compilation context for protocol lookups.
+    pub(crate) fn context(&self) -> &Context {
+        self.context
     }
 
     /// Create a fresh type variable.
@@ -464,174 +565,79 @@ fn occurs_check(var: TypeVar, ty: &ResolvedType) -> bool {
     }
 }
 
-/// Check a function for type mismatches if it has a return type annotation.
+
+/// Look up the return type of a protocol implementation for a given type.
 ///
-/// This is called during HIR lowering to integrate type checking into the compilation pipeline.
-/// Returns Ok(()) if no type errors are found (or function has no annotations).
-pub(crate) fn check_function_if_annotated(
-    q: &mut Query<'_, '_>,
-    source_id: SourceId,
-    ast: &ast::ItemFn,
-    options: &Options,
-) -> compile::Result<()> {
-    use crate::alloc::String;
+/// This uses `Hash::associated_function(type_hash, protocol.hash)` to find
+/// the protocol implementation and extract its return type from the signature.
+///
+/// Returns `None` if:
+/// - No protocol implementation is found
+/// - The protocol implementation has no signature information
+fn lookup_protocol_return_type(
+    cx: &Context,
+    type_hash: Hash,
+    protocol: &Protocol,
+) -> Option<ResolvedType> {
+    // Look up the associated function for this protocol
+    let protocol_hash = Hash::associated_function(type_hash, protocol);
 
-    // Check if there's a return type annotation
-    let Some((_, return_type)) = &ast.output else {
-        return Ok(()); // No return type annotation, nothing to check
-    };
+    // Find the metadata for this protocol implementation
+    let mut meta_iter = cx.lookup_meta_by_hash(protocol_hash);
+    let meta = meta_iter.next()?;
 
-    let expected_type = ResolvedType::from_ast_type(return_type, q, source_id)?;
-
-    // Create an inference context for type inference within this function
-    let mut ctx = InferenceContext::new()?;
-
-    // Register parameter types if annotated
-    for (arg, _) in ast.args.iter() {
-        match arg {
-            ast::FnArg::Typed(typed) => {
-                // Get parameter name from pattern
-                if let Some(name) = extract_pat_name(&typed.pat, q.sources, source_id) {
-                    let param_type = ResolvedType::from_ast_type(&typed.ty, q, source_id)?;
-                    ctx.bind_var(name, param_type)?;
-                }
-            }
-            ast::FnArg::Pat(pat) => {
-                // Untyped parameter - bind as Any
-                if let Some(name) = extract_pat_name(pat, q.sources, source_id) {
-                    ctx.bind_var(name, ResolvedType::Any)?;
-                }
-            }
-            ast::FnArg::SelfValue(_) => {
-                // Self parameter - use Any for now
-                ctx.bind_var(String::try_from("self")?, ResolvedType::Any)?;
-            }
+    // Extract the return type from the function signature
+    if let meta::Kind::Function { signature, .. } = &meta.kind {
+        // Convert TypeHash to ResolvedType
+        if signature.return_type.base != Hash::EMPTY {
+            return Some(ResolvedType::Named(signature.return_type.base));
         }
     }
 
-    // Infer the type of the function body using the context
-    let inferred_type = infer_block_type_with_ctx(&mut ctx, q.sources, source_id, &ast.body)?;
-    let actual_type = ctx.apply(&inferred_type)?;
-
-    // Check if the inferred type matches the expected return type
-    if !actual_type.is_compatible_with(&expected_type) {
-        ctx.emit_type_mismatch(
-            q,
-            source_id,
-            &ast.body,
-            &expected_type,
-            &actual_type,
-            options,
-        )?;
-    }
-
-    // Also check for explicit return statements
-    check_block_return_type(&mut ctx, q, source_id, &ast.body, &expected_type, options)?;
-
-    Ok(())
+    None
 }
 
-/// Extract a variable name from a pattern.
-fn extract_pat_name(
-    pat: &ast::Pat,
-    sources: &Sources,
-    source_id: SourceId,
-) -> Option<alloc::String> {
-    match pat {
-        ast::Pat::Path(path) => get_path_ident(&path.path, sources, source_id),
-        ast::Pat::Binding(binding) => sources
-            .source(source_id, binding.key.span())
-            .and_then(|s| alloc::String::try_from(s).ok()),
-        _ => None,
-    }
+/// Check if a type hash is one of the built-in arithmetic types (i64, u64, f64).
+/// These types have special handling in ArithmeticOps and don't need protocol lookup.
+fn is_builtin_arithmetic_type(type_hash: Hash) -> bool {
+    // Check against cached builtin hashes
+    let hash_value = type_hash.into_inner();
+    BUILTIN_TYPE_HASHES
+        .get("i64")
+        .is_some_and(|&h| h == hash_value)
+        || BUILTIN_TYPE_HASHES
+            .get("u64")
+            .is_some_and(|&h| h == hash_value)
+        || BUILTIN_TYPE_HASHES
+            .get("f64")
+            .is_some_and(|&h| h == hash_value)
 }
 
-/// Check that explicit return statements in the block match the expected type.
-fn check_block_return_type(
-    ctx: &mut InferenceContext,
-    q: &mut Query<'_, '_>,
-    source_id: SourceId,
-    block: &ast::Block,
-    expected: &ResolvedType,
-    options: &Options,
-) -> compile::Result<()> {
-    for stmt in &block.statements {
-        match stmt {
-            ast::Stmt::Expr(expr) => {
-                // Check for explicit returns within the expression
-                check_expr_for_returns(ctx, q, source_id, expr, expected, options)?;
-            }
-            ast::Stmt::Semi(semi) => {
-                // Check for explicit returns within the expression
-                check_expr_for_returns(ctx, q, source_id, &semi.expr, expected, options)?;
-            }
-            _ => {}
+/// Map a binary operator to its corresponding protocol.
+fn binop_to_protocol(op: &ast::BinOp) -> Option<&'static Protocol> {
+    Some(match op {
+        ast::BinOp::Add(_) => &Protocol::ADD,
+        ast::BinOp::Sub(_) => &Protocol::SUB,
+        ast::BinOp::Mul(_) => &Protocol::MUL,
+        ast::BinOp::Div(_) => &Protocol::DIV,
+        ast::BinOp::Rem(_) => &Protocol::REM,
+        ast::BinOp::BitAnd(_) => &Protocol::BIT_AND,
+        ast::BinOp::BitOr(_) => &Protocol::BIT_OR,
+        ast::BinOp::BitXor(_) => &Protocol::BIT_XOR,
+        ast::BinOp::Shl(_) => &Protocol::SHL,
+        ast::BinOp::Shr(_) => &Protocol::SHR,
+        ast::BinOp::Eq(_) | ast::BinOp::Neq(_) => &Protocol::PARTIAL_EQ,
+        ast::BinOp::Lt(_) | ast::BinOp::Gt(_) | ast::BinOp::Lte(_) | ast::BinOp::Gte(_) => {
+            &Protocol::PARTIAL_CMP
         }
-    }
-
-    Ok(())
-}
-
-/// Check if an expression's type matches the expected type.
-fn check_expr_type(
-    ctx: &mut InferenceContext,
-    q: &mut Query<'_, '_>,
-    source_id: SourceId,
-    expr: &ast::Expr,
-    expected: &ResolvedType,
-    options: &Options,
-) -> compile::Result<()> {
-    let actual = infer_expr_type_with_ctx(ctx, q.sources, source_id, expr)?;
-
-    if !actual.is_compatible_with(expected) {
-        ctx.emit_type_mismatch(q, source_id, expr, expected, &actual, options)?;
-    }
-
-    Ok(())
-}
-
-/// Check an expression tree for return statements.
-fn check_expr_for_returns(
-    ctx: &mut InferenceContext,
-    q: &mut Query<'_, '_>,
-    source_id: SourceId,
-    expr: &ast::Expr,
-    expected: &ResolvedType,
-    options: &Options,
-) -> compile::Result<()> {
-    match expr {
-        ast::Expr::Return(ret) => {
-            if let Some(ret_expr) = &ret.expr {
-                check_expr_type(ctx, q, source_id, ret_expr, expected, options)?;
-            }
-        }
-        ast::Expr::Block(block) => {
-            check_block_return_type(ctx, q, source_id, &block.block, expected, options)?;
-        }
-        ast::Expr::If(if_expr) => {
-            check_block_return_type(ctx, q, source_id, &if_expr.block, expected, options)?;
-            for branch in &if_expr.expr_else_ifs {
-                check_block_return_type(ctx, q, source_id, &branch.block, expected, options)?;
-            }
-            if let Some(else_branch) = &if_expr.expr_else {
-                check_block_return_type(ctx, q, source_id, &else_branch.block, expected, options)?;
-            }
-        }
-        ast::Expr::Match(match_expr) => {
-            for (branch, _) in &match_expr.branches {
-                check_expr_for_returns(ctx, q, source_id, &branch.body, expected, options)?;
-            }
-        }
-        // For other expression types, we just look for nested returns
-        _ => {}
-    }
-
-    Ok(())
+        // Logical operators and assignment operators don't have protocols
+        _ => return None,
+    })
 }
 
 /// Infer the type of an expression using the inference context.
 fn infer_expr_type_with_ctx(
-    ctx: &mut InferenceContext,
+    ctx: &mut InferenceContext<'_>,
     sources: &Sources,
     source_id: SourceId,
     expr: &ast::Expr,
@@ -649,13 +655,29 @@ fn infer_expr_type_with_ctx(
             ResolvedType::Tuple(types)
         }
 
-        // Binary operations - infer from operand types
+        // Binary operations - use protocol lookups for return types
         ast::Expr::Binary(binary) => {
             let lhs = infer_expr_type_with_ctx(ctx, sources, source_id, &binary.lhs)?;
             let rhs = infer_expr_type_with_ctx(ctx, sources, source_id, &binary.rhs)?;
+            let applied_lhs = ctx.apply(&lhs)?;
 
+            // For non-builtin types, try protocol lookup for operators
+            if let Some(protocol) = binop_to_protocol(&binary.op) {
+                if let ResolvedType::Named(type_hash) = &applied_lhs {
+                    // Skip protocol lookup for builtin arithmetic types - they have known behavior
+                    if !is_builtin_arithmetic_type(*type_hash) {
+                        if let Some(return_type) =
+                            lookup_protocol_return_type(ctx.context(), *type_hash, protocol)
+                        {
+                            return Ok(return_type);
+                        }
+                    }
+                }
+            }
+
+            // Fallback: builtin types or no protocol implementation found
             match &binary.op {
-                // Arithmetic operations - result type same as operands
+                // Arithmetic operations - result type same as operands (for builtins)
                 ast::BinOp::Add(_)
                 | ast::BinOp::Sub(_)
                 | ast::BinOp::Mul(_)
@@ -688,22 +710,42 @@ fn infer_expr_type_with_ctx(
 
         // Unary operations
         ast::Expr::Unary(unary) => {
-            let _operand = infer_expr_type_with_ctx(ctx, sources, source_id, &unary.expr)?;
+            let operand = infer_expr_type_with_ctx(ctx, sources, source_id, &unary.expr)?;
+            let applied_operand = ctx.apply(&operand)?;
+
+            // Try protocol lookup for unary operations on non-builtin types
+            let protocol = match &unary.op {
+                ast::UnOp::Not(_) => Some(&Protocol::NOT),
+                ast::UnOp::Neg(_) => Some(&Protocol::NEG),
+                _ => None,
+            };
+
+            if let Some(protocol) = protocol {
+                if let ResolvedType::Named(type_hash) = &applied_operand {
+                    if !is_builtin_arithmetic_type(*type_hash) {
+                        if let Some(return_type) =
+                            lookup_protocol_return_type(ctx.context(), *type_hash, protocol)
+                        {
+                            return Ok(return_type);
+                        }
+                    }
+                }
+            }
+
+            // Fallback
             match &unary.op {
                 ast::UnOp::Not(_) => {
                     use crate::ItemBuf;
                     let item = ItemBuf::with_item(["bool"])?;
                     ResolvedType::Named(Hash::type_hash(&item))
                 }
-                ast::UnOp::Neg(_) => _operand,
+                ast::UnOp::Neg(_) => applied_operand,
                 _ => ResolvedType::Any,
             }
         }
 
         // Block expressions - type is the last expression's type
-        ast::Expr::Block(block) => {
-            infer_block_type_with_ctx(ctx, sources, source_id, &block.block)?
-        }
+        ast::Expr::Block(block) => infer_block_type_with_ctx(ctx, sources, source_id, &block.block)?,
 
         // If expressions - unify all branches
         ast::Expr::If(if_expr) => {
@@ -711,8 +753,7 @@ fn infer_expr_type_with_ctx(
 
             // Check else-if branches
             for branch in &if_expr.expr_else_ifs {
-                let branch_type =
-                    infer_block_type_with_ctx(ctx, sources, source_id, &branch.block)?;
+                let branch_type = infer_block_type_with_ctx(ctx, sources, source_id, &branch.block)?;
                 ctx.unify(&then_type, &branch_type)?;
             }
 
@@ -759,7 +800,7 @@ fn infer_expr_type_with_ctx(
 
 /// Infer the type of a block, tracking variable bindings.
 fn infer_block_type_with_ctx(
-    ctx: &mut InferenceContext,
+    ctx: &mut InferenceContext<'_>,
     sources: &Sources,
     source_id: SourceId,
     block: &ast::Block,
@@ -800,7 +841,7 @@ fn infer_block_type_with_ctx(
 
 /// Bind variables from a pattern to a type.
 fn bind_pattern_vars(
-    ctx: &mut InferenceContext,
+    ctx: &mut InferenceContext<'_>,
     sources: &Sources,
     source_id: SourceId,
     pat: &ast::Pat,
@@ -940,7 +981,7 @@ pub(crate) fn check_struct_literal_if_typed_with_item(
     }
 
     // Now we can type check without holding any immutable borrows
-    let mut ctx = InferenceContext::new()?;
+    let mut ctx = InferenceContext::new(q.context)?;
 
     for (expected_ast_type, assigned_expr) in field_checks {
         let expected_type = ResolvedType::from_ast_type(expected_ast_type, q, source_id)?;

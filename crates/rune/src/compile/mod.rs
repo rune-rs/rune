@@ -77,10 +77,6 @@ pub(crate) use self::with_span::{HasSpan, WithSpan};
 mod compile;
 pub(crate) use self::compile::compile;
 
-// Note: Type checking is now integrated into HIR lowering (see hir::typeck)
-// The old separate pass implementation is kept for reference but no longer used
-#[allow(dead_code)]
-pub(crate) mod typeck;
 
 pub mod type_info;
 

@@ -1,7 +1,7 @@
 //! Public API for extracting type information from compiled units.
 //!
 //! This module provides types for embedders to query function signatures
-//! and type annotations from compiled Rune code. Part of Phase 3 of gradual typing.
+//! and type annotations from compiled Rune code.
 //!
 //! Note: This module uses `AnnotatedType` instead of `TypeInfo` to avoid
 //! naming conflicts with `runtime::TypeInfo` which is used for runtime type

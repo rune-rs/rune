@@ -772,8 +772,8 @@ where
             #(#attrs)*
             impl #impl_generics #maybe_type_of for #ident #type_generics #where_clause {
                 #[inline]
-                fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
-                    #meta::DocType::with_generics(
+                fn maybe_type_of() -> #alloc::Result<#meta::TypeHash> {
+                    #meta::TypeHash::with_generics(
                         <Self as #type_hash_t>::HASH,
                         [#(<#generic_names as #maybe_type_of>::maybe_type_of()?),*]
                     )
@@ -1007,8 +1007,8 @@ where
                 #(#p: #maybe_type_of,)*
             {
                 #[inline]
-                fn maybe_type_of() -> #alloc::Result<#meta::DocType> {
-                    Ok(#meta::DocType::new(<Self as #type_hash_t>::HASH))
+                fn maybe_type_of() -> #alloc::Result<#meta::TypeHash> {
+                    Ok(#meta::TypeHash::new(<Self as #type_hash_t>::HASH))
                 }
             }
         }

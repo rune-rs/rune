@@ -433,12 +433,12 @@ impl<'m> Ctxt<'_, 'm> {
     ///
     /// Returning `None` indicates that the return type is the default return
     /// type, which is `()`.
-    fn return_type(&self, ty: &meta::DocType) -> Result<Option<String>> {
+    fn return_type(&self, ty: &meta::TypeHash) -> Result<Option<String>> {
         match *ty {
-            meta::DocType {
+            meta::TypeHash {
                 base, ref generics, ..
             } if OwnedTuple::HASH == base && generics.is_empty() => Ok(None),
-            meta::DocType {
+            meta::TypeHash {
                 base, ref generics, ..
             } => Ok(Some(self.link(base, None, generics)?)),
         }
@@ -581,7 +581,7 @@ impl<'m> Ctxt<'_, 'm> {
     }
 
     /// Convert a hash into a link.
-    fn link(&self, hash: Hash, text: Option<&str>, generics: &[meta::DocType]) -> Result<String> {
+    fn link(&self, hash: Hash, text: Option<&str>, generics: &[meta::TypeHash]) -> Result<String> {
         let mut s = String::new();
         self.write_link(&mut s, hash, text, generics)?;
         Ok(s)
@@ -599,7 +599,7 @@ impl<'m> Ctxt<'_, 'm> {
         o: &mut dyn TryWrite,
         hash: Hash,
         text: Option<&str>,
-        generics: &[meta::DocType],
+        generics: &[meta::TypeHash],
     ) -> Result<()> {
         fn into_item_kind(meta: Meta<'_>) -> Option<ItemKind> {
             match &meta.kind {
@@ -670,7 +670,7 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(())
     }
 
-    fn write_generics(&self, o: &mut dyn TryWrite, generics: &[meta::DocType]) -> Result<()> {
+    fn write_generics(&self, o: &mut dyn TryWrite, generics: &[meta::TypeHash]) -> Result<()> {
         let mut it = generics.iter().peekable();
 
         while let Some(ty) = it.next() {
@@ -688,7 +688,7 @@ impl<'m> Ctxt<'_, 'm> {
     fn args_to_string(
         &self,
         sig: Signature,
-        arguments: Option<&[meta::DocArgument]>,
+        arguments: Option<&[meta::ArgumentType]>,
     ) -> Result<String> {
         let mut string = String::new();
 

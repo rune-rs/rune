@@ -34,7 +34,7 @@ impl FromValue for Iterator {
 
 impl MaybeTypeOf for Iterator {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
-        Ok(meta::DocType::empty())
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
+        Ok(meta::TypeHash::empty())
     }
 }

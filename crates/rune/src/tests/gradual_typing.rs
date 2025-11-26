@@ -5,7 +5,7 @@
 prelude!();
 
 // ============================================================================
-// PHASE 1: Type Annotation Acceptance
+// Type Annotation Acceptance
 // ============================================================================
 
 /// Functions with return type annotations should compile
@@ -120,7 +120,7 @@ fn untyped_functions_unchanged() {
 }
 
 // ============================================================================
-// PHASE 2: Type Checking and Diagnostics
+// Type Checking and Diagnostics
 // ============================================================================
 
 use crate::diagnostics::WarningDiagnosticKind;
@@ -145,11 +145,11 @@ fn warn_return_type_mismatch() {
 
 /// Type mismatch in arguments should produce warning
 /// NOTE: This requires call-site type checking, which is a more advanced feature.
-/// Phase 2 focuses on return type checking. Call-site argument checking
-/// will be implemented in a future phase when we track function signatures
+/// Return type checking is implemented. Call-site argument checking
+/// will be implemented in the future when we track function signatures
 /// and check call expressions against them.
 #[test]
-#[ignore = "Call-site argument type checking not yet implemented - planned for future phase"]
+#[ignore = "Call-site argument type checking not yet implemented"]
 fn warn_argument_type_mismatch() {
     assert_warnings! {
         r#"
@@ -291,7 +291,7 @@ fn literals_have_correct_types() {
 }
 
 // ============================================================================
-// PHASE 2B: Type Inference
+// Type Inference
 // ============================================================================
 
 /// Infer let binding type from literal
@@ -488,7 +488,7 @@ fn comparison_op_result_type() {
 }
 
 // ============================================================================
-// PHASE 3: Struct Field Type Checking
+// Struct Field Type Checking
 // ============================================================================
 
 /// Struct field type mismatches should produce warnings
@@ -623,4 +623,217 @@ fn test_scope_management() {
         nested_scopes()
     };
     assert_eq!(result, 42);
+}
+
+// ============================================================================
+// Protocol Lookup Type Checking
+// ============================================================================
+
+/// Custom type with ADD protocol returning Self - type checker should use protocol return type
+#[test]
+fn protocol_add_returns_self() {
+    #[derive(Debug, Clone, Any)]
+    #[rune(item = ::test_module, constructor)]
+    struct Counter {
+        #[rune(get)]
+        value: i64,
+    }
+
+    impl Counter {
+        #[rune::function(protocol = ADD)]
+        fn add(&self, other: &Counter) -> Self {
+            Counter {
+                value: self.value + other.value,
+            }
+        }
+    }
+
+    fn make_module() -> Result<Module, ContextError> {
+        let mut module = Module::with_crate("test_module")?;
+        module.ty::<Counter>()?;
+        module.function_meta(Counter::add)?;
+        Ok(module)
+    }
+
+    let m = make_module().expect("failed to create module");
+
+    // Test that adding two Counters returns a Counter
+    // The type checker should look up Protocol::ADD and find it returns Counter
+    let result: i64 = rune_n! {
+        mod m,
+        (),
+        pub fn main() {
+            let a = test_module::Counter { value: 10 };
+            let b = test_module::Counter { value: 20 };
+            let c = a + b;  // Type checker should know c is Counter via protocol lookup
+            c.value
+        }
+    };
+
+    assert_eq!(result, 30);
+}
+
+/// Custom type with MUL protocol returning different type (dot product returns i64)
+#[test]
+fn protocol_mul_returns_different_type() {
+    #[derive(Debug, Clone, Any)]
+    #[rune(item = ::test_module, constructor)]
+    struct Vector2 {
+        #[rune(get)]
+        x: i64,
+        #[rune(get)]
+        y: i64,
+    }
+
+    impl Vector2 {
+        /// Dot product returns i64, not Vector2
+        #[rune::function(protocol = MUL)]
+        fn mul(&self, other: &Vector2) -> i64 {
+            self.x * other.x + self.y * other.y
+        }
+    }
+
+    fn make_module() -> Result<Module, ContextError> {
+        let mut module = Module::with_crate("test_module")?;
+        module.ty::<Vector2>()?;
+        module.function_meta(Vector2::mul)?;
+        Ok(module)
+    }
+
+    let m = make_module().expect("failed to create module");
+
+    // Test that multiplying two Vector2s returns i64 (dot product)
+    // The type checker should look up Protocol::MUL and find it returns i64
+    let result: i64 = rune_n! {
+        mod m,
+        (),
+        pub fn main() {
+            let a = test_module::Vector2 { x: 2, y: 3 };
+            let b = test_module::Vector2 { x: 4, y: 5 };
+            let dot = a * b;  // Type checker should know dot is i64 via protocol lookup
+            dot
+        }
+    };
+
+    assert_eq!(result, 23); // 2*4 + 3*5 = 8 + 15 = 23
+}
+
+/// Protocol lookup with type annotation verification
+#[test]
+fn protocol_lookup_type_annotation_match() {
+    #[derive(Debug, Clone, Any)]
+    #[rune(item = ::test_module, constructor)]
+    struct Money {
+        #[rune(get)]
+        cents: i64,
+    }
+
+    impl Money {
+        #[rune::function(protocol = ADD)]
+        fn add(&self, other: &Money) -> Self {
+            Money {
+                cents: self.cents + other.cents,
+            }
+        }
+
+        #[rune::function(protocol = PARTIAL_EQ)]
+        fn eq(&self, other: &Money) -> bool {
+            self.cents == other.cents
+        }
+    }
+
+    fn make_module() -> Result<Module, ContextError> {
+        let mut module = Module::with_crate("test_module")?;
+        module.ty::<Money>()?;
+        module.function_meta(Money::add)?;
+        module.function_meta(Money::eq)?;
+        Ok(module)
+    }
+
+    let m = make_module().expect("failed to create module");
+
+    // Test function with explicit return type using protocol operators
+    // Type checker should verify protocol return types match annotations
+    let result: bool = rune_n! {
+        mod m,
+        (),
+        pub fn main() {
+            let a = test_module::Money { cents: 100 };
+            let b = test_module::Money { cents: 50 };
+            let c = a + b;  // Protocol::ADD returns Money
+            let expected = test_module::Money { cents: 150 };
+            c == expected   // Protocol::PARTIAL_EQ returns bool
+        }
+    };
+
+    assert!(result);
+}
+
+/// Comparison protocol returns bool
+#[test]
+fn protocol_comparison_returns_bool() {
+    use core::cmp::Ordering;
+
+    #[derive(Debug, Clone, Any)]
+    #[rune(item = ::test_module, constructor)]
+    struct Score {
+        #[rune(get)]
+        points: i64,
+    }
+
+    impl Score {
+        #[rune::function(protocol = PARTIAL_CMP)]
+        fn partial_cmp(&self, other: &Score) -> Option<Ordering> {
+            self.points.partial_cmp(&other.points)
+        }
+    }
+
+    fn make_module() -> Result<Module, ContextError> {
+        let mut module = Module::with_crate("test_module")?;
+        module.ty::<Score>()?;
+        module.function_meta(Score::partial_cmp)?;
+        Ok(module)
+    }
+
+    let m = make_module().expect("failed to create module");
+
+    // Test that comparison operators return bool via protocol lookup
+    let result: bool = rune_n! {
+        mod m,
+        (),
+        pub fn main() {
+            let high = test_module::Score { points: 100 };
+            let low = test_module::Score { points: 50 };
+            high > low  // Protocol::PARTIAL_CMP should give bool result
+        }
+    };
+
+    assert!(result);
+}
+
+/// Test that stdlib types with protocol implementations work correctly.
+/// String + String uses Protocol::ADD and returns String.
+#[test]
+fn stdlib_string_add_protocol() {
+    let result: String = rune! {
+        fn concat(a: String, b: String) -> String {
+            a + b
+        }
+
+        concat("hello ", "world")
+    };
+    assert_eq!(result, "hello world");
+}
+
+/// Test that stdlib Vec operations work with type annotations.
+#[test]
+fn stdlib_vec_operations() {
+    let result: i64 = rune! {
+        fn sum_first_two(v: Vec) -> i64 {
+            v[0] + v[1]
+        }
+
+        sum_first_two([10, 20, 30])
+    };
+    assert_eq!(result, 30);
 }

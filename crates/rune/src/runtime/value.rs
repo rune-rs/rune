@@ -1698,8 +1698,8 @@ float_value_trait!(f32);
 
 impl MaybeTypeOf for Value {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
-        Ok(meta::DocType::empty())
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
+        Ok(meta::TypeHash::empty())
     }
 }
 

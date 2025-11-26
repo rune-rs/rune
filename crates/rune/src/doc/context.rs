@@ -39,8 +39,8 @@ pub(crate) struct Function<'a> {
     pub(crate) is_test: bool,
     pub(crate) is_bench: bool,
     pub(crate) signature: Signature,
-    pub(crate) arguments: Option<&'a [meta::DocArgument]>,
-    pub(crate) return_type: &'a meta::DocType,
+    pub(crate) arguments: Option<&'a [meta::ArgumentType]>,
+    pub(crate) return_type: &'a meta::TypeHash,
 }
 
 /// The kind of an associated function.
@@ -71,8 +71,8 @@ pub(crate) struct AssocFn<'a> {
     pub(crate) kind: AssocFnKind<'a>,
     pub(crate) trait_hash: Option<Hash>,
     pub(crate) is_async: bool,
-    pub(crate) arguments: Option<&'a [meta::DocArgument]>,
-    pub(crate) return_type: &'a meta::DocType,
+    pub(crate) arguments: Option<&'a [meta::ArgumentType]>,
+    pub(crate) return_type: &'a meta::TypeHash,
     /// Generic instance parameters for function.
     pub(crate) parameter_types: &'a [Hash],
     pub(crate) deprecated: Option<&'a str>,

@@ -99,7 +99,7 @@ ace.define('ace/mode/rune-highlight-rules',
                     },
                     {
                         token: 'storage.type.source.rune',
-                        regex: '\\b(?:Self|int|float|unit|char|bool|String|Bytes|GeneratorState|Generator|Future|Option|Result)\\b'
+                        regex: '\\b(?:Self|int|float|unit|char|bool|String|Bytes|GeneratorState|Generator|Future|Option|Result|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|isize|usize)\\b'
                     },
                     { token: 'variable.language.source.rune', regex: '\\bself\\b' },
 

@@ -24,7 +24,6 @@ use crate::item::ComponentRef;
 use crate::item::IntoComponent;
 use crate::macros::Storage;
 use crate::parse::{NonZeroId, Resolve};
-#[cfg(feature = "doc")]
 use crate::runtime::Call;
 use crate::runtime::ConstValue;
 use crate::shared::{Consts, Gen};
@@ -1576,21 +1575,20 @@ impl<'a, 'arena> Query<'a, 'arena> {
         entry: indexing::Entry,
         used: Used,
     ) -> compile::Result<meta::Meta> {
-        #[cfg(feature = "doc")]
-        fn to_doc_names(
+        fn to_argument_types(
             sources: &Sources,
             source_id: SourceId,
             args: &[Span],
-        ) -> alloc::Result<Box<[meta::DocArgument]>> {
+        ) -> alloc::Result<Box<[meta::ArgumentType]>> {
             let mut out = Vec::try_with_capacity(args.len())?;
 
             for (n, span) in args.iter().enumerate() {
                 let name = match sources.source(source_id, *span) {
-                    Some(name) => meta::DocName::Name(name.try_into()?),
-                    None => meta::DocName::Index(n),
+                    Some(name) => meta::ArgumentName::Name(name.try_into()?),
+                    None => meta::ArgumentName::Index(n),
                 };
 
-                out.try_push(meta::DocArgument {
+                out.try_push(meta::ArgumentType {
                     name,
                     base: Hash::EMPTY,
                     generics: Box::default(),
@@ -1655,16 +1653,13 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     is_test: f.is_test,
                     is_bench: f.is_bench,
                     signature: meta::Signature {
-                        #[cfg(feature = "doc")]
                         is_async: matches!(f.call, Call::Async | Call::Stream),
-                        #[cfg(feature = "doc")]
-                        arguments: Some(to_doc_names(
+                        arguments: Some(to_argument_types(
                             self.sources,
                             item_meta.location.source_id,
                             &f.args,
                         )?),
-                        #[cfg(feature = "doc")]
-                        return_type: meta::DocType::empty(),
+                        return_type: meta::TypeHash::empty(),
                     },
                     parameters: Hash::EMPTY,
                     #[cfg(feature = "doc")]

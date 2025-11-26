@@ -13,7 +13,7 @@ use crate::hash;
 use crate::item::{ComponentRef, IntoComponent};
 use crate::macros::{MacroContext, TokenStream};
 use crate::module::{
-    DocFunction, Fields, Module, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
+    Fields, FunctionType, Module, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
     ModuleItem, ModuleItemCommon, ModuleReexport, ModuleTrait, ModuleTraitImpl, ModuleType,
     TypeSpecification,
 };
@@ -196,15 +196,11 @@ impl TraitContext<'_> {
         let function = ModuleFunction {
             handler: handler.clone(),
             trait_hash: Some(self.trait_hash),
-            doc: DocFunction {
-                #[cfg(feature = "doc")]
+            doc: FunctionType {
                 is_async: false,
-                #[cfg(feature = "doc")]
                 args: None,
-                #[cfg(feature = "doc")]
                 argument_types: Box::default(),
-                #[cfg(feature = "doc")]
-                return_type: meta::DocType::empty(),
+                return_type: meta::TypeHash::empty(),
             },
         };
 
@@ -536,7 +532,6 @@ impl Context {
     }
 
     /// Lookup meta by its hash.
-    #[cfg(any(feature = "cli", feature = "languageserver", feature = "emit"))]
     pub(crate) fn lookup_meta_by_hash(
         &self,
         hash: Hash,
@@ -725,12 +720,9 @@ impl Context {
                     let constructor = match &ty.constructor {
                         Some(c) => {
                             let signature = meta::Signature {
-                                #[cfg(feature = "doc")]
                                 is_async: false,
-                                #[cfg(feature = "doc")]
                                 arguments: Some(fields_to_arguments(fields)?),
-                                #[cfg(feature = "doc")]
-                                return_type: meta::DocType::new(ty.hash),
+                                return_type: meta::TypeHash::new(ty.hash),
                             };
 
                             if c.args != fields.len() {
@@ -801,12 +793,9 @@ impl Context {
 
                         let constructor = if let Some(c) = &variant.constructor {
                             let signature = meta::Signature {
-                                #[cfg(feature = "doc")]
                                 is_async: false,
-                                #[cfg(feature = "doc")]
                                 arguments: Some(fields_to_arguments(fields)?),
-                                #[cfg(feature = "doc")]
-                                return_type: meta::DocType::new(ty.hash),
+                                return_type: meta::TypeHash::new(ty.hash),
                             };
 
                             if c.args != fields.len() {
@@ -1238,15 +1227,14 @@ impl ConstContext for Context {
     }
 }
 
-#[cfg(feature = "doc")]
-fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]>> {
+fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::ArgumentType]>> {
     match *fields {
         Fields::Named(fields) => {
             let mut out = Vec::try_with_capacity(fields.len())?;
 
             for &name in fields {
-                out.try_push(meta::DocArgument {
-                    name: meta::DocName::Name(Box::try_from(name)?),
+                out.try_push(meta::ArgumentType {
+                    name: meta::ArgumentName::Name(Box::try_from(name)?),
                     base: Hash::EMPTY,
                     generics: Box::default(),
                 })?;
@@ -1258,8 +1246,8 @@ fn fields_to_arguments(fields: &Fields) -> alloc::Result<Box<[meta::DocArgument]
             let mut out = Vec::try_with_capacity(args)?;
 
             for n in 0..args {
-                out.try_push(meta::DocArgument {
-                    name: meta::DocName::Index(n),
+                out.try_push(meta::ArgumentType {
+                    name: meta::ArgumentName::Index(n),
                     base: Hash::EMPTY,
                     generics: Box::default(),
                 })?;

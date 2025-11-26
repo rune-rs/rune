@@ -10,10 +10,9 @@ use crate::alloc::{self, Box, Vec};
 use crate::ast;
 use crate::ast::{Span, Spanned};
 use crate::compile::attrs::Parser;
-#[cfg(feature = "doc")]
 use crate::compile::meta;
 use crate::compile::{self, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
-use crate::module::{DocFunction, ModuleItemCommon};
+use crate::module::{FunctionType, ModuleItemCommon};
 use crate::parse::ResolveContext;
 use crate::runtime::{Call, FieldMap, Protocol};
 use crate::{Hash, Item, ItemBuf};
@@ -249,7 +248,6 @@ pub enum Kind {
 
 impl Kind {
     /// Access the underlying signature of the kind, if available.
-    #[cfg(all(feature = "doc", any(feature = "languageserver", feature = "cli")))]
     pub(crate) fn as_signature(&self) -> Option<&Signature> {
         match self {
             Kind::Struct { constructor, .. } => constructor.as_ref(),
@@ -358,44 +356,36 @@ impl ItemMeta {
 #[derive(Debug, TryClone)]
 pub struct Signature {
     /// An asynchronous function.
-    #[cfg(feature = "doc")]
     pub(crate) is_async: bool,
     /// Arguments to the function.
-    #[cfg(feature = "doc")]
-    pub(crate) arguments: Option<Box<[DocArgument]>>,
+    pub(crate) arguments: Option<Box<[ArgumentType]>>,
     /// Return type of the function.
-    #[cfg(feature = "doc")]
-    pub(crate) return_type: DocType,
+    pub(crate) return_type: TypeHash,
 }
 
 impl Signature {
     /// Construct a signature from context metadata.
-    #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
     pub(crate) fn from_context(
-        doc: &DocFunction,
+        doc: &FunctionType,
         common: &ModuleItemCommon,
     ) -> alloc::Result<Self> {
         Ok(Self {
-            #[cfg(feature = "doc")]
             is_async: doc.is_async,
-            #[cfg(feature = "doc")]
             arguments: context_to_arguments(
                 doc.args,
                 doc.argument_types.as_ref(),
                 common.docs.args(),
             )?,
-            #[cfg(feature = "doc")]
             return_type: doc.return_type.try_clone()?,
         })
     }
 }
 
-#[cfg(feature = "doc")]
 fn context_to_arguments(
     args: Option<usize>,
-    types: &[meta::DocType],
+    types: &[meta::TypeHash],
     names: &[String],
-) -> alloc::Result<Option<Box<[meta::DocArgument]>>> {
+) -> alloc::Result<Option<Box<[meta::ArgumentType]>>> {
     use core::iter;
 
     let Some(args) = args else {
@@ -418,15 +408,15 @@ fn context_to_arguments(
         let ty = match types.next() {
             Some(ty) => ty,
             None => {
-                empty = meta::DocType::empty();
+                empty = meta::TypeHash::empty();
                 &empty
             }
         };
 
-        out.try_push(meta::DocArgument {
+        out.try_push(meta::ArgumentType {
             name: match name {
-                Some(name) => meta::DocName::Name(Box::try_from(name)?),
-                None => meta::DocName::Index(n),
+                Some(name) => meta::ArgumentName::Name(Box::try_from(name)?),
+                None => meta::ArgumentName::Index(n),
             },
             base: ty.base,
             generics: ty.generics.try_clone()?,
@@ -436,10 +426,9 @@ fn context_to_arguments(
     Ok(Some(Box::try_from(out)?))
 }
 
-/// A name inside of a document.
+/// The name of a function argument.
 #[derive(Debug, TryClone)]
-#[cfg(feature = "doc")]
-pub(crate) enum DocName {
+pub(crate) enum ArgumentName {
     /// A string name.
     Name(Box<str>),
     /// A numbered name.
@@ -447,76 +436,66 @@ pub(crate) enum DocName {
 }
 
 #[cfg(feature = "cli")]
-impl DocName {
+impl ArgumentName {
     pub(crate) fn is_self(&self) -> bool {
         match self {
-            DocName::Name(name) => name.as_ref() == "self",
-            DocName::Index(..) => false,
+            ArgumentName::Name(name) => name.as_ref() == "self",
+            ArgumentName::Index(..) => false,
         }
     }
 }
 
-#[cfg(feature = "doc")]
-impl fmt::Display for DocName {
+impl fmt::Display for ArgumentName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DocName::Name(name) => write!(f, "{name}"),
-            DocName::Index(index) if *index == 0 => write!(f, "value"),
-            DocName::Index(index) => write!(f, "value{index}"),
+            ArgumentName::Name(name) => write!(f, "{name}"),
+            ArgumentName::Index(index) if *index == 0 => write!(f, "value"),
+            ArgumentName::Index(index) => write!(f, "value{index}"),
         }
     }
 }
 
-/// A description of a type.
+/// Type information for a function argument.
 #[derive(Debug, TryClone)]
-#[cfg(feature = "doc")]
-pub(crate) struct DocArgument {
+pub(crate) struct ArgumentType {
     /// The name of an argument.
-    pub(crate) name: DocName,
+    pub(crate) name: ArgumentName,
     /// The base type.
     pub(crate) base: Hash,
     /// Generic parameters.
-    pub(crate) generics: Box<[DocType]>,
+    pub(crate) generics: Box<[TypeHash]>,
 }
 
-/// A description of a type.
+/// A type represented by its hash with optional generic parameters.
 #[derive(Default, Debug, TryClone)]
-pub struct DocType {
-    /// The base type.
-    #[cfg(feature = "doc")]
+pub struct TypeHash {
+    /// The base type hash.
     pub(crate) base: Hash,
     /// Generic parameters.
-    #[cfg(feature = "doc")]
-    pub(crate) generics: Box<[DocType]>,
+    pub(crate) generics: Box<[TypeHash]>,
 }
 
-impl DocType {
-    /// Construct an empty type documentation.
+impl TypeHash {
+    /// Construct an empty type (unknown/any).
     pub(crate) fn empty() -> Self {
         Self::new(Hash::EMPTY)
     }
 
-    /// Construct type documentation.
-    #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
+    /// Construct a type hash with generic parameters.
     pub fn with_generics<const N: usize>(
         base: Hash,
-        generics: [DocType; N],
+        generics: [TypeHash; N],
     ) -> alloc::Result<Self> {
         Ok(Self {
-            #[cfg(feature = "doc")]
             base,
-            #[cfg(feature = "doc")]
             generics: Box::try_from(generics)?,
         })
     }
 
     /// Construct type with the specified base type.
-    #[cfg_attr(not(feature = "doc"), allow(unused_variables))]
     pub(crate) fn new(base: Hash) -> Self {
         Self {
-            #[cfg(feature = "doc")]
             base,
-            #[cfg(feature = "doc")]
             generics: Box::default(),
         }
     }

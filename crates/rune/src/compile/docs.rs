@@ -1,19 +1,15 @@
 use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
-#[cfg(feature = "doc")]
 use crate::alloc::{String, Vec};
 
 /// The documentation for a function.
-///
-/// If the `doc` feature is disabled, this is a zero-sized type.
 #[derive(Debug, TryClone)]
 pub(crate) struct Docs {
     /// Lines of documentation.
     #[cfg(feature = "doc")]
     docs: Vec<String>,
-    /// Names of arguments.
-    #[cfg(feature = "doc")]
+    /// Names of arguments (always available for type checking).
     arguments: Option<Vec<String>>,
 }
 
@@ -21,12 +17,10 @@ impl Docs {
     pub(crate) const EMPTY: Docs = Docs {
         #[cfg(feature = "doc")]
         docs: Vec::new(),
-        #[cfg(feature = "doc")]
         arguments: None,
     };
 
     /// Get arguments associated with documentation.
-    #[cfg(feature = "doc")]
     pub(crate) fn args(&self) -> &[String] {
         self.arguments.as_deref().unwrap_or_default()
     }
@@ -57,8 +51,7 @@ impl Docs {
         Ok(())
     }
 
-    /// Update arguments.
-    #[cfg(feature = "doc")]
+    /// Update arguments (always available for type checking).
     pub(crate) fn set_arguments(
         &mut self,
         arguments: impl IntoIterator<Item: AsRef<str>>,
@@ -71,14 +64,6 @@ impl Docs {
         }
 
         self.arguments = Some(out);
-        Ok(())
-    }
-
-    #[cfg(not(feature = "doc"))]
-    pub(crate) fn set_arguments(
-        &mut self,
-        _: impl IntoIterator<Item: AsRef<str>>,
-    ) -> alloc::Result<()> {
         Ok(())
     }
 }

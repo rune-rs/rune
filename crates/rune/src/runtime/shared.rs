@@ -445,7 +445,7 @@ where
     T: MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
         T::maybe_type_of()
     }
 }

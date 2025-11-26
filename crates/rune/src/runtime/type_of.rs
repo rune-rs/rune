@@ -91,7 +91,7 @@ pub trait TypeOf: TypeHash {
 /// A type that might or might not have a concrete type.
 pub trait MaybeTypeOf {
     /// Type information for the given type.
-    fn maybe_type_of() -> alloc::Result<meta::DocType>;
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash>;
 }
 
 impl<T> MaybeTypeOf for &T
@@ -99,7 +99,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
         T::maybe_type_of()
     }
 }
@@ -109,7 +109,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
         T::maybe_type_of()
     }
 }
@@ -119,7 +119,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
         T::maybe_type_of()
     }
 }
@@ -129,7 +129,7 @@ where
     T: ?Sized + MaybeTypeOf,
 {
     #[inline]
-    fn maybe_type_of() -> alloc::Result<meta::DocType> {
+    fn maybe_type_of() -> alloc::Result<meta::TypeHash> {
         T::maybe_type_of()
     }
 }

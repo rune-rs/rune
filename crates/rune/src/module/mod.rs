@@ -11,7 +11,7 @@ pub use self::install_with::InstallWith;
 
 mod module_meta;
 pub(crate) use self::module_meta::{
-    AssociatedKey, DocFunction, Fields, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
+    AssociatedKey, Fields, FunctionType, ModuleAssociated, ModuleAssociatedKind, ModuleFunction,
     ModuleItem, ModuleItemCommon, ModuleItemKind, ModuleReexport, ModuleTrait, ModuleTraitImpl,
     ModuleType, TraitFunction, TypeConstructor, TypeSpecification,
 };

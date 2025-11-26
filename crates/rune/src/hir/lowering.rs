@@ -12,6 +12,8 @@ use crate::compile::meta;
 use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
+use crate::hir::typeck::ResolvedType;
+use crate::hir::TypeCheckState;
 use crate::parse::Resolve;
 use crate::query::AsyncBlock;
 use crate::query::Closure;
@@ -44,16 +46,158 @@ pub(crate) fn item_fn<'hir>(
 ) -> compile::Result<hir::ItemFn<'hir>> {
     alloc_with!(cx, ast);
 
-    // Type check the function if it has type annotations (gradual typing)
-    // This integrates type checking into the HIR lowering pass
+    // Set up type checking if the function has type annotations (gradual typing)
+    // Type checking is integrated into HIR lowering to avoid a separate AST walk
     let options = cx.q.options;
-    hir::check_function_if_annotated(&mut cx.q, cx.source_id, ast, options)?;
+    let source_id = cx.source_id;
+
+    if let Some((_, return_type)) = &ast.output {
+        // Parse the expected return type
+        let expected = ResolvedType::from_ast_type(return_type, &mut cx.q, source_id)?;
+
+        // Initialize type checking state
+        let mut typeck = TypeCheckState::new(cx.q.context, Some(expected))?;
+
+        // Register parameter types
+        for (arg, _) in ast.args.iter() {
+            register_fn_arg_type(&mut typeck, &mut cx.q, source_id, arg)?;
+        }
+
+        cx.typeck = Some(typeck);
+    }
+
+    // Lower the function arguments and body
+    let args = iter!(&ast.args, |(ast, _)| fn_arg(cx, ast)?);
+    let body = block(cx, None, &ast.body)?;
+
+    // Finalize type checking - verify body type matches expected return type
+    if let Some(ref mut typeck) = cx.typeck {
+        // Infer the body type during finalization
+        let body_type = typeck.infer_block(cx.q.sources, source_id, &ast.body)?;
+        typeck.last_expr_type = body_type;
+        typeck.finalize(&mut cx.q, source_id, &ast.body, options)?;
+
+        // Also check explicit return statements
+        check_returns_in_block(cx, &ast.body)?;
+    }
+
+    // Clear type checking state
+    cx.typeck = None;
 
     Ok(hir::ItemFn {
         span: ast.span(),
-        args: iter!(&ast.args, |(ast, _)| fn_arg(cx, ast)?),
-        body: block(cx, None, &ast.body)?,
+        args,
+        body,
     })
+}
+
+/// Register a function argument's type in the type checking context.
+fn register_fn_arg_type(
+    typeck: &mut TypeCheckState<'_>,
+    q: &mut query::Query<'_, '_>,
+    source_id: crate::SourceId,
+    arg: &ast::FnArg,
+) -> compile::Result<()> {
+    match arg {
+        ast::FnArg::Typed(typed) => {
+            // Get parameter name from pattern
+            if let Some(name) = extract_pat_name(&typed.pat, q.sources, source_id) {
+                let param_type = ResolvedType::from_ast_type(&typed.ty, q, source_id)?;
+                typeck.inference.bind_var(name, param_type)?;
+            }
+        }
+        ast::FnArg::Pat(pat) => {
+            // Untyped parameter - bind as Any
+            if let Some(name) = extract_pat_name(pat, q.sources, source_id) {
+                typeck.inference.bind_var(name, ResolvedType::Any)?;
+            }
+        }
+        ast::FnArg::SelfValue(_) => {
+            // Self parameter - use Any for now
+            typeck
+                .inference
+                .bind_var(alloc::String::try_from("self")?, ResolvedType::Any)?;
+        }
+    }
+    Ok(())
+}
+
+/// Extract a variable name from a pattern.
+fn extract_pat_name(
+    pat: &ast::Pat,
+    sources: &crate::Sources,
+    source_id: crate::SourceId,
+) -> Option<alloc::String> {
+    match pat {
+        ast::Pat::Path(path) => {
+            // Only handle simple single-segment paths (local variables)
+            if path.path.global.is_some() || !path.path.rest.is_empty() {
+                return None;
+            }
+            if let ast::PathSegment::Ident(ident) = &path.path.first {
+                sources
+                    .source(source_id, ident.span)
+                    .and_then(|s| alloc::String::try_from(s).ok())
+            } else {
+                None
+            }
+        }
+        ast::Pat::Binding(binding) => sources
+            .source(source_id, binding.key.span())
+            .and_then(|s| alloc::String::try_from(s).ok()),
+        _ => None,
+    }
+}
+
+/// Check return statements in a block for type compatibility.
+fn check_returns_in_block(cx: &mut Ctxt<'_, '_, '_>, block: &ast::Block) -> compile::Result<()> {
+    let source_id = cx.source_id;
+    let options = cx.q.options;
+
+    for stmt in &block.statements {
+        match stmt {
+            ast::Stmt::Expr(expr) | ast::Stmt::Semi(ast::StmtSemi { expr, .. }) => {
+                check_returns_in_expr(cx, expr, source_id, options)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Recursively check return statements in an expression.
+fn check_returns_in_expr(
+    cx: &mut Ctxt<'_, '_, '_>,
+    expr: &ast::Expr,
+    source_id: crate::SourceId,
+    options: &compile::Options,
+) -> compile::Result<()> {
+    match expr {
+        ast::Expr::Return(ret) => {
+            if let Some(ref mut typeck) = cx.typeck {
+                if let Some(ret_expr) = &ret.expr {
+                    typeck.check_return(&mut cx.q, source_id, ret_expr, options)?;
+                }
+            }
+        }
+        ast::Expr::Block(b) => check_returns_in_block(cx, &b.block)?,
+        ast::Expr::If(if_expr) => {
+            check_returns_in_block(cx, &if_expr.block)?;
+            for branch in &if_expr.expr_else_ifs {
+                check_returns_in_block(cx, &branch.block)?;
+            }
+            if let Some(else_branch) = &if_expr.expr_else {
+                check_returns_in_block(cx, &else_branch.block)?;
+            }
+        }
+        ast::Expr::Match(match_expr) => {
+            for (branch, _) in &match_expr.branches {
+                check_returns_in_expr(cx, &branch.body, source_id, options)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Assemble a closure expression.

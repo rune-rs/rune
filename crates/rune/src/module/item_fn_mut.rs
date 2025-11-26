@@ -1,8 +1,6 @@
 use core::fmt;
 
-#[cfg(feature = "doc")]
 use crate::alloc::Box;
-#[cfg(feature = "doc")]
 use crate::compile::meta;
 use crate::compile::{ContextError, Docs};
 use crate::function_meta::FunctionArgs;
@@ -31,14 +29,10 @@ pub struct ItemFnMut<'a> {
     pub(super) docs: &'a mut Docs,
     #[cfg(feature = "doc")]
     pub(super) deprecated: &'a mut Option<Box<str>>,
-    #[cfg(feature = "doc")]
     pub(super) is_async: &'a mut bool,
-    #[cfg(feature = "doc")]
     pub(super) args: &'a mut Option<usize>,
-    #[cfg(feature = "doc")]
-    pub(super) argument_types: &'a mut Box<[meta::DocType]>,
-    #[cfg(feature = "doc")]
-    pub(super) return_type: &'a mut meta::DocType,
+    pub(super) argument_types: &'a mut Box<[meta::TypeHash]>,
+    pub(super) return_type: &'a mut meta::TypeHash,
 }
 
 impl ItemFnMut<'_> {
@@ -51,12 +45,8 @@ impl ItemFnMut<'_> {
     }
 
     /// Mark the given item as an async function.
-    pub fn is_async(self, #[cfg_attr(not(feature = "doc"), allow(unused))] is_async: bool) -> Self {
-        #[cfg(feature = "doc")]
-        {
-            *self.is_async = is_async;
-        }
-
+    pub fn is_async(self, is_async: bool) -> Self {
+        *self.is_async = is_async;
         self
     }
 
@@ -74,12 +64,8 @@ impl ItemFnMut<'_> {
     }
 
     /// Indicate the number of arguments this function accepts.
-    pub fn args(self, #[cfg_attr(not(feature = "doc"), allow(unused))] args: usize) -> Self {
-        #[cfg(feature = "doc")]
-        {
-            *self.args = Some(args);
-        }
-
+    pub fn args(self, args: usize) -> Self {
+        *self.args = Some(args);
         self
     }
 
@@ -88,11 +74,7 @@ impl ItemFnMut<'_> {
     where
         T: MaybeTypeOf,
     {
-        #[cfg(feature = "doc")]
-        {
-            *self.return_type = T::maybe_type_of()?;
-        }
-
+        *self.return_type = T::maybe_type_of()?;
         Ok(self)
     }
 
@@ -101,25 +83,17 @@ impl ItemFnMut<'_> {
     where
         A: FunctionArgs,
     {
-        #[cfg(feature = "doc")]
-        {
-            *self.argument_types = A::into_box()?;
-            *self.args = Some(A::len());
-        }
-
+        *self.argument_types = A::into_box()?;
+        *self.args = Some(A::len());
         Ok(self)
     }
 
     /// Set argument names.
     pub fn argument_names(
         self,
-        #[cfg_attr(not(feature = "doc"), allow(unused))] names: impl IntoIterator<Item: AsRef<str>>,
+        names: impl IntoIterator<Item: AsRef<str>>,
     ) -> Result<Self, ContextError> {
-        #[cfg(feature = "doc")]
-        {
-            self.docs.set_arguments(names)?;
-        }
-
+        self.docs.set_arguments(names)?;
         Ok(self)
     }
 }
