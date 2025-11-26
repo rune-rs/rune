@@ -13,7 +13,7 @@ use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
 use crate::hir::typeck::ResolvedType;
-use crate::hir::TypeCheckState;
+use crate::hir::TypeChecker;
 use crate::parse::Resolve;
 use crate::query::AsyncBlock;
 use crate::query::Closure;
@@ -55,8 +55,8 @@ pub(crate) fn item_fn<'hir>(
         // Parse the expected return type
         let expected = ResolvedType::from_ast_type(return_type, &mut cx.q, source_id)?;
 
-        // Initialize type checking state
-        let mut typeck = TypeCheckState::new(cx.q.context, Some(expected))?;
+        // Initialize type checker
+        let mut typeck = TypeChecker::new(cx.q.context, Some(expected))?;
 
         // Register parameter types
         for (arg, _) in ast.args.iter() {
@@ -91,9 +91,9 @@ pub(crate) fn item_fn<'hir>(
     })
 }
 
-/// Register a function argument's type in the type checking context.
+/// Register a function argument's type in the type checker.
 fn register_fn_arg_type(
-    typeck: &mut TypeCheckState<'_>,
+    typeck: &mut TypeChecker<'_>,
     q: &mut query::Query<'_, '_>,
     source_id: crate::SourceId,
     arg: &ast::FnArg,
@@ -103,20 +103,18 @@ fn register_fn_arg_type(
             // Get parameter name from pattern
             if let Some(name) = extract_pat_name(&typed.pat, q.sources, source_id) {
                 let param_type = ResolvedType::from_ast_type(&typed.ty, q, source_id)?;
-                typeck.inference.bind_var(name, param_type)?;
+                typeck.bind_var(&name, param_type)?;
             }
         }
         ast::FnArg::Pat(pat) => {
             // Untyped parameter - bind as Any
             if let Some(name) = extract_pat_name(pat, q.sources, source_id) {
-                typeck.inference.bind_var(name, ResolvedType::Any)?;
+                typeck.bind_var(&name, ResolvedType::Any)?;
             }
         }
         ast::FnArg::SelfValue(_) => {
             // Self parameter - use Any for now
-            typeck
-                .inference
-                .bind_var(alloc::String::try_from("self")?, ResolvedType::Any)?;
+            typeck.bind_var("self", ResolvedType::Any)?;
         }
     }
     Ok(())

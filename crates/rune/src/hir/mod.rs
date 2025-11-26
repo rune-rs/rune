@@ -20,4 +20,4 @@ pub(crate) use self::ctxt::Ctxt;
 use self::ctxt::Needs;
 
 pub(crate) mod typeck;
-pub(crate) use self::typeck::{check_struct_literal_if_typed_with_item, TypeCheckState};
+pub(crate) use self::typeck::{check_struct_literal_if_typed_with_item, TypeChecker};

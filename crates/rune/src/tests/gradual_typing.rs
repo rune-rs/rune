@@ -837,3 +837,45 @@ fn stdlib_vec_operations() {
     };
     assert_eq!(result, 30);
 }
+
+/// Test protocol operations with float types
+#[test]
+fn stdlib_float_protocols() {
+    let result: f64 = rune! {
+        fn calculate() -> f64 {
+            3.14 * 2.0 + 1.0
+        }
+
+        calculate()
+    };
+    assert_eq!(result, 7.28);
+}
+
+/// Test protocol operations with mixed types
+#[test]
+fn stdlib_mixed_type_protocols() {
+    let result: String = rune! {
+        fn format_calculation() -> String {
+            let x = 42;
+            let y = 3.14;
+            format!("Value is {} times {}", x, y)  // String formatting protocol
+        }
+
+        format_calculation()
+    };
+    assert!(result.contains("42"));
+    assert!(result.contains("3.14"));
+}
+
+/// Test protocol operations in conditionals
+#[test]
+fn stdlib_protocols_in_conditionals() {
+    let result: bool = rune! {
+        fn check_condition(value: i64) -> bool {
+            value > 10 && value < 100
+        }
+
+        check_condition(50)
+    };
+    assert!(result);
+}

@@ -83,6 +83,7 @@ impl QueryInner<'_> {
     /// Iterate over all indexed entries.
     ///
     /// This is used by the type checking pass to access function definitions.
+    #[allow(dead_code)]
     pub(crate) fn indexed_entries(&self) -> impl Iterator<Item = &crate::indexing::Entry> + '_ {
         self.indexed.values().flat_map(|entries| entries.iter())
     }

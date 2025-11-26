@@ -248,6 +248,7 @@ pub enum Kind {
 
 impl Kind {
     /// Access the underlying signature of the kind, if available.
+    #[allow(dead_code)]
     pub(crate) fn as_signature(&self) -> Option<&Signature> {
         match self {
             Kind::Struct { constructor, .. } => constructor.as_ref(),

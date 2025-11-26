@@ -18,6 +18,7 @@
 //! - Variable binding tracking
 
 use crate::alloc::prelude::*;
+use crate::alloc::sync::Arc;
 use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{self, NumberSource, Spanned};
 use crate::compile::{self, meta, Options};
@@ -33,8 +34,8 @@ use once_cell::sync::Lazy;
 
 /// Cache of builtin type hashes to avoid repeated computation.
 /// Maps type name to its hash value.
-static BUILTIN_TYPE_HASHES: Lazy<std::collections::HashMap<&'static str, u64>> = Lazy::new(|| {
-    let mut map = std::collections::HashMap::new();
+static BUILTIN_TYPE_HASHES: Lazy<HashMap<&'static str, u64>> = Lazy::new(|| {
+    let mut map = HashMap::new();
 
     // Helper to compute hash - these paths are known to be valid
     let hash = |name: &str| -> u64 {
@@ -45,30 +46,39 @@ static BUILTIN_TYPE_HASHES: Lazy<std::collections::HashMap<&'static str, u64>> =
         Hash::type_hash(&item).into_inner()
     };
 
-    map.insert("i64", hash("i64"));
-    map.insert("i32", hash("i32"));
-    map.insert("i16", hash("i16"));
-    map.insert("i8", hash("i8"));
-    map.insert("u64", hash("u64"));
-    map.insert("u32", hash("u32"));
-    map.insert("u16", hash("u16"));
-    map.insert("u8", hash("u8"));
-    map.insert("f64", hash("f64"));
-    map.insert("f32", hash("f32"));
-    map.insert("bool", hash("bool"));
-    map.insert("char", hash("char"));
-    map.insert("String", hash("String"));
-    map.insert("Bytes", hash("Bytes"));
+    let types = [
+        ("i64", hash("i64")),
+        ("i32", hash("i32")),
+        ("i16", hash("i16")),
+        ("i8", hash("i8")),
+        ("u64", hash("u64")),
+        ("u32", hash("u32")),
+        ("u16", hash("u16")),
+        ("u8", hash("u8")),
+        ("f64", hash("f64")),
+        ("f32", hash("f32")),
+        ("bool", hash("bool")),
+        ("char", hash("char")),
+        ("String", hash("String")),
+        ("Bytes", hash("Bytes")),
+    ];
+
+    for (name, hash_val) in types {
+        map.try_insert(name, hash_val).expect("builtin type hash should be unique");
+    }
 
     map
 });
 
 /// Reverse mapping: hash value to type name for display purposes.
-static BUILTIN_HASH_NAMES: Lazy<std::collections::HashMap<u64, &'static str>> = Lazy::new(|| {
-    BUILTIN_TYPE_HASHES
-        .iter()
-        .map(|(&k, &v)| (v, k))
-        .collect()
+static BUILTIN_HASH_NAMES: Lazy<HashMap<u64, &'static str>> = Lazy::new(|| {
+    let mut map = HashMap::new();
+
+    for (name, &hash_val) in BUILTIN_TYPE_HASHES.iter() {
+        map.try_insert(hash_val, *name).expect("builtin hash should be unique");
+    }
+
+    map
 });
 
 // ============================================================================
@@ -83,12 +93,15 @@ static BUILTIN_HASH_NAMES: Lazy<std::collections::HashMap<u64, &'static str>> = 
 pub(crate) struct TypeVar(usize);
 
 /// Resolved type information for gradual type checking.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// Uses `Arc<[ResolvedType]>` for tuple types to enable O(1) cloning.
+/// This is important because types are frequently cloned during inference.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ResolvedType {
     /// A named type (e.g., `i64`, `String`, `foo::Bar`) identified by hash
     Named(Hash),
-    /// A tuple of types.
-    Tuple(Vec<ResolvedType>),
+    /// A tuple of types. Uses Arc for cheap cloning.
+    Tuple(Arc<[ResolvedType]>),
     /// The never type `!`
     Never,
     /// Dynamic/untyped - compatible with everything (gradual typing)
@@ -97,19 +110,17 @@ pub(crate) enum ResolvedType {
     Variable(TypeVar),
 }
 
-impl TryClone for ResolvedType {
-    fn try_clone(&self) -> alloc::Result<Self> {
-        Ok(match self {
-            ResolvedType::Named(hash) => ResolvedType::Named(*hash),
-            ResolvedType::Tuple(types) => ResolvedType::Tuple(types.try_clone()?),
-            ResolvedType::Never => ResolvedType::Never,
-            ResolvedType::Any => ResolvedType::Any,
-            ResolvedType::Variable(v) => ResolvedType::Variable(*v),
-        })
-    }
-}
-
 impl ResolvedType {
+    /// Create the unit type `()`.
+    ///
+    /// Creates an empty tuple type representing the unit type in Rune.
+    #[inline]
+    pub(crate) fn unit() -> Self {
+        // For unit type, we create an empty Arc<[ResolvedType]>
+        // This is a small allocation but happens infrequently
+        ResolvedType::Tuple(Arc::try_from(Vec::new()).unwrap())
+    }
+
     /// Convert AST type to resolved type.
     pub(crate) fn from_ast_type(
         ty: &ast::Type,
@@ -148,7 +159,7 @@ impl ResolvedType {
                 for (inner_ty, _) in tuple.iter() {
                     types.try_push(Self::from_ast_type(inner_ty, q, _source_id)?)?;
                 }
-                Ok(ResolvedType::Tuple(types))
+                Ok(ResolvedType::Tuple(Arc::try_from(types)?))
             }
         }
     }
@@ -190,15 +201,10 @@ impl ResolvedType {
     }
 
     /// Convert to display string for error messages.
-    pub(crate) fn to_display_string(&self, q: &Query<'_, '_>) -> compile::Result<String> {
-        self.to_display_string_impl(q)
-    }
-
-    /// Implementation of to_display_string.
-    /// Separated to avoid clippy's only_used_in_recursion warning.
-    /// Note: `q` is intentionally only used in recursive calls (for Tuple types).
+    ///
+    /// The `q` parameter is used for recursive tuple type formatting.
     #[allow(clippy::only_used_in_recursion)]
-    fn to_display_string_impl(&self, q: &Query<'_, '_>) -> compile::Result<String> {
+    pub(crate) fn to_display_string(&self, q: &Query<'_, '_>) -> compile::Result<String> {
         use crate::alloc::fmt::TryWrite;
 
         Ok(match self {
@@ -222,7 +228,8 @@ impl ResolvedType {
                     if i > 0 {
                         result.try_push_str(", ")?;
                     }
-                    result.try_push_str(&ty.to_display_string_impl(q)?)?;
+                    // Recursive call uses `q`
+                    result.try_push_str(&ty.to_display_string(q)?)?;
                 }
                 result.try_push(')')?;
                 result
@@ -242,93 +249,153 @@ impl ResolvedType {
     ///
     /// Returns `true` if the types are compatible (no warning needed).
     pub(crate) fn is_compatible_with(&self, other: &Self) -> bool {
-        // Any is compatible with everything
-        if matches!(self, ResolvedType::Any) || matches!(other, ResolvedType::Any) {
-            return true;
-        }
-
-        // Type variables are compatible with everything (they'll be resolved later)
-        if matches!(self, ResolvedType::Variable(_)) || matches!(other, ResolvedType::Variable(_)) {
-            return true;
-        }
-
+        // Single pattern match for efficiency - fast paths first
         match (self, other) {
+            // Any is compatible with everything (gradual typing)
+            (ResolvedType::Any, _) | (_, ResolvedType::Any) => true,
+            // Type variables are compatible with everything (resolved later)
+            (ResolvedType::Variable(_), _) | (_, ResolvedType::Variable(_)) => true,
+            // Never is bottom type - subtype of everything
+            (ResolvedType::Never, _) => true,
+            // Named types must match exactly
             (ResolvedType::Named(a), ResolvedType::Named(b)) => a == b,
-            (ResolvedType::Tuple(a), ResolvedType::Tuple(b)) if a.len() == b.len() => {
-                a.iter().zip(b.iter()).all(|(a, b)| a.is_compatible_with(b))
+            // Tuple types must have same arity and compatible elements
+            (ResolvedType::Tuple(a), ResolvedType::Tuple(b)) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a.is_compatible_with(b))
             }
-            (ResolvedType::Never, _) => true, // Never is subtype of everything
+            // All other combinations are incompatible
             _ => false,
         }
     }
 }
 
 // ============================================================================
-// Inference Context
+// String Interner for Variable Names
 // ============================================================================
 
-/// Context for type inference within a function.
+/// Interned symbol identifier for variable names.
 ///
-/// Tracks type variables, substitutions, variable bindings, and provides
-/// access to the compilation context for protocol lookups.
-pub(crate) struct InferenceContext<'a> {
+/// Using a compact u32 instead of String reduces memory usage and enables
+/// fast equality comparison (integer vs string comparison).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct SymbolId(u32);
+
+/// Per-function string interner for variable names.
+///
+/// Deduplicates variable name strings within a function's type checking context.
+/// This reduces memory allocations when the same variable name appears multiple
+/// times (e.g., in nested scopes or multiple references).
+struct StringInterner {
+    /// Storage for interned strings
+    strings: Vec<String>,
+    /// Lookup map from string content to symbol ID
+    lookup: HashMap<String, SymbolId>,
+}
+
+impl StringInterner {
+    /// Create a new empty interner.
+    fn new() -> Self {
+        Self {
+            strings: Vec::new(),
+            lookup: HashMap::new(),
+        }
+    }
+
+    /// Intern a string, returning its symbol ID.
+    ///
+    /// If the string was already interned, returns the existing ID.
+    /// Otherwise, stores the string and returns a new ID.
+    fn intern(&mut self, s: &str) -> alloc::Result<SymbolId> {
+        // Check if already interned
+        if let Some(&id) = self.lookup.get(s) {
+            return Ok(id);
+        }
+
+        // New string - allocate and store
+        let id = SymbolId(u32::try_from(self.strings.len()).expect("too many interned strings"));
+        let owned = String::try_from(s)?;
+        self.lookup.try_insert(owned.try_clone()?, id)?;
+        self.strings.try_push(owned)?;
+        Ok(id)
+    }
+
+}
+
+// ============================================================================
+// Type Checker
+// ============================================================================
+
+/// Type checker for a function during HIR lowering.
+///
+/// Combines type inference machinery with function-level type checking state.
+/// This is stored in `Ctxt` when a function has type annotations, allowing
+/// type inference to happen during the lowering pass rather than as a separate
+/// AST walk.
+pub(crate) struct TypeChecker<'a> {
+    // -- Function-level state --
+    /// The expected return type from the function signature (if annotated)
+    expected_return: Option<ResolvedType>,
+    /// Track the last inferred expression type (for implicit returns)
+    pub(crate) last_expr_type: ResolvedType,
+
+    // -- Inference machinery --
     /// Counter for generating fresh type variables
     next_var: usize,
     /// Substitution map: TypeVar -> ResolvedType
     substitutions: HashMap<TypeVar, ResolvedType>,
-    /// Variable scope stack for tracking variable types by name
-    scopes: Vec<HashMap<String, ResolvedType>>,
+    /// String interner for variable names
+    interner: StringInterner,
+    /// Variable scope stack for tracking variable types by name.
+    ///
+    /// Uses `Vec<(SymbolId, ResolvedType)>` instead of `HashMap` for each scope
+    /// because typical scopes are small (< 20 variables). Linear search in
+    /// contiguous memory is faster than hash lookups for small collections
+    /// due to better cache locality and no hashing overhead.
+    ///
+    /// Variable names are interned to reduce memory usage and enable fast
+    /// integer comparison instead of string comparison.
+    scopes: Vec<Vec<(SymbolId, ResolvedType)>>,
     /// Reference to the compilation context for protocol lookups
     context: &'a Context,
 }
 
-/// State for type checking during HIR lowering.
-///
-/// This is stored in `Ctxt` when a function has type annotations, allowing
-/// type inference to happen during the lowering pass rather than as a separate
-/// AST walk.
-pub(crate) struct TypeCheckState<'a> {
-    /// The inference context for tracking types and substitutions
-    pub(crate) inference: InferenceContext<'a>,
-    /// The expected return type from the function signature (if annotated)
-    pub(crate) expected_return: Option<ResolvedType>,
-    /// Track the last inferred expression type (for implicit returns)
-    pub(crate) last_expr_type: ResolvedType,
-}
-
-impl<'a> TypeCheckState<'a> {
-    /// Create a new type check state for a function with type annotations.
+impl<'a> TypeChecker<'a> {
+    /// Create a new type checker for a function.
     pub(crate) fn new(
         context: &'a Context,
         expected_return: Option<ResolvedType>,
     ) -> alloc::Result<Self> {
+        let mut scopes = Vec::new();
+        scopes.try_push(Vec::new())?;
         Ok(Self {
-            inference: InferenceContext::new(context)?,
             expected_return,
-            last_expr_type: ResolvedType::Tuple(Vec::new()), // Unit by default
+            last_expr_type: ResolvedType::unit(),
+            next_var: 0,
+            substitutions: HashMap::new(),
+            interner: StringInterner::new(),
+            scopes,
+            context,
         })
     }
 
-    /// Infer the type of an expression during lowering.
-    ///
-    /// This mirrors the structure of lowering but focuses on type inference.
+    /// Infer the type of an expression.
     pub(crate) fn infer_expr(
         &mut self,
         sources: &Sources,
         source_id: SourceId,
         expr: &ast::Expr,
     ) -> compile::Result<ResolvedType> {
-        infer_expr_type_with_ctx(&mut self.inference, sources, source_id, expr)
+        infer_expr_type_with_ctx(self, sources, source_id, expr)
     }
 
-    /// Infer the type of a block during lowering.
+    /// Infer the type of a block.
     pub(crate) fn infer_block(
         &mut self,
         sources: &Sources,
         source_id: SourceId,
         block: &ast::Block,
     ) -> compile::Result<ResolvedType> {
-        infer_block_type_with_ctx(&mut self.inference, sources, source_id, block)
+        infer_block_type_with_ctx(self, sources, source_id, block)
     }
 
     /// Check a return expression against the expected type.
@@ -341,13 +408,12 @@ impl<'a> TypeCheckState<'a> {
     ) -> compile::Result<()> {
         // Clone expected type to avoid borrow conflict
         let expected = match &self.expected_return {
-            Some(e) => e.try_clone()?,
+            Some(e) => e.clone(),
             None => return Ok(()),
         };
         let actual = self.infer_expr(q.sources, source_id, expr)?;
         if !actual.is_compatible_with(&expected) {
-            self.inference
-                .emit_type_mismatch(q, source_id, expr, &expected, &actual, options)?;
+            self.emit_type_mismatch(q, source_id, expr, &expected, &actual, options)?;
         }
         Ok(())
     }
@@ -363,27 +429,12 @@ impl<'a> TypeCheckState<'a> {
         options: &Options,
     ) -> compile::Result<()> {
         if let Some(expected) = &self.expected_return {
-            let actual = self.inference.apply(&self.last_expr_type)?;
+            let actual = self.apply(&self.last_expr_type.clone())?;
             if !actual.is_compatible_with(expected) {
-                self.inference
-                    .emit_type_mismatch(q, source_id, body_span, expected, &actual, options)?;
+                self.emit_type_mismatch(q, source_id, body_span, expected, &actual, options)?;
             }
         }
         Ok(())
-    }
-}
-
-impl<'a> InferenceContext<'a> {
-    /// Create a new inference context.
-    pub(crate) fn new(context: &'a Context) -> alloc::Result<Self> {
-        let mut scopes = Vec::new();
-        scopes.try_push(HashMap::new())?;
-        Ok(Self {
-            next_var: 0,
-            substitutions: HashMap::new(),
-            scopes,
-            context,
-        })
     }
 
     /// Get the compilation context for protocol lookups.
@@ -400,38 +451,71 @@ impl<'a> InferenceContext<'a> {
 
     /// Push a new variable scope.
     pub(crate) fn push_scope(&mut self) -> alloc::Result<()> {
-        self.scopes.try_push(HashMap::new())
+        self.scopes.try_push(Vec::new())
     }
 
     /// Pop the current variable scope.
-    /// Never pops the global scope (index 0).
+    ///
+    /// # Panics
+    ///
+    /// Panics if called when only the global scope remains. This indicates
+    /// a bug in the compiler where scope push/pop calls are unbalanced.
     pub(crate) fn pop_scope(&mut self) {
-        // Never pop the global scope
-        if self.scopes.len() > 1 {
-            self.scopes.pop();
-        } else {
-            // This would be a programming error - should never happen
-            debug_assert!(
-                false,
-                "Attempted to pop global scope in type checker - this is a bug"
-            );
-        }
+        assert!(
+            self.scopes.len() > 1,
+            "Attempted to pop global scope in type checker - this is a compiler bug"
+        );
+        self.scopes.pop();
     }
 
     /// Bind a variable name to a type in the current scope.
-    pub(crate) fn bind_var(&mut self, name: String, ty: ResolvedType) -> alloc::Result<()> {
-        if let Some(scope) = self.scopes.last_mut() {
-            scope.try_insert(name, ty)?;
+    ///
+    /// Accepts `&str` and interns the name internally. If the variable already
+    /// exists in the current scope, its type is updated (shadowing within scope).
+    ///
+    /// # Panics
+    ///
+    /// Panics if no scope exists. This should never happen as the constructor
+    /// always creates an initial scope.
+    pub(crate) fn bind_var(&mut self, name: &str, ty: ResolvedType) -> alloc::Result<()> {
+        let name_id = self.interner.intern(name)?;
+
+        let scope = self
+            .scopes
+            .last_mut()
+            .expect("TypeChecker must always have at least one scope");
+
+        // Linear search to check for existing binding (update if found)
+        // Uses fast integer comparison instead of string comparison
+        for (existing_id, existing_ty) in scope.iter_mut() {
+            if *existing_id == name_id {
+                *existing_ty = ty;
+                return Ok(());
+            }
         }
+
+        // New binding
+        scope.try_push((name_id, ty))?;
         Ok(())
     }
 
     /// Look up a variable's type by name.
+    ///
+    /// Searches from innermost to outermost scope, returning the first match.
+    /// Returns `Any` for unknown variables (gradual typing semantics).
     pub(crate) fn lookup_var(&self, name: &str) -> compile::Result<ResolvedType> {
+        // Check if this name has been interned - if not, it can't be in scope
+        let Some(&name_id) = self.interner.lookup.get(name) else {
+            return Ok(ResolvedType::Any);
+        };
+
         // Search from innermost to outermost scope
         for scope in self.scopes.iter().rev() {
-            if let Some(ty) = scope.get(name) {
-                return Ok(ty.try_clone()?);
+            // Linear search within scope using fast integer comparison
+            for (var_id, ty) in scope.iter() {
+                if *var_id == name_id {
+                    return Ok(ty.clone());
+                }
             }
         }
         // Unknown variable - return Any for gradual typing
@@ -449,17 +533,22 @@ impl<'a> InferenceContext<'a> {
     }
 
     /// Apply substitutions with recursion depth tracking.
+    ///
+    /// Returns an error if the recursion depth exceeds `MAX_RECURSION_DEPTH`,
+    /// which typically indicates an infinite recursive type definition.
     fn apply_with_depth(
         &self,
         ty: &ResolvedType,
         depth: usize,
     ) -> compile::Result<ResolvedType> {
         if depth > Self::MAX_RECURSION_DEPTH {
-            return Err(compile::Error::new(
+            // Note: We use Span::empty() here because type resolution happens
+            // after AST parsing. The caller should catch this error and report
+            // it with the appropriate span from the expression being type-checked.
+            return Err(compile::Error::msg(
                 ast::Span::empty(),
-                compile::ErrorKind::Custom {
-                    error: anyhow::anyhow!("Type recursion limit exceeded - possible infinite type"),
-                },
+                "Type recursion limit exceeded. This usually indicates a circular \
+                 type reference. Check for recursive type definitions.",
             ));
         }
 
@@ -475,12 +564,12 @@ impl<'a> InferenceContext<'a> {
             }
             ResolvedType::Tuple(types) => {
                 let mut resolved = Vec::new();
-                for t in types {
+                for t in types.iter() {
                     resolved.try_push(self.apply_with_depth(t, depth + 1)?)?;
                 }
-                ResolvedType::Tuple(resolved)
+                ResolvedType::Tuple(Arc::try_from(resolved)?)
             }
-            other => other.try_clone()?,
+            other => other.clone(),
         })
     }
 
@@ -495,7 +584,7 @@ impl<'a> InferenceContext<'a> {
             // Type variable unification - bind to other type
             (ResolvedType::Variable(v), other) | (other, ResolvedType::Variable(v)) => {
                 if !occurs_check(*v, other) {
-                    self.substitutions.try_insert(*v, other.try_clone()?)?;
+                    self.substitutions.try_insert(*v, other.clone())?;
                 }
                 Ok(())
             }
@@ -556,11 +645,20 @@ impl<'a> InferenceContext<'a> {
 
 /// Occurs check to prevent infinite types.
 ///
-/// Returns true if the type variable occurs in the type.
+/// Returns true if the type variable occurs in the type, which would
+/// indicate a recursive type definition like `T = List<T>`.
+///
+/// # Limitations
+///
+/// Currently only traverses `Tuple` types. If `ResolvedType::Named` is
+/// extended to support generic type parameters in the future, this function
+/// must be updated to traverse those as well to detect cycles like `T = Foo<T>`.
 fn occurs_check(var: TypeVar, ty: &ResolvedType) -> bool {
     match ty {
         ResolvedType::Variable(v) => var == *v,
         ResolvedType::Tuple(types) => types.iter().any(|t| occurs_check(var, t)),
+        // Named types currently don't have generic parameters, so no traversal needed.
+        // Never and Any cannot contain type variables.
         _ => false,
     }
 }
@@ -635,9 +733,9 @@ fn binop_to_protocol(op: &ast::BinOp) -> Option<&'static Protocol> {
     })
 }
 
-/// Infer the type of an expression using the inference context.
+/// Infer the type of an expression using the type checker.
 fn infer_expr_type_with_ctx(
-    ctx: &mut InferenceContext<'_>,
+    ctx: &mut TypeChecker<'_>,
     sources: &Sources,
     source_id: SourceId,
     expr: &ast::Expr,
@@ -652,7 +750,7 @@ fn infer_expr_type_with_ctx(
             for (e, _) in tuple.items.iter() {
                 types.try_push(infer_expr_type_with_ctx(ctx, sources, source_id, e)?)?;
             }
-            ResolvedType::Tuple(types)
+            ResolvedType::Tuple(Arc::try_from(types)?)
         }
 
         // Binary operations - use protocol lookups for return types
@@ -800,14 +898,14 @@ fn infer_expr_type_with_ctx(
 
 /// Infer the type of a block, tracking variable bindings.
 fn infer_block_type_with_ctx(
-    ctx: &mut InferenceContext<'_>,
+    ctx: &mut TypeChecker<'_>,
     sources: &Sources,
     source_id: SourceId,
     block: &ast::Block,
 ) -> compile::Result<ResolvedType> {
     ctx.push_scope()?;
 
-    let mut last_type = ResolvedType::Tuple(Vec::new()); // Unit type by default
+    let mut last_type = ResolvedType::unit();
 
     for stmt in &block.statements {
         match stmt {
@@ -818,7 +916,7 @@ fn infer_block_type_with_ctx(
             // Semi statement (with semicolon) - evaluate but result is unit
             ast::Stmt::Semi(semi) => {
                 let _ = infer_expr_type_with_ctx(ctx, sources, source_id, &semi.expr)?;
-                last_type = ResolvedType::Tuple(Vec::new()); // Unit
+                last_type = ResolvedType::unit();
             }
             // Local binding (let statement)
             ast::Stmt::Local(local) => {
@@ -828,7 +926,7 @@ fn infer_block_type_with_ctx(
                 // Bind the pattern variables to the inferred type
                 bind_pattern_vars(ctx, sources, source_id, &local.pat, &expr_type)?;
 
-                last_type = ResolvedType::Tuple(Vec::new()); // Let returns unit
+                last_type = ResolvedType::unit();
             }
             // Item declarations don't affect block type
             ast::Stmt::Item(..) => {}
@@ -841,7 +939,7 @@ fn infer_block_type_with_ctx(
 
 /// Bind variables from a pattern to a type.
 fn bind_pattern_vars(
-    ctx: &mut InferenceContext<'_>,
+    ctx: &mut TypeChecker<'_>,
     sources: &Sources,
     source_id: SourceId,
     pat: &ast::Pat,
@@ -851,7 +949,7 @@ fn bind_pattern_vars(
         // Simple identifier binding
         ast::Pat::Path(path) => {
             if let Some(name) = get_path_ident(&path.path, sources, source_id) {
-                ctx.bind_var(name, ty.try_clone()?)?;
+                ctx.bind_var(&name, ty.clone())?;
             }
         }
         // Tuple pattern - destructure
@@ -859,7 +957,7 @@ fn bind_pattern_vars(
             if let ResolvedType::Tuple(types) = ty {
                 for (i, (item, _)) in tuple.items.iter().enumerate() {
                     let item_type = if let Some(t) = types.get(i) {
-                        t.try_clone()?
+                        t.clone()
                     } else {
                         ResolvedType::Variable(ctx.fresh_var())
                     };
@@ -870,7 +968,7 @@ fn bind_pattern_vars(
         // Binding pattern (name @ pattern)
         ast::Pat::Binding(binding) => {
             if let Some(name) = sources.source(source_id, binding.key.span()) {
-                ctx.bind_var(alloc::String::try_from(name)?, ty.try_clone()?)?;
+                ctx.bind_var(name, ty.clone())?;
             }
             // Also bind the inner pattern
             bind_pattern_vars(ctx, sources, source_id, &binding.pat, ty)?;
@@ -944,13 +1042,11 @@ pub(crate) fn check_struct_literal_if_typed_with_item(
     // (we need to mutably borrow q later for type checking)
     let mut field_types_owned = alloc::Vec::new();
     for (name, ty_opt) in field_types.iter() {
-        field_types_owned.try_push((
-            name.try_clone()?,
-            match ty_opt {
-                Some(ty) => Some(ty.try_clone()?),
-                None => None,
-            },
-        ))?;
+        let cloned_ty = match ty_opt {
+            Some(ty) => Some(ty.try_clone()?),
+            None => None,
+        };
+        field_types_owned.try_push((name.try_clone()?, cloned_ty))?;
     }
 
     // Create a map of field names to their types for quick lookup
@@ -981,7 +1077,7 @@ pub(crate) fn check_struct_literal_if_typed_with_item(
     }
 
     // Now we can type check without holding any immutable borrows
-    let mut ctx = InferenceContext::new(q.context)?;
+    let mut ctx = TypeChecker::new(q.context, None)?;
 
     for (expected_ast_type, assigned_expr) in field_checks {
         let expected_type = ResolvedType::from_ast_type(expected_ast_type, q, source_id)?;
