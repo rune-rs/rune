@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760145645690,
+  "lastUpdate": 1764206912770,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -33869,6 +33869,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 367,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "johnjohn.tedro@gmail.com"
+          },
+          "id": "f448c78e81c144aa85964233eb25c9626d96218a",
+          "message": "Fix lints and bump MSRV to 1.91",
+          "timestamp": "2025-11-26T07:47:14Z",
+          "url": "https://github.com/rune-rs/rune/commit/f448c78e81c144aa85964233eb25c9626d96218a"
+        },
+        "date": 1764206911751,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10889693,
+            "range": "± 85116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4161857,
+            "range": "± 22930",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1727,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1323,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 154331,
+            "range": "± 1090",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 955190,
+            "range": "± 2808",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 238803568,
+            "range": "± 1411858",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 215503438,
+            "range": "± 615533",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 512971,
+            "range": "± 11805",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 5522409,
+            "range": "± 16320",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 29817857,
+            "range": "± 132772",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 4694919,
+            "range": "± 15506",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 230095,
+            "range": "± 1136",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2568108,
+            "range": "± 7388",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 343,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
