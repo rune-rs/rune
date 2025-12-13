@@ -218,7 +218,9 @@ pub use self::compile::{Context, ContextError, Options};
 
 // Re-export type extraction API for gradual typing
 #[doc(inline)]
-pub use self::compile::type_info::{AnnotatedType, FunctionSignature, ParameterType};
+pub use self::compile::type_info::{
+    AnnotatedType, FieldInfo, FunctionSignature, ParameterType, StructInfo,
+};
 
 pub mod item;
 #[doc(inline)]

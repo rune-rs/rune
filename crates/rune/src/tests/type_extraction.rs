@@ -367,3 +367,166 @@ fn path_type_extraction() {
     let return_type = sig.return_type.as_ref().expect("should have return type");
     assert_eq!(return_type.to_type_string(), "Option");
 }
+
+// ============================================================================
+// Struct Type Extraction API
+// ============================================================================
+
+/// Can extract struct info from compiled unit
+#[test]
+fn extract_struct_info() {
+    let context = Context::with_default_modules().unwrap();
+    let mut sources = Sources::new();
+    sources
+        .insert(
+            Source::new(
+                "main",
+                r#"
+        struct Person {
+            name,
+            age,
+        }
+
+        pub fn main() {}
+    "#,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    let mut diagnostics = Diagnostics::new();
+    let unit = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()
+        .unwrap();
+
+    // Extract struct info
+    let info = unit
+        .struct_info_by_name("Person")
+        .expect("should find 'Person' struct");
+
+    assert_eq!(info.name.as_ref(), "Person");
+    assert_eq!(info.fields.len(), 2);
+
+    // Find name field
+    let name_field = info.fields.iter().find(|f| f.name.as_ref() == "name");
+    assert!(name_field.is_some(), "should have 'name' field");
+
+    // Find age field
+    let age_field = info.fields.iter().find(|f| f.name.as_ref() == "age");
+    assert!(age_field.is_some(), "should have 'age' field");
+}
+
+/// Can extract all struct infos from unit
+#[test]
+fn extract_all_struct_infos() {
+    let context = Context::with_default_modules().unwrap();
+    let mut sources = Sources::new();
+    sources
+        .insert(
+            Source::new(
+                "main",
+                r#"
+        struct Point { x, y }
+        struct Rect { top_left, bottom_right }
+
+        pub fn main() {}
+    "#,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    let mut diagnostics = Diagnostics::new();
+    let unit = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()
+        .unwrap();
+
+    let structs: Vec<_> = unit.struct_infos().collect();
+
+    // Should find Point and Rect
+    let names: Vec<_> = structs.iter().map(|s| s.name.as_ref()).collect();
+    assert!(names.contains(&"Point"), "should contain 'Point'");
+    assert!(names.contains(&"Rect"), "should contain 'Rect'");
+}
+
+/// Can lookup struct by hash
+#[test]
+fn lookup_struct_by_hash() {
+    let context = Context::with_default_modules().unwrap();
+    let mut sources = Sources::new();
+    sources
+        .insert(
+            Source::new(
+                "main",
+                r#"
+        struct Target { field }
+
+        pub fn main() {}
+    "#,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    let mut diagnostics = Diagnostics::new();
+    let unit = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()
+        .unwrap();
+
+    // Get hash for struct
+    let hash = Hash::type_hash(["Target"]);
+    let info = unit.struct_info(hash);
+
+    assert!(info.is_some(), "should find struct by hash");
+    assert_eq!(info.unwrap().name.as_ref(), "Target");
+}
+
+/// Struct fields have correct positions
+#[test]
+fn struct_field_positions() {
+    let context = Context::with_default_modules().unwrap();
+    let mut sources = Sources::new();
+    sources
+        .insert(
+            Source::new(
+                "main",
+                r#"
+        struct Data {
+            first,
+            second,
+            third,
+        }
+
+        pub fn main() {}
+    "#,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    let mut diagnostics = Diagnostics::new();
+    let unit = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()
+        .unwrap();
+
+    let info = unit
+        .struct_info_by_name("Data")
+        .expect("should find 'Data' struct");
+
+    // Fields should have sequential positions
+    let first = info.fields.iter().find(|f| f.name.as_ref() == "first");
+    let second = info.fields.iter().find(|f| f.name.as_ref() == "second");
+    let third = info.fields.iter().find(|f| f.name.as_ref() == "third");
+
+    assert!(first.is_some());
+    assert!(second.is_some());
+    assert!(third.is_some());
+}

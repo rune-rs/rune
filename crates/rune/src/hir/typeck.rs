@@ -200,11 +200,11 @@ impl ResolvedType {
         })
     }
 
-    /// Convert to display string for error messages.
-    ///
-    /// The `q` parameter is used for recursive tuple type formatting.
-    #[allow(clippy::only_used_in_recursion)]
-    pub(crate) fn to_display_string(&self, q: &Query<'_, '_>) -> compile::Result<String> {
+    /// Convert to display string for error messages, with optional context for name resolution.
+    pub(crate) fn to_display_string_with_context(
+        &self,
+        context: Option<&Context>,
+    ) -> compile::Result<String> {
         use crate::alloc::fmt::TryWrite;
 
         Ok(match self {
@@ -214,6 +214,15 @@ impl ResolvedType {
                 // Fast lookup in cached builtin types
                 if let Some(&name) = BUILTIN_HASH_NAMES.get(&hash_value) {
                     return Ok(String::try_from(name)?);
+                }
+
+                // Try to look up name from context
+                if let Some(cx) = context {
+                    if let Some(meta) = cx.lookup_meta_by_hash(*hash).next() {
+                        if let Some(item) = meta.item.as_deref() {
+                            return Ok(item.try_to_string()?);
+                        }
+                    }
                 }
 
                 // Fallback to hex for unknown types
@@ -228,8 +237,7 @@ impl ResolvedType {
                     if i > 0 {
                         result.try_push_str(", ")?;
                     }
-                    // Recursive call uses `q`
-                    result.try_push_str(&ty.to_display_string(q)?)?;
+                    result.try_push_str(&ty.to_display_string_with_context(context)?)?;
                 }
                 result.try_push(')')?;
                 result
@@ -618,11 +626,12 @@ impl<'a> TypeChecker<'a> {
     ) -> compile::Result<()> {
         use crate::diagnostics::WarningDiagnosticKind;
 
-        let expected_str = expected.to_display_string(q)?;
-        let actual_str = actual.to_display_string(q)?;
+        // Use context for better type name resolution
+        let expected_str = expected.to_display_string_with_context(Some(self.context))?;
+        let actual_str = actual.to_display_string_with_context(Some(self.context))?;
 
         if options.strict_types {
-            // In strict mode, emit an error
+            // In strict mode, emit an error with improved formatting
             return Err(compile::Error::msg(
                 span.span(),
                 format!("Type mismatch: expected `{expected_str}`, found `{actual_str}`"),

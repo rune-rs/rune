@@ -28,6 +28,9 @@ pub struct DebugInfo {
     pub functions_rev: HashMap<usize, Hash>,
     /// Hash to identifier.
     pub hash_to_ident: HashMap<Hash, Box<str>>,
+    /// Struct type information with field annotations.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub structs: HashMap<Hash, DebugStruct>,
 }
 
 impl DebugInfo {
@@ -192,5 +195,29 @@ impl fmt::Display for DebugSignature {
         }
 
         Ok(())
+    }
+}
+
+/// Debug information for a struct type.
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[non_exhaustive]
+pub struct DebugStruct {
+    /// The path of the struct.
+    pub path: ItemBuf,
+    /// Field type annotations (name, type_string) pairs.
+    /// `None` type_string means the field has no type annotation.
+    pub field_types: Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+}
+
+impl DebugStruct {
+    /// Construct a new struct debug info.
+    #[inline]
+    pub fn new(
+        path: ItemBuf,
+        field_types: Option<Box<[(Box<str>, Option<Box<str>>)]>>,
+    ) -> Self {
+        Self { path, field_types }
     }
 }

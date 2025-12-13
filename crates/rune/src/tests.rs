@@ -520,9 +520,19 @@ mod getter_setter;
 #[cfg(not(miri))]
 mod gradual_typing;
 #[cfg(not(miri))]
-mod gradual_typing_protocols;
-#[cfg(not(miri))]
 mod gradual_typing_complex_scenarios;
+#[cfg(not(miri))]
+mod gradual_typing_edge_cases;
+#[cfg(not(miri))]
+mod gradual_typing_errors;
+#[cfg(not(miri))]
+mod gradual_typing_inference;
+#[cfg(not(miri))]
+mod gradual_typing_integration;
+#[cfg(not(miri))]
+mod gradual_typing_performance;
+#[cfg(not(miri))]
+mod gradual_typing_protocols;
 #[cfg(not(miri))]
 mod iterator;
 #[cfg(not(miri))]

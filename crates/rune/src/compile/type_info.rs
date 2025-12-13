@@ -25,8 +25,8 @@
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{String, Vec};
-use crate::Hash;
+use crate::alloc::{Box, String, Vec};
+use crate::{Hash, ItemBuf};
 
 /// Type annotation extracted from source code.
 ///
@@ -116,4 +116,30 @@ pub struct FunctionSignature {
     pub parameters: Vec<ParameterType>,
     /// Return type if annotated, `None` for untyped returns
     pub return_type: Option<AnnotatedType>,
+}
+
+/// Information about a struct field.
+#[derive(Debug, TryClone)]
+#[non_exhaustive]
+pub struct FieldInfo {
+    /// Field name
+    pub name: Box<str>,
+    /// Field position (for positional access)
+    pub position: usize,
+    /// Type annotation (if present in source)
+    pub type_info: Option<AnnotatedType>,
+}
+
+/// Information about a struct type.
+#[derive(Debug, TryClone)]
+#[non_exhaustive]
+pub struct StructInfo {
+    /// Struct name (last path component)
+    pub name: Box<str>,
+    /// Full item path
+    pub path: ItemBuf,
+    /// Type hash
+    pub hash: Hash,
+    /// Fields with optional type annotations
+    pub fields: Box<[FieldInfo]>,
 }

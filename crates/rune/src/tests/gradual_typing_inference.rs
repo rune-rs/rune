@@ -137,7 +137,7 @@ fn infer_closure_mixed_typed_captures() {
 fn infer_closure_as_function_parameter() {
     let result: i64 = rune! {
         fn map_vec(f, vec) -> i64 {
-            let mut sum = 0;
+            let sum = 0;
             for item in vec {
                 sum = sum + f(item);
             }
@@ -282,8 +282,8 @@ fn infer_if_without_else() {
 #[test]
 fn infer_loop_expression_types() {
     let result: i64 = rune! {
-        let mut counter = 0;
-        let mut sum = 0;
+        let counter = 0;
+        let sum = 0;
 
         loop {
             if counter >= 5 {
@@ -300,8 +300,8 @@ fn infer_loop_expression_types() {
 #[test]
 fn infer_while_loop_types() {
     let result: i64 = rune! {
-        let mut i = 0;
-        let mut total = 0;
+        let i = 0;
+        let total = 0;
 
         while i < 5 {
             total = total + i;
@@ -329,7 +329,7 @@ fn infer_break_with_value() {
 #[test]
 fn infer_nested_loops_break_values() {
     let result: i64 = rune! {
-        let mut outer_result = 0;
+        let outer_result = 0;
 
         for i in 0..3 {
             let inner_result = loop {
@@ -343,14 +343,14 @@ fn infer_nested_loops_break_values() {
 
         outer_result
     };
-    assert_eq!(result, 13); // 0 + 1 + 20 = 21? Wait, let me recalculate...
+    assert_eq!(result, 21); // 0 + 1 + 20 = 21
 }
 
 /// Test for loop iteration type inference
 #[test]
 fn infer_for_loop_types() {
     let result: i64 = rune! {
-        let mut sum = 0;
+        let sum = 0;
         let items = [1, 2, 3, 4, 5];
 
         for item in items {
@@ -393,10 +393,10 @@ fn infer_generic_like_patterns() {
             None
         }
 
-        fn unwrap_or(opt: CustomOption, default: i64) -> i64 {
+        fn unwrap_or(opt: CustomOption, fallback: i64) -> i64 {
             match opt {
                 CustomOption::Some(value) => value,
-                CustomOption::None => default
+                CustomOption::None => fallback
             }
         }
 

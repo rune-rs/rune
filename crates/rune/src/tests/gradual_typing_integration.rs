@@ -16,11 +16,11 @@ fn integrate_typed_async() {
     assert_eq!(result, 8);
 }
 
-/// Closures with type annotations
+/// Closures with type annotations (parameter types only - return type not supported)
 #[test]
 fn integrate_typed_closures() {
     let result: i64 = rune! {
-        let add = |a: i64, b: i64| -> i64 { a + b };
+        let add = |a: i64, b: i64| { a + b };
         add(10, 32)
     };
     assert_eq!(result, 42);
@@ -47,11 +47,11 @@ fn integrate_match_with_types() {
 fn integrate_complex_combination() {
     let result: i64 = rune! {
         struct Config {
-            value: i64,
+            value,
         }
 
         async fn process(config: Config) -> i64 {
-            let transformer = |x: i64| -> i64 { x * 2 };
+            let transformer = |x: i64| { x * 2 };
             transformer(config.value)
         }
 

@@ -99,6 +99,33 @@ fn accept_closure_param_types() {
     assert_eq!(result, 3);
 }
 
+/// Closures with return type annotation should compile and type check
+#[test]
+fn accept_closure_return_types() {
+    let result: i64 = rune! {
+        let add = |a: i64, b: i64| -> i64 { a + b };
+        add(5, 7)
+    };
+    assert_eq!(result, 12);
+}
+
+/// Closures with return type mismatch should produce warning
+#[test]
+fn warn_closure_return_type_mismatch() {
+    assert_warnings! {
+        r#"
+        pub fn main() {
+            let bad = |x: i64| -> i64 { "not an i64" };
+        }
+        "#,
+        _span,
+        WarningDiagnosticKind::TypeMismatch { expected, actual, .. } => {
+            assert_eq!(expected, "i64");
+            assert_eq!(actual, "String");
+        }
+    };
+}
+
 // ============================================================================
 // BACKWARDS COMPATIBILITY: Existing behavior preserved
 // ============================================================================

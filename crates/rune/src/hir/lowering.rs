@@ -229,10 +229,40 @@ fn expr_call_closure<'hir>(
 
     tracing::trace!("queuing closure build entry");
 
+    // Set up type checking if the closure has a return type annotation (gradual typing)
+    let options = cx.q.options;
+    let source_id = cx.source_id;
+    let saved_typeck = cx.typeck.take();
+
+    if let Some((_, return_type)) = &ast.return_type {
+        // Parse the expected return type
+        let expected = ResolvedType::from_ast_type(return_type, &mut cx.q, source_id)?;
+
+        // Initialize type checker
+        let mut typeck = TypeChecker::new(cx.q.context, Some(expected))?;
+
+        // Register parameter types
+        for (arg, _) in ast.args.as_slice() {
+            register_fn_arg_type(&mut typeck, &mut cx.q, source_id, arg)?;
+        }
+
+        cx.typeck = Some(typeck);
+    }
+
     cx.scopes.push_captures()?;
 
     let args = iter!(ast.args.as_slice(), |(arg, _)| fn_arg(cx, arg)?);
     let body = alloc!(expr(cx, &ast.body)?);
+
+    // Finalize type checking - verify body type matches expected return type
+    if let Some(ref mut typeck) = cx.typeck {
+        let body_type = typeck.infer_expr(cx.q.sources, source_id, &ast.body)?;
+        typeck.last_expr_type = body_type;
+        typeck.finalize(&mut cx.q, source_id, &ast.body, options)?;
+    }
+
+    // Restore previous type checking state
+    cx.typeck = saved_typeck;
 
     let layer = cx.scopes.pop().with_span(&ast.body)?;
 

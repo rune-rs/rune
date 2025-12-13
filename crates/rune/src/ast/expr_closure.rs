@@ -16,10 +16,30 @@ fn ast_parse() {
     assert_eq!(expr.attributes.len(), 1);
 }
 
+#[test]
+#[cfg(not(miri))]
+fn ast_parse_with_return_type() {
+    // Closure with return type annotation
+    rt::<ast::ExprClosure>("|| -> i64 { 42 }");
+    rt::<ast::ExprClosure>("|x: i64| -> i64 { x + 1 }");
+    rt::<ast::ExprClosure>("|a: i64, b: i64| -> i64 { a + b }");
+    rt::<ast::ExprClosure>("async |url: String| -> String { url }");
+    rt::<ast::ExprClosure>("move || -> () { }");
+
+    // Verify return type is captured
+    let expr = rt::<ast::ExprClosure>("|x: i64| -> String { x.to_string() }");
+    assert!(expr.return_type.is_some());
+
+    // Without return type
+    let expr = rt::<ast::ExprClosure>("|x: i64| { x + 1 }");
+    assert!(expr.return_type.is_none());
+}
+
 /// A closure expression.
 ///
 /// * `|| <expr>`.
 /// * `async || <expr>`.
+/// * `|x: i64| -> i64 { x + 1 }` (with return type annotation).
 #[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]
 #[rune(parse = "meta_only")]
 #[non_exhaustive]
@@ -35,6 +55,9 @@ pub struct ExprClosure {
     pub move_token: Option<T![move]>,
     /// Arguments to the closure.
     pub args: ExprClosureArgs,
+    /// Optional return type annotation (gradual typing).
+    #[rune(iter)]
+    pub return_type: Option<(T![->], Box<ast::Type>)>,
     /// The body of the closure.
     pub body: Box<ast::Expr>,
     /// Opaque identifier for the closure.

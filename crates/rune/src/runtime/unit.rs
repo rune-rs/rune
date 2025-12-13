@@ -20,10 +20,10 @@ use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, String, Vec};
+use crate::alloc::{self, Box, HashMap, String, Vec};
 use crate::hash;
 use crate::runtime::debug::{DebugArgs, DebugSignature};
-use crate::runtime::{Address, Call, ConstValue, DebugInfo, Inst, Rtti, StaticString};
+use crate::runtime::{Address, Call, ConstValue, DebugInfo, Inst, Rtti, RttiKind, StaticString};
 use crate::sync::Arc;
 use crate::Hash;
 
@@ -360,6 +360,111 @@ impl<S> Unit<S> {
             is_async: sig.is_async,
             parameters,
             return_type,
+        })
+    }
+
+    /// Iterate over all struct types with type information.
+    ///
+    /// Returns an iterator of [`StructInfo`] for all structs in the unit.
+    ///
+    /// [`StructInfo`]: crate::compile::type_info::StructInfo
+    pub fn struct_infos(
+        &self,
+    ) -> impl Iterator<Item = crate::compile::type_info::StructInfo> + '_ {
+        self.logic.rtti.iter().filter_map(|(hash, rtti)| {
+            if matches!(rtti.kind, RttiKind::Struct) && rtti.variant_hash == Hash::EMPTY {
+                self.build_struct_info(*hash, rtti)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Get type information for a struct by its hash.
+    ///
+    /// Returns `None` if the struct is not found or RTTI is unavailable.
+    pub fn struct_info(&self, hash: Hash) -> Option<crate::compile::type_info::StructInfo> {
+        let rtti = self.logic.rtti.get(&hash)?;
+        if !matches!(rtti.kind, RttiKind::Struct) || rtti.variant_hash != Hash::EMPTY {
+            return None;
+        }
+        self.build_struct_info(hash, rtti)
+    }
+
+    /// Get struct info by name (last path component).
+    ///
+    /// Returns the first struct found with the given name.
+    pub fn struct_info_by_name(
+        &self,
+        name: &str,
+    ) -> Option<crate::compile::type_info::StructInfo> {
+        for (hash, rtti) in &self.logic.rtti {
+            if !matches!(rtti.kind, RttiKind::Struct) || rtti.variant_hash != Hash::EMPTY {
+                continue;
+            }
+            let last_component = rtti.item.last().and_then(|c| c.as_str());
+            if last_component == Some(name) {
+                return self.build_struct_info(*hash, rtti);
+            }
+        }
+        None
+    }
+
+    /// Build a StructInfo from RTTI and debug information.
+    fn build_struct_info(
+        &self,
+        hash: Hash,
+        rtti: &Arc<Rtti>,
+    ) -> Option<crate::compile::type_info::StructInfo> {
+        use crate::alloc::prelude::*;
+        use crate::compile::type_info::{FieldInfo, StructInfo};
+
+        let name = Box::try_from(
+            rtti.item
+                .last()
+                .and_then(|c| c.as_str())
+                .unwrap_or("")
+        ).ok()?;
+
+        let path = rtti.item.try_clone().ok()?;
+
+        // Get field type annotations from debug info if available
+        let debug_struct = self.debug_info().and_then(|d| d.structs.get(&hash));
+
+        let mut field_types_map: HashMap<&str, Option<&str>> = HashMap::new();
+        if let Some(ds) = debug_struct {
+            if let Some(field_types) = &ds.field_types {
+                for (name, ty) in field_types.iter() {
+                    let _ = field_types_map.try_insert(
+                        name.as_ref(),
+                        ty.as_ref().map(|t| t.as_ref())
+                    );
+                }
+            }
+        }
+
+        // Build fields from RTTI with type annotations from debug info
+        let mut fields = Vec::new();
+        for (field_name, position) in &rtti.fields {
+            let type_info = field_types_map
+                .get(field_name.as_ref())
+                .and_then(|ty_opt| *ty_opt)
+                .map(|s| parse_type_string(s));
+
+            fields
+                .try_push(FieldInfo {
+                    name: field_name.try_clone().ok()?,
+                    position: *position,
+                    type_info,
+                })
+                .ok()?;
+        }
+
+        Some(StructInfo {
+            name,
+            path,
+            hash,
+            fields: Box::try_from(fields).ok()?,
         })
     }
 }

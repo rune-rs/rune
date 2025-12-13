@@ -1,19 +1,30 @@
-//! Example: Extracting function signatures from compiled Rune scripts
+//! Example: Extracting type information from compiled Rune scripts
 //!
 //! This example demonstrates how to use the type extraction API to query
-//! function signatures including parameter names, types, and return types
-//! from compiled Rune code.
+//! function signatures and struct definitions from compiled Rune code.
 //!
 //! Run with: `cargo run --example type_extraction`
 
 use rune::termcolor::{ColorChoice, StandardStream};
-use rune::{Context, Diagnostics, FunctionSignature, Hash};
+use rune::{Context, Diagnostics, FunctionSignature, Hash, StructInfo};
 
 fn main() -> rune::support::Result<()> {
     let context = Context::with_default_modules()?;
 
     let mut sources = rune::sources! {
         entry => {
+            // Struct with typed fields
+            struct Point {
+                x: i64,
+                y: i64,
+            }
+
+            // Struct with mixed typed/untyped fields
+            struct Config {
+                name: String,
+                value,
+            }
+
             pub fn add(a: i64, b: i64) -> i64 {
                 a + b
             }
@@ -28,6 +39,10 @@ fn main() -> rune::support::Result<()> {
 
             pub async fn fetch_data(url: String) -> String {
                 url
+            }
+
+            pub fn create_point(x: i64, y: i64) -> Point {
+                Point { x, y }
             }
         }
     };
@@ -70,6 +85,24 @@ fn main() -> rune::support::Result<()> {
         println!("Function 'greet' not found");
     }
 
+    // === Struct Information ===
+    // Note: Struct field type annotations require debug info support which
+    // is not yet fully implemented. Field types will show as "dynamic" until
+    // DebugStruct is populated during compilation.
+    println!("\n=== All Structs ===\n");
+    for info in unit.struct_infos() {
+        print_struct_info(&info);
+        println!();
+    }
+
+    // Lookup struct by name
+    println!("=== Lookup 'Point' by name ===\n");
+    if let Some(info) = unit.struct_info_by_name("Point") {
+        print_struct_info(&info);
+    } else {
+        println!("Struct 'Point' not found");
+    }
+
     Ok(())
 }
 
@@ -94,5 +127,23 @@ fn print_signature(sig: &FunctionSignature) {
     match &sig.return_type {
         Some(t) => println!("  Returns: {}", t.to_type_string()),
         None => println!("  Returns: dynamic"),
+    }
+}
+
+fn print_struct_info(info: &StructInfo) {
+    println!("Struct: {}", info.name);
+    println!("  Path: {}", info.path);
+    println!("  Hash: {}", info.hash);
+
+    println!("  Fields:");
+    if info.fields.is_empty() {
+        println!("    (none)");
+    } else {
+        for field in info.fields.iter() {
+            match &field.type_info {
+                Some(t) => println!("    {}: {}", field.name, t.to_type_string()),
+                None => println!("    {}: dynamic", field.name),
+            }
+        }
     }
 }
