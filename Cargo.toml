@@ -6,8 +6,11 @@ members = [
     "examples",
     "benches",
     "tools/*",
-    "no-std",
 ]
+
+# no-std example requires nightly and defines its own #[panic_handler],
+# which conflicts with std. Run separately: cargo run --manifest-path=no-std/Cargo.toml --example minimal
+exclude = ["no-std"]
 
 default-members = [
     "crates/*",

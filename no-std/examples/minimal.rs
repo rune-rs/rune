@@ -67,10 +67,15 @@ fn inner_main() -> rune::support::Result<i32> {
     let context = rune::Context::with_default_modules()?;
     let runtime = Arc::try_new(context.runtime()?)?;
 
+    // Test gradual typing in no-std environment
     let mut sources = rune::sources! {
         entry => {
-            pub fn main(number) {
-                number + 10
+            pub fn add(a: i64, b: i64) -> i64 {
+                a + b
+            }
+
+            pub fn main(number: i64) -> i64 {
+                add(number, 10)
             }
         }
     };

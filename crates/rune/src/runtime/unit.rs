@@ -449,7 +449,7 @@ impl<S> Unit<S> {
             let type_info = field_types_map
                 .get(field_name.as_ref())
                 .and_then(|ty_opt| *ty_opt)
-                .map(|s| parse_type_string(s));
+                .map(parse_type_string);
 
             fields
                 .try_push(FieldInfo {
