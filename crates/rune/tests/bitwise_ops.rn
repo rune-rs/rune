@@ -1,0 +1,17 @@
+#[test]
+fn bitwise_ops() {
+    assert_eq!(0b1100 & 0b1010, 0b1000);
+    let anded = 0b0101;
+    anded &= 0b0011;
+    assert_eq!(anded, 0b0001);
+
+    assert_eq!(0b1100 ^ 0b1010, 0b0110);
+    let xored = 0b0101;
+    xored ^= 0b0011;
+    assert_eq!(xored, 0b0110);
+
+    assert_eq!(0b1100 | 0b1010, 0b1110);
+    let ored = 0b0101;
+    ored |= 0b0011;
+    assert_eq!(ored, 0b0111);
+}

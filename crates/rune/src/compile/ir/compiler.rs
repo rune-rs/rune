@@ -156,6 +156,9 @@ fn expr_binary(
             ast::BinOp::DivAssign(..) => ir::IrAssignOp::Div,
             ast::BinOp::ShlAssign(..) => ir::IrAssignOp::Shl,
             ast::BinOp::ShrAssign(..) => ir::IrAssignOp::Shr,
+            ast::BinOp::BitAndAssign(..) => ir::IrAssignOp::BitAnd,
+            ast::BinOp::BitXorAssign(..) => ir::IrAssignOp::BitXor,
+            ast::BinOp::BitOrAssign(..) => ir::IrAssignOp::BitOr,
             _ => return Err(compile::Error::msg(hir.op, "op not supported yet")),
         };
 
@@ -187,6 +190,9 @@ fn expr_binary(
         ast::BinOp::Eq(..) => ir::IrBinaryOp::Eq,
         ast::BinOp::Gt(..) => ir::IrBinaryOp::Gt,
         ast::BinOp::Gte(..) => ir::IrBinaryOp::Gte,
+        ast::BinOp::BitAnd(..) => ir::IrBinaryOp::BitAnd,
+        ast::BinOp::BitXor(..) => ir::IrBinaryOp::BitXor,
+        ast::BinOp::BitOr(..) => ir::IrBinaryOp::BitOr,
         _ => return Err(compile::Error::msg(hir.op, "op not supported yet")),
     };
 

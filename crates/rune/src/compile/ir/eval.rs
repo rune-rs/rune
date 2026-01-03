@@ -1,4 +1,4 @@
-use core::ops::{Add, Mul, Shl, Shr, Sub};
+use core::ops::{Add, BitAnd, BitOr, BitXor, Mul, Shl, Shr, Sub};
 
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
@@ -116,6 +116,15 @@ fn eval_ir_binary(
                         ir::IrBinaryOp::Eq => break 'out Inline::Bool(a == b),
                         ir::IrBinaryOp::Gt => break 'out Inline::Bool(a > b),
                         ir::IrBinaryOp::Gte => break 'out Inline::Bool(a >= b),
+                        ir::IrBinaryOp::BitAnd => {
+                            break 'out Inline::Signed(a.bitand(b));
+                        }
+                        ir::IrBinaryOp::BitXor => {
+                            break 'out Inline::Signed(a.bitxor(b));
+                        }
+                        ir::IrBinaryOp::BitOr => {
+                            break 'out Inline::Signed(a.bitor(b));
+                        }
                     },
                     (Inline::Float(a), Inline::Float(b)) => {
                         #[allow(clippy::float_cmp)]
