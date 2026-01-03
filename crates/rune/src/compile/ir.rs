@@ -8,7 +8,9 @@ mod eval;
 mod interpreter;
 pub(crate) mod scopes;
 
-use core::ops::{AddAssign, MulAssign, ShlAssign, ShrAssign, SubAssign};
+use core::ops::{
+    AddAssign, BitAndAssign, BitOrAssign, BitXorAssign, MulAssign, ShlAssign, ShrAssign, SubAssign,
+};
 
 use crate as rune;
 use crate::alloc::prelude::*;
@@ -503,6 +505,12 @@ pub(crate) enum IrBinaryOp {
     Gt,
     /// `>=`,
     Gte,
+    /// `&`.
+    BitAnd,
+    /// `^`.
+    BitXor,
+    /// `|`.
+    BitOr,
 }
 
 /// An assign operation.
@@ -521,6 +529,12 @@ pub(crate) enum IrAssignOp {
     Shl,
     /// `>>=`.
     Shr,
+    /// `&=`.
+    BitAnd,
+    /// `^=`.
+    BitXor,
+    /// `|=`.
+    BitOr,
 }
 
 impl IrAssignOp {
@@ -577,6 +591,15 @@ impl IrAssignOp {
                     .with_span(spanned)?;
 
                 target.shr_assign(operand);
+            }
+            IrAssignOp::BitAnd => {
+                target.bitand_assign(operand);
+            }
+            IrAssignOp::BitXor => {
+                target.bitxor_assign(operand);
+            }
+            IrAssignOp::BitOr => {
+                target.bitor_assign(operand);
             }
         }
 
