@@ -27,7 +27,7 @@ jobs:
     - run: cargo run --bin rune -- doc --output target/site/docs
       env:
         RUST_LOG: rune=info
-    - run: mdbook build -d ../target/site/book book
+    - run: mdbook build -d target/site/book book
     - uses: dtolnay/rust-toolchain@nightly
     - run: cargo +nightly doc -p rune --all-features
       env:
