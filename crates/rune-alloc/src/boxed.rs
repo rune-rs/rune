@@ -163,13 +163,14 @@ use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
+use core::ptr;
 
 use crate::alloc::{AllocError, Allocator, Global};
 use crate::clone::TryClone;
 use crate::error::Error;
 use crate::iter::TryFromIteratorIn;
 use crate::path::Path;
-use crate::ptr::{self, Unique};
+use crate::ptr::Unique;
 use crate::raw_vec::RawVec;
 use crate::vec::Vec;
 

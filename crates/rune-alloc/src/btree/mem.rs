@@ -1,6 +1,5 @@
 use core::mem;
-
-use crate::ptr;
+use core::ptr;
 
 /// This replaces the value behind the `v` unique reference by calling the
 /// relevant function.

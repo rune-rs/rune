@@ -6,7 +6,7 @@ use core::fmt;
 use core::ops;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::de;
 #[cfg(feature = "serde")]
@@ -25,7 +25,7 @@ use super::{
 
 /// A vector of bytes.
 #[derive(Any, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 #[rune(item = ::std::bytes)]
 pub struct Bytes {
     #[cfg_attr(feature = "musli", musli(bytes))]

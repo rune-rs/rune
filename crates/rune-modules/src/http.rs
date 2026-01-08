@@ -93,6 +93,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     m.function_meta(RequestBuilder::header__meta)?;
     m.function_meta(RequestBuilder::basic_auth__meta)?;
     m.function_meta(RequestBuilder::bearer_auth__meta)?;
+    #[cfg(target_arch = "wasm32")]
     m.function_meta(RequestBuilder::fetch_mode_no_cors__meta)?;
     m.function_meta(RequestBuilder::body_bytes__meta)?;
 
@@ -2047,6 +2048,7 @@ impl RequestBuilder {
     /// let response = response.text().await?;
     /// ```
     #[rune::function(keep)]
+    #[cfg(target_arch = "wasm32")]
     fn fetch_mode_no_cors(self) -> Self {
         Self {
             request: self.request.fetch_mode_no_cors(),

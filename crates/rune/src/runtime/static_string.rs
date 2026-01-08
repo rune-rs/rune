@@ -4,7 +4,7 @@ use core::hash;
 use core::ops;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,7 @@ use crate::hash::{Hash, IntoHash};
 
 /// Struct representing a static string.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Encode, Decode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub struct StaticString {
     inner: String,
     hash: Hash,

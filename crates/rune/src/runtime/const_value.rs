@@ -6,7 +6,7 @@ use core::cmp::Ordering;
 use core::fmt;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -180,7 +180,7 @@ impl ToConstValue for Value {
 /// A dynamic constant value.
 #[derive(Debug, TryClone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub(crate) struct ConstInstance {
     /// The type hash of the value.
     ///
@@ -221,7 +221,7 @@ impl ConstInstance {
 
 #[derive(Debug, TryClone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub(crate) enum ConstValueKind {
     /// An inline constant value.
     Inline(#[try_clone(copy)] Inline),
@@ -247,7 +247,7 @@ impl ConstValueKind {
 
 /// A constant value.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 pub struct ConstValue {
     kind: ConstValueKind,
 }

@@ -58,11 +58,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: udoprog/kick@nightly
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v7
       with: {name: dist-macos-latest, path: dist}
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v7
       with: {name: dist-windows-latest, path: dist}
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v7
       with: {name: dist-ubuntu-latest, path: dist}
     - run: kick gh release --upload "dist/*" --github-action
       env:

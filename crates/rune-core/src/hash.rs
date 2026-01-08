@@ -9,7 +9,7 @@ use core::hash::{BuildHasher, BuildHasherDefault, Hash as _, Hasher};
 use core::num::NonZero;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use twox_hash::XxHash64;
 
@@ -109,7 +109,7 @@ const PARAMETERS: [u64; 32] = [
 /// assert!(Hash::index(0).as_non_empty().is_some());
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 #[repr(transparent)]
 pub struct NonZeroHash(#[doc(hidden)] pub NonZero<u64>);
 
@@ -169,7 +169,7 @@ impl PartialEq<Hash> for NonZeroHash {
 /// assert_ne!(Hash::index(0), Hash::index(1));
 /// ```
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 #[repr(transparent)]
 pub struct Hash(#[doc(hidden)] pub u64);
 

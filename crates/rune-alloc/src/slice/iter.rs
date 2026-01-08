@@ -7,11 +7,11 @@ mod macros;
 
 use core::fmt;
 use core::iter::FusedIterator;
+use core::ptr::{self, without_provenance, without_provenance_mut, NonNull};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 
 use crate::alloc::SizedTypeProperties;
 use crate::hint::assume;
-use crate::ptr::{self, invalid, invalid_mut, NonNull};
 
 /// Inline slice iterator
 ///
@@ -67,7 +67,7 @@ impl<T> RawIter<T> {
         // SAFETY: Similar to `IterMut::new`.
         unsafe {
             let end_or_len = if T::IS_ZST {
-                invalid(slice.len())
+                without_provenance(slice.len())
             } else {
                 ptr.add(slice.len())
             };
@@ -201,7 +201,7 @@ impl<T> RawIterMut<T> {
         // `post_inc_start` method for more information.
         unsafe {
             let end_or_len = if T::IS_ZST {
-                invalid_mut(slice.len())
+                without_provenance_mut(slice.len())
             } else {
                 ptr.add(slice.len())
             };

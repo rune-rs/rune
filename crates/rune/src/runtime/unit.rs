@@ -10,9 +10,9 @@ mod storage;
 use core::fmt;
 
 #[cfg(feature = "musli")]
-use musli::mode::Binary;
+use musli_core::mode::Binary;
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::de::DeserializeOwned;
 #[cfg(feature = "serde")]
@@ -45,7 +45,7 @@ pub type DefaultStorage = ByteCodeUnit;
 #[derive(Debug, TryClone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(bound = "S: Serialize + DeserializeOwned"))]
-#[cfg_attr(feature = "musli", derive(Encode, Decode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[cfg_attr(feature = "musli", musli(Binary, bound = {S: Encode<Binary>}, decode_bound<'de, A> = {S: Decode<'de, Binary, A>}))]
 #[try_clone(bound = {S: TryClone})]
 pub struct Unit<S = DefaultStorage> {
@@ -65,7 +65,7 @@ assert_impl!(Unit<DefaultStorage>: Send + Sync);
     derive(Serialize, Deserialize),
     serde(rename = "Unit")
 )]
-#[cfg_attr(feature = "musli", derive(Encode, Decode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(bound = {S: TryClone})]
 pub struct Logic<S = DefaultStorage> {
     /// Storage for the unit.
@@ -268,8 +268,7 @@ where
 /// The kind and necessary information on registered functions.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Encode, Decode))]
-#[non_exhaustive]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub(crate) enum UnitFn {
     /// Instruction offset of a function inside of the unit.
     Offset {

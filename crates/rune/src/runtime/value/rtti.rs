@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use core::hash;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -40,7 +40,7 @@ impl Accessor<'_> {
     derive(Serialize, Deserialize),
     serde(rename_all = "kebab-case")
 )]
-#[cfg_attr(feature = "musli", derive(Encode, Decode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub(crate) enum RttiKind {
     /// The value stored is empty.
     Empty,
@@ -53,7 +53,7 @@ pub(crate) enum RttiKind {
 /// Runtime information on variant.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Encode, Decode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[non_exhaustive]
 pub struct Rtti {
     /// The kind of value.

@@ -6,17 +6,17 @@ use crate::borrow::TryToOwned;
 use crate::sync::Arc;
 use crate::{BTreeMap, BTreeSet, Box, HashMap, HashSet, String, Vec, VecDeque};
 
-use musli::alloc::ToOwned;
-use musli::de::SizeHint;
-use musli::de::{
+use musli_core::alloc::ToOwned;
+use musli_core::de::SizeHint;
+use musli_core::de::{
     Decode, DecodeBytes, DecodeSliceBuilder, DecodeTrace, Decoder, EntryDecoder, MapDecoder,
     SequenceDecoder, UnsizedVisitor,
 };
-use musli::en::{
+use musli_core::en::{
     Encode, EncodeBytes, EncodePacked, EncodeTrace, Encoder, EntryEncoder, MapEncoder,
     SequenceEncoder,
 };
-use musli::{Allocator, Context};
+use musli_core::{Allocator, Context};
 
 // Uses the same heuristic as:
 // https://github.com/serde-rs/serde/blob/d91f8ba950e2faf4db4e283e917ba2ee94a9b8a4/serde/src/de/size_hint.rs#L12
@@ -65,7 +65,7 @@ where
     {
         struct Visitor;
 
-        #[musli::de::unsized_visitor]
+        #[musli_core::trait_defaults]
         impl<C> UnsizedVisitor<'_, C, str> for Visitor
         where
             C: Context,
@@ -151,7 +151,7 @@ macro_rules! cow {
             {
                 struct Visitor;
 
-                #[musli::de::unsized_visitor]
+                #[musli_core::trait_defaults]
                 impl<'de, C> UnsizedVisitor<'de, C, $source> for Visitor
                 where
                     C: Context,
@@ -835,7 +835,7 @@ where
     {
         struct Visitor;
 
-        #[musli::de::unsized_visitor]
+        #[musli_core::trait_defaults]
         impl<'de, C> UnsizedVisitor<'de, C, [u8]> for Visitor
         where
             C: Context,

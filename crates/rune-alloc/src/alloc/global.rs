@@ -1,7 +1,7 @@
 use core::alloc::Layout;
+use core::ptr::{without_provenance_mut, NonNull};
 
 use crate::alloc::{AllocError, Allocator};
-use crate::ptr::{invalid_mut, NonNull};
 
 #[cfg(feature = "alloc")]
 use rust_alloc::alloc::{alloc, alloc_zeroed, dealloc};
@@ -12,7 +12,7 @@ use rust_alloc::alloc::{alloc, alloc_zeroed, dealloc};
 /// means this must not be used as a "not yet initialized" sentinel value. Types
 /// that lazily allocate must track initialization by some other means.
 pub(crate) const fn dangling<T>(layout: &Layout) -> NonNull<T> {
-    unsafe { NonNull::new_unchecked(invalid_mut::<T>(layout.align())) }
+    unsafe { NonNull::new_unchecked(without_provenance_mut::<T>(layout.align())) }
 }
 
 /// The default global allocator for Rune.

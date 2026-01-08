@@ -2,7 +2,7 @@ use core::fmt;
 use core::num;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -185,7 +185,7 @@ impl<'a> files::Files<'a> for Sources {
 #[try_clone(copy)]
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Encode, Decode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 pub struct SourceId {
     index: u32,
 }

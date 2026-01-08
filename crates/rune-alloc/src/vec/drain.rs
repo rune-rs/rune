@@ -1,11 +1,11 @@
-use crate::alloc::SizedTypeProperties;
-use crate::alloc::{Allocator, Global};
-use crate::ptr::{self, NonNull};
-
 use core::fmt;
 use core::iter::FusedIterator;
 use core::mem::{self, ManuallyDrop};
+use core::ptr::{self, NonNull};
 use core::slice::{self};
+
+use crate::alloc::SizedTypeProperties;
+use crate::alloc::{Allocator, Global};
 
 use super::Vec;
 

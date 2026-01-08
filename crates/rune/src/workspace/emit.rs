@@ -113,6 +113,6 @@ where
         .with_message(this.error().try_to_string()?.into_std())
         .with_labels(labels);
 
-    term::emit(out, config, sources, &diagnostic)?;
+    term::emit_to_write_style(out, config, sources, &diagnostic)?;
     Ok(())
 }

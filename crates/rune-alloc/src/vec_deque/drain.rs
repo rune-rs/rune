@@ -2,9 +2,9 @@ use core::fmt;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::mem;
+use core::ptr::{self, NonNull};
 
 use crate::alloc::{Allocator, Global, SizedTypeProperties};
-use crate::ptr::{self, NonNull};
 
 use super::VecDeque;
 

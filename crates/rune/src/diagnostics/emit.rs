@@ -285,7 +285,7 @@ impl VmError {
             .with_labels(labels)
             .with_notes(notes);
 
-        term::emit(out, &config, sources, &diagnostic)?;
+        term::emit_to_write_style(out, &config, sources, &diagnostic)?;
 
         if !backtrace.is_empty() {
             writeln!(out, "Backtrace:")?;
@@ -472,7 +472,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, config, sources, &diagnostic)?;
+    term::emit_to_write_style(out, config, sources, &diagnostic)?;
     Ok(())
 }
 
@@ -529,7 +529,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, config, sources, &diagnostic)?;
+    term::emit_to_write_style(out, config, sources, &diagnostic)?;
     Ok(())
 }
 
@@ -574,7 +574,7 @@ where
                         .with_message(format!("linker error: missing function with hash `{hash}`",))
                         .with_labels(labels);
 
-                    term::emit(out, config, sources, &diagnostic)?;
+                    term::emit_to_write_style(out, config, sources, &diagnostic)?;
                 }
             }
 
@@ -597,7 +597,7 @@ where
         .with_labels(labels)
         .with_notes(notes);
 
-    term::emit(out, config, sources, &diagnostic)?;
+    term::emit_to_write_style(out, config, sources, &diagnostic)?;
     return Ok(());
 
     fn format_compile_error(

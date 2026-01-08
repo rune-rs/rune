@@ -1,9 +1,9 @@
 //! Types used to govern how allocations are performed.
 
 use core::alloc::Layout;
+use core::ptr::{self, NonNull};
 
 use crate::alloc::AllocError;
-use crate::ptr::{self, NonNull};
 
 /// An implementation of `Allocator` can allocate, grow, shrink, and deallocate
 /// arbitrary blocks of data described via [`Layout`].
