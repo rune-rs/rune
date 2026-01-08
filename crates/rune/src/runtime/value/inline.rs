@@ -4,7 +4,7 @@ use core::fmt;
 use core::hash::Hash as _;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ use crate::{Hash, TypeHash};
 /// An inline value.
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub enum Inline {
     /// An empty value.
     ///

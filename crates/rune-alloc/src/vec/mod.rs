@@ -98,13 +98,13 @@ use core::iter;
 use core::marker::PhantomData;
 use core::mem::{self, ManuallyDrop, MaybeUninit};
 use core::ops::{self, Index, IndexMut, Range, RangeBounds};
+use core::ptr::{self, NonNull};
 use core::slice::{self, SliceIndex};
 
 use crate::alloc::{Allocator, Global, SizedTypeProperties};
 use crate::clone::TryClone;
 use crate::error::Error;
 use crate::iter::{TryExtend, TryFromIteratorIn};
-use crate::ptr::{self, NonNull};
 use crate::raw_vec::RawVec;
 use crate::slice::range as slice_range;
 use crate::slice::{RawIter, RawIterMut};

@@ -2,9 +2,9 @@ use core::borrow::Borrow;
 use core::cmp::Ordering;
 use core::hint;
 use core::ops::RangeBounds;
+use core::ptr;
 
 use crate::alloc::Allocator;
-use crate::ptr;
 
 use super::node::{marker, ForceResult::*, Handle, NodeRef};
 use super::search::SearchBound;

@@ -1,7 +1,6 @@
 use core::fmt;
 use core::marker::PhantomData;
-
-use crate::ptr::NonNull;
+use core::ptr::NonNull;
 
 /// A wrapper around a raw non-null `*mut T` that indicates that the possessor
 /// of this wrapper owns the referent. Useful for building abstractions like

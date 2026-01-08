@@ -7,5 +7,5 @@ publish = false
 [dependencies]
 serde = { version = "1.0.163", features = ["derive"] }
 serde_yaml = "0.9.21"
-genco = "0.17.6"
+genco = "0.19.0"
 anyhow = "1.0.71"

@@ -3,7 +3,7 @@ use core::hint;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::mem::{self, MaybeUninit};
-use core::ptr::{self, NonNull};
+use core::ptr::{self, without_provenance_mut, NonNull};
 
 use crate::hashbrown::scopeguard::{guard, ScopeGuard};
 
@@ -15,7 +15,6 @@ use crate::error::{CustomError, Error};
 // Branch prediction hint. This is currently only available on nightly but it
 // consistently improves performance by 10-15%.
 use crate::hint::{likely, unlikely};
-use crate::ptr::invalid_mut;
 
 #[cfg(test)]
 use crate::testing::*;
@@ -330,7 +329,7 @@ impl<T> Bucket<T> {
             // won't overflow because index must be less than length (bucket_mask)
             // and bucket_mask is guaranteed to be less than `isize::MAX`
             // (see TableLayout::calculate_layout_for method)
-            invalid_mut(index + 1)
+            without_provenance_mut(index + 1)
         } else {
             base.as_ptr().sub(index)
         };
@@ -466,7 +465,7 @@ impl<T> Bucket<T> {
         if T::IS_ZST {
             // Just return an arbitrary ZST pointer which is properly aligned
             // invalid pointer is good enough for ZST
-            invalid_mut(mem::align_of::<T>())
+            without_provenance_mut(mem::align_of::<T>())
         } else {
             unsafe { self.ptr.as_ptr().sub(1) }
         }
@@ -513,7 +512,7 @@ impl<T> Bucket<T> {
     unsafe fn next_n(&self, offset: usize) -> Self {
         let ptr = if T::IS_ZST {
             // invalid pointer is good enough for ZST
-            invalid_mut(self.ptr.as_ptr() as usize + offset)
+            without_provenance_mut(self.ptr.as_ptr() as usize + offset)
         } else {
             self.ptr.as_ptr().sub(offset)
         };

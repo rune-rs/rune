@@ -3,7 +3,7 @@ name = "rune"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.91"
+rust-version = "1.92"
 description = "The Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -25,13 +25,13 @@ workspace = ["std", "anyhow", "toml", "semver", "relative-path", "serde-hashkey"
 doc = ["std", "anyhow", "rust-embed", "handlebars", "pulldown-cmark", "pulldown-cmark-escape", "syntect", "sha2", "base64", "rune-core/doc", "relative-path"]
 cli = ["std", "anyhow", "emit", "doc", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand", "musli/storage"]
 languageserver = ["std", "anyhow", "lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "workspace", "doc", "fmt"]
-byte-code = ["alloc", "musli/storage", "musli/std", "rune-alloc/std"]
+byte-code = ["alloc", "musli", "dep:musli", "musli/storage", "musli/std", "rune-alloc/std"]
 capture-io = ["alloc", "parking_lot"]
 disable-io = ["alloc"]
 fmt = ["alloc", "anyhow"]
 std = ["alloc", "num/std", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "once_cell/std", "anyhow?/std", "syntree/std", "tokio?/io-std"]
 alloc = ["rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc"]
-musli = ["dep:musli", "rune-core/musli", "rune-alloc/musli"]
+musli = ["dep:musli-core", "rune-core/musli", "rune-alloc/musli"]
 serde = ["dep:serde", "rune-alloc/serde", "relative-path?/serde"]
 
 [dependencies]
@@ -48,12 +48,13 @@ num = { version = "0.4.0", default-features = false, features = ["alloc"] }
 pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, optional = true, features = ["derive", "rc"] }
-musli = { version = "0.0.131", default-features = false, optional = true, features = ["alloc"] }
+musli = { version = "0.0.149", default-features = false, optional = true, features = ["alloc"] }
+musli-core = { version = "0.1.0", default-features = false, optional = true, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }
 clap = { version = "4.2.7", features = ["derive"], optional = true }
-codespan-reporting = { version = "0.12.0", optional = true }
+codespan-reporting = { version = "0.13.1", optional = true }
 handlebars = { version = "6.0.0", optional = true }
 pulldown-cmark = { version = "0.13.0", optional = true }
 pulldown-cmark-escape = { version = "0.11.0", optional = true }
@@ -63,7 +64,7 @@ semver = { version = "1.0.17", optional = true, features = ["serde"] }
 serde-hashkey = { version = "0.4.5", optional = true }
 syntect = { version = "5.2.0", optional = true, default-features = false, features = ["default-fancy"] }
 tokio = { version = "1.28.1", features = ["rt-multi-thread", "fs", "macros", "sync", "io-util"], optional = true }
-toml = { version = "0.8.19", optional = true, features = ["parse"] }
+toml = { version = "0.9.10", optional = true, features = ["parse"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"], optional = true }
 webbrowser = { version = "1.0.2", optional = true }
 parking_lot = { version = "0.12.1", optional = true }

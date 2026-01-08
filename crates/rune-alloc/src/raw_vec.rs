@@ -1,13 +1,14 @@
 use core::alloc::{Layout, LayoutError};
 use core::cmp;
 use core::mem::{self, ManuallyDrop, MaybeUninit};
+use core::ptr::{self, NonNull};
 use core::slice;
 
 use crate::alloc::SizedTypeProperties;
 use crate::alloc::{AllocError, Allocator, Global};
 use crate::boxed::Box;
 use crate::error::Error;
-use crate::ptr::{self, NonNull, Unique};
+use crate::ptr::Unique;
 
 enum AllocInit {
     /// The contents of the new memory are uninitialized.

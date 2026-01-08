@@ -1,6 +1,5 @@
 use core::marker::PhantomData;
-
-use crate::ptr::NonNull;
+use core::ptr::NonNull;
 
 /// Models a reborrow of some unique reference, when you know that the reborrow
 /// and all its descendants (i.e., all pointers and references derived from it)

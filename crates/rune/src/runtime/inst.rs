@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 use core::fmt;
 
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 use rune_macros::InstDisplay;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use super::{Call, FormatSpec, Type, Value};
 /// An instruction in the virtual machine.
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 pub struct Inst {
     pub(crate) kind: Kind,
 }
@@ -58,7 +58,7 @@ impl TryClone for Inst {
 /// [`VmError::panic`][crate::runtime::VmError::panic].
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum PanicReason {
     /// A pattern didn't match where it unconditionally has to.
@@ -87,7 +87,7 @@ impl fmt::Display for PanicReason {
 /// The kind of an instruction in the virtual machine.
 #[derive(Debug, TryClone, Clone, Copy, InstDisplay)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum Kind {
     /// Make sure that the memory region has `size` slots of memory available.
@@ -1087,7 +1087,7 @@ impl Kind {
 #[derive(TryClone, Clone, Copy, PartialEq, Eq, Hash)]
 #[try_clone(copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 pub struct Output {
     offset: usize,
 }
@@ -1138,7 +1138,7 @@ impl fmt::Debug for Output {
 #[derive(Default, TryClone, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(transparent))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
 #[try_clone(copy)]
 pub struct Address {
     offset: usize,
@@ -1191,7 +1191,7 @@ impl fmt::Debug for Address {
 /// Range limits of a range expression.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstRange {
     /// `start..`.
@@ -1243,7 +1243,7 @@ impl fmt::Display for InstRange {
 /// The target of an operation.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstTarget {
     /// Target is an offset to the current call frame.
@@ -1270,7 +1270,7 @@ impl fmt::Display for InstTarget {
 /// An operation between two values on the machine.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstArithmeticOp {
     /// The add operation. `a + b`.
@@ -1313,7 +1313,7 @@ impl fmt::Display for InstArithmeticOp {
 /// An operation between two values on the machine.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstBitwiseOp {
     /// The bitwise and operation. `a & b`.
@@ -1346,7 +1346,7 @@ impl fmt::Display for InstBitwiseOp {
 /// An operation between two values on the machine.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstShiftOp {
     /// The shift left operation. `a << b`.
@@ -1374,7 +1374,7 @@ impl fmt::Display for InstShiftOp {
 /// An operation between two values on the machine.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstOp {
     /// Compare two values on the stack for lt and push the result as a
@@ -1512,7 +1512,7 @@ impl fmt::Display for InstOp {
 /// A literal value that can be pushed.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 #[try_clone(copy)]
 pub(crate) enum InstValue {
     /// An empty tuple.

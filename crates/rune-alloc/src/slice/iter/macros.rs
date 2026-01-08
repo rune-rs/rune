@@ -102,7 +102,7 @@ macro_rules! iterator {
                 unsafe {
                     if_zst!(mut self,
                         len => *len = len.wrapping_sub(offset),
-                        _end => self.ptr = ptr::nonnull_add(self.ptr, offset),
+                        _end => self.ptr = self.ptr.add(offset),
                     );
                 }
                 old
@@ -124,7 +124,7 @@ macro_rules! iterator {
                     // which is guaranteed to not overflow an `isize`. Also, the resulting pointer
                     // is in bounds of `slice`, which fulfills the other requirements for `offset`.
                     end => unsafe {
-                        *end = ptr::nonnull_sub(*end, offset);
+                        *end = end.sub(offset);
                         *end
                     },
                 )
@@ -210,7 +210,7 @@ macro_rules! iterator {
                 loop {
                     // SAFETY: the loop iterates `i in 0..len`, which always is in bounds of
                     // the slice allocation
-                    acc = f(acc, unsafe { & $( $mut_ )? *ptr::nonnull_add(self.ptr, i).as_ptr() });
+                    acc = f(acc, unsafe { & $( $mut_ )? *self.ptr.add(i).as_ptr() });
                     // SAFETY: `i` can't overflow since it'll only reach usize::MAX if the
                     // slice had that length, in which case we'll break out of the loop
                     // after the increment

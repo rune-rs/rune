@@ -3,7 +3,7 @@ name = "rune-core"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.91"
+rust-version = "1.92"
 description = "Core components for the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -21,13 +21,14 @@ default = ["alloc"]
 doc = []
 std = ["alloc", "rune-alloc/std"]
 alloc = ["serde/alloc", "rune-alloc/alloc"]
+musli = ["dep:musli-core"]
 
 [dependencies]
 rune-alloc = { version = "0.14.0", path = "../rune-alloc", default-features = false, features = ["serde", "musli"] }
 
 twox-hash = { version = "2.0.0", default-features = false, features = ["xxhash64"] }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
-musli = { version = "0.0.131", default-features = false, optional = true }
+musli-core = { version = "0.1.0", default-features = false, optional = true }
 
 [dev-dependencies]
 rune = { path = "../rune", features = ["alloc"] }

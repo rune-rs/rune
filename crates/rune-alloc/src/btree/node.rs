@@ -34,10 +34,10 @@
 use core::alloc::Layout;
 use core::marker::PhantomData;
 use core::mem::{self, MaybeUninit};
+use core::ptr::{self, NonNull};
 use core::slice::SliceIndex;
 
 use crate::alloc::{AllocError, Allocator};
-use crate::ptr::{self, NonNull};
 
 const B: usize = 6;
 pub(crate) const CAPACITY: usize = 2 * B - 1;

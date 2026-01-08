@@ -7,5 +7,5 @@ publish = false
 [dependencies]
 anyhow = "1.0.71"
 regex = { version = "1.8.1", default-features = false, features = ["std", "unicode-perl"] }
-zip = "2.2.0"
+zip = "7.0.0"
 flate2 = { version = "1.0.26", features = ["zlib"], default-features = false }

@@ -3,7 +3,7 @@ use core::mem::size_of;
 #[cfg(feature = "byte-code")]
 use musli::storage;
 #[cfg(feature = "musli")]
-use musli::{Decode, Encode};
+use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ use crate::runtime::Inst;
 /// it's being executed.
 #[derive(Debug, TryClone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
 pub struct ByteCodeUnit {
     /// The instructions contained in the source file.
     #[cfg_attr(feature = "musli", musli(bytes))]

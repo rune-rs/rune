@@ -3,7 +3,7 @@ name = "rune-alloc"
 version = "0.14.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.91"
+rust-version = "1.92"
 description = "The Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
@@ -19,15 +19,16 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly)'] }
 [features]
 default = ["std", "serde"]
 std = ["alloc", "ahash/std", "serde?/std"]
-alloc = []
+alloc = ["musli-core?/alloc"]
 inline-more = []
 raw = []
+musli = ["dep:musli-core"]
 
 [dependencies]
 rune-alloc-macros = { version = "=0.14.0", path = "../rune-alloc-macros" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
-musli = { version = "0.0.131", default-features = false, features = ["alloc"], optional = true }
+musli-core = { version = "0.1.0", default-features = false, optional = true }
 ahash = { version = "0.8.8", default-features = false }
 pin-project = "1.1.0"
 

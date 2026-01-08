@@ -1,4 +1,4 @@
-use musli::{Allocator, Decode, Decoder, Encode, Encoder};
+use musli_core::{Allocator, Decode, Decoder, Encode, Encoder};
 
 use crate::alloc::Vec;
 use crate::item::{Item, ItemBuf};

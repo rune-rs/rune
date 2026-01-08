@@ -9,16 +9,15 @@ use core::iter::FusedIterator;
 use core::marker::PhantomData;
 use core::mem::{self, ManuallyDrop};
 use core::ops::{Bound, Index, RangeBounds};
-
-use crate::ptr;
-#[cfg(test)]
-use crate::testing::*;
+use core::ptr;
 
 use crate::alloc::{AllocError, Allocator, Global};
 use crate::boxed::Box;
 use crate::clone::TryClone;
 use crate::error::{CustomError, Error};
 use crate::iter::{TryExtend, TryFromIteratorIn};
+#[cfg(test)]
+use crate::testing::*;
 
 use super::borrow::DormantMutRef;
 use super::navigate::{LazyLeafRange, LeafRange};
