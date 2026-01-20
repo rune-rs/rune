@@ -331,6 +331,8 @@ pub(crate) enum ErrorKind {
         root: PathBuf,
     },
     #[cfg(feature = "std")]
+    SourceWithoutPath,
+    #[cfg(feature = "std")]
     UnsupportedModuleItem {
         item: ItemBuf,
     },
@@ -789,6 +791,13 @@ impl fmt::Display for ErrorKind {
                     f,
                     "Cannot load modules relative to `{root}`",
                     root = root.display()
+                )?;
+            }
+            #[cfg(feature = "std")]
+            ErrorKind::SourceWithoutPath => {
+                write!(
+                    f,
+                    "Cannot load module from source without an associated path"
                 )?;
             }
             #[cfg(feature = "std")]

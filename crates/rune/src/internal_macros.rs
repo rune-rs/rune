@@ -43,16 +43,6 @@ macro_rules! repeat_macro {
     };
 }
 
-macro_rules! cfg_std {
-    ($($item:item)*) => {
-        $(
-            #[cfg(feature = "std")]
-            #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
-            $item
-        )*
-    }
-}
-
 macro_rules! assert_impl {
     ($ty:ty: $first_trait:ident $(+ $rest_trait:ident)*) => {
         #[cfg(test)]

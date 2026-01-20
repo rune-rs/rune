@@ -282,7 +282,7 @@ impl<'a> Processor<'a> {
                         id,
                         node: node.node_at(idx.source_id, idx.tree.clone()),
                         location: Location::new(idx.source_id, node.span()),
-                        root: idx.root.map(TryToOwned::try_to_owned).transpose()?,
+                        root: idx.root,
                         macro_depth: idx.macro_depth,
                         item: idx.item,
                         literal,
@@ -702,10 +702,10 @@ impl<'a> Processor<'a> {
             return Err(Error::new(&*p, ErrorKind::UnsupportedModuleSource));
         };
 
-        let source = idx
-            .q
-            .source_loader
-            .load(root, idx.q.pool.module_item(mod_item), &*p)?;
+        let source =
+            idx.q
+                .source_loader
+                .load(idx.q.sources, root, idx.q.pool.module_item(mod_item), &*p)?;
 
         if let Some(loaded) = idx.loaded.as_mut() {
             if let Some(_existing) = loaded.try_insert(mod_item, (idx.source_id, p.span()))? {
@@ -729,9 +729,7 @@ impl<'a> Processor<'a> {
 
         if let Some(queue) = idx.queue.as_mut() {
             queue.try_push_back(worker::Task::LoadFile {
-                kind: worker::LoadFileKind::Module {
-                    root: idx.root.map(|p| p.try_to_owned()).transpose()?,
-                },
+                kind: worker::LoadFileKind::Module { root: idx.root },
                 source_id,
                 mod_item,
                 mod_item_id,
@@ -887,7 +885,7 @@ fn item_impl(
                 functions,
             },
             location,
-            root: idx.root.map(TryToOwned::try_to_owned).transpose()?,
+            root: idx.root,
             nested_item: idx.nested_item,
             macro_depth: idx.macro_depth,
         }))?;

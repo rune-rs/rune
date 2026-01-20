@@ -1018,7 +1018,7 @@ fn item_impl(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemImpl) -> compile::Resu
                 functions: take(&mut ast.functions),
             },
             location,
-            root: idx.root.map(TryToOwned::try_to_owned).transpose()?,
+            root: idx.root,
             nested_item: idx.nested_item,
             macro_depth: idx.macro_depth,
         }))?;

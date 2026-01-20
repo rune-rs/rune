@@ -112,7 +112,7 @@ impl<I, O> Builder<I, O> {
     /// Associate [`Stdin`] and [`Stdout`] as the input and output of the
     /// builder.
     #[cfg(feature = "std")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     pub fn with_stdio(self) -> Builder<Stdin, Stdout> {
         self.with_input(io::stdin()).with_output(io::stdout())
     }

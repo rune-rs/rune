@@ -319,7 +319,8 @@ where
     }
 }
 
-impl TryClone for crate::path::PathBuf {
+#[cfg(feature = "std")]
+impl TryClone for std::path::PathBuf {
     fn try_clone(&self) -> Result<Self, Error> {
         Ok(self.clone())
     }

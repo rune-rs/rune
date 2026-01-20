@@ -2,9 +2,11 @@
 
 use core::fmt;
 
+#[cfg(feature = "std")]
+use std::path::Path;
+
 use crate as rune;
 use crate::alloc::borrow::Cow;
-use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, Vec};
 use crate::ast;
@@ -42,6 +44,8 @@ pub struct SourceMeta {
     /// The location of the compile source.
     pub location: Location,
     /// The optional path where the meta is declared.
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     pub path: Option<Box<Path>>,
 }
 

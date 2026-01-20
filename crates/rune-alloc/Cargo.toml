@@ -14,7 +14,7 @@ keywords = ["language", "scripting", "scripting-language"]
 categories = ["parser-implementations"]
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly, rune_docsrs)'] }
 
 [features]
 default = ["std", "serde"]
@@ -37,3 +37,7 @@ rune = { path = "../rune", features = ["alloc"] }
 
 rand = { version = "0.9.1", features = ["small_rng"] }
 tokio = { version = "1.28.1", default-features = false, features = ["rt", "macros"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "rune_docsrs"]

@@ -3,7 +3,6 @@ use rust_alloc::rc::Rc;
 use core::mem::replace;
 use core::num::NonZeroUsize;
 
-use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, VecDeque};
 use crate::ast::spanned;
@@ -52,7 +51,7 @@ pub(crate) struct Indexer<'a, 'arena> {
     /// Depth of expression macro expansion that we're currently in.
     pub(crate) macro_depth: usize,
     /// The root URL that the indexed file originated from.
-    pub(crate) root: Option<&'a Path>,
+    pub(crate) root: Option<SourceId>,
     /// Imports to process.
     pub(crate) queue: Option<&'a mut VecDeque<Task>>,
     /// Loaded modules.
@@ -462,17 +461,19 @@ impl Indexer<'_, '_> {
 
         ast.id = mod_item_id;
 
-        let Some(root) = &self.root else {
+        let Some(root) = self.root else {
             return Err(compile::Error::new(
                 &*ast,
                 ErrorKind::UnsupportedModuleSource,
             ));
         };
 
-        let source = self
-            .q
-            .source_loader
-            .load(root, self.q.pool.module_item(mod_item), &*ast)?;
+        let source = self.q.source_loader.load(
+            self.q.sources,
+            root,
+            self.q.pool.module_item(mod_item),
+            &*ast,
+        )?;
 
         if let Some(loaded) = self.loaded.as_mut() {
             if let Some(_existing) = loaded.try_insert(mod_item, (self.source_id, ast.span()))? {

@@ -82,20 +82,20 @@ impl CaptureIo {
         take(&mut *o)
     }
 
-    cfg_std! {
-        /// Drain all captured I/O that has been written to output functions into
-        /// the given [Write].
-        ///
-        /// [Write]: std::io::Write
-        pub fn drain_into<O>(&self, mut out: O) -> std::io::Result<()>
-        where
-            O: std::io::Write,
-        {
-            let mut o = self.inner.lock();
-            out.write_all(o.as_slice())?;
-            o.clear();
-            Ok(())
-        }
+    /// Drain all captured I/O that has been written to output functions into
+    /// the given [Write].
+    ///
+    /// [Write]: std::io::Write
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    pub fn drain_into<O>(&self, mut out: O) -> std::io::Result<()>
+    where
+        O: std::io::Write,
+    {
+        let mut o = self.inner.lock();
+        out.write_all(o.as_slice())?;
+        o.clear();
+        Ok(())
     }
 
     /// Drain all captured I/O that has been written to output functions and try
