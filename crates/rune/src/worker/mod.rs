@@ -159,7 +159,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         };
 
         let (root, is_module) = match kind {
-            LoadFileKind::Root => (source.path().map(|p| p.try_to_owned()).transpose()?, false),
+            LoadFileKind::Root => (Some(source_id), false),
             LoadFileKind::Module { root } => (root, true),
         };
 
@@ -172,7 +172,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
                 $crate::indexing::Indexer {
                     q: self.q.borrow(),
-                    root: root.as_deref(),
+                    root,
                     source_id,
                     items,
                     scopes: $crate::indexing::Scopes::new()?,
@@ -244,7 +244,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
                 $crate::indexing::Indexer {
                     q: self.q.borrow(),
-                    root: this.root.as_deref(),
+                    root: this.root,
                     source_id: this.location.source_id,
                     items,
                     scopes: $crate::indexing::Scopes::new()?,
@@ -433,7 +433,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let mut idx = crate::indexing::Indexer {
             q: self.q.borrow(),
-            root: this.root.as_deref(),
+            root: this.root,
             source_id: this.location.source_id,
             items,
             scopes: crate::indexing::Scopes::new()?,
@@ -471,7 +471,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let mut idx = crate::indexing::Indexer {
             q: self.q.borrow(),
-            root: this.root.as_deref(),
+            root: this.root,
             source_id: this.location.source_id,
             items,
             scopes: crate::indexing::Scopes::new()?,
@@ -560,7 +560,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let mut idx = crate::indexing::Indexer {
             q: self.q.borrow(),
-            root: this.root.as_deref(),
+            root: this.root,
             source_id: this.location.source_id,
             items,
             scopes: crate::indexing::Scopes::new()?,

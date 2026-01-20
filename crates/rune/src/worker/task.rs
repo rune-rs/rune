@@ -1,4 +1,3 @@
-use crate::alloc::path::PathBuf;
 use crate::compile::{ItemId, ModId};
 use crate::worker::{Import, WildcardImport};
 use crate::SourceId;
@@ -30,5 +29,5 @@ pub(crate) enum LoadFileKind {
     Root,
     /// A loaded module, which inherits its root from the file it was loaded
     /// from.
-    Module { root: Option<PathBuf> },
+    Module { root: Option<SourceId> },
 }

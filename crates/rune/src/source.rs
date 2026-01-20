@@ -17,11 +17,12 @@ use core::slice;
 
 #[cfg(feature = "emit")]
 use std::io;
+#[cfg(feature = "std")]
+use std::path::Path;
 
 use crate as rune;
 #[cfg(feature = "std")]
 use crate::alloc::borrow::Cow;
-use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box};
 use crate::ast::Span;
@@ -42,12 +43,11 @@ impl From<alloc::Error> for FromPathError {
     }
 }
 
-cfg_std! {
-    impl From<std::io::Error> for FromPathError {
-        fn from(error: std::io::Error) -> Self {
-            Self {
-                kind: FromPathErrorKind::Io(error),
-            }
+#[cfg(feature = "std")]
+impl From<std::io::Error> for FromPathError {
+    fn from(error: std::io::Error) -> Self {
+        Self {
+            kind: FromPathErrorKind::Io(error),
         }
     }
 }
@@ -87,6 +87,7 @@ pub struct Source {
     /// The source string.
     source: Box<str>,
     /// The path the source was loaded from.
+    #[cfg(feature = "std")]
     path: Option<Box<Path>>,
     /// The starting byte indices in the source code.
     line_starts: Box<[usize]>,
@@ -102,6 +103,7 @@ impl Source {
         Ok(Self {
             name: SourceName::Name(name),
             source: source.try_into()?,
+            #[cfg(feature = "std")]
             path: None,
             line_starts,
         })
@@ -125,26 +127,27 @@ impl Source {
         Ok(Self {
             name: SourceName::Memory,
             source: source.try_into()?,
+            #[cfg(feature = "std")]
             path: None,
             line_starts,
         })
     }
 
-    cfg_std! {
-        /// Read and load a source from the given filesystem path.
-        pub fn from_path(path: impl AsRef<Path>) -> Result<Self, FromPathError> {
-            let name = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
-            let source = Box::try_from(std::fs::read_to_string(path.as_ref())?)?;
-            let path = Some(path.as_ref().try_into()?);
-            let line_starts = line_starts(source.as_ref()).try_collect::<Box<[_]>>()?;
+    /// Read and load a source from the given filesystem path.
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, FromPathError> {
+        let name = Box::try_from(Cow::try_from(path.as_ref().to_string_lossy())?)?;
+        let source = Box::try_from(std::fs::read_to_string(path.as_ref())?)?;
+        let path = Some(path.as_ref().try_into()?);
+        let line_starts = line_starts(source.as_ref()).try_collect::<Box<[_]>>()?;
 
-            Ok(Self {
-                name: SourceName::Name(name),
-                source,
-                path,
-                line_starts,
-            })
-        }
+        Ok(Self {
+            name: SourceName::Name(name),
+            source,
+            path,
+            line_starts,
+        })
     }
 
     /// Construct a new source with the given content and path.
@@ -160,6 +163,8 @@ impl Source {
     /// assert_eq!(source.path(), Some(Path::new("test.rn")));
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     pub fn with_path(
         name: impl AsRef<str>,
         source: impl AsRef<str>,
@@ -217,6 +222,8 @@ impl Source {
     /// assert_eq!(source.path(), Some(Path::new("test.rn")));
     /// # Ok::<_, rune::support::Error>(())
     /// ```
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
@@ -340,10 +347,11 @@ impl Source {
 
 impl fmt::Debug for Source {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Source")
-            .field("name", &self.name)
-            .field("path", &self.path)
-            .finish()
+        let mut st = f.debug_struct("Source");
+        st.field("name", &self.name);
+        #[cfg(feature = "std")]
+        st.field("path", &self.path);
+        st.finish()
     }
 }
 

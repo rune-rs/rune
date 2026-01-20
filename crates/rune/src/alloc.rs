@@ -56,8 +56,6 @@ pub use rune_alloc::iter;
 #[doc(inline)]
 pub use rune_alloc::limit;
 #[doc(inline)]
-pub use rune_alloc::path;
-#[doc(inline)]
 pub use rune_alloc::str;
 #[doc(inline)]
 pub use rune_alloc::sync;

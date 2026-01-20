@@ -54,8 +54,9 @@ where
     }
 }
 
-impl TryToOwned for crate::path::Path {
-    type Owned = crate::path::PathBuf;
+#[cfg(feature = "std")]
+impl TryToOwned for std::path::Path {
+    type Owned = std::path::PathBuf;
 
     fn try_to_owned(&self) -> Result<Self::Owned, Error> {
         Ok(self.to_path_buf())

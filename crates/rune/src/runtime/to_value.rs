@@ -252,7 +252,11 @@ where
 // map impls
 
 macro_rules! impl_map {
-    ($ty:ty) => {
+    (
+        $(#[$($meta:meta)*])*
+        $ty:ty
+    ) => {
+        $(#[$($meta)*])*
         impl<T> ToValue for $ty
         where
             T: ToValue,
@@ -272,10 +276,22 @@ macro_rules! impl_map {
     };
 }
 
-impl_map!(HashMap<rust_alloc::string::String, T>);
-impl_map!(HashMap<alloc::String, T>);
+impl_map! {
+    HashMap<rust_alloc::string::String, T>
+}
 
-cfg_std! {
-    impl_map!(::std::collections::HashMap<rust_alloc::string::String, T>);
-    impl_map!(::std::collections::HashMap<alloc::String, T>);
+impl_map! {
+    HashMap<alloc::String, T>
+}
+
+impl_map! {
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    ::std::collections::HashMap<rust_alloc::string::String, T>
+}
+
+impl_map! {
+    #[cfg(feature = "std")]
+    #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+    ::std::collections::HashMap<alloc::String, T>
 }

@@ -807,6 +807,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         let source = SourceMeta {
             location: item_meta.location,
+            #[cfg(feature = "std")]
             path: self
                 .sources
                 .path(item_meta.location.source_id)
@@ -1833,6 +1834,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         let source = SourceMeta {
             location: item_meta.location,
+            #[cfg(feature = "std")]
             path: self
                 .sources
                 .path(item_meta.location.source_id)

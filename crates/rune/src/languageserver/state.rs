@@ -1250,10 +1250,20 @@ impl<'a> ScriptSourceLoader<'a> {
 }
 
 impl crate::compile::SourceLoader for ScriptSourceLoader<'_> {
-    fn load(&mut self, root: &Path, item: &Item, span: &dyn Spanned) -> compile::Result<Source> {
-        tracing::trace!("load {} (root: {})", item, root.display());
+    fn load(
+        &mut self,
+        sources: &Sources,
+        root: SourceId,
+        item: &Item,
+        span: &dyn Spanned,
+    ) -> compile::Result<Source> {
+        let Some(path) = sources.path(root) else {
+            return self.base.load(sources, root, item, span);
+        };
 
-        if let Some(candidates) = Self::candidates(root, item, span)? {
+        tracing::trace!("load {} (root: {})", item, path.display());
+
+        if let Some(candidates) = Self::candidates(path, item, span)? {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
                     return Ok(Source::with_path(url, s.try_to_string()?, path)?);
@@ -1261,7 +1271,7 @@ impl crate::compile::SourceLoader for ScriptSourceLoader<'_> {
             }
         }
 
-        self.base.load(root, item, span)
+        self.base.load(sources, root, item, span)
     }
 }
 

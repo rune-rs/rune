@@ -33,20 +33,21 @@
 // or https://opensource.org/licenses/MIT>, at your option. Files in the project
 // may not be copied, modified, or distributed except according to those terms.
 
-#![no_std]
-#![deny(rustdoc::broken_intra_doc_links)]
-#![deny(rustdoc::private_doc_tests)]
-#![cfg_attr(rune_nightly, allow(internal_features))]
-#![cfg_attr(rune_nightly, feature(fmt_internals))]
-#![cfg_attr(rune_nightly, feature(core_intrinsics))]
-#![cfg_attr(rune_nightly, feature(dropck_eyepatch))]
-#![cfg_attr(rune_nightly, feature(min_specialization))]
-#![cfg_attr(rune_nightly, feature(slice_range))]
-#![cfg_attr(rune_nightly, feature(rustc_attrs))]
 #![allow(clippy::comparison_chain)]
+#![allow(clippy::drop_non_drop)]
 #![allow(clippy::manual_map)]
 #![allow(clippy::type_complexity)]
-#![allow(clippy::drop_non_drop)]
+#![cfg_attr(rune_docsrs, feature(doc_cfg))]
+#![cfg_attr(rune_nightly, allow(internal_features))]
+#![cfg_attr(rune_nightly, feature(core_intrinsics))]
+#![cfg_attr(rune_nightly, feature(dropck_eyepatch))]
+#![cfg_attr(rune_nightly, feature(fmt_internals))]
+#![cfg_attr(rune_nightly, feature(min_specialization))]
+#![cfg_attr(rune_nightly, feature(rustc_attrs))]
+#![cfg_attr(rune_nightly, feature(slice_range))]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(rustdoc::private_doc_tests)]
+#![no_std]
 
 #[cfg(feature = "std")]
 extern crate std;
@@ -61,11 +62,6 @@ compile_error!("The `alloc` feature is currently required to build rune-alloc, b
 
 /// A `Result` aliased specialized towards an allocation [`Error`].
 pub type Result<T, E = crate::error::Error> = core::result::Result<T, E>;
-
-#[cfg(feature = "std")]
-pub use std::path;
-#[cfg(not(feature = "std"))]
-pub mod path;
 
 #[cfg(not(feature = "std"))]
 mod no_std;

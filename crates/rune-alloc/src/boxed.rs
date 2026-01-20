@@ -165,11 +165,13 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr;
 
+#[cfg(feature = "std")]
+use std::path::Path;
+
 use crate::alloc::{AllocError, Allocator, Global};
 use crate::clone::TryClone;
 use crate::error::Error;
 use crate::iter::TryFromIteratorIn;
-use crate::path::Path;
 use crate::ptr::Unique;
 use crate::raw_vec::RawVec;
 use crate::vec::Vec;
@@ -1017,6 +1019,8 @@ where
     }
 }
 
+#[cfg(feature = "std")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
 impl<A> Box<Path, A>
 where
     A: Allocator,
@@ -1024,10 +1028,7 @@ where
     #[inline]
     pub(crate) fn try_from_path_in(path: &Path, alloc: A) -> Result<Self, Error> {
         unsafe {
-            const _: () = assert!(mem::size_of::<&Path>() == mem::size_of::<&[u8]>());
-            // Replace with path.as_os_str().as_encoded_bytes() once that is
-            // stable.
-            let bytes = &*(path as *const _ as *const [u8]);
+            let bytes = path.as_os_str().as_encoded_bytes();
             let b = Box::try_from_bytes_in(bytes, alloc)?;
             let (raw, alloc) = Box::into_raw_with_allocator(b);
             Ok(Box::from_raw_in(raw as *mut Path, alloc))
@@ -1035,6 +1036,8 @@ where
     }
 }
 
+#[cfg(feature = "std")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
 impl<A> TryClone for Box<Path, A>
 where
     A: Allocator + Clone,
@@ -1108,6 +1111,8 @@ impl TryFrom<&[u8]> for Box<[u8]> {
     }
 }
 
+#[cfg(feature = "std")]
+#[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
 impl TryFrom<&Path> for Box<Path> {
     type Error = Error;
 

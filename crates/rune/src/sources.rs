@@ -1,6 +1,9 @@
 use core::fmt;
 use core::num;
 
+#[cfg(feature = "std")]
+use std::path::Path;
+
 #[cfg(feature = "musli")]
 use musli_core::{Decode, Encode};
 #[cfg(feature = "serde")]
@@ -8,7 +11,6 @@ use serde::{Deserialize, Serialize};
 
 use crate as rune;
 use crate::alloc;
-use crate::alloc::path::Path;
 use crate::alloc::prelude::*;
 use crate::ast::Span;
 use crate::source::Source;
@@ -113,6 +115,7 @@ impl Sources {
     }
 
     /// Access the optional path of the given source id.
+    #[cfg(feature = "std")]
     #[inline]
     pub(crate) fn path(&self, id: SourceId) -> Option<&Path> {
         let source = self.sources.get(id.into_index())?;

@@ -11,8 +11,6 @@ use rust_alloc::rc::Rc;
 
 pub(crate) use self::query::{Query, QueryInner, QuerySource};
 
-use crate as rune;
-use crate::alloc::path::PathBuf;
 use crate::alloc::prelude::*;
 use crate::ast::{self, OptionSpanned, Span, Spanned};
 use crate::compile::{ir, Doc, Error, ItemId, ItemMeta, Location, ModId, Result};
@@ -23,6 +21,7 @@ use crate::indexing;
 use crate::parse::NonZeroId;
 use crate::runtime::format;
 use crate::runtime::Call;
+use crate::{self as rune, SourceId};
 
 /// Indication whether a value is being evaluated because it's being used or not.
 #[derive(Default, Debug, TryClone, Clone, Copy)]
@@ -269,7 +268,7 @@ pub(crate) struct ImplItem {
     /// Location where the item impl is defined and is being expanded.
     pub(crate) location: Location,
     ///See [Indexer][crate::indexing::Indexer].
-    pub(crate) root: Option<PathBuf>,
+    pub(crate) root: Option<SourceId>,
     ///See [Indexer][crate::indexing::Indexer].
     pub(crate) nested_item: Option<Span>,
     /// See [Indexer][crate::indexing::Indexer].
@@ -285,8 +284,8 @@ pub(crate) struct ExpandMacroBuiltin {
     pub(crate) node: NodeAt,
     /// Location where the item impl is defined and is being expanded.
     pub(crate) location: Location,
-    ///See [Indexer][crate::indexing::Indexer].
-    pub(crate) root: Option<PathBuf>,
+    /// See [Indexer][crate::indexing::Indexer].
+    pub(crate) root: Option<SourceId>,
     /// See [Indexer][crate::indexing::Indexer].
     pub(crate) macro_depth: usize,
     /// Indexing item at macro expansion position.

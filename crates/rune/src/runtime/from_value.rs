@@ -358,33 +358,33 @@ impl FromValue for f32 {
     }
 }
 
-cfg_std! {
-    macro_rules! impl_map {
-        ($ty:ty, $key:ty) => {
-            impl<T> FromValue for $ty
-            where
-                T: FromValue,
-            {
-                fn from_value(value: Value) -> Result<Self, RuntimeError> {
-                    let object = value.downcast::<$crate::runtime::Object>()?;
+macro_rules! impl_map {
+    ($ty:ty, $key:ty) => {
+        #[cfg(feature = "std")]
+        #[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+        impl<T> FromValue for $ty
+        where
+            T: FromValue,
+        {
+            fn from_value(value: Value) -> Result<Self, RuntimeError> {
+                let object = value.downcast::<$crate::runtime::Object>()?;
 
-                    let mut output = <$ty>::with_capacity(object.len());
+                let mut output = <$ty>::with_capacity(object.len());
 
-                    for (key, value) in object {
-                        let key = <$key>::try_from(key)?;
-                        let value = <T>::from_value(value)?;
-                        output.insert(key, value);
-                    }
-
-                    Ok(output)
+                for (key, value) in object {
+                    let key = <$key>::try_from(key)?;
+                    let value = <T>::from_value(value)?;
+                    output.insert(key, value);
                 }
-            }
-        };
-    }
 
-    impl_map!(::std::collections::HashMap<String, T>, String);
-    impl_map!(::std::collections::HashMap<rust_alloc::string::String, T>, rust_alloc::string::String);
+                Ok(output)
+            }
+        }
+    };
 }
+
+impl_map!(::std::collections::HashMap<String, T>, String);
+impl_map!(::std::collections::HashMap<rust_alloc::string::String, T>, rust_alloc::string::String);
 
 macro_rules! impl_try_map {
     ($ty:ty, $key:ty) => {
