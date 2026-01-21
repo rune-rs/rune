@@ -54,7 +54,7 @@ impl Parse for LitChar {
 impl<'a> Resolve<'a> for LitChar {
     type Output = char;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<char> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<char> {
         let source_id = match self.source {
             ast::CopySource::Inline(c) => return Ok(c),
             ast::CopySource::Text(source_id) => source_id,

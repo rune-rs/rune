@@ -1,6 +1,5 @@
 use core::ascii;
 use core::fmt;
-use core::ops::Neg;
 
 use crate::ast::prelude::*;
 use crate::ast::{Kind, Span, Spanned};
@@ -192,13 +191,14 @@ impl IntoExpectation for Token {
 }
 
 /// The value of a number literal.
-#[derive(Debug, TryClone)]
+#[derive(Debug, Clone, Copy, TryClone)]
 #[non_exhaustive]
+#[try_clone(copy)]
 pub enum NumberValue {
     /// A float literal number.
     Float(f64),
     /// An integer literal number.
-    Integer(#[try_clone(with = num::BigInt::clone)] num::BigInt),
+    Integer(i128),
 }
 
 /// The literal size of a number.
@@ -278,8 +278,9 @@ pub enum NumberSuffix {
 }
 
 /// A resolved number literal.
-#[derive(Debug, TryClone)]
+#[derive(Debug, Clone, Copy, TryClone)]
 #[non_exhaustive]
+#[try_clone(copy)]
 pub struct Number {
     /// The parsed number value.
     pub value: NumberValue,
@@ -289,50 +290,38 @@ pub struct Number {
 
 impl Number {
     /// Convert into a 32-bit unsigned number.
-    pub(crate) fn as_u32(&self, neg: bool) -> Option<u32> {
-        self.as_primitive(neg, num::ToPrimitive::to_u32)
-    }
-
-    /// Convert into usize.
-    pub(crate) fn as_usize(&self, neg: bool) -> Option<usize> {
-        self.as_primitive(neg, num::ToPrimitive::to_usize)
-    }
-
-    /// Try to convert number into a tuple index.
-    pub(crate) fn as_tuple_index(&self) -> Option<usize> {
-        use num::ToPrimitive;
-
-        match &self.value {
-            NumberValue::Integer(n) => n.to_usize(),
+    pub(crate) fn as_u32(&self) -> Option<u32> {
+        match self.value {
+            NumberValue::Integer(n) => u32::try_from(n).ok(),
             _ => None,
         }
     }
 
-    fn as_primitive<T>(&self, neg: bool, to: impl FnOnce(&num::BigInt) -> Option<T>) -> Option<T> {
-        let NumberValue::Integer(number) = &self.value else {
-            return None;
-        };
-
-        let mut number = number;
-        let negated;
-
-        if neg {
-            negated = number.clone().neg();
-            number = &negated;
+    /// Convert into usize.
+    pub(crate) fn as_usize(&self) -> Option<usize> {
+        match self.value {
+            NumberValue::Integer(n) => usize::try_from(n).ok(),
+            _ => None,
         }
+    }
 
-        to(number)
+    /// Try to convert number into a tuple index.
+    pub(crate) fn as_tuple_index(&self) -> Option<usize> {
+        match self.value {
+            NumberValue::Integer(n) => usize::try_from(n).ok(),
+            _ => None,
+        }
     }
 }
 
-macro_rules! impl_from_int {
+macro_rules! from_unsigned {
     ($($ty:ty),*) => {
         $(
             impl From<$ty> for Number {
                 #[inline]
                 fn from(value: $ty) -> Self {
                     Self {
-                        value: NumberValue::Integer(num::BigInt::from(value)),
+                        value: NumberValue::Integer(value as i128),
                         suffix: None,
                     }
                 }
@@ -341,7 +330,24 @@ macro_rules! impl_from_int {
     };
 }
 
-impl_from_int!(usize, isize, i8, u8, i16, u16, i32, u32, i64, u64, i128, u128);
+macro_rules! from_signed {
+    ($($ty:ty),*) => {
+        $(
+            impl From<$ty> for Number {
+                #[inline]
+                fn from(value: $ty) -> Self {
+                    Self {
+                        value: NumberValue::Integer(value as i128),
+                        suffix: None,
+                    }
+                }
+            }
+        )*
+    };
+}
+
+from_unsigned!(usize, u8, u16, u32, u64);
+from_signed!(isize, i8, i16, i32, i64);
 
 impl From<f32> for Number {
     #[inline]
@@ -366,8 +372,8 @@ impl From<f64> for Number {
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.value {
-            NumberValue::Float(n) => write!(f, "{n}"),
-            NumberValue::Integer(n) => write!(f, "{n}"),
+            NumberValue::Float(n) => n.fmt(f),
+            NumberValue::Integer(n) => n.fmt(f),
         }
     }
 }
@@ -511,7 +517,9 @@ where
 pub struct NumberText {
     /// The source of the text.
     pub source_id: SourceId,
-    /// Indicates if it's a decimal number.
+    /// Indicates if it's a fractional number.
+    ///
+    /// A number is a fractional number if it contains a decimal point.
     pub is_fractional: bool,
     /// The number literal kind.
     pub base: NumberBase,

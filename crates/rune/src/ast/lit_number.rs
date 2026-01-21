@@ -1,7 +1,7 @@
 use crate::ast::prelude::*;
+use crate::compile::{num, WithSpan};
 
 use ast::token::NumberSize;
-use num::Num;
 
 #[test]
 #[cfg(not(miri))]
@@ -59,11 +59,7 @@ impl Parse for LitNumber {
 impl<'a> Resolve<'a> for LitNumber {
     type Output = ast::Number;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<ast::Number> {
-        fn err_span<E>(span: Span) -> impl Fn(E) -> compile::Error {
-            move |_| compile::Error::new(span, ErrorKind::BadNumberLiteral)
-        }
-
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<ast::Number> {
         let span = self.span;
 
         let text = match self.source {
@@ -116,10 +112,7 @@ impl<'a> Resolve<'a> for LitNumber {
             (suffix, text.is_fractional),
             (Some(ast::NumberSuffix::Float(..)), _) | (None, true)
         ) {
-            let number: f64 = string
-                .trim_matches(|c: char| c == '_')
-                .parse()
-                .map_err(err_span(span))?;
+            let number: f64 = num::from_float(cx.scratch, string).with_span(span)?;
 
             return Ok(ast::Number {
                 value: ast::NumberValue::Float(number),
@@ -127,17 +120,19 @@ impl<'a> Resolve<'a> for LitNumber {
             });
         }
 
-        let radix = match text.base {
-            ast::NumberBase::Binary => 2,
-            ast::NumberBase::Octal => 8,
-            ast::NumberBase::Hex => 16,
-            ast::NumberBase::Decimal => 10,
+        let parser = match text.base {
+            ast::NumberBase::Binary => num::from_ascii_binary,
+            ast::NumberBase::Octal => num::from_ascii_octal,
+            ast::NumberBase::Hex => num::from_ascii_hex,
+            ast::NumberBase::Decimal => num::from_ascii_decimal,
         };
 
-        let number = num::BigInt::from_str_radix(string, radix).map_err(err_span(span))?;
+        let number = parser(string.as_bytes())
+            .ok_or_else(|| ErrorKind::BadNumberLiteral)
+            .with_span(span)?;
 
         Ok(ast::Number {
-            value: ast::NumberValue::Integer(number),
+            value: ast::NumberValue::Integer(number as i128),
             suffix,
         })
     }

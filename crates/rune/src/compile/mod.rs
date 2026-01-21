@@ -68,6 +68,8 @@ pub use self::named::Named;
 mod names;
 pub(crate) use self::names::Names;
 
+pub(crate) mod num;
+
 mod visibility;
 pub(crate) use self::visibility::Visibility;
 

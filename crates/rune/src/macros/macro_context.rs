@@ -7,6 +7,7 @@ use crate::ast;
 use crate::ast::Span;
 use crate::compile::{self, ErrorKind, ItemMeta};
 use crate::indexing::Indexer;
+use crate::internal_macros::resolve_context;
 use crate::macros::{IntoLit, ToTokens, TokenStream};
 use crate::parse::{Parse, Resolve};
 use crate::runtime::Value;

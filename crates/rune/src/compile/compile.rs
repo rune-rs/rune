@@ -8,6 +8,7 @@ use crate::compile::{
 };
 use crate::hir;
 use crate::indexing::FunctionAst;
+use crate::internal_macros::resolve_context;
 use crate::macros::Storage;
 use crate::parse::Resolve;
 use crate::query::{Build, BuildEntry, Query, SecondaryBuild, Used};

@@ -90,7 +90,7 @@ impl Parse for LitByteStr {
 impl<'a> Resolve<'a> for LitByteStr {
     type Output = Cow<'a, [u8]>;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, [u8]>> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<Cow<'a, [u8]>> {
         let span = self.span;
 
         let text = match self.source {

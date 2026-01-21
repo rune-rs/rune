@@ -32,11 +32,11 @@ impl Parser {
     /// Try to parse and collect all attributes of a given type.
     ///
     /// The returned Vec may be empty.
-    pub(crate) fn parse_all<'this, 'a, T>(
+    pub(crate) fn parse_all<'this, 'scratch, 'a, T>(
         &'this mut self,
-        cx: ResolveContext<'this>,
+        cx: ResolveContext<'this, 'scratch>,
         attributes: &'a [ast::Attribute],
-    ) -> compile::Result<ParseAll<'this, 'a, T>>
+    ) -> compile::Result<ParseAll<'this, 'scratch, 'a, T>>
     where
         T: Attribute + Parse,
     {
@@ -58,7 +58,7 @@ impl Parser {
     /// successful.
     pub(crate) fn try_parse<'a, T>(
         &mut self,
-        cx: ResolveContext<'_>,
+        cx: ResolveContext<'_, '_>,
         attributes: &'a [ast::Attribute],
     ) -> compile::Result<Option<(&'a ast::Attribute, T)>>
     where
@@ -90,14 +90,14 @@ impl Parser {
     }
 }
 
-pub(crate) struct ParseAll<'this, 'a, T> {
+pub(crate) struct ParseAll<'this, 'scratch, 'a, T> {
     outer: &'this mut Parser,
     attributes: &'a [ast::Attribute],
-    cx: ResolveContext<'this>,
+    cx: ResolveContext<'this, 'scratch>,
     _marker: PhantomData<T>,
 }
 
-impl<'a, T> Iterator for ParseAll<'_, 'a, T>
+impl<'a, T> Iterator for ParseAll<'_, '_, 'a, T>
 where
     T: Attribute + Parse,
 {
@@ -173,7 +173,7 @@ pub(crate) struct BuiltIn {
 
 impl BuiltIn {
     /// Parse built-in arguments.
-    pub(crate) fn args(&self, cx: ResolveContext<'_>) -> compile::Result<BuiltInArgs> {
+    pub(crate) fn args(&self, cx: ResolveContext<'_, '_>) -> compile::Result<BuiltInArgs> {
         let mut out = BuiltInArgs::default();
 
         if let Some(args) = &self.args {

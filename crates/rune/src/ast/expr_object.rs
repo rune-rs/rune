@@ -114,7 +114,7 @@ impl Parse for ObjectKey {
 impl<'a> Resolve<'a> for ObjectKey {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<Self::Output> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<Self::Output> {
         Ok(match self {
             Self::LitStr(lit_str) => lit_str.resolve(cx)?,
             Self::Path(path) => {

@@ -97,7 +97,7 @@ impl IntoExpectation for &Path {
 impl Resolve<'_> for Path {
     type Output = Box<str>;
 
-    fn resolve(&self, cx: ResolveContext<'_>) -> Result<Self::Output> {
+    fn resolve(&self, cx: ResolveContext<'_, '_>) -> Result<Self::Output> {
         let mut buf = String::new();
 
         if self.global.is_some() {

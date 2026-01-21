@@ -27,20 +27,20 @@ impl LitStr {
     /// Resolve a template string.
     pub(crate) fn resolve_template_string<'a>(
         &self,
-        cx: ResolveContext<'a>,
+        cx: ResolveContext<'a, '_>,
     ) -> Result<Cow<'a, str>> {
         self.resolve_inner(cx, ast::unescape::WithTemplate(true))
     }
 
     /// Resolve as a regular string.
-    pub(crate) fn resolve_string<'a>(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
+    pub(crate) fn resolve_string<'a>(&self, cx: ResolveContext<'a, '_>) -> Result<Cow<'a, str>> {
         self.resolve_inner(cx, ast::unescape::WithTemplate(false))
     }
 
     /// Resolve the given string with the specified configuration.
     fn resolve_inner<'a>(
         &self,
-        cx: ResolveContext<'a>,
+        cx: ResolveContext<'a, '_>,
         with_template: ast::unescape::WithTemplate,
     ) -> Result<Cow<'a, str>> {
         let span = self.span;
@@ -150,7 +150,7 @@ impl Parse for LitStr {
 impl<'a> Resolve<'a> for LitStr {
     type Output = Cow<'a, str>;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<Cow<'a, str>> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<Cow<'a, str>> {
         self.resolve_string(cx)
     }
 }
