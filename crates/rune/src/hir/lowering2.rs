@@ -1,10 +1,8 @@
 use core::mem::replace;
 use core::num::NonZero;
-use core::ops::Neg;
 
 use rust_alloc::rc::Rc;
 
-use num::ToPrimitive;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
@@ -16,6 +14,7 @@ use crate::grammar::{
 };
 use crate::hash::ParametersBuilder;
 use crate::hir;
+use crate::internal_macros::resolve_context;
 use crate::parse::{NonZeroId, Resolve};
 use crate::query::{self, GenericsParameters, Named2, Named2Kind, Used};
 use crate::runtime::{
@@ -673,7 +672,7 @@ fn expr_expanded_macro<'hir>(
                 Ok(hir::ExprKind::Lit(hir::Lit::Str(lit)))
             }
             query::BuiltInMacro2::Line(line) => {
-                let Some(n) = line.to_u64() else {
+                let Ok(n) = u64::try_from(line) else {
                     return Err(Error::new(
                         &*p,
                         ErrorKind::BadUnsignedOutOfBounds {
@@ -781,7 +780,7 @@ fn expr_format_macro<'hir>(
 
                     let arg = p.ast::<ast::LitNumber>()?;
 
-                    let Some(f) = arg.resolve(resolve_context!(cx.q))?.as_u32(false) else {
+                    let Some(f) = arg.resolve(resolve_context!(cx.q))?.as_u32() else {
                         return Err(Error::unsupported(arg, "argument out-of-bounds"));
                     };
 
@@ -798,7 +797,7 @@ fn expr_format_macro<'hir>(
 
                     let arg = p.ast::<ast::LitNumber>()?;
 
-                    let Some(f) = arg.resolve(resolve_context!(cx.q))?.as_usize(false) else {
+                    let Some(f) = arg.resolve(resolve_context!(cx.q))?.as_usize() else {
                         return Err(Error::unsupported(arg, "argument out-of-bounds"));
                     };
 
@@ -814,7 +813,7 @@ fn expr_format_macro<'hir>(
 
                     let arg = p.ast::<ast::LitNumber>()?;
 
-                    let Some(f) = arg.resolve(resolve_context!(cx.q))?.as_usize(false) else {
+                    let Some(f) = arg.resolve(resolve_context!(cx.q))?.as_usize() else {
                         return Err(Error::unsupported(arg, "argument out-of-bounds"));
                     };
 
@@ -2723,9 +2722,9 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Lit
                     Ok(hir::Lit::Float(n))
                 }
                 (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(_, size))) => {
-                    let int = if neg { int.neg() } else { int };
+                    let int = if neg { -int } else { int };
 
-                    let Some(n) = int.to_u64() else {
+                    let Ok(n) = u64::try_from(int) else {
                         return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
                     };
 
@@ -2736,22 +2735,22 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Lit
                     Ok(hir::Lit::Unsigned(n))
                 }
                 (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(_, size))) => {
-                    let int = if neg { int.neg() } else { int };
+                    let int = if neg { -int } else { int };
 
-                    let Some(n) = int.to_u64() else {
-                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
+                    let Ok(n) = i64::try_from(int) else {
+                        return Err(Error::new(lit, ErrorKind::BadSignedOutOfBounds { size }));
                     };
 
-                    if !size.unsigned_in(n) {
-                        return Err(Error::new(lit, ErrorKind::BadUnsignedOutOfBounds { size }));
+                    if !size.signed_in(n) {
+                        return Err(Error::new(lit, ErrorKind::BadSignedOutOfBounds { size }));
                     }
 
-                    Ok(hir::Lit::Unsigned(n))
+                    Ok(hir::Lit::Signed(n))
                 }
                 (ast::NumberValue::Integer(int), _) => {
-                    let int = if neg { int.neg() } else { int };
+                    let int = if neg { -int } else { int };
 
-                    let Some(n) = int.to_i64() else {
+                    let Ok(n) = i64::try_from(int) else {
                         return Err(Error::new(
                             lit,
                             ErrorKind::BadSignedOutOfBounds {

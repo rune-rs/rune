@@ -6,6 +6,7 @@ use crate::ast;
 use crate::ast::Spanned;
 use crate::compile::{DynLocation, Error, ErrorKind, Location, ModId, Result, Visibility};
 use crate::grammar::{Ignore, MaybeNode, NodeAt, Remaining, Stream, StreamBuf};
+use crate::internal_macros::resolve_context;
 use crate::parse::Resolve;
 use crate::query::{Query, QuerySource};
 use crate::worker::{ImportKind, Task, WildcardImport};

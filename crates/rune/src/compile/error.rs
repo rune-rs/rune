@@ -13,6 +13,7 @@ use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
 use crate::compile::ir;
+use crate::compile::num::FromFloatError;
 use crate::compile::{HasSpan, Location, MetaInfo, Visibility};
 use crate::hash::TooManyParameters;
 use crate::indexing::items::{GuardMismatch, MissingLastId};
@@ -54,7 +55,7 @@ impl Error {
     pub fn msg<S, M>(span: S, message: M) -> Self
     where
         S: Spanned,
-        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
+        M: fmt::Display,
     {
         Self {
             span: span.span(),
@@ -136,7 +137,7 @@ impl From<syntree::Error<alloc::Error>> for ErrorKind {
 impl From<io::Error> for ErrorKind {
     #[inline]
     fn from(error: io::Error) -> Self {
-        Self::from(anyhow::Error::from(error))
+        ErrorKind::msg(error)
     }
 }
 
@@ -151,7 +152,7 @@ impl From<ir::scopes::MissingLocal> for ErrorKind {
 impl From<anyhow::Error> for ErrorKind {
     #[inline]
     fn from(error: anyhow::Error) -> Self {
-        ErrorKind::Custom { error }
+        ErrorKind::msg(error)
     }
 }
 
@@ -170,6 +171,17 @@ where
     #[inline]
     fn from(kind: Box<T>) -> Self {
         ErrorKind::from(Box::into_inner(kind))
+    }
+}
+
+impl From<FromFloatError> for ErrorKind {
+    #[inline]
+    fn from(error: FromFloatError) -> Self {
+        match error {
+            FromFloatError::Error => ErrorKind::BadFloatLiteral,
+            FromFloatError::ScratchInUse => ErrorKind::msg("scratch space in use"),
+            FromFloatError::Alloc(error) => ErrorKind::AllocError { error },
+        }
     }
 }
 
@@ -258,22 +270,17 @@ impl Error {
 #[derive(Debug)]
 #[non_exhaustive]
 pub(crate) enum ErrorKind {
-    #[cfg(feature = "anyhow")]
-    Custom {
-        error: anyhow::Error,
-    },
-    #[cfg(not(feature = "anyhow"))]
     Custom {
         error: String,
     },
     AllocError {
         error: alloc::Error,
     },
-    IrError(IrErrorKind),
-    MetaError(MetaError),
-    AccessError(AccessError),
-    VmError(VmError),
-    EncodeError(EncodeError),
+    Ir(IrErrorKind),
+    Meta(MetaError),
+    Access(AccessError),
+    Vm(VmError),
+    Encode(EncodeError),
     MissingLastId(MissingLastId),
     GuardMismatch(GuardMismatch),
     MissingScope(MissingScope),
@@ -528,6 +535,7 @@ pub(crate) enum ErrorKind {
     BadCharLiteral,
     BadByteLiteral,
     BadNumberLiteral,
+    BadFloatLiteral,
     AmbiguousItem {
         item: ItemBuf,
         #[cfg(feature = "emit")]
@@ -636,21 +644,9 @@ pub(crate) enum ErrorKind {
 
 impl ErrorKind {
     #[inline]
-    #[cfg(feature = "anyhow")]
     pub(crate) fn msg<M>(message: M) -> Self
     where
-        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
-    {
-        Self::Custom {
-            error: anyhow::Error::msg(message),
-        }
-    }
-
-    #[inline]
-    #[cfg(not(feature = "anyhow"))]
-    pub(crate) fn msg<M>(message: M) -> Self
-    where
-        M: fmt::Display + fmt::Debug + Send + Sync + 'static,
+        M: fmt::Display,
     {
         match crate::alloc::fmt::try_format(format_args!("{message}")) {
             Ok(string) => Self::Custom { error: string },
@@ -662,13 +658,11 @@ impl ErrorKind {
 impl core::error::Error for ErrorKind {
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
-            #[cfg(feature = "anyhow")]
-            ErrorKind::Custom { error } => Some(error.as_ref()),
-            ErrorKind::IrError(source) => Some(source),
-            ErrorKind::MetaError(source) => Some(source),
-            ErrorKind::AccessError(source) => Some(source),
-            ErrorKind::VmError(source) => Some(source),
-            ErrorKind::EncodeError(source) => Some(source),
+            ErrorKind::Ir(source) => Some(source),
+            ErrorKind::Meta(source) => Some(source),
+            ErrorKind::Access(source) => Some(source),
+            ErrorKind::Vm(source) => Some(source),
+            ErrorKind::Encode(source) => Some(source),
             ErrorKind::MissingLastId(source) => Some(source),
             ErrorKind::GuardMismatch(source) => Some(source),
             ErrorKind::MissingScope(source) => Some(source),
@@ -690,19 +684,19 @@ impl fmt::Display for ErrorKind {
             ErrorKind::AllocError { error } => {
                 error.fmt(f)?;
             }
-            ErrorKind::IrError(error) => {
+            ErrorKind::Ir(error) => {
                 error.fmt(f)?;
             }
-            ErrorKind::MetaError(error) => {
+            ErrorKind::Meta(error) => {
                 error.fmt(f)?;
             }
-            ErrorKind::AccessError(error) => {
+            ErrorKind::Access(error) => {
                 error.fmt(f)?;
             }
-            ErrorKind::VmError(error) => {
+            ErrorKind::Vm(error) => {
                 error.fmt(f)?;
             }
-            ErrorKind::EncodeError(error) => {
+            ErrorKind::Encode(error) => {
                 error.fmt(f)?;
             }
             ErrorKind::MissingLastId(error) => {
@@ -1077,7 +1071,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::BadSignedOutOfBounds { size } => {
                 write!(
                     f,
-                    "Number literal out of bounds `{}` to `{}`",
+                    "Signed number literal out of bounds `{}` to `{}`",
                     size.signed_min(),
                     size.signed_max(),
                 )?;
@@ -1085,7 +1079,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::BadUnsignedOutOfBounds { size } => {
                 write!(
                     f,
-                    "Number literal out of bounds `{}` to `{}`",
+                    "Unsigned number literal out of bounds `{}` to `{}`",
                     size.unsigned_min(),
                     size.unsigned_max(),
                 )?;
@@ -1121,7 +1115,10 @@ impl fmt::Display for ErrorKind {
                 write!(f, "Bad byte literal")?;
             }
             ErrorKind::BadNumberLiteral => {
-                write!(f, "Number literal not valid")?;
+                write!(f, "Bad number literal")?;
+            }
+            ErrorKind::BadFloatLiteral => {
+                write!(f, "Bad float literal")?;
             }
             ErrorKind::AmbiguousItem { item, .. } => {
                 write!(f, "Item `{item}` can refer to multiple things")?;
@@ -1329,35 +1326,35 @@ impl From<alloc::alloc::AllocError> for ErrorKind {
 impl From<IrErrorKind> for ErrorKind {
     #[inline]
     fn from(error: IrErrorKind) -> Self {
-        ErrorKind::IrError(error)
+        ErrorKind::Ir(error)
     }
 }
 
 impl From<MetaError> for ErrorKind {
     #[inline]
     fn from(error: MetaError) -> Self {
-        ErrorKind::MetaError(error)
+        ErrorKind::Meta(error)
     }
 }
 
 impl From<AccessError> for ErrorKind {
     #[inline]
     fn from(error: AccessError) -> Self {
-        ErrorKind::AccessError(error)
+        ErrorKind::Access(error)
     }
 }
 
 impl From<VmError> for ErrorKind {
     #[inline]
     fn from(error: VmError) -> Self {
-        ErrorKind::VmError(error)
+        ErrorKind::Vm(error)
     }
 }
 
 impl From<RuntimeError> for ErrorKind {
     #[inline]
     fn from(error: RuntimeError) -> Self {
-        ErrorKind::VmError(VmError::new(error.into_vm_error_kind()))
+        ErrorKind::Vm(VmError::new(error.into_vm_error_kind()))
     }
 }
 
@@ -1371,7 +1368,7 @@ impl From<AnyObjError> for ErrorKind {
 impl From<EncodeError> for ErrorKind {
     #[inline]
     fn from(error: EncodeError) -> Self {
-        ErrorKind::EncodeError(error)
+        ErrorKind::Encode(error)
     }
 }
 

@@ -61,7 +61,7 @@ pub(crate) struct Doc {
 
 impl Doc {
     pub(crate) fn collect_from(
-        cx: ResolveContext<'_>,
+        cx: ResolveContext<'_, '_>,
         attrs: &mut Parser,
         attributes: &[ast::Attribute],
     ) -> compile::Result<Vec<Doc>> {

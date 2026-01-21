@@ -7,7 +7,7 @@ use crate::ast::{self, Span, Spanned};
 use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek, Peeker};
-use crate::runtime::{format, Inline};
+use crate::runtime::format;
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
@@ -391,8 +391,6 @@ fn expand_format_spec<'a>(
         named: &HashMap<Box<str>, &'a NamedFormatArg>,
         unused_named: &mut BTreeMap<Box<str>, Span>,
     ) -> compile::Result<C<'a>> {
-        use num::ToPrimitive as _;
-
         // Parsed flags.
         let mut flags = format::Flags::default();
         // Parsed fill character.
@@ -570,28 +568,7 @@ fn expand_format_spec<'a>(
             unused_pos.remove(count);
 
             let value = cx.eval(expr)?;
-
-            let number = match value.as_inline() {
-                Some(Inline::Signed(n)) => n.to_usize(),
-                _ => None,
-            };
-
-            let precision = if let Some(number) = number {
-                number
-            } else {
-                let span = expr.span();
-
-                return Err(compile::Error::msg(
-                    span,
-                    format!(
-                        "expected position argument #{} \
-                        to be a positive number in use as precision, \
-                        but got `{}`",
-                        count,
-                        value.type_info()
-                    ),
-                ));
-            };
+            let precision = value.as_usize().with_span(span)?;
 
             *count += 1;
             Some(precision)

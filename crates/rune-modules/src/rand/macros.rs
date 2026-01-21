@@ -256,13 +256,25 @@ macro_rules! random_ranges {
                                 let range = value.borrow_ref::<RangeInclusive>()?;
                                 let start = $as(&range.start)?;
                                 let end = $as(&range.end)?;
-                                rand::Rng::random_range(&mut this.inner, start..=end)
+                                let range = start..=end;
+
+                                if range.is_empty() {
+                                    return Err(VmError::panic("cannot sample empty range"));
+                                }
+
+                                rand::Rng::random_range(&mut this.inner, range)
                             }
                             Range::HASH => {
                                 let range = value.borrow_ref::<Range>()?;
                                 let start = $as(&range.start)?;
                                 let end = $as(&range.end)?;
-                                rand::Rng::random_range(&mut this.inner, start..end)
+                                let range = start..end;
+
+                                if range.is_empty() {
+                                    return Err(VmError::panic("cannot sample empty range"));
+                                }
+
+                                rand::Rng::random_range(&mut this.inner, range)
                             }
                             _ => {
                                 return Err(VmError::panic("unsupported range"));

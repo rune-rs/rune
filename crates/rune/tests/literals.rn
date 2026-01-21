@@ -1,0 +1,52 @@
+#[test]
+fn binary() {
+    assert_eq!(0b10010001, 145);
+    assert_eq!(-0b10010001, -145);
+    assert_eq!(0b1001_0001, 145);
+    assert_eq!(-0b1001_0001, -145);
+}
+
+#[test]
+fn octal() {
+    assert_eq!(0o77, 63);
+    assert_eq!(0o7_7, 63);
+    assert_eq!(-0o77, -63);
+    assert_eq!(-0o7_7, -63);
+    assert_eq!(-0o_7_7_, -63);
+    assert_eq!(-0o_7_7_, -63);
+}
+
+#[test]
+fn hex() {
+    assert_eq!(0xff, 255);
+    assert_eq!(-0xff, -255);
+
+    assert_eq!(0xf_f, 255);
+    assert_eq!(-0xf_f, -255);
+
+    assert_eq!(0x_f_f_, 255);
+    assert_eq!(-0x_f_f_, -255);
+
+    assert_eq!(0x7fff_ffff, 2_147_483_647);
+    assert_eq!(-0x7fff_ffff, -2_147_483_647);
+}
+
+#[test]
+fn decimal() {
+    assert_eq!(42, 42);
+    assert_eq!(-42, -42);
+    assert_eq!(4_2, 42);
+    assert_eq!(-4_2, -42);
+    assert_eq!(4_2_, 42);
+    assert_eq!(-4_2_, -42);
+}
+
+#[test]
+fn float() {
+    assert_eq!(3.1_4, 3.14);
+    assert_eq!(-3.1_4, -3.14);
+    assert_eq!(3.1_4e1_0, 3.14e10);
+    assert_eq!(-3.1_4e1_0, -3.14e10);
+    assert_eq!(3.14_e+10, 3.14e10);
+    assert_eq!(-3.14_e+10, -3.14e10);
+}

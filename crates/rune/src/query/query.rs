@@ -1,3 +1,4 @@
+use core::cell::RefCell;
 #[cfg(feature = "emit")]
 use core::mem::take;
 use core::ops::{Deref, DerefMut};
@@ -20,6 +21,7 @@ use crate::compile::{
 use crate::grammar::{Ignore, Node, Stream};
 use crate::hir;
 use crate::indexing::{self, FunctionAst, Indexed, Items};
+use crate::internal_macros::resolve_context;
 use crate::item::ComponentRef;
 use crate::item::IntoComponent;
 use crate::macros::Storage;
@@ -46,6 +48,8 @@ const IMPORT_RECURSION_LIMIT: usize = 128;
 
 #[derive(Default)]
 pub(crate) struct QueryInner<'arena> {
+    /// Scratch space for parsing numbers.
+    pub(crate) scratch: RefCell<String>,
     /// Resolved meta about every single item during a compilation.
     meta: HashMap<(ItemId, Hash), meta::Meta>,
     /// Build queue.

@@ -76,7 +76,7 @@ impl Peek for Ident {
 impl<'a> Resolve<'a> for Ident {
     type Output = &'a str;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<&'a str> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<&'a str> {
         let span = self.span;
 
         match self.source {

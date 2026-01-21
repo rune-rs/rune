@@ -9,6 +9,7 @@ use crate::compile::{
     self, attrs, meta, Doc, DynLocation, ErrorKind, ItemMeta, Location, Visibility, WithSpan,
 };
 use crate::indexing::{self, Indexed};
+use crate::internal_macros::resolve_context;
 use crate::parse::{Resolve, ResolveContext};
 use crate::query::{DeferEntry, ImplItem, ImplItemKind};
 use crate::runtime::Call;
@@ -1344,8 +1345,8 @@ fn expr_object(idx: &mut Indexer<'_, '_>, ast: &mut ast::ExprObject) -> compile:
 }
 
 /// Convert AST fields into meta fields.
-fn convert_fields(cx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<meta::Fields> {
-    Ok(match body {
+fn convert_fields(cx: ResolveContext<'_, '_>, body: ast::Fields) -> compile::Result<meta::Fields> {
+    let fields = match body {
         ast::Fields::Empty => meta::Fields::Empty,
         ast::Fields::Unnamed(tuple) => meta::Fields::Unnamed(tuple.len()),
         ast::Fields::Named(st) => {
@@ -1363,5 +1364,7 @@ fn convert_fields(cx: ResolveContext<'_>, body: ast::Fields) -> compile::Result<
                 fields: fields.try_into()?,
             })
         }
-    })
+    };
+
+    Ok(fields)
 }

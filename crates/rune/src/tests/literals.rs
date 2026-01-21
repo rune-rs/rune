@@ -1,6 +1,37 @@
 #![allow(clippy::unusual_byte_groupings)]
+#![allow(clippy::inconsistent_digit_grouping)]
 
 prelude!();
+
+#[test]
+fn number_literals_oob() {
+    use ErrorKind::*;
+
+    assert_parse!("-9223372036854775808");
+    assert_parse!("-0b1000000000000000000000000000000000000000000000000000000000000000");
+    assert_parse!("0b0111111111111111111111111111111111111111111111111111111111111111");
+
+    assert_errors! {
+        "-0aardvark",
+        span!(1, 10), BadNumberLiteral
+    };
+
+    assert_errors! {
+        "-9223372036854775809",
+        span!(0, 20), BadSignedOutOfBounds { .. }
+    };
+
+    assert_parse!("9223372036854775807");
+    assert_errors! {
+        "9223372036854775808",
+        span!(0, 19), BadSignedOutOfBounds { .. }
+    };
+
+    assert_errors! {
+        "0b1000000000000000000000000000000000000000000000000000000000000000",
+        span!(0, 66), BadSignedOutOfBounds { .. }
+    };
+}
 
 #[test]
 fn test_literals() {
@@ -106,18 +137,16 @@ fn test_number_literals() {
     test_case!(42.42, f32);
     test_case!(-42.42, f32);
 
-    // TODO: we need a different float parsing routine to support _ in floats.
-    // test_case!(42_.42, f32);
-    // test_case!(4_2.42, f32);
-    // test_case!(42.4_2, f32);
-    // test_case!(4_2.4_2, f32);
+    test_case!(42_.42, f32);
+    test_case!(4_2.42, f32);
+    test_case!(42.4_2, f32);
+    test_case!(4_2.4_2, f32);
 
     test_case!(1.9e10, f64);
     test_case!(-1.9e10, f64);
 
-    // TODO: we need a different float parsing routine to support _ in floats.
-    // test_case!(1_.9e10, f64);
-    // test_case!(1.9e1_0, f64);
+    test_case!(1_.9e10, f64);
+    test_case!(1.9e1_0, f64);
 
     test_case!(1e10, f64);
 }

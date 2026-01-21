@@ -8,6 +8,7 @@ use crate::compile::{
 };
 use crate::grammar::{Ignore, MaybeNode, Node, NodeId, Remaining, Stream, StreamBuf};
 use crate::indexing;
+use crate::internal_macros::resolve_context;
 use crate::parse::Resolve;
 use crate::query::{Attrs, BuiltInLiteral, DeferEntry, ExpandMacroBuiltin, ImplItem, ImplItemKind};
 use crate::runtime::Call;

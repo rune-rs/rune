@@ -54,7 +54,7 @@ impl Parse for LitByte {
 impl<'a> Resolve<'a> for LitByte {
     type Output = u8;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<u8> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<u8> {
         let source_id = match self.source {
             ast::CopySource::Inline(b) => return Ok(b),
             ast::CopySource::Text(source_id) => source_id,

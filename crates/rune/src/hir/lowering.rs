@@ -1,7 +1,5 @@
 use core::mem::{replace, take};
-use core::ops::Neg;
 
-use num::ToPrimitive;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
@@ -12,6 +10,7 @@ use crate::compile::meta;
 use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
 use crate::hir;
+use crate::internal_macros::resolve_context;
 use crate::parse::Resolve;
 use crate::query::AsyncBlock;
 use crate::query::Closure;
@@ -798,7 +797,7 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
             match (n.value, n.suffix) {
                 (ast::NumberValue::Float(n), _) => Ok(hir::Lit::Float(n)),
                 (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(_, size))) => {
-                    let Some(n) = int.to_u64() else {
+                    let Ok(n) = u64::try_from(int) else {
                         return Err(compile::Error::new(
                             ast,
                             ErrorKind::BadUnsignedOutOfBounds { size },
@@ -815,7 +814,7 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
                     Ok(hir::Lit::Unsigned(n))
                 }
                 (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(_, size))) => {
-                    let Some(n) = int.to_i64() else {
+                    let Ok(n) = i64::try_from(int) else {
                         return Err(compile::Error::new(
                             ast,
                             ErrorKind::BadSignedOutOfBounds { size },
@@ -832,7 +831,7 @@ fn lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Lit) -> compile::Result<hir
                     Ok(hir::Lit::Signed(n))
                 }
                 (ast::NumberValue::Integer(int), _) => {
-                    let Some(n) = int.to_i64() else {
+                    let Ok(n) = i64::try_from(int) else {
                         return Err(compile::Error::new(
                             ast,
                             ErrorKind::BadSignedOutOfBounds {
@@ -900,7 +899,9 @@ fn expr_unary<'hir>(
     match (number.value, number.suffix) {
         (ast::NumberValue::Float(n), _) => Ok(hir::ExprKind::Lit(hir::Lit::Float(-n))),
         (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Unsigned(_, size))) => {
-            let Some(n) = int.neg().to_u64() else {
+            let int = -int;
+
+            let Ok(n) = u64::try_from(int) else {
                 return Err(compile::Error::new(
                     ast,
                     ErrorKind::BadUnsignedOutOfBounds { size },
@@ -917,7 +918,9 @@ fn expr_unary<'hir>(
             Ok(hir::ExprKind::Lit(hir::Lit::Unsigned(n)))
         }
         (ast::NumberValue::Integer(int), Some(ast::NumberSuffix::Signed(_, size))) => {
-            let Some(n) = int.neg().to_i64() else {
+            let int = -int;
+
+            let Ok(n) = i64::try_from(int) else {
                 return Err(compile::Error::new(
                     ast,
                     ErrorKind::BadSignedOutOfBounds { size },
@@ -934,7 +937,9 @@ fn expr_unary<'hir>(
             Ok(hir::ExprKind::Lit(hir::Lit::Signed(n)))
         }
         (ast::NumberValue::Integer(int), _) => {
-            let Some(n) = int.neg().to_i64() else {
+            let int = -int;
+
+            let Ok(n) = i64::try_from(int) else {
                 return Err(compile::Error::new(
                     ast,
                     ErrorKind::BadSignedOutOfBounds {

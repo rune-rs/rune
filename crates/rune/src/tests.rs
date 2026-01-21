@@ -456,8 +456,6 @@ mod compiler_fn;
 #[cfg(not(miri))]
 mod compiler_general;
 #[cfg(not(miri))]
-mod compiler_literals;
-#[cfg(not(miri))]
 mod compiler_paths;
 #[cfg(not(miri))]
 mod compiler_patterns;
@@ -498,6 +496,8 @@ mod function_guardedargs;
 mod getter_setter;
 #[cfg(not(miri))]
 mod iterator;
+#[cfg(not(miri))]
+mod literals;
 #[cfg(not(miri))]
 mod macros;
 #[cfg(not(miri))]
@@ -546,8 +546,6 @@ mod vm_function;
 mod vm_function_pointers;
 #[cfg(not(miri))]
 mod vm_general;
-#[cfg(not(miri))]
-mod vm_literals;
 #[cfg(not(miri))]
 mod vm_not_used;
 #[cfg(not(miri))]

@@ -12,6 +12,7 @@ use crate::ast::{self, Kind, Span, Spanned};
 use crate::compile::{self, ItemId, ModId, WithSpan};
 use crate::grammar::{Node, Stream};
 use crate::indexing::{index, index2};
+use crate::internal_macros::resolve_context;
 use crate::macros::{MacroContext, TokenStream};
 use crate::parse::Resolve;
 use crate::query::{

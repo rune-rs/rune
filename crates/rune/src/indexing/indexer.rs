@@ -12,6 +12,7 @@ use crate::compile::{
     self, Doc, DynLocation, Error, ErrorKind, ItemId, ItemMeta, ModId, Visibility, WithSpan,
 };
 use crate::grammar::{Ignore, Node, Tree};
+use crate::internal_macros::resolve_context;
 use crate::macros::MacroCompiler;
 use crate::parse::{Parse, Parser, Resolve};
 use crate::query::{BuiltInFile, BuiltInFormat, BuiltInLine, BuiltInMacro, BuiltInTemplate, Query};
@@ -277,7 +278,7 @@ impl Indexer<'_, '_> {
 
                     let arg = p.parse::<ast::LitNumber>()?;
 
-                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_u32(false) else {
+                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_u32() else {
                         return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
                     };
 
@@ -294,7 +295,7 @@ impl Indexer<'_, '_> {
 
                     let arg = p.parse::<ast::LitNumber>()?;
 
-                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize(false) else {
+                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize() else {
                         return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
                     };
 
@@ -310,7 +311,7 @@ impl Indexer<'_, '_> {
 
                     let arg = p.parse::<ast::LitNumber>()?;
 
-                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize(false) else {
+                    let Some(f) = arg.resolve(resolve_context!(self.q))?.as_usize() else {
                         return Err(compile::Error::msg(arg, "Argument out-of-bounds"));
                     };
 

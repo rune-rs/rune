@@ -72,7 +72,7 @@ impl Peek for Label {
 impl<'a> Resolve<'a> for Label {
     type Output = &'a str;
 
-    fn resolve(&self, cx: ResolveContext<'a>) -> Result<&'a str> {
+    fn resolve(&self, cx: ResolveContext<'a, '_>) -> Result<&'a str> {
         let span = self.span;
 
         match self.source {

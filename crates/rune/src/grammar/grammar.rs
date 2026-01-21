@@ -1269,8 +1269,10 @@ fn expr_binary(
         op.advance(p)?;
         p.close_at(&op_c, ExprOperator)?;
 
+        let range = if op.is_assoc() { Range::No } else { Range::Yes };
+
         let c = p.checkpoint()?;
-        outer_expr_with(p, brace, Range::No, Binary::No, cx)?;
+        outer_expr_with(p, brace, range, Binary::No, cx)?;
 
         has_any = true;
 

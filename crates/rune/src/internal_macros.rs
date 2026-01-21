@@ -1,12 +1,15 @@
 /// Helper to borrow out a [ResolveContext][crate::parse::ResolveContext].
-macro_rules! resolve_context {
+macro_rules! __resolve_context {
     ($q:expr) => {
         $crate::parse::ResolveContext {
             sources: $q.sources,
             storage: $q.storage,
+            scratch: &$q.inner.scratch,
         }
     };
 }
+
+pub(crate) use __resolve_context as resolve_context;
 
 /// Call the given macro with repeated type arguments and counts.
 macro_rules! repeat_macro {
