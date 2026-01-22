@@ -9,7 +9,7 @@ use crate::ast::{self, NumberSize, Spanned};
 use crate::compile::meta;
 use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hash::ParametersBuilder;
-use crate::hir;
+use crate::hir::{self, alloc_with};
 use crate::internal_macros::resolve_context;
 use crate::parse::Resolve;
 use crate::query::AsyncBlock;

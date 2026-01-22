@@ -1,5 +1,5 @@
-#[macro_use]
 mod macros;
+use self::macros::alloc_with;
 
 mod arena;
 pub(crate) use self::arena::Arena;

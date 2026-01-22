@@ -104,7 +104,9 @@ impl Arena {
     /// Allocate a new object of the given type.
     #[expect(clippy::mut_from_ref)]
     pub(crate) fn alloc<T>(&self, object: T) -> Result<&mut T, ArenaAllocError> {
-        assert!(!mem::needs_drop::<T>());
+        const {
+            assert!(!mem::needs_drop::<T>(), "cannot allocate drop element");
+        }
 
         let mut ptr = self.alloc_raw(Layout::for_value::<T>(&object))?.cast();
 
@@ -117,7 +119,9 @@ impl Arena {
 
     /// Allocate an iterator with the given length as a slice.
     pub(crate) fn alloc_iter<T>(&self, len: usize) -> Result<AllocIter<'_, T>, ArenaAllocError> {
-        assert!(!mem::needs_drop::<T>(), "cannot allocate drop element");
+        const {
+            assert!(!mem::needs_drop::<T>(), "cannot allocate drop element");
+        }
 
         let mem = if len == 0 {
             None
