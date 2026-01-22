@@ -852,10 +852,25 @@ fn expr_binary<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.pump()?.parse(|p| inner_expr(fmt, p))?;
 
     while let MaybeNode::Some(op) = p.eat(ExprOperator) {
-        fmt.ws()?;
+        let in_range = matches!(op.kinds::<1>(), Some([K![..] | K![..=]]));
+
+        if !in_range {
+            fmt.ws()?;
+        }
+
         op.fmt(fmt)?;
-        fmt.ws()?;
-        p.pump()?.parse(|p| inner_expr(fmt, p))?;
+
+        p.pump()?.parse(|p| match p.kind() {
+            Empty if in_range => Ok(()),
+            _ => {
+                if !in_range {
+                    fmt.ws()?;
+                }
+
+                inner_expr(fmt, p)?;
+                Ok(())
+            }
+        })?;
     }
 
     Ok(())

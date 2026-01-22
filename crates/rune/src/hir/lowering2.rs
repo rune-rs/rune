@@ -1383,25 +1383,58 @@ fn expr_binary<'hir>(
         };
 
         let needs = replace(&mut cx.needs, rhs_needs);
-        let (rhs, rhs_span) = p
-            .pump()?
-            .parse(|p| Ok((expr_inner(cx, p)?.into_kind(cx)?, p.span())))?;
+        let (rhs, rhs_span) = p.pump()?.parse(|p| {
+            let span = p.span();
+
+            let expr = match p.kind() {
+                Empty => None,
+                _ => Some(expr_inner(cx, p)?.into_kind(cx)?),
+            };
+
+            Ok((expr, span))
+        })?;
         cx.needs = needs;
 
         let span = lhs_span.join(rhs_span);
         let lhs_span = replace(&mut lhs_span, span);
 
-        lhs = hir::ExprKind::Binary(alloc!(hir::ExprBinary {
-            lhs: hir::Expr {
-                span: lhs_span,
-                kind: lhs
-            },
-            op,
-            rhs: hir::Expr {
-                span: rhs_span,
-                kind: rhs
-            },
-        }));
+        let lhs_expr = hir::Expr {
+            span: lhs_span,
+            kind: lhs,
+        };
+
+        let rhs_expr = rhs.map(|rhs| hir::Expr {
+            span: rhs_span,
+            kind: rhs,
+        });
+
+        match (op, rhs_expr) {
+            (ast::BinOp::DotDot(..), None) => {
+                lhs = hir::ExprKind::Range(alloc!(hir::ExprRange::RangeFrom { start: lhs_expr }));
+            }
+            (ast::BinOp::DotDot(..), Some(rhs_expr)) => {
+                lhs = hir::ExprKind::Range(alloc!(hir::ExprRange::Range {
+                    start: lhs_expr,
+                    end: rhs_expr,
+                }));
+            }
+            (ast::BinOp::DotDotEq(..), Some(rhs_expr)) => {
+                lhs = hir::ExprKind::Range(alloc!(hir::ExprRange::RangeInclusive {
+                    start: lhs_expr,
+                    end: rhs_expr,
+                }));
+            }
+            (_, Some(rhs_expr)) => {
+                lhs = hir::ExprKind::Binary(alloc!(hir::ExprBinary {
+                    lhs: lhs_expr,
+                    op,
+                    rhs: rhs_expr,
+                }));
+            }
+            (_, None) => {
+                return Err(p.expected(Expr));
+            }
+        }
     }
 
     Ok(lhs)

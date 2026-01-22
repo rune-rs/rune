@@ -175,17 +175,7 @@ impl BinOp {
     }
 
     /// Construct from a slice of tokens.
-    pub(crate) fn from_slice_with_range(out: &[ast::Token]) -> Option<Self> {
-        Self::from_slice_with(out, true)
-    }
-
-    /// Construct from a slice of tokens.
     pub(crate) fn from_slice(out: &[ast::Token]) -> Option<Self> {
-        Self::from_slice_with(out, false)
-    }
-
-    /// Construct from a slice of tokens.
-    fn from_slice_with(out: &[ast::Token], range: bool) -> Option<Self> {
         let &ast::Token { span, kind } = out.first()?;
 
         let out = match kind {
@@ -234,8 +224,8 @@ impl BinOp {
             K![|=] => Self::BitOrAssign(ast::PipeEq { span }),
             K![<<=] => Self::ShlAssign(ast::LtLtEq { span }),
             K![>>=] => Self::ShrAssign(ast::GtGtEq { span }),
-            K![..] if range => Self::DotDot(ast::DotDot { span }),
-            K![..=] if range => Self::DotDotEq(ast::DotDotEq { span }),
+            K![..] => Self::DotDot(ast::DotDot { span }),
+            K![..=] => Self::DotDotEq(ast::DotDotEq { span }),
             _ => return None,
         };
 
@@ -245,7 +235,7 @@ impl BinOp {
     /// Construct from a peeker.
     pub(crate) fn from_peeker(p: &mut Peeker<'_>) -> Option<Self> {
         let array = p.array::<2>();
-        Self::from_slice_with_range(&array)
+        Self::from_slice(&array)
     }
 
     /// Get how many tokens to advance for this operator.
@@ -307,8 +297,9 @@ impl fmt::Display for BinOp {
 }
 
 impl Peek for BinOp {
+    #[inline]
     fn peek(p: &mut Peeker<'_>) -> bool {
         let slice = p.array::<2>();
-        Self::from_slice_with_range(&slice).is_some()
+        Self::from_slice(&slice).is_some()
     }
 }

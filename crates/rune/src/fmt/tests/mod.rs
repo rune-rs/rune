@@ -459,27 +459,30 @@ fn expressions() {
     );
 
     assert_format!(
-        "1..2 1.. .. ..1 1..=2 ..=1",
-        r#"
-        1..2
-        1..
-        ..
-        ..1
-        1..=2
-        ..=1
-        "#
+        "(1..2) (1..) (..) (..1) (1..=2) (..=1)",
+        "(1..2)(1..)(..)(..1)(1..=2)(..=1)"
     );
 
-    assert_format!(
-        r#"
-        1 * 2..1 * 2
-        1 * 2..
-        ..
-        ..1 * 2
-        1 * 4..=2
-        ..=1 * 2
-        "#
-    );
+    assert_format!("..");
+
+    assert_format!("1..2");
+    assert_format!("1..");
+    assert_format!("..");
+    assert_format!("..1");
+    assert_format!("1..=2");
+    assert_format!("..=1");
+
+    assert_format!("1 * 2..1 * 2");
+    assert_format!("1 * 2..");
+    assert_format!("..1 * 2");
+    assert_format!("1 * 4..=2");
+    assert_format!("..=1 * 2");
+
+    assert_format!("(1..2)..(1..2)");
+    assert_format!("(1..2)..");
+    assert_format!("..(1..2)");
+    assert_format!("(1..4)..=2");
+    assert_format!("..=(1..2)");
 
     assert_format!(
         r#"
