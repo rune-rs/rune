@@ -28,6 +28,7 @@ pub(crate) fn compile(
     diagnostics: &mut Diagnostics,
     source_loader: &mut dyn SourceLoader,
     options: &Options,
+    args: &[String],
     unit_storage: &mut dyn UnitEncoder,
 ) -> alloc::Result<()> {
     // Shared id generator.
@@ -49,6 +50,7 @@ pub(crate) fn compile(
         diagnostics,
         source_loader,
         options,
+        args,
         &gen,
         context,
         &mut inner,
@@ -68,7 +70,7 @@ pub(crate) fn compile(
         };
 
         let result = worker.queue.try_push_back(Task::LoadFile {
-            kind: LoadFileKind::Root,
+            kind: LoadFileKind::Original,
             source_id,
             mod_item,
             mod_item_id: root_item_id,
@@ -198,6 +200,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                 let arena = hir::Arena::new();
                 let mut secondary_builds = Vec::new();
 
+                let args = self.q.args;
+
                 let mut cx = hir::Ctxt::with_query(
                     &arena,
                     self.q.borrow(),
@@ -215,7 +219,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                             )?;
                         }
 
-                        node.parse(|p| hir::lowering2::bare(&mut cx, p))?
+                        node.parse(|p| hir::lowering2::bare(&mut cx, p, args))?
                     }
                     FunctionAst::Node(node, _) => {
                         #[cfg(feature = "std")]
@@ -229,7 +233,9 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         node.parse(|p| hir::lowering2::item_fn(&mut cx, p, f.impl_item.is_some()))?
                     }
                     FunctionAst::Item(ast, _) => hir::lowering::item_fn(&mut cx, ast)?,
-                    FunctionAst::Empty(ast, span) => hir::lowering::empty_fn(&mut cx, ast, &span)?,
+                    FunctionAst::Empty(ast, span) => {
+                        hir::lowering::empty_fn(&mut cx, ast, args, &span)?
+                    }
                 };
 
                 let count = hir.args.len();

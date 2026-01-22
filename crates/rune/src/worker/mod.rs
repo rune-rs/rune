@@ -155,13 +155,13 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         let Some(source) = self.q.sources.get(source_id) else {
             self.q
                 .diagnostics
-                .internal(source_id, "Missing queued source by id")?;
+                .internal(source_id, "missing queued source by id")?;
             return Ok(());
         };
 
-        let (root, is_module) = match kind {
-            LoadFileKind::Root => (Some(source_id), false),
-            LoadFileKind::Module { root } => (root, true),
+        let root = match kind {
+            LoadFileKind::Original => Some(source_id),
+            LoadFileKind::Module { root } => root,
         };
 
         macro_rules! indexer {
@@ -187,7 +187,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             }};
         }
 
-        let as_function_body = self.q.options.script && !is_module;
+        let as_function_body = !kind.is_module() && self.q.options.script;
 
         #[allow(clippy::collapsible_else_if)]
         if self.q.options.v2 {
@@ -206,7 +206,6 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
             if as_function_body {
                 let mut idx = indexer!(&tree);
-
                 tree.parse_all(|p: &mut crate::grammar::Stream| index2::bare(&mut idx, p))?;
             } else {
                 let mut idx = indexer!(&tree);

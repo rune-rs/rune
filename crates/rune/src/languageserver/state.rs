@@ -752,14 +752,14 @@ impl<'a> State<'a> {
                             }
                         }
                     },
-                    FatalDiagnosticKind::Internal(e) => {
+                    FatalDiagnosticKind::Custom(e) => {
                         report_without_span(build, reporter, f.source_id(), e, to_error)?;
                     }
                 },
                 Diagnostic::Warning(e) => {
                     self.report(build, reporter, e.source_id(), e, to_warning)?;
                 }
-                Diagnostic::RuntimeWarning(_) => {}
+                Diagnostic::Runtime(_) => {}
             }
         }
 

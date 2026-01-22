@@ -25,9 +25,16 @@ pub(crate) enum Task {
 /// The kind of the loaded module.
 #[derive(Debug)]
 pub(crate) enum LoadFileKind {
-    /// A root file, which determined a URL root.
-    Root,
+    /// An original source file.
+    Original,
     /// A loaded module, which inherits its root from the file it was loaded
     /// from.
     Module { root: Option<SourceId> },
+}
+
+impl LoadFileKind {
+    /// Returns true if the loaded file is a module.
+    pub(crate) fn is_module(&self) -> bool {
+        matches!(self, LoadFileKind::Module { .. })
+    }
 }

@@ -26,13 +26,38 @@ use super::{Ctxt, Needs};
 pub(crate) fn empty_fn<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     ast: &ast::EmptyBlock,
+    args: &'hir [String],
     span: &dyn Spanned,
 ) -> compile::Result<hir::ItemFn<'hir>> {
+    alloc_with!(cx, span);
+
+    let args = iter!(args, |name| named_arg(cx, name, span)?);
+    let body = statements(cx, None, &ast.statements, span)?;
+
     Ok(hir::ItemFn {
         span: span.span(),
-        args: &[],
-        body: statements(cx, None, &ast.statements, span)?,
+        args,
+        body,
     })
+}
+
+fn named_arg<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    name: &'hir str,
+    span: &dyn Spanned,
+) -> compile::Result<hir::FnArg<'hir>> {
+    alloc_with!(cx, span);
+
+    let name = cx.scopes.define(hir::Name::Str(name), span)?;
+    let names = iter!([name]);
+
+    Ok(hir::FnArg::Pat(alloc!(hir::PatBinding {
+        pat: hir::Pat {
+            span: span.span(),
+            kind: hir::PatKind::Path(alloc!(hir::PatPathKind::Ident(name))),
+        },
+        names,
+    })))
 }
 
 /// Lower a function item.

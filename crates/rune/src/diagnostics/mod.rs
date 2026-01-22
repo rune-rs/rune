@@ -30,21 +30,22 @@
 //! # Ok::<_, rune::support::Error>(())
 //! ```
 
-pub use self::fatal::{FatalDiagnostic, FatalDiagnosticKind};
+pub use self::fatal::FatalDiagnostic;
+pub(crate) use self::fatal::FatalDiagnosticKind;
 mod fatal;
 
 pub use self::warning::WarningDiagnostic;
 pub(crate) use self::warning::WarningDiagnosticKind;
 mod warning;
 
-pub use self::runtime_warning::RuntimeWarningDiagnostic;
-pub(crate) use self::runtime_warning::RuntimeWarningDiagnosticKind;
-mod runtime_warning;
+pub use self::runtime::RuntimeDiagnostic;
+pub(crate) use self::runtime::RuntimeDiagnosticKind;
+mod runtime;
 
-use rune_alloc::String;
-use rust_alloc::boxed::Box;
+use core::fmt;
 
-use crate::alloc::{self, Vec};
+use crate::alloc::string::TryToString;
+use crate::alloc::{self, Box, String, Vec};
 use crate::ast::Spanned;
 use crate::{Hash, SourceId};
 
@@ -64,8 +65,8 @@ pub enum Diagnostic {
     Fatal(FatalDiagnostic),
     /// A warning diagnostic.
     Warning(WarningDiagnostic),
-    /// A runtime warning diagnostic.
-    RuntimeWarning(RuntimeWarningDiagnostic),
+    /// A runtime diagnostic.
+    Runtime(RuntimeDiagnostic),
 }
 
 /// The diagnostics mode to use.
@@ -197,9 +198,9 @@ impl Diagnostics {
     pub(crate) fn internal(
         &mut self,
         source_id: SourceId,
-        message: &'static str,
+        m: impl fmt::Display,
     ) -> alloc::Result<()> {
-        self.error(source_id, FatalDiagnosticKind::Internal(message))
+        self.error(source_id, FatalDiagnosticKind::Custom(m.try_to_string()?))
     }
 
     /// Indicate that a value is produced but never used.
@@ -324,7 +325,7 @@ impl Diagnostics {
 
     /// Add a warning about using a deprecated function
     pub(crate) fn runtime_used_deprecated(&mut self, ip: usize, hash: Hash) -> alloc::Result<()> {
-        self.runtime_warning(ip, RuntimeWarningDiagnosticKind::UsedDeprecated { hash })
+        self.runtime_warning(ip, RuntimeDiagnosticKind::UsedDeprecated { hash })
     }
 
     /// Push a warning to the collection of diagnostics.
@@ -349,14 +350,14 @@ impl Diagnostics {
     /// Push a runtime warning to the collection of diagnostics.
     pub(crate) fn runtime_warning<T>(&mut self, ip: usize, kind: T) -> alloc::Result<()>
     where
-        RuntimeWarningDiagnosticKind: From<T>,
+        RuntimeDiagnosticKind: From<T>,
     {
         if !self.mode.warnings() {
             return Ok(());
         }
 
         self.diagnostics
-            .try_push(Diagnostic::RuntimeWarning(RuntimeWarningDiagnostic {
+            .try_push(Diagnostic::Runtime(RuntimeDiagnostic {
                 ip,
                 kind: kind.into(),
             }))?;
@@ -370,11 +371,12 @@ impl Diagnostics {
     where
         FatalDiagnosticKind: From<T>,
     {
-        self.diagnostics
-            .try_push(Diagnostic::Fatal(FatalDiagnostic {
-                source_id,
-                kind: Box::new(kind.into()),
-            }))?;
+        let diagnostic = Diagnostic::Fatal(FatalDiagnostic {
+            source_id,
+            kind: Box::try_new(kind.into())?,
+        });
+
+        self.diagnostics.try_push(diagnostic)?;
 
         self.has_error = true;
         Ok(())

@@ -1,7 +1,6 @@
 use core::fmt;
 
-use rust_alloc::boxed::Box;
-
+use crate::alloc::{Box, String};
 #[cfg(feature = "emit")]
 use crate::ast::{Span, Spanned};
 use crate::compile::{self, LinkerError};
@@ -23,15 +22,32 @@ impl FatalDiagnostic {
         self.source_id
     }
 
+    /// If this fatal diagnostic is a compile error, return it.
+    pub fn as_compile_error(&self) -> Option<&compile::Error> {
+        match &*self.kind {
+            FatalDiagnosticKind::CompileError(error) => Some(error),
+            _ => None,
+        }
+    }
+
+    /// If this fatal diagnostic is a link error, return it.
+    pub fn as_link_error(&self) -> Option<&LinkerError> {
+        match &*self.kind {
+            FatalDiagnosticKind::LinkError(error) => Some(error),
+            _ => None,
+        }
+    }
+
     /// The kind of the load error.
-    pub fn kind(&self) -> &FatalDiagnosticKind {
+    #[cfg(any(feature = "emit", feature = "languageserver"))]
+    pub(crate) fn kind(&self) -> &FatalDiagnosticKind {
         &self.kind
     }
 
     /// The kind of the load error.
     #[cfg(test)]
     pub(crate) fn into_kind(self) -> FatalDiagnosticKind {
-        *self.kind
+        Box::into_inner(self.kind)
     }
 
     #[cfg(feature = "emit")]
@@ -39,7 +55,7 @@ impl FatalDiagnostic {
         match &*self.kind {
             FatalDiagnosticKind::CompileError(error) => Some(error.span()),
             FatalDiagnosticKind::LinkError(..) => None,
-            FatalDiagnosticKind::Internal(..) => None,
+            FatalDiagnosticKind::Custom(..) => None,
         }
     }
 }
@@ -65,11 +81,13 @@ impl core::error::Error for FatalDiagnostic {
 #[derive(Debug)]
 #[allow(missing_docs)]
 #[non_exhaustive]
-pub enum FatalDiagnosticKind {
+pub(crate) enum FatalDiagnosticKind {
+    /// A compilation error.
     CompileError(compile::Error),
+    /// A linking error.
     LinkError(LinkerError),
     /// An internal error.
-    Internal(&'static str),
+    Custom(String),
 }
 
 impl fmt::Display for FatalDiagnosticKind {
@@ -78,7 +96,7 @@ impl fmt::Display for FatalDiagnosticKind {
         match self {
             FatalDiagnosticKind::CompileError(error) => error.fmt(f),
             FatalDiagnosticKind::LinkError(error) => error.fmt(f),
-            FatalDiagnosticKind::Internal(message) => message.fmt(f),
+            FatalDiagnosticKind::Custom(message) => message.fmt(f),
         }
     }
 }

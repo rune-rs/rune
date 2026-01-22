@@ -2,7 +2,8 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::mem::take;
 
-use crate::alloc::{self, Vec};
+use crate::alloc::borrow::TryToOwned;
+use crate::alloc::{self, String, Vec};
 use crate::ast::{Span, Spanned};
 #[cfg(feature = "std")]
 use crate::compile::FileSourceLoader as DefaultSourceLoader;
@@ -14,7 +15,7 @@ use crate::compile::{
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::Unit;
 use crate::sync::Arc;
-use crate::{Context, Diagnostics, Item, SourceId, Sources, Vm};
+use crate::{parse, Context, Diagnostics, Item, SourceId, Sources, Vm};
 
 /// Error raised when we failed to load sources.
 ///
@@ -141,6 +142,7 @@ where
         context: None,
         diagnostics: None,
         options: None,
+        args: Vec::new(),
         visitors: Vec::new(),
         source_loader: None,
         _unit_storage: PhantomData,
@@ -157,6 +159,7 @@ pub struct Build<'a, S> {
     context: Option<&'a Context>,
     diagnostics: Option<&'a mut Diagnostics>,
     options: Option<&'a Options>,
+    args: Vec<String>,
     visitors: Vec<&'a mut dyn compile::CompileVisitor>,
     source_loader: Option<&'a mut dyn SourceLoader>,
     _unit_storage: PhantomData<S>,
@@ -266,6 +269,75 @@ impl<'a, S> Build<'a, S> {
         self
     }
 
+    /// Associate an implicit argument with the build.
+    ///
+    /// When the produced unit is executed as a script, this argument will be
+    /// part of the top-level function that is being defined.
+    ///
+    /// This requires [`Options::script`] to be set. See the [`scripts`
+    /// example].
+    ///
+    /// [`scripts` example]: https://github.com/rune-rs/rune/blob/main/examples/examples/scripts.rs
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Source, Sources, Options};
+    ///
+    /// let mut sources = Sources::new();
+    /// sources.insert(Source::memory("(a + b * 2) / c")?)?;
+    ///
+    /// let mut options = Options::from_default_env()?;
+    /// options.script(true);
+    ///
+    /// let result = rune::prepare(&mut sources)
+    ///     .with_args(["a", "b"])?
+    ///     .with_arg("c")?
+    ///     .with_options(&options)
+    ///     .build()?;
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn with_arg(mut self, arg: impl AsRef<str>) -> alloc::Result<Self> {
+        self.args.try_push(arg.as_ref().try_to_owned()?)?;
+        Ok(self)
+    }
+
+    /// Associate a collection of implicit arguments with the build.
+    ///
+    /// When the produced unit is executed as a script, this argument will be
+    /// part of the top-level function that is being defined.
+    ///
+    /// This requires [`Options::script`] to be set. See the [`scripts`
+    /// example].
+    ///
+    /// [`scripts` example]: https://github.com/rune-rs/rune/blob/main/examples/examples/scripts.rs
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Source, Sources, Options};
+    ///
+    /// let mut sources = Sources::new();
+    /// sources.insert(Source::memory("(a + b * 2) / c")?)?;
+    ///
+    /// let mut options = Options::from_default_env()?;
+    /// options.script(true);
+    ///
+    /// let result = rune::prepare(&mut sources)
+    ///     .with_args(["a", "b"])?
+    ///     .with_arg("c")?
+    ///     .with_options(&options)
+    ///     .build()?;
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    pub fn with_args(mut self, args: impl IntoIterator<Item: AsRef<str>>) -> alloc::Result<Self> {
+        for arg in args {
+            self.args.try_push(arg.as_ref().try_to_owned()?)?;
+        }
+
+        Ok(self)
+    }
+
     /// Modify the current [Build] to configure the given [CompileVisitor].
     ///
     /// A compile visitor allows for custom collecting of compile-time metadata.
@@ -372,6 +444,32 @@ impl<'a, S> Build<'a, S> {
             }
         };
 
+        if !self.args.is_empty() {
+            if let Some(options) = &mut self.options {
+                if !options.script {
+                    diagnostics.internal(
+                        SourceId::empty(),
+                        "cannot set script arguments without enabling script mode",
+                    )?;
+
+                    return Err(BuildError::default());
+                }
+            }
+
+            for arg in &self.args {
+                if !parse::is_ident(arg) {
+                    diagnostics.internal(
+                        SourceId::empty(),
+                        format!("script argument '{arg}' is not a valid identifier"),
+                    )?;
+                }
+            }
+        }
+
+        if diagnostics.has_error() {
+            return Err(BuildError::default());
+        }
+
         let mut pool = Pool::new()?;
         let mut unit_storage = S::default();
 
@@ -385,6 +483,7 @@ impl<'a, S> Build<'a, S> {
             diagnostics,
             source_loader,
             options,
+            &self.args,
             &mut unit_storage,
         )?;
 

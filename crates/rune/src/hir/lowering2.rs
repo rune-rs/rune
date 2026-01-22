@@ -31,14 +31,37 @@ use Kind::*;
 pub(crate) fn bare<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     p: &mut Stream<'_>,
+    args: &'hir [String],
 ) -> Result<hir::ItemFn<'hir>> {
+    alloc_with!(cx, p);
+
     let body = statements(cx, None, p)?;
+    let args = iter!(args, |name| named_arg(cx, name, p)?);
 
     Ok(hir::ItemFn {
         span: p.span(),
-        args: &[],
+        args,
         body,
     })
+}
+
+fn named_arg<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    name: &'hir str,
+    span: &dyn Spanned,
+) -> Result<hir::FnArg<'hir>> {
+    alloc_with!(cx, span);
+
+    let name = cx.scopes.define(hir::Name::Str(name), span)?;
+    let names = iter!([name]);
+
+    Ok(hir::FnArg::Pat(alloc!(hir::PatBinding {
+        pat: hir::Pat {
+            span: span.span(),
+            kind: hir::PatKind::Path(alloc!(hir::PatPathKind::Ident(name))),
+        },
+        names,
+    })))
 }
 
 /// Lower a function item.

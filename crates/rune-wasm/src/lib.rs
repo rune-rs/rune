@@ -34,7 +34,7 @@ use anyhow::{Context as _, Result};
 use gloo_utils::format::JsValueSerdeExt;
 use rune::ast::Spanned;
 use rune::compile::LinkerError;
-use rune::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use rune::diagnostics::Diagnostic;
 use rune::modules::capture_io::CaptureIo;
 use rune::runtime::budget;
 use rune::sync::Arc;
@@ -196,24 +196,26 @@ async fn inner_compile(
         match diagnostic {
             Diagnostic::Fatal(error) => {
                 if let Some(source) = sources.get(error.source_id()) {
-                    match error.kind() {
-                        FatalDiagnosticKind::CompileError(error) => {
-                            let span = error.span();
+                    if let Some(error) = error.as_compile_error() {
+                        let span = error.span();
 
-                            let start = WasmPosition::from(
-                                source.find_line_column(span.start.into_usize()),
-                            );
-                            let end =
-                                WasmPosition::from(source.find_line_column(span.end.into_usize()));
+                        let start =
+                            WasmPosition::from(source.find_line_column(span.start.into_usize()));
+                        let end =
+                            WasmPosition::from(source.find_line_column(span.end.into_usize()));
 
-                            diagnostics.push(WasmDiagnostic {
-                                kind: WasmDiagnosticKind::Error,
-                                start,
-                                end,
-                                message: error.to_string(),
-                            });
-                        }
-                        FatalDiagnosticKind::LinkError(error) => match error {
+                        diagnostics.push(WasmDiagnostic {
+                            kind: WasmDiagnosticKind::Error,
+                            start,
+                            end,
+                            message: error.to_string(),
+                        });
+
+                        continue;
+                    }
+
+                    if let Some(error) = error.as_link_error() {
+                        match error {
                             LinkerError::MissingFunction { hash, spans } => {
                                 for (span, _) in spans {
                                     let start = WasmPosition::from(
@@ -232,8 +234,7 @@ async fn inner_compile(
                                 }
                             }
                             _ => {}
-                        },
-                        _ => {}
+                        }
                     }
                 }
             }
