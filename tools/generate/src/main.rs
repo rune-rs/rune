@@ -301,6 +301,8 @@ fn main() -> Result<()> {
             pub enum Kind {
                 $("/// En end-of-file marker.")
                 Eof,
+                $("/// An empty value.")
+                Empty,
                 $("/// A single-line comment.")
                 Comment,
                 $("/// A multiline comment where the boolean indicates if it's been terminated correctly.")
@@ -389,6 +391,7 @@ fn main() -> Result<()> {
                 fn into_expectation(self) -> $expectation {
                     match self {
                         Self::Eof => $expectation::Description("eof"),
+                        Self::Empty => $expectation::Description("an empty value"),
                         Self::Comment | Self::MultilineComment(..) => $expectation::Comment,
                         Self::Error => $expectation::Description("an error"),
                         Self::Shebang { .. } => $expectation::Description("a shebang"),

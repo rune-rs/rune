@@ -8103,6 +8103,8 @@ macro_rules! K {
 pub enum Kind {
     /// En end-of-file marker.
     Eof,
+    /// An empty value.
+    Empty,
     /// A single-line comment.
     Comment,
     /// A multiline comment where the boolean indicates if it's been terminated correctly.
@@ -8695,6 +8697,7 @@ impl parse::IntoExpectation for Kind {
     fn into_expectation(self) -> parse::Expectation {
         match self {
             Self::Eof => parse::Expectation::Description("eof"),
+            Self::Empty => parse::Expectation::Description("an empty value"),
             Self::Comment | Self::MultilineComment(..) => parse::Expectation::Comment,
             Self::Error => parse::Expectation::Description("an error"),
             Self::Shebang { .. } => parse::Expectation::Description("a shebang"),

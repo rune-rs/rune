@@ -1609,7 +1609,6 @@ fn expr_binary<'a, 'hir>(
                 b,
                 out,
             },
-
             op => {
                 return Err(compile::Error::new(
                     span,

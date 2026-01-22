@@ -32,13 +32,13 @@ enum Brace {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Binary {
+enum InRange {
     Yes,
     No,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Range {
+enum Binary {
     Yes,
     No,
 }
@@ -207,7 +207,7 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
             labels(p)?;
 
             if matches!(
-                outer_expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, &cx)?,
+                outer_expr_with(p, Brace::Yes, InRange::No, Binary::Yes, &cx)?,
                 Error
             ) {
                 Error
@@ -340,7 +340,7 @@ fn local(p: &mut Parser<'_>, cx: &dyn ExprCx) -> Result<()> {
     p.bump()?;
     pat(p)?;
     p.bump_if(K![=])?;
-    expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, cx)?;
+    expr_with(p, Brace::Yes, Binary::Yes, cx)?;
     Ok(())
 }
 
@@ -622,11 +622,11 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
 }
 
 fn is_expr(p: &mut Parser<'_>) -> Result<bool> {
-    is_expr_with(p, Brace::Yes, Range::Yes)
+    is_expr_with(p, Brace::Yes)
 }
 
 #[tracing::instrument(skip(p))]
-fn is_expr_with(p: &mut Parser<'_>, brace: Brace, range: Range) -> Result<bool> {
+fn is_expr_with(p: &mut Parser<'_>, brace: Brace) -> Result<bool> {
     Ok(match p.peek()? {
         path_component!() => true,
         K![async] => true,
@@ -652,8 +652,8 @@ fn is_expr_with(p: &mut Parser<'_>, brace: Brace, range: Range) -> Result<bool> 
         K!['('] => true,
         K!['['] => true,
         K!['{'] => matches!(brace, Brace::Yes),
-        K![..] => matches!(range, Range::Yes),
-        K![..=] => matches!(range, Range::Yes),
+        K![..] => true,
+        K![..=] => true,
         TemplateString => true,
         _ => false,
     })
@@ -666,60 +666,37 @@ fn expr(p: &mut Parser<'_>) -> Result<()> {
     modifiers(p)?;
     labels(p)?;
     let cx = ErrorCx;
-    outer_expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, &cx)?;
+    outer_expr_with(p, Brace::Yes, InRange::No, Binary::Yes, &cx)?;
     p.close_at(&c, Expr)?;
     Ok(())
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_with(
-    p: &mut Parser<'_>,
-    brace: Brace,
-    range: Range,
-    binary: Binary,
-    cx: &dyn ExprCx,
-) -> Result<()> {
+fn expr_with(p: &mut Parser<'_>, brace: Brace, binary: Binary, cx: &dyn ExprCx) -> Result<()> {
     let c = p.checkpoint()?;
     attributes(p)?;
     modifiers(p)?;
     labels(p)?;
-    outer_expr_with(p, brace, range, binary, cx)?;
+    outer_expr_with(p, brace, InRange::No, binary, cx)?;
     p.close_at(&c, Expr)?;
     Ok(())
-}
-
-fn is_range(kind: Kind) -> bool {
-    match kind {
-        ExprRangeTo => true,
-        ExprRangeToInclusive => true,
-        ExprRangeFull => true,
-        ExprRange => true,
-        ExprRangeInclusive => true,
-        ExprRangeFrom => true,
-        _ => false,
-    }
 }
 
 fn outer_expr_with(
     p: &mut Parser<'_>,
     brace: Brace,
-    range: Range,
+    in_range: InRange,
     binary: Binary,
     cx: &dyn ExprCx,
 ) -> Result<Kind> {
     let c = p.checkpoint()?;
-    let mut kind = expr_primary(p, brace, range, cx)?;
-
-    if is_range(kind) {
-        return Ok(kind);
-    }
-
+    let mut kind = expr_primary(p, brace, in_range, cx)?;
     kind = expr_chain(p, &c, kind)?;
 
     if p.peek()? == K![=] {
         p.close_at(&c, Expr)?;
         p.bump()?;
-        expr_with(p, brace, Range::Yes, Binary::Yes, cx)?;
+        expr_with(p, brace, Binary::Yes, cx)?;
         p.close_at(&c, ExprAssign)?;
         return Ok(ExprAssign);
     }
@@ -736,10 +713,6 @@ fn outer_expr_with(
         };
     }
 
-    if matches!(range, Range::Yes) {
-        kind = expr_range(p, &c, kind, brace)?;
-    }
-
     Ok(kind)
 }
 
@@ -753,7 +726,12 @@ fn labels(p: &mut Parser<'_>) -> Result<()> {
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx) -> Result<Kind> {
+fn expr_primary(
+    p: &mut Parser<'_>,
+    brace: Brace,
+    in_range: InRange,
+    cx: &dyn ExprCx,
+) -> Result<Kind> {
     let c = p.checkpoint()?;
 
     let kind = match p.peek()? {
@@ -762,14 +740,18 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
             Lit
         }
         path_component!() => {
-            path(p)?;
+            path_components(p)?;
 
             match p.peek()? {
                 K!['{'] if matches!(brace, Brace::Yes) => {
+                    p.close_at(&c, Path)?;
+
                     expr_object(p)?;
                     ExprObject
                 }
                 K![!] if matches!(p.glued(1)?, K!['(']) => {
+                    p.close_at(&c, Path)?;
+
                     p.bump()?;
                     p.bump()?;
                     token_stream(p, parens)?;
@@ -777,13 +759,15 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
                     ExprMacroCall
                 }
                 K![!] if matches!(p.glued(1)?, K!['{']) => {
+                    p.close_at(&c, Path)?;
+
                     p.bump()?;
                     p.bump()?;
                     token_stream(p, braces)?;
                     p.bump()?;
                     ExprMacroCall
                 }
-                _ => return Ok(Path),
+                _ => Path,
             }
         }
         Kind::Open(Delimiter::Empty) => empty_group(p)?,
@@ -792,7 +776,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
             parenthesized(p, is_expr, expr, K![']'])?;
             ExprArray
         }
-        K!['{'] => {
+        K!['{'] if matches!(in_range, InRange::No) => {
             block_with(p)?;
             Block
         }
@@ -802,7 +786,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
         }
         K![||] => {
             p.push(ClosureArguments)?;
-            expr_with(p, brace, range, Binary::Yes, cx)?;
+            expr_with(p, brace, Binary::Yes, cx)?;
             ExprClosure
         }
         K![|] => {
@@ -810,7 +794,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
             parenthesized(p, is_pat, pat, K![|])?;
             p.close_at(&args, ClosureArguments)?;
 
-            expr_with(p, brace, range, Binary::Yes, cx)?;
+            expr_with(p, brace, Binary::Yes, cx)?;
             ExprClosure
         }
         K![-] if matches!(p.glued(1)?, K![number]) => {
@@ -820,7 +804,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
         }
         K![!] | K![-] | K![&] | K![*] => {
             p.bump()?;
-            outer_expr_with(p, brace, range, Binary::No, cx)?;
+            outer_expr_with(p, brace, InRange::No, Binary::No, cx)?;
             ExprUnary
         }
         K![if] => {
@@ -840,9 +824,9 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
 
             labels(p)?;
 
-            if is_expr_with(p, brace, range)? {
+            if is_expr_with(p, brace)? {
                 let cx = ErrorCx;
-                expr_with(p, brace, range, Binary::Yes, &cx)?;
+                expr_with(p, brace, Binary::Yes, &cx)?;
             }
 
             ExprBreak
@@ -855,9 +839,9 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
         K![return] => {
             p.bump()?;
 
-            if is_expr_with(p, brace, range)? {
+            if is_expr_with(p, brace)? {
                 let cx = ErrorCx;
-                expr_with(p, brace, range, Binary::Yes, &cx)?;
+                expr_with(p, brace, Binary::Yes, &cx)?;
             }
 
             ExprReturn
@@ -865,9 +849,9 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
         K![yield] => {
             p.bump()?;
 
-            if is_expr_with(p, brace, range)? {
+            if is_expr_with(p, brace)? {
                 let cx = ErrorCx;
-                expr_with(p, brace, range, Binary::Yes, &cx)?;
+                expr_with(p, brace, Binary::Yes, &cx)?;
             }
 
             ExprYield
@@ -884,21 +868,21 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
             expr_match(p)?;
             ExprMatch
         }
-        K![..] if matches!(range, Range::Yes) => {
+        K![..] => {
             p.bump()?;
 
-            if is_expr_with(p, brace, Range::No)? {
+            if is_expr_with(p, brace)? {
                 let cx = ErrorCx;
-                outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
+                outer_expr_with(p, brace, InRange::No, Binary::Yes, &cx)?;
                 ExprRangeTo
             } else {
                 ExprRangeFull
             }
         }
-        K![..=] if matches!(range, Range::Yes) => {
+        K![..=] => {
             p.bump()?;
             let cx = ErrorCx;
-            outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
+            outer_expr_with(p, brace, InRange::No, Binary::Yes, &cx)?;
             ExprRangeToInclusive
         }
         K![#] if matches!(p.glued(1)?, K!['{']) => {
@@ -909,8 +893,12 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
             ExprObject
         }
         _ => {
-            cx.recover(p)?;
-            Error
+            if matches!(in_range, InRange::Yes) {
+                Empty
+            } else {
+                cx.recover(p)?;
+                Error
+            }
         }
     };
 
@@ -1118,7 +1106,7 @@ fn expr_for(p: &mut Parser<'_>) -> Result<()> {
 
     if p.bump_if(K![in])? {
         let cx = ErrorCx;
-        expr_with(p, Brace::No, Range::Yes, Binary::Yes, &cx)?;
+        expr_with(p, Brace::No, Binary::Yes, &cx)?;
     }
 
     block(p)?;
@@ -1130,7 +1118,7 @@ fn expr_match(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
 
     let cx = ErrorCx;
-    expr_with(p, Brace::No, Range::Yes, Binary::Yes, &cx)?;
+    expr_with(p, Brace::No, Binary::Yes, &cx)?;
 
     if matches!(p.peek()?, K!['{']) {
         p.bump()?;
@@ -1204,13 +1192,13 @@ fn condition(p: &mut Parser<'_>) -> Result<()> {
         if p.peek()? == K![=] {
             p.bump()?;
             let cx = ErrorCx;
-            expr_with(p, Brace::No, Range::Yes, Binary::Yes, &cx)?;
+            expr_with(p, Brace::No, Binary::Yes, &cx)?;
         }
 
         p.close_at(&c, Condition)?;
     } else {
         let cx = ErrorCx;
-        expr_with(p, Brace::No, Range::Yes, Binary::Yes, &cx)?;
+        expr_with(p, Brace::No, Binary::Yes, &cx)?;
     }
 
     Ok(())
@@ -1219,7 +1207,13 @@ fn condition(p: &mut Parser<'_>) -> Result<()> {
 #[tracing::instrument(skip_all)]
 fn path(p: &mut Parser<'_>) -> Result<()> {
     let c = p.checkpoint()?;
+    path_components(p)?;
+    p.close_at(&c, Path)?;
+    Ok(())
+}
 
+#[tracing::instrument(skip_all)]
+fn path_components(p: &mut Parser<'_>) -> Result<()> {
     while matches!(p.peek()?, path_component!()) {
         // Parse a generic path if we are in a context supporting binary
         // expressions, or if we just parsed the prefix `::` of the turbofish
@@ -1244,7 +1238,6 @@ fn path(p: &mut Parser<'_>) -> Result<()> {
         }
     }
 
-    p.close_at(&c, Path)?;
     Ok(())
 }
 
@@ -1269,11 +1262,15 @@ fn expr_binary(
         op.advance(p)?;
         p.close_at(&op_c, ExprOperator)?;
 
-        let range = if op.is_assoc() { Range::No } else { Range::Yes };
-
         let c = p.checkpoint()?;
-        outer_expr_with(p, brace, range, Binary::No, cx)?;
 
+        let (brace, empty) = if matches!(op, ast::BinOp::DotDot(..) | ast::BinOp::DotDotEq(..)) {
+            (Brace::No, InRange::Yes)
+        } else {
+            (brace, InRange::No)
+        };
+
+        outer_expr_with(p, brace, empty, Binary::No, cx)?;
         has_any = true;
 
         let slice = p.array::<2>()?;
@@ -1306,39 +1303,6 @@ fn expr_binary(
     Ok(has_any)
 }
 
-#[tracing::instrument(skip_all)]
-fn expr_range(p: &mut Parser<'_>, c: &Checkpoint, kind: Kind, brace: Brace) -> Result<Kind> {
-    let kind = match p.peek()? {
-        K![..] => {
-            p.bump()?;
-
-            if is_expr_with(p, brace, Range::No)? {
-                let cx = ErrorCx;
-                outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
-                ExprRange
-            } else {
-                ExprRangeFrom
-            }
-        }
-        K![..=] => {
-            p.bump()?;
-
-            if is_expr_with(p, brace, Range::No)? {
-                let cx = ErrorCx;
-                outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
-                ExprRangeInclusive
-            } else {
-                Error
-            }
-        }
-        _ => {
-            return Ok(kind);
-        }
-    };
-
-    p.close_at(c, kind)?;
-    Ok(kind)
-}
 #[tracing::instrument(skip_all)]
 fn block(p: &mut Parser<'_>) -> Result<()> {
     let c = p.checkpoint()?;
