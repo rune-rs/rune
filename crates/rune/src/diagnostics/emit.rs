@@ -15,8 +15,8 @@ use crate::alloc::{self, String};
 use crate::ast::{Span, Spanned};
 use crate::compile::{ErrorKind, LinkerError, Location};
 use crate::diagnostics::{
-    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, RuntimeWarningDiagnostic,
-    RuntimeWarningDiagnosticKind, WarningDiagnostic, WarningDiagnosticKind,
+    Diagnostic, FatalDiagnostic, FatalDiagnosticKind, RuntimeDiagnostic, RuntimeDiagnosticKind,
+    WarningDiagnostic, WarningDiagnosticKind,
 };
 use crate::hash::Hash;
 use crate::runtime::DebugInfo;
@@ -103,7 +103,7 @@ impl Diagnostics {
                 Diagnostic::Warning(w) => {
                     warning_diagnostics_emit(w, out, sources, &config)?;
                 }
-                Diagnostic::RuntimeWarning(w) => {
+                Diagnostic::Runtime(w) => {
                     runtime_warning_diagnostics_emit(w, out, sources, &config, None, None)?;
                 }
             }
@@ -142,7 +142,7 @@ impl Diagnostics {
                 Diagnostic::Warning(w) => {
                     warning_diagnostics_emit(w, out, sources, &config)?;
                 }
-                Diagnostic::RuntimeWarning(w) => {
+                Diagnostic::Runtime(w) => {
                     runtime_warning_diagnostics_emit(
                         w,
                         out,
@@ -343,7 +343,7 @@ impl WarningDiagnostic {
     }
 }
 
-impl RuntimeWarningDiagnostic {
+impl RuntimeDiagnostic {
     /// Generate formatted diagnostics capable of referencing source lines and
     /// hints.
     ///
@@ -478,7 +478,7 @@ where
 
 /// Helper to emit diagnostics for a runtime warning.
 fn runtime_warning_diagnostics_emit<O>(
-    this: &RuntimeWarningDiagnostic,
+    this: &RuntimeDiagnostic,
     out: &mut O,
     sources: &Sources,
     config: &term::Config,
@@ -493,7 +493,7 @@ where
     let mut message = String::new();
 
     match this.kind {
-        RuntimeWarningDiagnosticKind::UsedDeprecated { hash } => {
+        RuntimeDiagnosticKind::UsedDeprecated { hash } => {
             // try to get the function name - this needs to be improved
             let name = match context
                 .map(|c| c.lookup_meta_by_hash(hash))
@@ -554,8 +554,8 @@ where
     }
 
     match this.kind() {
-        FatalDiagnosticKind::Internal(message) => {
-            writeln!(out, "internal error: {message}")?;
+        FatalDiagnosticKind::Custom(message) => {
+            writeln!(out, "{message}")?;
             return Ok(());
         }
         FatalDiagnosticKind::LinkError(error) => {

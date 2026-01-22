@@ -72,6 +72,7 @@ where
         &mut diagnostics,
         &mut source_loader,
         &options,
+        &[],
         &gen,
         &context,
         &mut inner,

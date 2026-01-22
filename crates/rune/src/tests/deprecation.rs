@@ -6,7 +6,7 @@ use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
 use crate::diagnostics::Diagnostic;
 
-use self::diagnostics::{RuntimeWarningDiagnosticKind, WarningDiagnosticKind};
+use self::diagnostics::{RuntimeDiagnosticKind, WarningDiagnosticKind};
 
 fn create_context() -> Result<Context> {
     #[derive(Debug, rune::Any)]
@@ -63,8 +63,8 @@ fn check_diagnostic(context: &Context, diagnostic: &Diagnostic, msg: &str) {
             }
             kind => panic!("Unexpected warning: {kind:?}"),
         },
-        Diagnostic::RuntimeWarning(w) => match w.kind() {
-            RuntimeWarningDiagnosticKind::UsedDeprecated { hash, .. } => {
+        Diagnostic::Runtime(w) => match w.kind() {
+            RuntimeDiagnosticKind::UsedDeprecated { hash, .. } => {
                 let message = context.lookup_deprecation(*hash);
                 assert_eq!(message, Some(msg));
             }

@@ -4,6 +4,7 @@
 - [Introduction](./introduction.md)
 - [Getting Started](./getting_started.md)
 - [Concepts](./concepts.md)
+  - [Scripts](./scripts.md)
   - [Items and imports](./items_imports.md)
   - [Functions](./functions.md)
   - [Control flow](./control_flow.md)

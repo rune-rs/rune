@@ -151,6 +151,8 @@ pub(crate) struct Query<'a, 'arena> {
     pub(crate) source_loader: &'a mut dyn SourceLoader,
     /// Build options.
     pub(crate) options: &'a Options,
+    /// Implicit function arguments when building a script.
+    pub(crate) args: &'a [String],
     /// Shared id generator.
     pub(crate) gen: &'a Gen,
     /// Native context.
@@ -173,6 +175,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         diagnostics: &'a mut Diagnostics,
         source_loader: &'a mut dyn SourceLoader,
         options: &'a Options,
+        args: &'a [String],
         gen: &'a Gen,
         context: &'a Context,
         inner: &'a mut QueryInner<'arena>,
@@ -189,6 +192,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             diagnostics,
             source_loader,
             options,
+            args,
             gen,
             context,
             inner,
@@ -209,6 +213,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
             diagnostics: self.diagnostics,
             source_loader: self.source_loader,
             options: self.options,
+            args: self.args,
             gen: self.gen,
             context: self.context,
             inner: self.inner,

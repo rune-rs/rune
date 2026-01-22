@@ -517,6 +517,8 @@ mod rename_type;
 #[cfg(not(miri))]
 mod result;
 #[cfg(not(miri))]
+mod scripts;
+#[cfg(not(miri))]
 mod static_typing;
 #[cfg(not(miri))]
 mod tuple;

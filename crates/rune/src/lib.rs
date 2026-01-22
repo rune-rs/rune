@@ -26,6 +26,7 @@
 //!
 //! ## Highlights of Rune
 //!
+//! * Run simple [Scripts 📖][support-scripts].
 //! * Runs a compact representation of the language on top of an efficient
 //!   [stack-based virtual machine][support-virtual-machine].
 //! * Clean [Rust integration 💻][support-rust-integration].
@@ -118,6 +119,7 @@
 //! [support-patterns]: https://rune-rs.github.io/book/pattern_matching.html
 //! [support-reference-counted]: https://rune-rs.github.io/book/variables.html
 //! [support-rust-integration]: https://github.com/rune-rs/rune/tree/main/crates/rune-modules
+//! [support-scripts]: https://rune-rs.github.io/book/scripts.html
 //! [support-serde]: https://github.com/rune-rs/rune/blob/main/crates/rune-modules/src/json.rs
 //! [support-stack-isolation]: https://rune-rs.github.io/book/call_frames.html
 //! [support-structs]: https://rune-rs.github.io/book/structs.html
