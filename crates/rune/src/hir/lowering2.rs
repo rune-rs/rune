@@ -13,7 +13,7 @@ use crate::grammar::{
     classify, object_key, Ignore, MaybeNode, NodeClass, Remaining, Stream, StreamBuf, Tree,
 };
 use crate::hash::ParametersBuilder;
-use crate::hir;
+use crate::hir::{self, alloc_with};
 use crate::internal_macros::resolve_context;
 use crate::parse::{NonZeroId, Resolve};
 use crate::query::{self, GenericsParameters, Named2, Named2Kind, Used};
@@ -35,8 +35,8 @@ pub(crate) fn bare<'hir>(
 ) -> Result<hir::ItemFn<'hir>> {
     alloc_with!(cx, p);
 
-    let body = statements(cx, None, p)?;
     let args = iter!(args, |name| named_arg(cx, name, p)?);
+    let body = statements(cx, None, p)?;
 
     Ok(hir::ItemFn {
         span: p.span(),
@@ -55,13 +55,15 @@ fn named_arg<'hir>(
     let name = cx.scopes.define(hir::Name::Str(name), span)?;
     let names = iter!([name]);
 
-    Ok(hir::FnArg::Pat(alloc!(hir::PatBinding {
+    let pat = alloc!(hir::PatBinding {
         pat: hir::Pat {
             span: span.span(),
             kind: hir::PatKind::Path(alloc!(hir::PatPathKind::Ident(name))),
         },
         names,
-    })))
+    });
+
+    Ok(hir::FnArg::Pat(pat))
 }
 
 /// Lower a function item.
