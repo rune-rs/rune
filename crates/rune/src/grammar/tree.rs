@@ -346,7 +346,7 @@ impl<'a> Stream<'a> {
         Span::point(self.node.span().end)
     }
 
-    fn peek_node(&mut self) -> Option<&syntree::Node<'a, Kind, Flavor>> {
+    fn peek_node(&mut self) -> Option<&InternalNode<'a>> {
         if self.peek.is_none() {
             if let Some(node) = self.next_node() {
                 self.peek = Some(node);
