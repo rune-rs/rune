@@ -29,6 +29,16 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --all-targets --all-features
+    - run: >
+        cargo test --lib  --all-features -- --exact
+        --skip tests::compiler_docs::harvest_docs
+        --skip tests::custom_macros::attribute_imports_builtin
+        --skip tests::custom_macros::conflicting_attribute_function
+        --skip tests::macros::test_make_function
+        --skip tests::macros::test_rename
+        --skip tests::scripts::simple_script
+      env:
+        RUNEFLAGS: v2=true
 
   test_doc:
     runs-on: ubuntu-latest
@@ -38,6 +48,11 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --doc --all-features
+    - run: >
+        cargo test --doc --all-features -- --exact
+        --skip macros
+      env:
+        RUNEFLAGS: v2=true
   
   rustfmt:
     runs-on: ubuntu-latest
@@ -205,3 +220,6 @@ jobs:
     - run: cargo run --release --bin rune -- check --recursive scripts
     - run: cargo run --release --bin rune -- check --all-targets
     - run: cargo run --release --bin rune -- test --all-targets -O test-std=true
+    - run: cargo run --release --bin rune -- test --all-targets -O test-std=true
+      env:
+        RUNEFLAGS: v2=true

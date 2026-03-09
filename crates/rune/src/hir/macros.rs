@@ -1,6 +1,6 @@
 /// Allocator indirection to simplify lifetime management.
 #[rustfmt::skip]
-macro_rules! alloc_with {
+macro_rules! __alloc_with {
     ($cx:expr, $span:expr) => {
         #[allow(unused)]
         macro_rules! alloc {
@@ -107,3 +107,5 @@ macro_rules! alloc_with {
         }
     };
 }
+
+pub(super) use __alloc_with as alloc_with;
