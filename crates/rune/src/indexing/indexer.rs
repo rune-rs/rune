@@ -446,7 +446,13 @@ impl Indexer<'_, '_> {
         ast: &mut ast::ItemMod,
         docs: &[Doc],
     ) -> compile::Result<()> {
-        let name = ast.name.resolve(resolve_context!(self.q))?;
+        let original_name = ast
+            .name
+            .resolve(resolve_context!(self.q))?
+            .try_to_string()
+            .unwrap();
+        let name = Box::try_new(original_name.split("::").last().unwrap())?;
+
         let visibility = ast_to_visibility(&ast.visibility)?;
         let guard = self.items.push_name(name.as_ref())?;
 
@@ -469,12 +475,14 @@ impl Indexer<'_, '_> {
             ));
         };
 
-        let source = self.q.source_loader.load(
-            self.q.sources,
-            root,
-            self.q.pool.module_item(mod_item),
-            &*ast,
-        )?;
+        let item = self.q.pool.module_item(mod_item);
+        let buff =
+            rune_core::item::ItemBuf::with_item([original_name.try_clone().unwrap()]).unwrap();
+        let item = unsafe { rune_core::item::Item::from_bytes(buff.as_bytes()) };
+        let source = self
+            .q
+            .source_loader
+            .load(self.q.sources, root, item, &*ast)?;
 
         if let Some(loaded) = self.loaded.as_mut() {
             if let Some(_existing) = loaded.try_insert(mod_item, (self.source_id, ast.span()))? {
