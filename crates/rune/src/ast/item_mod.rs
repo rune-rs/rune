@@ -27,7 +27,7 @@ pub struct ItemMod {
     /// The `mod` keyword.
     pub mod_token: T![mod],
     /// The name of the mod.
-    pub name: ast::Ident,
+    pub name: ast::Path,
     /// The optional body of the module declaration.
     pub body: ItemModBody,
     /// The id of the module item.
