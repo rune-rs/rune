@@ -358,13 +358,11 @@ impl<'a> Lexer<'a> {
             };
 
             match c {
-                '\\' => {
-                    if self.iter.next().is_none() {
-                        return Err(compile::Error::new(
-                            self.iter.span_to_pos(s),
-                            ErrorKind::ExpectedEscape,
-                        ));
-                    }
+                '\\' if self.iter.next().is_none() => {
+                    return Err(compile::Error::new(
+                        self.iter.span_to_pos(s),
+                        ErrorKind::ExpectedEscape,
+                    ));
                 }
                 '\'' => {
                     break;
@@ -373,7 +371,7 @@ impl<'a> Lexer<'a> {
                     let span = self.iter.span_to_pos(start);
                     return Err(compile::Error::new(span, ErrorKind::UnterminatedByteLit));
                 }
-                _ => (),
+                _ => {}
             }
         }
 

@@ -300,11 +300,9 @@ impl<'a, 'hir> Address<'a, 'hir> {
                 self.scopes
                     .free_addr(self.span, self.address, self.name, dangling)?;
             }
-            AddressKind::Scope(scope) => {
-                if self.scopes.top_id() == scope {
-                    self.scopes
-                        .free_addr(self.span, self.address, self.name, dangling)?;
-                }
+            AddressKind::Scope(scope) if self.scopes.top_id() == scope => {
+                self.scopes
+                    .free_addr(self.span, self.address, self.name, dangling)?;
             }
             AddressKind::Freed => {
                 return Err(compile::Error::msg(

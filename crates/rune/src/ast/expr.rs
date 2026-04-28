@@ -700,13 +700,11 @@ fn binary(
                     lookahead = ast::BinOp::from_peeker(p.peeker());
                     continue;
                 }
-                (lh, rh) if lh == rh => {
-                    if !next.is_assoc() {
-                        return Err(compile::Error::new(
-                            lhs.span().join(rhs.span()),
-                            ErrorKind::PrecedenceGroupRequired,
-                        ));
-                    }
+                (lh, rh) if lh == rh && !next.is_assoc() => {
+                    return Err(compile::Error::new(
+                        lhs.span().join(rhs.span()),
+                        ErrorKind::PrecedenceGroupRequired,
+                    ));
                 }
                 _ => {}
             };
