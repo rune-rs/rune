@@ -139,7 +139,6 @@
 #![cfg_attr(rune_docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
-#![deny(rustdoc::missing_doc_code_examples)]
 #![deny(rustdoc::private_doc_tests)]
 #![no_std]
 

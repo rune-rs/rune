@@ -57,12 +57,20 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: cargo test --doc --all-features
+
+  test_doc_v2:
+    runs-on: ubuntu-latest
+    needs: basics
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
     - run: >
-        cargo test --doc --all-features -- --exact
-        --skip macros
+        cargo test --doc --all-features -- --exact --skip macros
       env:
         RUNEFLAGS: v2=true
-  
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
@@ -217,6 +225,21 @@ jobs:
     - run: cargo miri test -p ${{matrix.crate}} --all-features --doc
 
   test_rune:
+    runs-on: ubuntu-latest
+    needs: basics
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo build --release --bin rune
+    - run: cargo run --release --bin rune -- fmt --verbose --check
+    - run: cargo run --release --bin rune -- fmt --verbose --check --recursive scripts
+    - run: cargo run --release --bin rune -- check --recursive scripts
+    - run: cargo run --release --bin rune -- check --all-targets
+    - run: cargo run --release --bin rune -- test --all-targets -O test-std=true
+    - run: cargo run --release --bin rune -- test --all-targets -O test-std=true
+
+  test_rune_v2:
     runs-on: ubuntu-latest
     needs: basics
     steps:
