@@ -2450,7 +2450,11 @@ fn expr_if<'a, 'hir>(
         Asm::new(span, ())
     };
 
-    if asm.converging() {
+    // Track whether all paths diverge (only possible when there's a fallback/else).
+    let fallback_converges = asm.converging();
+    let mut all_diverge = hir.fallback.is_some() && !fallback_converges;
+
+    if fallback_converges {
         cx.asm.jump(&end_label, span)?;
     }
 
@@ -2477,16 +2481,26 @@ fn expr_if<'a, 'hir>(
             block(cx, &branch.block, needs)?
         };
 
+        let branch_converges = asm.converging();
+        if branch_converges {
+            all_diverge = false;
+        }
+
         cx.scopes.pop(branch, scope)?;
 
-        if asm.converging() && it.peek().is_some() {
+        if branch_converges && it.peek().is_some() {
             cx.asm.jump(&end_label, branch)?;
         }
     }
 
     cx.asm.label(&end_label)?;
     linear.free()?;
-    Ok(Asm::new(span, ()))
+
+    if all_diverge {
+        Ok(Asm::diverge(span))
+    } else {
+        Ok(Asm::new(span, ()))
+    }
 }
 
 /// Assemble an expression.
