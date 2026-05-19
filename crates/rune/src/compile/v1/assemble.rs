@@ -2646,6 +2646,7 @@ fn expr_match<'a, 'hir>(
         cx.asm.jump(&end_label, span)?;
     }
 
+    let mut all_diverge = is_irrefutable;
     let mut it = hir.branches.iter().zip(branches).peekable();
 
     while let Some((branch, (label, scope))) = it.next() {
@@ -2654,8 +2655,11 @@ fn expr_match<'a, 'hir>(
         cx.asm.label(&label)?;
         let scope = cx.scopes.restore(scope);
 
-        if expr(cx, &branch.body, needs)?.converging() && it.peek().is_some() {
-            cx.asm.jump(&end_label, span)?;
+        if expr(cx, &branch.body, needs)?.converging() {
+            all_diverge = false;
+            if it.peek().is_some() {
+                cx.asm.jump(&end_label, span)?;
+            }
         }
 
         cx.scopes.pop(span, scope)?;
@@ -2665,7 +2669,12 @@ fn expr_match<'a, 'hir>(
 
     value.free()?;
     linear.free()?;
-    Ok(Asm::new(span, ()))
+
+    if all_diverge {
+        Ok(Asm::diverge(span))
+    } else {
+        Ok(Asm::new(span, ()))
+    }
 }
 
 /// Compile a literal object.
