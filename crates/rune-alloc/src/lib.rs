@@ -39,7 +39,6 @@
 #![cfg_attr(rune_nightly, deny(rustdoc::missing_doc_code_examples))]
 #![cfg_attr(rune_nightly, allow(internal_features))]
 #![cfg_attr(rune_nightly, feature(fmt_internals))]
-#![cfg_attr(rune_nightly, feature(rustdoc_missing_doc_code_examples))]
 #![cfg_attr(rune_nightly, feature(core_intrinsics))]
 #![cfg_attr(rune_nightly, feature(dropck_eyepatch))]
 #![cfg_attr(rune_nightly, feature(min_specialization))]

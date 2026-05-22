@@ -131,7 +131,6 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(rustdoc::private_doc_tests)]
-#![cfg_attr(rune_nightly, feature(rustdoc_missing_doc_code_examples))]
 #![cfg_attr(rune_nightly, deny(rustdoc::missing_doc_code_examples))]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::needless_doctest_main)]
