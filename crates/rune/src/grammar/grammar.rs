@@ -1289,10 +1289,8 @@ fn expr_binary(
                     lookahead = ast::BinOp::from_slice(&slice);
                     continue;
                 }
-                (lh, rh) if lh == rh => {
-                    if !next.is_assoc() {
-                        return Err(p.error(c.span(), ErrorKind::PrecedenceGroupRequired)?);
-                    }
+                (lh, rh) if lh == rh && !next.is_assoc() => {
+                    return Err(p.error(c.span(), ErrorKind::PrecedenceGroupRequired)?);
                 }
                 _ => {}
             };

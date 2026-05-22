@@ -30,15 +30,14 @@ pub(crate) fn classify(node: &Node<'_>) -> (bool, NodeClass) {
                 return (needs_semi, NodeClass::Item);
             }
         }
-        Expr => {
-            if node.children().rev().map(|n| n.kind()).any(|k| {
-                matches!(
-                    k,
-                    ExprIf | ExprFor | ExprWhile | ExprLoop | ExprMatch | ExprSelect | Block
-                )
-            }) {
-                return (false, NodeClass::Item);
-            }
+        Expr if node.children().rev().map(|n| n.kind()).any(|k| {
+            matches!(
+                k,
+                ExprIf | ExprFor | ExprWhile | ExprLoop | ExprMatch | ExprSelect | Block
+            )
+        }) =>
+        {
+            return (false, NodeClass::Item);
         }
         _ => {}
     }

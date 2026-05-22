@@ -4,7 +4,7 @@ use crate::compile;
 use crate::macros::{quote, MacroContext, ToTokens, TokenStream};
 use crate::parse::Parser;
 use crate::termcolor::{ColorChoice, StandardStream};
-use crate::{Context, Diagnostics, Module, Vm, T};
+use crate::{Context, Diagnostics, Module, Vm};
 
 use crate::tests::prelude::*;
 
