@@ -2,7 +2,7 @@ prelude!();
 
 use std::sync::Arc;
 
-use rune::{from_value, prepare, sources};
+use rune::{from_value, prepare};
 use rune::{Any, Context, ContextError, Module, Vm};
 
 /// Tests pattern matching and constructing over an external variant from within
@@ -166,7 +166,7 @@ fn construct_struct() -> rune::support::Result<()> {
 
     let mut vm = Vm::new(runtime, Arc::new(unit));
 
-    for (req, rsp) in vec![
+    for (req, rsp) in [
         (
             Request { url: "/".into() },
             Response {

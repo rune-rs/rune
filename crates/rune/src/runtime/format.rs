@@ -407,8 +407,10 @@ where
 /// The type of formatting requested.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum Type {
     /// Display type (default).
+    #[default]
     Display,
     /// Debug type.
     Debug,
@@ -435,12 +437,6 @@ impl str::FromStr for Type {
             "pointer" => Ok(Self::Pointer),
             _ => Err(TypeFromStrError),
         }
-    }
-}
-
-impl Default for Type {
-    fn default() -> Self {
-        Self::Display
     }
 }
 
@@ -475,19 +471,15 @@ impl fmt::Display for Type {
 #[derive(Debug, Clone, Copy, TryClone, PartialEq, Eq, Serialize, Deserialize, Decode, Encode)]
 #[try_clone(copy)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum Alignment {
     /// Left alignment.
+    #[default]
     Left,
     /// Center alignment.
     Center,
     /// Right alignment.
     Right,
-}
-
-impl Default for Alignment {
-    fn default() -> Self {
-        Self::Left
-    }
 }
 
 impl str::FromStr for Alignment {

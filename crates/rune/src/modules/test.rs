@@ -7,7 +7,7 @@ use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::parse::Parser;
 use crate::runtime::Function;
-use crate::{Any, ContextError, Module, T};
+use crate::{Any, ContextError, Module};
 
 /// Testing and benchmarking.
 #[rune::module(::std::test)]

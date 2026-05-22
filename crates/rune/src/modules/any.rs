@@ -4,7 +4,7 @@ use crate as rune;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::String;
 use crate::runtime::{Formatter, Type, Value, VmResult};
-use crate::{docstring, ContextError, Hash, Module};
+use crate::{ContextError, Hash, Module};
 
 /// Dynamic typing and type reflection.
 ///

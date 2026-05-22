@@ -234,6 +234,7 @@ fn local<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
+#[allow(unused_variables, unused_assignments)]
 fn pat<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     let mut attrs = Attrs::default();
 
@@ -674,12 +675,8 @@ fn inner_expr<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<Kind> {
                 _ => compact_expr_macro_call(fmt, p)?,
             }
         }
-        Error => {
-            if fmt.options.error_recovery {
-                p.fmt_remaining_trimmed(fmt)?;
-            } else {
-                return Err(p.expected("inner expression"));
-            }
+        Error if fmt.options.error_recovery => {
+            p.fmt_remaining_trimmed(fmt)?;
         }
         _ => {
             return Err(p.expected("inner expression"));

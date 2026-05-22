@@ -42,8 +42,10 @@ fn ast_parse() {
 /// * `pub(in some::module)`.
 #[derive(Debug, TryClone, PartialEq, Eq, ToTokens, OptionSpanned)]
 #[non_exhaustive]
+#[derive(Default)]
 pub enum Visibility {
     /// An inherited visibility level, this usually means private.
+    #[default]
     Inherited,
     /// An unrestricted public visibility level: `pub`.
     Public(T![pub]),
@@ -66,12 +68,6 @@ impl Visibility {
     /// Return `true` if the module is public.
     pub const fn is_public(&self) -> bool {
         matches!(self, Visibility::Public(..))
-    }
-}
-
-impl Default for Visibility {
-    fn default() -> Self {
-        Self::Inherited
     }
 }
 
