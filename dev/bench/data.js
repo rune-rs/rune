@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777517605019,
+  "lastUpdate": 1779504915396,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -34765,6 +34765,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 334,
             "range": "± 1",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "Valerii Ponomarov",
+            "username": "vponomaryov",
+            "email": "valerii.ponomarov@scylladb.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "johnjohn.tedro@gmail.com"
+          },
+          "id": "1b3204d360968c9ead557df99bc8325e670075c6",
+          "message": "test(compile): add tests for match divergence propagation\n\nAdd test cases to `diverging.rn` that verify the `return` statement\nin all arms of a match expression correctly propagates divergence.",
+          "timestamp": "2026-05-20T15:17:00Z",
+          "url": "https://github.com/rune-rs/rune/commit/1b3204d360968c9ead557df99bc8325e670075c6"
+        },
+        "date": 1779504914643,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 9266492,
+            "range": "± 55479",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 3092097,
+            "range": "± 62451",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1250,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1019,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 114429,
+            "range": "± 539",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 747164,
+            "range": "± 7360",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 173064693,
+            "range": "± 1029593",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 163088124,
+            "range": "± 593007",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 373885,
+            "range": "± 1343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 3998379,
+            "range": "± 23358",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 21099198,
+            "range": "± 107341",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 3383999,
+            "range": "± 9025",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 141243,
+            "range": "± 628",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 1576791,
+            "range": "± 29951",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 262,
+            "range": "± 0",
             "unit": "ns/iter"
           }
         ]
