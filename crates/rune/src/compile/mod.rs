@@ -47,7 +47,7 @@ pub(crate) mod v1;
 
 mod options;
 #[cfg(any(feature = "fmt", feature = "languageserver"))]
-pub(crate) use self::options::FmtOptions;
+pub(crate) use self::options::{FmtOptions, IndentStyle};
 pub use self::options::{Options, ParseOptionError};
 
 mod location;

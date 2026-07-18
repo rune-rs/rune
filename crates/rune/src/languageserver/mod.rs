@@ -425,7 +425,7 @@ fn formatting(
     params: lsp::DocumentFormattingParams,
 ) -> Result<Option<rust_alloc::vec::Vec<lsp::TextEdit>>> {
     state
-        .format(&params.text_document.uri)
+        .format(&params.text_document.uri, &params.options)
         .map(|option| option.map(|formatted| vec![formatted]))
 }
 
@@ -435,7 +435,7 @@ fn range_formatting(
     params: lsp::DocumentRangeFormattingParams,
 ) -> Result<Option<rust_alloc::vec::Vec<lsp::TextEdit>>> {
     state
-        .range_format(&params.text_document.uri, &params.range)
+        .range_format(&params.text_document.uri, &params.range, &params.options)
         .map(|option| option.map(|formatted| vec![formatted]))
 }
 

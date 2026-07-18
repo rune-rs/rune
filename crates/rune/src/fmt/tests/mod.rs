@@ -1357,3 +1357,43 @@ fn test_expanded_chain() {
         "#
     );
 }
+
+#[test]
+fn fmt_indent_spaces() {
+    assert_format_with!(
+        { "fmt.indent=2" },
+        r#"
+        fn main() {
+            if true {
+                1
+            } else {
+                2
+            }
+        }
+        "#,
+        r#"
+        fn main() {
+          if true {
+            1
+          } else {
+            2
+          }
+        }
+        "#
+    );
+}
+
+#[test]
+fn fmt_indent_tabs() {
+    assert_format_with!(
+        { "fmt.indent=tab" },
+        r#"
+        fn main() {
+            if true {
+                1
+            }
+        }
+        "#,
+        "fn main() {\n\tif true {\n\t\t1\n\t}\n}",
+    );
+}
