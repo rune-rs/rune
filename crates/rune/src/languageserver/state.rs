@@ -13,7 +13,8 @@ use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
 use crate::compile::meta;
 use crate::compile::{
-    self, CompileVisitor, LinkerError, Located, Location, MetaError, MetaRef, SourceMeta, WithSpan,
+    self, CompileVisitor, IndentStyle, LinkerError, Located, Location, MetaError, MetaRef,
+    SourceMeta, WithSpan,
 };
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
@@ -330,7 +331,11 @@ impl<'a> State<'a> {
         Ok(Some(results))
     }
 
-    pub(super) fn format(&mut self, uri: &Url) -> Result<Option<lsp::TextEdit>> {
+    pub(super) fn format(
+        &mut self,
+        uri: &Url,
+        format: &lsp::FormattingOptions,
+    ) -> Result<Option<lsp::TextEdit>> {
         let sources = &mut self.workspace.sources;
         tracing::trace!(uri = ?uri.try_to_string()?, uri_exists = sources.get(uri).is_some());
 
@@ -340,14 +345,14 @@ impl<'a> State<'a> {
 
         let source = s.content.try_to_string()?;
 
+        let mut options = self.options.clone();
+        options.fmt.indent = indent_style(format);
+
         let mut diagnostics = Diagnostics::new();
 
-        let Ok(formatted) = crate::fmt::layout_source_with(
-            &source,
-            SourceId::EMPTY,
-            &self.options,
-            &mut diagnostics,
-        ) else {
+        let Ok(formatted) =
+            crate::fmt::layout_source_with(&source, SourceId::EMPTY, &options, &mut diagnostics)
+        else {
             return Ok(None);
         };
 
@@ -372,6 +377,7 @@ impl<'a> State<'a> {
         &mut self,
         uri: &Url,
         range: &lsp::Range,
+        format: &lsp::FormattingOptions,
     ) -> Result<Option<lsp::TextEdit>> {
         let sources = &mut self.workspace.sources;
         tracing::trace!(uri = ?uri.try_to_string()?, uri_exists = sources.get(uri).is_some());
@@ -391,6 +397,7 @@ impl<'a> State<'a> {
 
         let mut options = self.options.clone();
         options.fmt.force_newline = false;
+        options.fmt.indent = indent_style(format);
 
         let mut diagnostics = Diagnostics::new();
 
@@ -938,6 +945,17 @@ impl ServerSource {
 impl fmt::Display for ServerSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.content)
+    }
+}
+
+/// Convert formatting options from a client request into an indentation style.
+fn indent_style(options: &lsp::FormattingOptions) -> IndentStyle {
+    if options.insert_spaces {
+        // NB: Explicitly saturate to usize::MAX.
+        let spaces = usize::try_from(options.tab_size).unwrap_or(usize::MAX);
+        IndentStyle::Spaces(spaces)
+    } else {
+        IndentStyle::Tabs
     }
 }
 

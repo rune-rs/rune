@@ -21,7 +21,7 @@ pub(crate) use self::output::Formatter;
 const WS: &str = " ";
 const NL: &str = "\n";
 const NL_CHAR: char = '\n';
-const INDENT: &str = "    ";
+const TAB: &str = "\t";
 
 #[derive(Debug)]
 enum FormatErrorKind {

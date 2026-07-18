@@ -25,6 +25,16 @@ impl fmt::Display for ParseOptionError {
 
 impl core::error::Error for ParseOptionError {}
 
+/// The indentation to use when formatting.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum IndentStyle {
+    /// Indent using the given number of spaces.
+    #[cfg_attr(not(feature = "fmt"), allow(dead_code))]
+    Spaces(usize),
+    /// Indent using tabs.
+    Tabs,
+}
+
 /// Options specific to formatting.
 #[derive(Debug, Clone)]
 pub(crate) struct FmtOptions {
@@ -32,6 +42,8 @@ pub(crate) struct FmtOptions {
     pub(crate) error_recovery: bool,
     /// Force newline at end of document.
     pub(crate) force_newline: bool,
+    /// The indentation to use.
+    pub(crate) indent: IndentStyle,
 }
 
 impl FmtOptions {
@@ -39,6 +51,7 @@ impl FmtOptions {
     pub(crate) const DEFAULT: Self = Self {
         error_recovery: false,
         force_newline: true,
+        indent: IndentStyle::Spaces(4),
     };
 
     /// Parse an option with the extra diagnostics metadata.
@@ -59,6 +72,26 @@ impl FmtOptions {
             }
             "force-newline" => {
                 self.force_newline = tail.is_none_or(|s| s == "true");
+            }
+            "indent" => {
+                self.indent = match tail {
+                    Some("tab") => IndentStyle::Tabs,
+                    Some(n) => match n.parse() {
+                        Ok(n) => IndentStyle::Spaces(n),
+                        Err(..) => {
+                            return Err(ParseOptionError {
+                                env,
+                                option: option.into(),
+                            });
+                        }
+                    },
+                    None => {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    }
+                };
             }
             _ => {
                 return Err(ParseOptionError {
@@ -304,6 +337,16 @@ impl Options {
                 },
                 default: "true",
                 options: BOOL,
+            },
+            OptionMeta {
+                key: "fmt.indent",
+                unstable: true,
+                doc: &docstring! {
+                    /// Number of spaces to indent with, or `tab` to indent
+                    /// using tabs.
+                },
+                default: "4",
+                options: "<number>, tab",
             },
         ];
 

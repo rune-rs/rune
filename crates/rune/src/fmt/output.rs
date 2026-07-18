@@ -3,11 +3,11 @@ use core::mem::take;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, VecDeque};
 use crate::ast::{Kind, Span};
-use crate::compile::{Error, ErrorKind, FmtOptions, Result, WithSpan};
+use crate::compile::{Error, ErrorKind, FmtOptions, IndentStyle, Result, WithSpan};
 use crate::grammar::{Ignore, Node, Tree};
 use crate::{Diagnostics, SourceId};
 
-use super::{INDENT, NL, NL_CHAR, WS};
+use super::{NL, NL_CHAR, TAB, WS};
 
 /// Hint for how comments may be laid out.
 pub(super) enum Comments {
@@ -89,7 +89,7 @@ impl Buffer {
         self.0.try_push_str(s)
     }
 
-    fn lines(&mut self, indent: usize, lines: usize) -> alloc::Result<()> {
+    fn lines(&mut self, style: IndentStyle, indent: usize, lines: usize) -> alloc::Result<()> {
         if lines == 0 {
             return Ok(());
         }
@@ -99,7 +99,16 @@ impl Buffer {
         }
 
         for _ in 0..indent {
-            self.0.try_push_str(INDENT)?;
+            match style {
+                IndentStyle::Spaces(n) => {
+                    for _ in 0..n {
+                        self.0.try_push_str(WS)?;
+                    }
+                }
+                IndentStyle::Tabs => {
+                    self.0.try_push_str(TAB)?;
+                }
+            }
         }
 
         Ok(())
@@ -269,7 +278,7 @@ impl<'a> Formatter<'a> {
                     self.o.str(WS).with_span(c.span)?;
                 } else {
                     self.o
-                        .lines(self.indent, c.before.min(2))
+                        .lines(self.options.indent, self.indent, c.before.min(2))
                         .with_span(c.span)?;
                 }
             }
@@ -381,7 +390,8 @@ impl<'a> Formatter<'a> {
 
     pub(crate) fn flush_whitespace(&mut self, preserve: bool) -> Result<()> {
         if self.use_lines && self.lines > 0 {
-            self.o.lines(self.indent, self.lines.min(2))?;
+            self.o
+                .lines(self.options.indent, self.indent, self.lines.min(2))?;
             self.ws = false;
             self.use_lines = false;
             self.lines = 0;
