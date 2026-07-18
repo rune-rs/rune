@@ -42,17 +42,17 @@ impl FmtOptions {
     };
 
     /// Parse an option with the extra diagnostics metadata.
+    ///
+    /// The `option` is the full option being parsed, and is used for error
+    /// reporting, while `head` and `tail` are the already split option key and
+    /// optional value.
     fn parse_option_with(
         &mut self,
         option: &str,
+        head: &str,
+        tail: Option<&str>,
         env: Option<&'static str>,
     ) -> Result<(), ParseOptionError> {
-        let (head, tail) = if let Some((head, tail)) = option.trim().split_once('=') {
-            (head.trim(), Some(tail.trim()))
-        } else {
-            (option.trim(), None)
-        };
-
         match head {
             "error-recovery" => {
                 self.error_recovery = tail.is_none_or(|s| s == "true");
@@ -385,7 +385,7 @@ impl Options {
                     self.max_macro_depth = number;
                 }
                 other => {
-                    let Some((head, tail)) = other.split_once('.') else {
+                    let Some((head, sub)) = other.split_once('.') else {
                         return Err(ParseOptionError {
                             env,
                             option: option.into(),
@@ -393,11 +393,11 @@ impl Options {
                     };
 
                     let head = head.trim();
-                    let tail = tail.trim();
+                    let sub = sub.trim();
 
                     match head {
                         "fmt" => {
-                            self.fmt.parse_option_with(tail, env)?;
+                            self.fmt.parse_option_with(option, sub, tail, env)?;
                         }
                         _ => {
                             return Err(ParseOptionError {
@@ -463,5 +463,20 @@ impl Default for Options {
     #[inline]
     fn default() -> Self {
         Options::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Options;
+
+    #[test]
+    fn parse_nested_option_value() {
+        let mut options = Options::DEFAULT;
+        assert!(options.fmt.force_newline);
+        options.parse_option("fmt.force-newline=false").unwrap();
+        assert!(!options.fmt.force_newline);
+        options.parse_option("fmt.force-newline=true").unwrap();
+        assert!(options.fmt.force_newline);
     }
 }
