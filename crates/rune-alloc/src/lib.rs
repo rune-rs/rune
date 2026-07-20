@@ -37,6 +37,7 @@
 #![allow(clippy::drop_non_drop)]
 #![allow(clippy::manual_map)]
 #![allow(clippy::type_complexity)]
+#![allow(clippy::question_mark)]
 #![cfg_attr(rune_docsrs, feature(doc_cfg))]
 #![cfg_attr(rune_nightly, allow(internal_features))]
 #![cfg_attr(rune_nightly, feature(core_intrinsics))]
