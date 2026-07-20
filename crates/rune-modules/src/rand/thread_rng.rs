@@ -1,6 +1,6 @@
 use rune::Any;
 
-use super::OsError;
+use super::SysError;
 
 /// Access a fast, pre-initialized generator
 ///
@@ -38,7 +38,7 @@ fn rng() -> ThreadRng {
 /// requirements. The Rand project can provide no guarantee of fitness for
 /// purpose. The design criteria for `ThreadRng` are as follows:
 ///
-/// - Automatic seeding via [`OsRng`] and periodically thereafter (see
+/// - Automatic seeding via [`SysRng`] and periodically thereafter (see
 ///   ([`ReseedingRng`] documentation). Limitation: there is no automatic
 ///   reseeding on process fork (see [below](#fork)).
 /// - A rigorusly analyzed, unpredictable (cryptographic) pseudo-random
@@ -56,7 +56,7 @@ fn rng() -> ThreadRng {
 ///   "reasonably secure" implies the above criteria).
 ///
 /// We leave it to the user to determine whether this generator meets their
-/// security requirements. For an alternative, see [`OsRng`].
+/// security requirements. For an alternative, see [`SysRng`].
 ///
 /// # Fork
 ///
@@ -90,7 +90,7 @@ impl ThreadRng {
     ///
     /// This discards any remaining random data in the cache.
     #[rune::function]
-    pub(super) fn reseed(&mut self) -> Result<(), OsError> {
+    pub(super) fn reseed(&mut self) -> Result<(), SysError> {
         Ok(self.inner.reseed()?)
     }
 }

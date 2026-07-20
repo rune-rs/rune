@@ -163,13 +163,11 @@ jobs:
       matrix:
         feature:
         - rand
-        - rand,os_rng
-        - rand,small_rng
-        - rand,small_rng,os_rng
+        - rand,sys_rng
         - rand,std_rng
-        - rand,std_rng,os_rng
+        - rand,std_rng,sys_rng
         - rand,thread_rng
-        - rand,thread_rng,os_rng
+        - rand,thread_rng,sys_rng
     env:
       RUSTFLAGS: -D warnings
     steps:

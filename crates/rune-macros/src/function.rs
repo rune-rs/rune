@@ -557,8 +557,8 @@ impl VmResult {
                     self.expr(&mut expr.expr)?;
 
                     for arm in &mut expr.arms {
-                        if let Some((_, expr)) = &mut arm.guard {
-                            self.expr(expr)?;
+                        if let syn::Pat::Guard(ref mut pat) = arm.pat {
+                            self.expr(&mut pat.guard)?;
                         }
 
                         self.expr(&mut arm.body)?;

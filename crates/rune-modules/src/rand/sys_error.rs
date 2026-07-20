@@ -6,18 +6,18 @@ use rune::Any;
 /// An os error returned by methods in the `rand` module.
 #[derive(Debug, Any)]
 #[rune(item = ::rand)]
-pub(super) struct OsError {
-    pub(super) inner: rand::rand_core::OsError,
+pub(super) struct SysError {
+    pub(super) inner: rand::rngs::SysError,
 }
 
-impl From<rand::rand_core::OsError> for OsError {
+impl From<rand::rngs::SysError> for SysError {
     #[inline]
-    fn from(inner: rand::rand_core::OsError) -> Self {
+    fn from(inner: rand::rngs::SysError) -> Self {
         Self { inner }
     }
 }
 
-impl OsError {
+impl SysError {
     /// Write a display representation the error.
     #[rune::function(instance, protocol = DISPLAY_FMT)]
     fn display_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {

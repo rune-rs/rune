@@ -1,4 +1,3 @@
-#[cfg(any(feature = "small_rng", feature = "std_rng"))]
 macro_rules! seedable_rng {
     ($m:ident, $ty:ident) => {{
         use rune::nested_try;
@@ -6,10 +5,10 @@ macro_rules! seedable_rng {
 
         $m.function_meta(from_rng)?;
         $m.function_meta(try_from_rng)?;
-        #[cfg(feature = "os_rng")]
-        $m.function_meta(from_os_rng)?;
-        #[cfg(feature = "os_rng")]
-        $m.function_meta(try_from_os_rng)?;
+        #[cfg(feature = "sys_rng")]
+        $m.function_meta(from_sys_rng)?;
+        #[cfg(feature = "sys_rng")]
+        $m.function_meta(try_from_sys_rng)?;
         $m.function_meta(from_seed)?;
         $m.function_meta(seed_from_u64)?;
 
@@ -40,7 +39,6 @@ macro_rules! seedable_rng {
         #[rune::function(free, path = $ty::from_rng)]
         fn from_rng(rng: Value) -> Result<$ty, VmError> {
             match rng.type_hash() {
-                #[cfg(feature = "small_rng")]
                 crate::rand::SmallRng::HASH => {
                     let mut rng = rng.borrow_mut::<crate::rand::SmallRng>()?;
 
@@ -69,9 +67,9 @@ macro_rules! seedable_rng {
                         rand::SeedableRng::try_from_rng(&mut rng.inner).map_err(VmError::panic)?;
                     Ok($ty { inner })
                 }
-                #[cfg(feature = "os_rng")]
-                crate::rand::OsRng::HASH => {
-                    let mut rng = rng.borrow_mut::<crate::rand::OsRng>()?;
+                #[cfg(feature = "sys_rng")]
+                crate::rand::SysRng::HASH => {
+                    let mut rng = rng.borrow_mut::<crate::rand::SysRng>()?;
                     let inner =
                         rand::SeedableRng::try_from_rng(&mut rng.inner).map_err(VmError::panic)?;
                     Ok($ty { inner })
@@ -86,7 +84,6 @@ macro_rules! seedable_rng {
         #[rune::function(free, path = $ty::try_from_rng)]
         fn try_from_rng(rng: Value) -> Result<Result<$ty, TryFromRngError>, VmError> {
             match rng.type_hash() {
-                #[cfg(feature = "small_rng")]
                 crate::rand::SmallRng::HASH => {
                     let mut rng = rng.borrow_mut::<crate::rand::SmallRng>()?;
                     let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
@@ -104,9 +101,9 @@ macro_rules! seedable_rng {
                     let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
                     Ok(Ok($ty { inner }))
                 }
-                #[cfg(feature = "os_rng")]
-                crate::rand::OsRng::HASH => {
-                    let mut rng = rng.borrow_mut::<crate::rand::OsRng>()?;
+                #[cfg(feature = "sys_rng")]
+                crate::rand::SysRng::HASH => {
+                    let mut rng = rng.borrow_mut::<crate::rand::SysRng>()?;
                     let inner = nested_try!(rand::SeedableRng::try_from_rng(&mut rng.inner));
                     Ok(Ok($ty { inner }))
                 }
@@ -114,37 +111,38 @@ macro_rules! seedable_rng {
             }
         }
 
-        /// Creates a new instance of the RNG seeded via [`getrandom`].
+        /// Creates a new instance of the RNG seeded via [`SysRng`].
         ///
         /// This method is the recommended way to construct non-deterministic PRNGs
         /// since it is convenient and secure.
         ///
-        /// Note that this method may panic on (extremely unlikely) [`getrandom`]
-        /// errors. If it's not desirable, use the [`try_from_os_rng`] method
+        /// Note that this method may panic on (extremely unlikely) [`SysRng`]
+        /// errors. If it's not desirable, use the [`try_from_rng`] method
         /// instead.
         ///
         /// # Panics
         ///
-        /// If [`getrandom`] is unable to provide secure entropy this method will
+        /// If [`SysRng`] is unable to provide secure entropy this method will
         /// panic.
         ///
-        /// [`getrandom`]: https://docs.rs/getrandom
-        /// [`try_from_os_rng`]: StdRng::try_from_os_rng
-        #[rune::function(free, path = $ty::from_os_rng)]
-        #[cfg(feature = "os_rng")]
-        fn from_os_rng() -> Result<$ty, VmError> {
-            let inner = rand::SeedableRng::try_from_os_rng().map_err(VmError::panic)?;
+        /// [`SysRng`]: https://docs.rs/rand/latest/rand/rngs/struct.SysRng.html
+        /// [`try_from_rng`]: StdRng::try_from_rng
+        #[rune::function(free, path = $ty::from_sys_rng)]
+        #[cfg(feature = "sys_rng")]
+        fn from_sys_rng() -> Result<$ty, VmError> {
+            let inner =
+                rand::SeedableRng::try_from_rng(&mut rand::rngs::SysRng).map_err(VmError::panic)?;
             Ok($ty { inner })
         }
 
-        /// Creates a new instance of the RNG seeded via [`getrandom`] without
-        /// unwrapping potential [`getrandom`] errors.
+        /// Creates a new instance of the RNG seeded via [`SysRng`] without
+        /// unwrapping potential [`SysRng`] errors.
         ///
-        /// [`getrandom`]: https://docs.rs/getrandom
-        #[rune::function(free, path = $ty::try_from_os_rng)]
-        #[cfg(feature = "os_rng")]
-        fn try_from_os_rng() -> Result<$ty, Error> {
-            let inner = rand::SeedableRng::try_from_os_rng()?;
+        /// [`SysRng`]: https://docs.rs/rand/latest/rand/rngs/struct.SysRng.html
+        #[rune::function(free, path = $ty::try_from_sys_rng)]
+        #[cfg(feature = "sys_rng")]
+        fn try_from_sys_rng() -> Result<$ty, SysError> {
+            let inner = rand::SeedableRng::try_from_rng(&mut rand::rngs::SysRng)?;
             Ok($ty { inner })
         }
 
@@ -205,7 +203,6 @@ macro_rules! seedable_rng {
     }};
 }
 
-#[cfg(any(feature = "small_rng", feature = "std_rng", feature = "thread_rng"))]
 macro_rules! random {
     ($m:ident, $ty:ty, $example:expr, $(($name:ident, $out:ty)),* $(,)?) => {
         $(
@@ -222,7 +219,7 @@ macro_rules! random {
             /// ```
             #[rune::function(instance, path = random<$out>)]
             fn $name(this: &mut $ty) -> $out {
-                rand::Rng::random(&mut this.inner)
+                rand::RngExt::random(&mut this.inner)
             }
 
             $m.function_meta($name)?;
@@ -230,7 +227,6 @@ macro_rules! random {
     }
 }
 
-#[cfg(any(feature = "small_rng", feature = "std_rng", feature = "thread_rng"))]
 macro_rules! random_ranges {
     ($m:ident, $ty:ty, $example:expr, $(($name:ident, $out:ty, $as:path, $range:expr)),* $(,)?) => {
         $(
@@ -262,7 +258,7 @@ macro_rules! random_ranges {
                                     return Err(VmError::panic("cannot sample empty range"));
                                 }
 
-                                rand::Rng::random_range(&mut this.inner, range)
+                                rand::RngExt::random_range(&mut this.inner, range)
                             }
                             Range::HASH => {
                                 let range = value.borrow_ref::<Range>()?;
@@ -274,7 +270,7 @@ macro_rules! random_ranges {
                                     return Err(VmError::panic("cannot sample empty range"));
                                 }
 
-                                rand::Rng::random_range(&mut this.inner, range)
+                                rand::RngExt::random_range(&mut this.inner, range)
                             }
                             _ => {
                                 return Err(VmError::panic("unsupported range"));

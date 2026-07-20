@@ -23,7 +23,7 @@
 //!
 //! ```rust,ignore
 //! fn main() {
-//!     let rng = rand::StdRng::try_from_os_rng()?;
+//!     let rng = rand::StdRng::try_from_sys_rng()?;
 //!     let rand_int = rng.random::<u64>();
 //!     println(`Random int: {rand_int}`);
 //!     let rand_int_range = rng.random_range::<i64>(-100..100);
@@ -34,29 +34,20 @@
 #[macro_use]
 mod macros;
 
-#[cfg(all(any(feature = "small_rng", feature = "std_rng"), feature = "os_rng"))]
-mod error;
-#[cfg(all(any(feature = "small_rng", feature = "std_rng"), feature = "os_rng"))]
-use self::error::Error;
+#[cfg(feature = "sys_rng")]
+mod sys_rng;
+#[cfg(feature = "sys_rng")]
+use self::sys_rng::SysRng;
 
-#[cfg(feature = "os_rng")]
-mod os_rng;
-#[cfg(feature = "os_rng")]
-use self::os_rng::OsRng;
+#[cfg(any(feature = "thread_rng", feature = "sys_rng"))]
+mod sys_error;
+#[cfg(any(feature = "thread_rng", feature = "sys_rng"))]
+use self::sys_error::SysError;
 
-#[cfg(any(feature = "thread_rng", feature = "os_rng"))]
-mod os_error;
-#[cfg(any(feature = "thread_rng", feature = "os_rng"))]
-use self::os_error::OsError;
-
-#[cfg(any(feature = "small_rng", feature = "std_rng"))]
 mod try_from_rng_error;
-#[cfg(any(feature = "small_rng", feature = "std_rng"))]
 use self::try_from_rng_error::TryFromRngError;
 
-#[cfg(feature = "small_rng")]
 mod small_rng;
-#[cfg(feature = "small_rng")]
 use self::small_rng::SmallRng;
 
 #[cfg(feature = "std_rng")]
@@ -77,19 +68,12 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
     #[allow(unused_mut)]
     let mut m = Module::from_meta(module__meta)?;
 
-    #[cfg(all(any(feature = "small_rng", feature = "std_rng"), feature = "os_rng"))]
+    #[cfg(any(feature = "thread_rng", feature = "sys_rng"))]
     {
-        m.ty::<Error>()?;
-        m.function_meta(Error::display_fmt)?;
+        m.ty::<SysError>()?;
+        m.function_meta(SysError::display_fmt)?;
     }
 
-    #[cfg(any(feature = "thread_rng", feature = "os_rng"))]
-    {
-        m.ty::<OsError>()?;
-        m.function_meta(OsError::display_fmt)?;
-    }
-
-    #[cfg(any(feature = "small_rng", feature = "std_rng", feature = "thread_rng"))]
     macro_rules! call_random {
         ($ty:ty, $example:expr) => {
             random! {
@@ -109,22 +93,21 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
         };
     }
 
-    #[cfg(feature = "os_rng")]
+    #[cfg(feature = "sys_rng")]
     {
-        m.ty::<OsRng>()?;
+        m.ty::<SysRng>()?;
     }
 
-    #[cfg(feature = "small_rng")]
     {
         m.ty::<SmallRng>()?;
-        call_random!(SmallRng, "SmallRng::try_from_os_rng()?");
+        call_random!(SmallRng, "SmallRng::try_from_sys_rng()?");
         seedable_rng!(m, SmallRng);
     }
 
     #[cfg(feature = "std_rng")]
     {
         m.ty::<StdRng>()?;
-        call_random!(StdRng, "StdRng::try_from_os_rng()?");
+        call_random!(StdRng, "StdRng::try_from_sys_rng()?");
         seedable_rng!(m, StdRng);
     }
 
