@@ -420,7 +420,7 @@ where
         if self
             .inner()?
             .strong
-            .fetch_update(Acquire, Relaxed, checked_increment)
+            .try_update(Acquire, Relaxed, checked_increment)
             .is_ok()
         {
             // SAFETY: pointer is not null, verified in checked_increment

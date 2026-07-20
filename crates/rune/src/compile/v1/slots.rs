@@ -145,11 +145,7 @@ impl Iterator for Iter<'_> {
                 return Some(self.key + o as usize);
             }
 
-            self.current = match self.storage.next() {
-                Some(current) => *current,
-                None => return None,
-            };
-
+            self.current = *self.storage.next()?;
             self.key += u128::BITS as usize;
         }
     }

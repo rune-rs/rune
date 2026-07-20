@@ -4,8 +4,7 @@ use core::task::{Context, Poll};
 
 use std::boxed::Box;
 use std::string::ToString;
-use std::sync::Arc;
-use std::task::Wake;
+use std::task::Waker;
 
 use crate as rune;
 
@@ -23,14 +22,6 @@ struct Boxed(Box<u32>);
 
 #[derive(Debug, PartialEq, Eq, Any)]
 struct Count(isize);
-
-struct NoopWaker;
-
-impl Wake for NoopWaker {
-    fn wake(self: Arc<Self>) {
-        // nothing
-    }
-}
 
 #[test]
 fn test_take() -> Result<()> {
@@ -116,8 +107,8 @@ fn ensure_future_dropped_poll() -> crate::support::Result<()> {
 
     let mut future = pin!(Future::new(async { Ok(10) })?);
 
-    let waker = Arc::new(NoopWaker).into();
-    let mut cx = Context::from_waker(&waker);
+    let waker = Waker::noop();
+    let mut cx = Context::from_waker(waker);
 
     assert!(!future.is_completed());
 
@@ -139,8 +130,8 @@ fn ensure_future_dropped_explicitly() -> crate::support::Result<()> {
     // NB: We cause the future to be dropped explicitly through it's Drop destructor here by replacing it.
     future.set(Future::new(async { Ok(0) })?);
 
-    let waker = Arc::new(NoopWaker).into();
-    let mut cx = Context::from_waker(&waker);
+    let waker = Waker::noop();
+    let mut cx = Context::from_waker(waker);
 
     assert!(!future.is_completed());
 

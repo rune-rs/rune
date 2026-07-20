@@ -86,7 +86,7 @@ impl fmt::Display for StaticString {
 impl fmt::Debug for StaticString {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", &self.inner)
+        self.inner.fmt(f)
     }
 }
 
