@@ -7346,7 +7346,8 @@ mod test_map {
     use rust_alloc::string::{String, ToString};
     use rust_alloc::sync::Arc;
 
-    use rand::{rngs::SmallRng, Rng, SeedableRng};
+    use rand::rngs::SmallRng;
+    use rand::{RngExt, SeedableRng};
 
     use super::DefaultHashBuilder;
     use super::Entry::{Occupied, Vacant};
@@ -8234,12 +8235,13 @@ mod test_map {
 
         // Populate the map with some items.
         for _ in 0..50 {
-            let x = rng.gen_range(-10..10);
+            let x = rng.random_range(-10..10);
             m.insert(x, ());
         }
 
         for _ in 0..1000 {
-            let x = rng.gen_range(-10..10);
+            let x = rng.random_range(-10..10);
+
             match m.entry(x) {
                 Vacant(_) => {}
                 Occupied(e) => {
@@ -8271,13 +8273,14 @@ mod test_map {
         // Populate the map with some items.
         for _ in 0..50 {
             let mut x = String::with_capacity(1);
-            x.push(rng.gen_range('a'..='z'));
+            x.push(rng.random_range('a'..='z'));
             m.insert(x, ());
         }
 
         for _ in 0..1000 {
             let mut x = String::with_capacity(1);
-            x.push(rng.gen_range('a'..='z'));
+            x.push(rng.random_range('a'..='z'));
+
             match m.entry_ref(x.as_str()) {
                 EntryRef::Vacant(_) => {}
                 EntryRef::Occupied(e) => {
@@ -8741,12 +8744,12 @@ mod test_map {
 
         // Populate the map with some items.
         for _ in 0..50 {
-            let x = rng.gen_range(-10..10);
+            let x = rng.random_range(-10..10);
             m.insert(x, ());
         }
 
         for _ in 0..1000 {
-            let x = rng.gen_range(-10..10);
+            let x = rng.random_range(-10..10);
             m.entry(x).and_replace_entry_with(|_, _| None);
             check(&m);
         }
@@ -8772,13 +8775,13 @@ mod test_map {
         // Populate the map with some items.
         for _ in 0..50 {
             let mut x = String::with_capacity(1);
-            x.push(rng.gen_range('a'..='z'));
+            x.push(rng.random_range('a'..='z'));
             m.insert(x, ());
         }
 
         for _ in 0..1000 {
             let mut x = String::with_capacity(1);
-            x.push(rng.gen_range('a'..='z'));
+            x.push(rng.random_range('a'..='z'));
             m.entry_ref(x.as_str()).and_replace_entry_with(|_, _| None);
             check(&m);
         }

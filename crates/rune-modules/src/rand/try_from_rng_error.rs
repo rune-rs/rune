@@ -21,12 +21,12 @@ impl TryFromRngError {
     }
 }
 
-#[cfg(feature = "os_rng")]
-impl From<rand::rand_core::OsError> for TryFromRngError {
+#[cfg(feature = "sys_rng")]
+impl From<rand::rngs::SysError> for TryFromRngError {
     #[inline]
-    fn from(inner: rand::rand_core::OsError) -> Self {
+    fn from(inner: rand::rngs::SysError) -> Self {
         Self {
-            kind: TryFromRngErrorKind::OsError(inner),
+            kind: TryFromRngErrorKind::SysError(inner),
         }
     }
 }
@@ -47,16 +47,16 @@ impl fmt::Debug for TryFromRngError {
 
 #[derive(Debug)]
 enum TryFromRngErrorKind {
-    #[cfg(feature = "os_rng")]
-    OsError(rand::rand_core::OsError),
+    #[cfg(feature = "sys_rng")]
+    SysError(rand::rngs::SysError),
 }
 
 impl fmt::Display for TryFromRngErrorKind {
     #[inline]
     fn fmt(&self, #[allow(unused)] f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            #[cfg(feature = "os_rng")]
-            TryFromRngErrorKind::OsError(ref inner) => {
+            #[cfg(feature = "sys_rng")]
+            TryFromRngErrorKind::SysError(ref inner) => {
                 write!(f, "{inner}")
             }
         }

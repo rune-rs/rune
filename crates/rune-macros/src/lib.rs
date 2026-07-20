@@ -310,8 +310,9 @@ fn add_trait_bounds(generics: &mut Generics, path: &Path) {
     for ty in &mut generics.type_params_mut() {
         ty.bounds.push(syn::TypeParamBound::Trait(syn::TraitBound {
             paren_token: None,
-            modifier: syn::TraitBoundModifier::None,
+            modifiers: syn::TraitBoundModifiers::default(),
             lifetimes: None,
+            maybe: None,
             path: path.clone(),
         }));
     }

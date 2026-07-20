@@ -27,7 +27,7 @@ use rune::Any;
 /// ```rune
 /// use rand::StdRng;
 ///
-/// let rng = StdRng::try_from_os_rng()?;
+/// let rng = StdRng::try_from_sys_rng()?;
 /// ```
 ///
 /// Seeding via [`rand::rng()`](crate::rng()) may be faster:

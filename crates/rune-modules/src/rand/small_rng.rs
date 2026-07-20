@@ -33,11 +33,11 @@ use rune::Any;
 /// let rng = rand::rng();
 /// let rng = SmallRng::from_rng(rng);
 /// ```
-/// or [`SmallRng::from_os_rng`]:
+/// or [`SmallRng::from_sys_rng`]:
 /// ```rune
 /// use rand::SmallRng;
 ///
-/// let rng = SmallRng::from_os_rng();
+/// let rng = SmallRng::from_sys_rng();
 /// ```
 ///
 /// To use a deterministic integral seed, use `seed_from_u64`. This uses a
@@ -64,7 +64,6 @@ use rune::Any;
 /// [`rand_seeder`]: https://docs.rs/rand_seeder/latest/rand_seeder/
 #[derive(Any)]
 #[rune(item = ::rand)]
-#[cfg(feature = "small_rng")]
 pub(super) struct SmallRng {
     pub(super) inner: rand::rngs::SmallRng,
 }

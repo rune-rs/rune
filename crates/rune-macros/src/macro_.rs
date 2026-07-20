@@ -117,6 +117,7 @@ impl Macro {
             });
 
             syn::TypePath {
+                attrs: Vec::new(),
                 qself: None,
                 path: syn::Path {
                     leading_colon: None,
