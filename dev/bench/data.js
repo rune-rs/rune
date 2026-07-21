@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779504915396,
+  "lastUpdate": 1784601404318,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -34877,6 +34877,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 262,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "polina4096",
+            "username": "polina4096",
+            "email": "polina4096@icloud.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "johnjohn.tedro@gmail.com"
+          },
+          "id": "20b26957f18ead54232261f0f8fff2e9f78d852c",
+          "message": "Make indentation configurable and honor LSP formatting options",
+          "timestamp": "2026-07-18T17:32:19Z",
+          "url": "https://github.com/rune-rs/rune/commit/20b26957f18ead54232261f0f8fff2e9f78d852c"
+        },
+        "date": 1784601403291,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 12493737,
+            "range": "± 508796",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4771262,
+            "range": "± 37760",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1694,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1310,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 182424,
+            "range": "± 1276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1095017,
+            "range": "± 9111",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 256711165,
+            "range": "± 3567305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 221148654,
+            "range": "± 1794941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 580243,
+            "range": "± 1885",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 6139518,
+            "range": "± 21343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 32364759,
+            "range": "± 136235",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5269621,
+            "range": "± 23321",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 193581,
+            "range": "± 5607",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2149818,
+            "range": "± 53465",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 346,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
