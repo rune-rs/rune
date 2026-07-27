@@ -105,7 +105,9 @@ pub(crate) struct Callable(bool);
 pub(crate) const CALLABLE: Callable = Callable(true);
 
 /// Indicates that an expression should be treated as if it's *not* callable.
-/// This is used to solve otherwise parsing ambiguities.
+/// This is used to solve otherwise parsing ambiguities, such as when a
+/// block-like expression in statement position is followed by parenthesis like
+/// `if true { } (1, 2, 3);`. It is treated as two statements rather than call.
 pub(crate) const NOT_CALLABLE: Callable = Callable(false);
 
 impl ops::Deref for Callable {
@@ -244,6 +246,7 @@ impl Expr {
             Self::If(_) => callable,
             Self::Match(_) => callable,
             Self::Select(_) => callable,
+            Self::Block(_) => callable,
             _ => true,
         }
     }

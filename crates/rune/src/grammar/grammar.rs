@@ -43,6 +43,12 @@ enum Range {
     No,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum Callable {
+    Yes,
+    No,
+}
+
 macro_rules! __ws {
     () => {
         $crate::ast::Kind::Whitespace
@@ -207,7 +213,7 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
             labels(p)?;
 
             if matches!(
-                outer_expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, &cx)?,
+                outer_expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, Callable::No, &cx)?,
                 Error
             ) {
                 Error
@@ -666,7 +672,7 @@ fn expr(p: &mut Parser<'_>) -> Result<()> {
     modifiers(p)?;
     labels(p)?;
     let cx = ErrorCx;
-    outer_expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, &cx)?;
+    outer_expr_with(p, Brace::Yes, Range::Yes, Binary::Yes, Callable::Yes, &cx)?;
     p.close_at(&c, Expr)?;
     Ok(())
 }
@@ -683,7 +689,7 @@ fn expr_with(
     attributes(p)?;
     modifiers(p)?;
     labels(p)?;
-    outer_expr_with(p, brace, range, binary, cx)?;
+    outer_expr_with(p, brace, range, binary, Callable::Yes, cx)?;
     p.close_at(&c, Expr)?;
     Ok(())
 }
@@ -705,6 +711,7 @@ fn outer_expr_with(
     brace: Brace,
     range: Range,
     binary: Binary,
+    callable: Callable,
     cx: &dyn ExprCx,
 ) -> Result<Kind> {
     let c = p.checkpoint()?;
@@ -714,7 +721,7 @@ fn outer_expr_with(
         return Ok(kind);
     }
 
-    kind = expr_chain(p, &c, kind)?;
+    kind = expr_chain(p, &c, kind, callable)?;
 
     if p.peek()? == K![=] {
         p.close_at(&c, Expr)?;
@@ -820,7 +827,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
         }
         K![!] | K![-] | K![&] | K![*] => {
             p.bump()?;
-            outer_expr_with(p, brace, range, Binary::No, cx)?;
+            outer_expr_with(p, brace, range, Binary::No, Callable::Yes, cx)?;
             ExprUnary
         }
         K![if] => {
@@ -889,7 +896,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
 
             if is_expr_with(p, brace, Range::No)? {
                 let cx = ErrorCx;
-                outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
+                outer_expr_with(p, brace, Range::No, Binary::Yes, Callable::Yes, &cx)?;
                 ExprRangeTo
             } else {
                 ExprRangeFull
@@ -898,7 +905,7 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
         K![..=] if matches!(range, Range::Yes) => {
             p.bump()?;
             let cx = ErrorCx;
-            outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
+            outer_expr_with(p, brace, Range::No, Binary::Yes, Callable::Yes, &cx)?;
             ExprRangeToInclusive
         }
         K![#] if matches!(p.glued(1)?, K!['{']) => {
@@ -918,25 +925,31 @@ fn expr_primary(p: &mut Parser<'_>, brace: Brace, range: Range, cx: &dyn ExprCx)
     Ok(kind)
 }
 
-fn kind_is_callable(kind: Kind) -> bool {
+fn kind_is_callable(kind: Kind, callable: Callable) -> bool {
     match kind {
         ExprWhile => false,
-        ExprLoop => true,
+        ExprLoop => matches!(callable, Callable::Yes),
         ExprFor => false,
-        ExprIf => true,
-        ExprMatch => true,
-        ExprSelect => true,
+        ExprIf => matches!(callable, Callable::Yes),
+        ExprMatch => matches!(callable, Callable::Yes),
+        ExprSelect => matches!(callable, Callable::Yes),
+        Block => matches!(callable, Callable::Yes),
         _ => true,
     }
 }
 
 #[tracing::instrument(skip_all)]
-fn expr_chain(p: &mut Parser<'_>, c: &Checkpoint, mut kind: Kind) -> Result<Kind> {
+fn expr_chain(
+    p: &mut Parser<'_>,
+    c: &Checkpoint,
+    mut kind: Kind,
+    callable: Callable,
+) -> Result<Kind> {
     let mut before = p.checkpoint()?;
     let mut has_chain = false;
 
     while !p.is_eof()? {
-        let is_callable = kind_is_callable(kind);
+        let is_callable = kind_is_callable(kind, callable);
 
         let k = match p.peek()? {
             K!['['] if is_callable => {
@@ -1272,7 +1285,7 @@ fn expr_binary(
         let range = if op.is_assoc() { Range::No } else { Range::Yes };
 
         let c = p.checkpoint()?;
-        outer_expr_with(p, brace, range, Binary::No, cx)?;
+        outer_expr_with(p, brace, range, Binary::No, Callable::Yes, cx)?;
 
         has_any = true;
 
@@ -1312,7 +1325,7 @@ fn expr_range(p: &mut Parser<'_>, c: &Checkpoint, kind: Kind, brace: Brace) -> R
 
             if is_expr_with(p, brace, Range::No)? {
                 let cx = ErrorCx;
-                outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
+                outer_expr_with(p, brace, Range::No, Binary::Yes, Callable::Yes, &cx)?;
                 ExprRange
             } else {
                 ExprRangeFrom
@@ -1323,7 +1336,7 @@ fn expr_range(p: &mut Parser<'_>, c: &Checkpoint, kind: Kind, brace: Brace) -> R
 
             if is_expr_with(p, brace, Range::No)? {
                 let cx = ErrorCx;
-                outer_expr_with(p, brace, Range::No, Binary::Yes, &cx)?;
+                outer_expr_with(p, brace, Range::No, Binary::Yes, Callable::Yes, &cx)?;
                 ExprRangeInclusive
             } else {
                 Error

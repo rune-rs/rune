@@ -424,6 +424,8 @@ mod attribute;
 #[cfg(not(miri))]
 mod binary;
 #[cfg(not(miri))]
+mod bug_1021;
+#[cfg(not(miri))]
 mod bug_326;
 #[cfg(not(miri))]
 mod bug_344;
