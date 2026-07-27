@@ -1,6 +1,6 @@
 [package]
 name = "rune-modules"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.95"
@@ -54,7 +54,7 @@ serde_json = { version = "1.0.96", optional = true }
 toml = { version = "1.1.3", optional = true }
 rand = { version = "0.10.2", optional = true, default-features = false }
 
-rune = { version = "0.14.0", path = "../rune" }
+rune = { version = "0.15.0", path = "../rune" }
 
 [dependencies.reqwest]
 version = "0.13.1"

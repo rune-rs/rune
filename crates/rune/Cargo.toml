@@ -1,6 +1,6 @@
 [package]
 name = "rune"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.95"
@@ -35,10 +35,10 @@ musli = ["dep:musli-core", "rune-core/musli", "rune-alloc/musli"]
 serde = ["dep:serde", "rune-alloc/serde", "relative-path?/serde"]
 
 [dependencies]
-rune-macros = { version = "=0.14.0", path = "../rune-macros" }
-rune-core = { version = "=0.14.0", path = "../rune-core", features = [] }
-rune-alloc = { version = "0.14.0", path = "../rune-alloc", features = [], default-features = false }
-tracing = { package = "rune-tracing", version = "0.14.0", path = "../rune-tracing" }
+rune-macros = { version = "=0.15.0", path = "../rune-macros" }
+rune-core = { version = "=0.15.0", path = "../rune-core", features = [] }
+rune-alloc = { version = "0.15.0", path = "../rune-alloc", features = [], default-features = false }
+tracing = { package = "rune-tracing", version = "0.15.0", path = "../rune-tracing" }
 
 syntree = { version = "0.18.0", default-features = false, features = ["alloc"] }
 futures-core = { version = "0.3.28", default-features = false }
