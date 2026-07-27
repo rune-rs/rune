@@ -274,6 +274,10 @@ mod sources;
 #[doc(inline)]
 pub use self::sources::{SourceId, Sources};
 
+mod statics;
+#[doc(inline)]
+pub use self::statics::Statics;
+
 mod worker;
 
 #[doc(hidden)]

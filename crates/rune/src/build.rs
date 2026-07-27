@@ -15,7 +15,7 @@ use crate::compile::{
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
 use crate::runtime::{Globals, Unit};
 use crate::sync::Arc;
-use crate::{parse, Context, Diagnostics, Item, SourceId, Sources, Vm};
+use crate::{parse, Context, Diagnostics, Item, SourceId, Sources, Statics, Vm};
 
 /// Error raised when we failed to load sources.
 ///
@@ -143,6 +143,7 @@ where
         diagnostics: None,
         options: None,
         args: Vec::new(),
+        statics: None,
         visitors: Vec::new(),
         source_loader: None,
         _unit_storage: PhantomData,
@@ -160,6 +161,7 @@ pub struct Build<'a, S> {
     diagnostics: Option<&'a mut Diagnostics>,
     options: Option<&'a Options>,
     args: Vec<String>,
+    statics: Option<&'a Statics>,
     visitors: Vec<&'a mut dyn compile::CompileVisitor>,
     source_loader: Option<&'a mut dyn SourceLoader>,
     _unit_storage: PhantomData<S>,
@@ -338,6 +340,42 @@ impl<'a, S> Build<'a, S> {
         Ok(self)
     }
 
+    /// Declare a collection of [`Statics`] with the build.
+    ///
+    /// Every static declared this way is added to the unit as if the source had
+    /// declared it, which lets a script use a static the host owns without
+    /// declaring it itself. Such a static has no initializer, so the caller has
+    /// to assign it through [`Globals::set`] before anything reads it.
+    ///
+    /// [`Globals::set`]: crate::runtime::Globals::set
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::{Source, Sources, Statics};
+    /// use rune::runtime::Globals;
+    /// use rune::sync::Arc;
+    ///
+    /// let mut sources = Sources::new();
+    /// sources.insert(Source::memory("pub fn main() { LIMIT }")?)?;
+    ///
+    /// let mut statics = Statics::new();
+    /// statics.insert(["LIMIT"])?;
+    ///
+    /// let unit = rune::prepare(&mut sources)
+    ///     .with_statics(&statics)
+    ///     .build()?;
+    ///
+    /// let globals = Globals::new(Arc::try_new(unit)?)?;
+    /// globals.set(["LIMIT"], rune::to_value(42i64)?)?;
+    /// # Ok::<(), rune::support::Error>(())
+    /// ```
+    #[inline]
+    pub fn with_statics(mut self, statics: &'a Statics) -> Self {
+        self.statics = Some(statics);
+        self
+    }
+
     /// Modify the current [Build] to configure the given [CompileVisitor].
     ///
     /// A compile visitor allows for custom collecting of compile-time metadata.
@@ -466,6 +504,35 @@ impl<'a, S> Build<'a, S> {
             }
         }
 
+        let default_statics;
+
+        let statics = match self.statics.take() {
+            Some(statics) => statics,
+            None => {
+                default_statics = Statics::new();
+                &default_statics
+            }
+        };
+
+        for s in statics.iter() {
+            let item = s.item();
+
+            if item.is_empty() {
+                diagnostics.internal(SourceId::empty(), "static must be declared with a name")?;
+                continue;
+            }
+
+            for c in item.iter() {
+                if !c.as_str().is_some_and(parse::is_ident) {
+                    diagnostics.internal(
+                        SourceId::empty(),
+                        format!("static '{item}' is not a valid item"),
+                    )?;
+                    break;
+                }
+            }
+        }
+
         if diagnostics.has_error() {
             return Err(BuildError::default());
         }
@@ -484,6 +551,7 @@ impl<'a, S> Build<'a, S> {
             source_loader,
             options,
             &self.args,
+            statics,
             &mut unit_storage,
         )?;
 

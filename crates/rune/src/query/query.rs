@@ -65,6 +65,8 @@ pub(crate) struct QueryInner<'arena> {
     constants: HashMap<Hash, ConstValue>,
     /// Initializers of indexed static items, for those which have one.
     static_inits: HashMap<Hash, ConstValue>,
+    /// Statics which have been declared with the build rather than by a source.
+    declared_statics: HashSet<ItemId>,
     /// The result of internally resolved macros.
     internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Expanded macros.
@@ -687,6 +689,18 @@ impl<'a, 'arena> Query<'a, 'arena> {
     pub(crate) fn index(&mut self, entry: indexing::Entry) -> compile::Result<()> {
         tracing::trace!(item = ?self.pool.item(entry.item_meta.item));
 
+        // A static declared with the build is not associated with a source, so
+        // an item colliding with one is reported here where we still have the
+        // span of the item which collides with it.
+        if self.inner.declared_statics.contains(&entry.item_meta.item) {
+            return Err(compile::Error::new(
+                entry.item_meta.location.span,
+                ErrorKind::ConflictingStatic {
+                    item: self.pool.item(entry.item_meta.item).try_to_owned()?,
+                },
+            ));
+        }
+
         self.insert_name(entry.item_meta.item)
             .with_span(entry.item_meta.location.span)?;
 
@@ -731,6 +745,38 @@ impl<'a, 'arena> Query<'a, 'arena> {
             indexed: Indexed::Static(static_item),
         })?;
 
+        Ok(())
+    }
+
+    /// Declare a static item which is not part of any source.
+    ///
+    /// The item is indexed as if a source had declared it without an
+    /// initializer, which means a script can refer to it and the caller has to
+    /// assign it before anything reads it.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn declare_static(&mut self, item: &Item) -> compile::Result<()> {
+        tracing::trace!(?item);
+
+        let location = Location::new(SourceId::empty(), Span::empty());
+
+        // Statics are declared by the caller rather than by a module, so they
+        // are attached to the root module. Allocating it is a no-op if a source
+        // has already introduced it.
+        let module = self.pool.alloc_module(ModMeta {
+            #[cfg(feature = "emit")]
+            location,
+            item: ItemId::ROOT,
+            visibility: Visibility::Public,
+            parent: None,
+        })?;
+
+        let item = self.pool.alloc_item(item)?;
+
+        let item_meta =
+            self.insert_new_item_with(item, module, None, &location, Visibility::Public, &[])?;
+
+        self.index_static(item_meta, indexing::StaticItem { init: None })?;
+        self.inner.declared_statics.try_insert(item)?;
         Ok(())
     }
 

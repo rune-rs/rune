@@ -3,7 +3,8 @@
 prelude!();
 
 use crate::runtime::Globals;
-use crate::{termcolor, to_value, Unit};
+use crate::support::Error;
+use crate::{termcolor, to_value, Statics, Unit};
 
 fn build(source: &str) -> Result<(Arc<Unit>, Arc<runtime::RuntimeContext>)> {
     let context = Context::with_default_modules()?;
@@ -29,9 +30,53 @@ fn build(source: &str) -> Result<(Arc<Unit>, Arc<runtime::RuntimeContext>)> {
     Ok((Arc::try_new(result?)?, runtime))
 }
 
+/// Build the given source with the given statics declared.
+///
+/// Unlike [`build`] this doesn't assert that building succeeds, the emitted
+/// diagnostics are handed back as an error instead.
+fn build_declared(
+    source: &str,
+    statics: &Statics,
+) -> Result<(Arc<Unit>, Arc<runtime::RuntimeContext>)> {
+    let context = Context::with_default_modules()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+
+    let mut sources = Sources::new();
+    sources.insert(Source::memory(source)?)?;
+
+    let mut diagnostics = Diagnostics::new();
+
+    let result = prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .with_statics(statics)
+        .build();
+
+    let mut writer = termcolor::Buffer::no_color();
+    diagnostics.emit(&mut writer, &sources)?;
+    let out = String::from_utf8(writer.into_inner())?;
+
+    let Ok(unit) = result else {
+        return Err(Error::msg(out));
+    };
+
+    Ok((Arc::try_new(unit)?, runtime))
+}
+
 /// Build the given source and run `f` against it.
 fn with(source: &str, f: impl FnOnce(Arc<Unit>, Arc<runtime::RuntimeContext>) -> Result<()>) {
     let (unit, runtime) = build(source).expect("failed to build source");
+    f(unit, runtime).expect("test body failed");
+}
+
+/// Build the given source with the given statics declared and run `f` against
+/// it.
+fn with_declared(
+    source: &str,
+    statics: &Statics,
+    f: impl FnOnce(Arc<Unit>, Arc<runtime::RuntimeContext>) -> Result<()>,
+) {
+    let (unit, runtime) = build_declared(source, statics).expect("failed to build source");
     f(unit, runtime).expect("test body failed");
 }
 
@@ -486,4 +531,237 @@ fn non_const_initializer_is_an_error() {
         r#"fn f() { 1 } static N = f(); pub fn main() { N }"#,
         span!(24, 27), _
     };
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_is_used_by_script() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["N"])?;
+
+    with_declared(
+        r#"pub fn main() { N += 1; N }"#,
+        &statics,
+        |unit, runtime| {
+            let globals = Globals::new(unit.clone())?;
+            globals.set(["N"], to_value(41i64)?)?;
+
+            let mut vm = Vm::new(runtime, unit).with_globals(globals.clone());
+            assert_eq!(from_value::<i64>(vm.call(["main"], ())?)?, 42);
+
+            let n: i64 = from_value(globals.get(["N"])?.context("N to be initialized")?)?;
+            assert_eq!(n, 42);
+            Ok(())
+        },
+    );
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_starts_uninitialized() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["N"])?;
+
+    with_declared(r#"pub fn main() { N }"#, &statics, |unit, runtime| {
+        let globals = Globals::new(unit.clone())?;
+        assert!(globals.get(["N"])?.is_none());
+
+        // There is no initializer to fall back on, since the declaration does
+        // not come from a source.
+        let mut vm = Vm::new(runtime, unit).with_globals(globals.clone());
+        let message = vm.call(["main"], ()).unwrap_err().to_string();
+        assert!(
+            message.contains("uninitialized static") && message.contains('N'),
+            "unexpected error: {message}"
+        );
+
+        globals.set(["N"], to_value(11i64)?)?;
+        assert_eq!(from_value::<i64>(vm.call(["main"], ())?)?, 11);
+        Ok(())
+    });
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_in_module() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["config", "LIMIT"])?;
+
+    with_declared(
+        r#"
+        pub mod inner {
+            pub fn get() { crate::config::LIMIT }
+        }
+
+        pub fn main() { config::LIMIT + inner::get() }
+        "#,
+        &statics,
+        |unit, runtime| {
+            let globals = Globals::new(unit.clone())?;
+            globals.set(["config", "LIMIT"], to_value(7i64)?)?;
+
+            let mut vm = Vm::new(runtime, unit).with_globals(globals);
+            assert_eq!(from_value::<i64>(vm.call(["main"], ())?)?, 14);
+            Ok(())
+        },
+    );
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_unused_by_script() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["UNUSED"])?;
+
+    with_declared(r#"pub fn main() { 0 }"#, &statics, |unit, _| {
+        let globals = Globals::new(unit.clone())?;
+        assert_eq!(unit.globals_len(), 1);
+
+        // Addressable by the caller even though no script reads it.
+        globals.set(["UNUSED"], to_value(5i64)?)?;
+        assert_eq!(
+            from_value::<i64>(globals.get(["UNUSED"])?.context("UNUSED")?)?,
+            5
+        );
+        Ok(())
+    });
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_without_sources() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["N"])?;
+
+    let mut sources = Sources::new();
+
+    let unit = prepare(&mut sources).with_statics(&statics).build()?;
+
+    let unit = Arc::try_new(unit)?;
+    assert_eq!(unit.globals_len(), 1);
+
+    let globals = Globals::new(unit)?;
+    globals.set(["N"], to_value(3i64)?)?;
+    assert_eq!(from_value::<i64>(globals.get(["N"])?.context("N")?)?, 3);
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_records_debug_name() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["N"])?;
+
+    with_declared(r#"pub fn main() { N }"#, &statics, |unit, _| {
+        let debug = unit.debug_info().context("debug info")?;
+        let slot = unit.global_slot(&hash!(N)).context("slot for N")?;
+        let global = debug.global(slot).context("debug info for N")?;
+        assert_eq!(global.path.to_string(), "N");
+        Ok(())
+    });
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_alongside_source_statics() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["DECLARED"])?;
+
+    with_declared(
+        r#"
+        static SOURCE = 1;
+        pub fn main() { SOURCE + DECLARED }
+        "#,
+        &statics,
+        |unit, runtime| {
+            let globals = Globals::new(unit.clone())?;
+            globals.set(["DECLARED"], to_value(41i64)?)?;
+
+            let mut vm = Vm::new(runtime, unit).with_globals(globals);
+            assert_eq!(from_value::<i64>(vm.call(["main"], ())?)?, 42);
+            Ok(())
+        },
+    );
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declared_static_in_const_is_an_error() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["N"])?;
+
+    let message = build_declared(r#"const C = N; pub fn main() { C }"#, &statics)
+        .unwrap_err()
+        .to_string();
+
+    assert!(
+        message.contains("cannot be used in a constant context"),
+        "unexpected diagnostics:\n{message}"
+    );
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declaring_a_static_the_source_declares_is_an_error() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["N"])?;
+
+    for source in [
+        r#"static N = 1; pub fn main() { N }"#,
+        r#"const N = 1; pub fn main() { N }"#,
+        r#"fn N() { 1 } pub fn main() { N() }"#,
+    ] {
+        let message = build_declared(source, &statics).unwrap_err().to_string();
+
+        assert!(
+            message.contains("conflicts with a static of the same name"),
+            "unexpected diagnostics for `{source}`:\n{message}"
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+#[cfg(not(miri))]
+fn declaring_a_static_with_a_bad_name_is_an_error() -> Result<()> {
+    let mut statics = Statics::new();
+    statics.insert(["not an ident"])?;
+
+    let message = build_declared(r#"pub fn main() { 0 }"#, &statics)
+        .unwrap_err()
+        .to_string();
+
+    assert!(
+        message.contains("is not a valid item"),
+        "unexpected diagnostics:\n{message}"
+    );
+
+    let mut statics = Statics::new();
+    statics.insert([] as [&str; 0])?;
+
+    let message = build_declared(r#"pub fn main() { 0 }"#, &statics)
+        .unwrap_err()
+        .to_string();
+
+    assert!(
+        message.contains("must be declared with a name"),
+        "unexpected diagnostics:\n{message}"
+    );
+
+    Ok(())
 }

@@ -164,6 +164,46 @@ Because the storage is per-machine rather than per-unit, this stays sound when
 the same script is used for many independent things at once - each caller
 constructs its own `Globals` and injects its own registry.
 
+## Declaring statics with the build
+
+A host which owns the state doesn't necessarily want the script to be
+responsible for declaring it. Statics can therefore also be declared with the
+build through [`Statics`], in which case the source doesn't mention them at all:
+
+```rust
+let mut statics = Statics::new();
+statics.insert(["REGISTRY"])?;
+
+let unit = rune::prepare(&mut sources)
+    .with_context(&context)
+    .with_statics(&statics)
+    .build()?;
+```
+
+The script above then works unchanged with its `static REGISTRY;` removed, in
+the same way that a native module makes a function available without the script
+declaring it. Every source in the unit sees the static, and the name is an item,
+so `["config", "REGISTRY"]` declares it inside of the `config` module.
+
+There is no source to evaluate, so a static declared this way has no
+initializer. It starts out uninitialized just like `static REGISTRY;` does, and
+the caller is expected to assign it before anything reads it:
+
+```rust
+{{#include ../../examples/examples/declared_statics.rs}}
+```
+
+```text
+$> cargo run --example declared_statics
+Hello, Jane! (call 1)
+Hello, John! (call 2)
+calls: 2
+```
+
+Since a declared static occupies the item it is named with, a source which
+declares an item of the same name is a compile error rather than a silent
+override of either one.
+
 ## Statics and threads
 
 Static storage holds [`Value`]'s, so like the [`Vm`] itself it cannot be shared
@@ -187,6 +227,7 @@ One consequence is worth calling out: [`Function::into_sync`] produces a
 [`const`]: ./items_imports.md
 [`Function::into_sync`]: https://docs.rs/rune/latest/rune/runtime/struct.Function.html#method.into_sync
 [`Globals`]: https://docs.rs/rune/latest/rune/runtime/struct.Globals.html
+[`Statics`]: https://docs.rs/rune/latest/rune/struct.Statics.html
 [`SyncFunction`]: https://docs.rs/rune/latest/rune/runtime/struct.SyncFunction.html
 [`Unit`]: https://docs.rs/rune/latest/rune/struct.Unit.html
 [`Value`]: https://docs.rs/rune/latest/rune/runtime/struct.Value.html
