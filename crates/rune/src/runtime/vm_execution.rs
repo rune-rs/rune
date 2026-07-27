@@ -12,8 +12,8 @@ use crate::shared::AssertSend;
 use crate::sync::Arc;
 
 use super::{
-    Address, GeneratorState, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics, VmError,
-    VmErrorKind, VmHalt, VmHaltInfo,
+    Address, GeneratorState, Globals, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics,
+    VmError, VmErrorKind, VmHalt, VmHaltInfo,
 };
 
 static COMPLETE_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
@@ -60,6 +60,7 @@ impl fmt::Display for ExecutionState {
 pub(crate) struct VmExecutionState {
     pub(crate) context: Option<Arc<RuntimeContext>>,
     pub(crate) unit: Option<Arc<Unit>>,
+    pub(crate) globals: Option<Globals>,
 }
 
 /// The execution environment for a virtual machine.
@@ -262,7 +263,12 @@ where
         let vm = self.vm.as_mut();
         let context = state.context.map(|c| replace(vm.context_mut(), c));
         let unit = state.unit.map(|u| replace(vm.unit_mut(), u));
-        self.states.try_push(VmExecutionState { context, unit })?;
+        let globals = state.globals.map(|g| replace(vm.globals_mut(), g));
+        self.states.try_push(VmExecutionState {
+            context,
+            unit,
+            globals,
+        })?;
         Ok(())
     }
 
@@ -283,6 +289,10 @@ where
             *vm.unit_mut() = unit;
         }
 
+        if let Some(globals) = state.globals {
+            *vm.globals_mut() = globals;
+        }
+
         Ok(())
     }
 }
@@ -291,7 +301,8 @@ impl VmExecution<&mut Vm> {
     /// Convert the current execution into one which owns its virtual machine.
     pub fn into_owned(self) -> VmExecution<Vm> {
         let stack = take(self.vm.stack_mut());
-        let head = Vm::with_stack(self.vm.context().clone(), self.vm.unit().clone(), stack);
+        let head = Vm::with_stack(self.vm.context().clone(), self.vm.unit().clone(), stack)
+            .with_globals(self.vm.globals().clone());
 
         VmExecution {
             vm: head,

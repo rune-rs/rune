@@ -1109,6 +1109,49 @@ fn item_const(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemConst) -> compile::Re
 }
 
 #[instrument_ast(span = ast)]
+fn item_static(idx: &mut Indexer<'_, '_>, mut ast: ast::ItemStatic) -> compile::Result<()> {
+    let mut p = attrs::Parser::new(&ast.attributes)?;
+
+    let docs = Doc::collect_from(resolve_context!(idx.q), &mut p, &ast.attributes)?;
+
+    if let Some(first) = p.remaining(&ast.attributes).next() {
+        return Err(compile::Error::msg(
+            first,
+            "Attributes on statics are not supported",
+        ));
+    }
+
+    let name = ast.name.resolve(resolve_context!(idx.q))?;
+    let guard = idx.items.push_name(name.as_ref())?;
+
+    let item_meta = idx.insert_new_item(&ast, ast_to_visibility(&ast.visibility)?, &docs)?;
+    let idx_item = idx.item.replace(item_meta.item);
+
+    ast.id = item_meta.item;
+
+    let descriptive_span = ast.descriptive_span();
+
+    let init = match &mut ast.init {
+        Some(init) => {
+            let last = idx.nested_item.replace(descriptive_span);
+            expr(idx, &mut init.expr)?;
+            idx.nested_item = last;
+            Some(indexing::ConstExpr::Ast(Box::try_new(
+                init.expr.try_clone()?,
+            )?))
+        }
+        None => None,
+    };
+
+    idx.q
+        .index_static(item_meta, indexing::StaticItem { init })?;
+
+    idx.item = idx_item;
+    idx.items.pop(guard).with_span(&ast)?;
+    Ok(())
+}
+
+#[instrument_ast(span = ast)]
 fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
     match ast {
         ast::Item::Enum(item) => {
@@ -1125,6 +1168,9 @@ fn item(idx: &mut Indexer<'_, '_>, ast: ast::Item) -> compile::Result<()> {
         }
         ast::Item::Mod(item) => {
             item_mod(idx, item)?;
+        }
+        ast::Item::Static(item) => {
+            item_static(idx, item)?;
         }
         ast::Item::Const(item) => {
             item_const(idx, item)?;

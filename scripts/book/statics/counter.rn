@@ -1,0 +1,10 @@
+static COUNTER = 0;
+
+fn bump() {
+    COUNTER += 1;
+    COUNTER
+}
+
+println!("{}", bump());
+println!("{}", bump());
+println!("{}", bump());

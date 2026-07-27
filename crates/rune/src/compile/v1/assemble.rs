@@ -1311,6 +1311,7 @@ fn expr<'a, 'hir>(
         hir::ExprKind::Format(format) => builtin_format(cx, format, needs)?,
         hir::ExprKind::AsyncBlock(hir) => expr_async_block(cx, hir, span, needs)?,
         hir::ExprKind::Const(id) => const_item(cx, id, span, needs)?,
+        hir::ExprKind::Static(hash) => static_item(cx, hash, span, needs)?,
         hir::ExprKind::Path => {
             return Err(compile::Error::msg(
                 span,
@@ -1337,6 +1338,25 @@ fn expr_assign<'a, 'hir>(
             let mut needs = Address::assigned(var.span, cx.scopes, var.addr);
             converge!(expr(cx, &hir.rhs, &mut needs)?, free(needs));
             needs.free()?;
+            true
+        }
+        // <static> = <value>
+        hir::ExprKind::Static(hash) => {
+            let slot = cx.q.unit.global_slot(hash).with_span(span)?;
+
+            let mut value = cx.scopes.defer(&hir.rhs);
+            converge!(expr(cx, &hir.rhs, &mut value)?, free(value));
+            let value = value.into_addr()?;
+
+            cx.asm.push(
+                inst::Kind::GlobalSet {
+                    slot,
+                    value: value.addr(),
+                },
+                span,
+            )?;
+
+            value.free()?;
             true
         }
         // <expr>.<field> = <value>
@@ -1669,6 +1689,10 @@ fn compile_assign_binop<'a, 'hir>(
     span: &'hir dyn Spanned,
     needs: &mut dyn Needs<'a, 'hir>,
 ) -> compile::Result<Asm<'hir>> {
+    // A static isn't addressable, so it is read into a scratch address which is
+    // written back to the slot once the operation has been applied.
+    let mut writeback = None;
+
     let (target, value) = match lhs.kind {
         // <var> <op> <expr>
         hir::ExprKind::Variable(name) => {
@@ -1679,6 +1703,23 @@ fn compile_assign_binop<'a, 'hir>(
             let value = value.into_addr()?;
 
             let inst_target = InstTarget::Address(var.addr);
+
+            (inst_target, value)
+        }
+        // <static> <op> <expr>
+        hir::ExprKind::Static(hash) => {
+            let slot = cx.q.unit.global_slot(hash).with_span(span)?;
+
+            let mut target = cx.scopes.defer(lhs);
+            converge!(static_item(cx, hash, lhs, &mut target)?, free(target));
+            let target = target.into_addr()?;
+
+            let mut value = cx.scopes.defer(rhs);
+            converge!(expr(cx, rhs, &mut value)?, free(target, value));
+            let value = value.into_addr()?;
+
+            let inst_target = InstTarget::Address(target.addr());
+            writeback = Some((slot, target));
 
             (inst_target, value)
         }
@@ -1770,6 +1811,18 @@ fn compile_assign_binop<'a, 'hir>(
 
     cx.asm.push(inst, span)?;
 
+    if let Some((slot, target)) = writeback {
+        cx.asm.push(
+            inst::Kind::GlobalSet {
+                slot,
+                value: target.addr(),
+            },
+            span,
+        )?;
+
+        target.free()?;
+    }
+
     if let Some(out) = needs.try_alloc_output()? {
         cx.asm.push(inst::Kind::unit(out), span)?;
     }
@@ -1832,6 +1885,23 @@ fn const_item<'a, 'hir>(
 
     let const_value = const_value.try_clone().with_span(span)?;
     const_(cx, &const_value, span, needs)?;
+    Ok(Asm::new(span, ()))
+}
+
+/// Assemble reading a static item out of the global storage of the running vm.
+#[instrument_ast(span = span)]
+fn static_item<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
+    hash: Hash,
+    span: &'hir dyn Spanned,
+    needs: &mut dyn Needs<'a, 'hir>,
+) -> compile::Result<Asm<'hir>> {
+    let slot = cx.q.unit.global_slot(hash).with_span(span)?;
+
+    if let Some(out) = needs.try_alloc_output()? {
+        cx.asm.push(inst::Kind::GlobalGet { slot, out }, span)?;
+    }
+
     Ok(Asm::new(span, ()))
 }
 

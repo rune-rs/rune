@@ -4,7 +4,7 @@ use crate::ast::Spanned;
 use crate::compile::ir;
 use crate::compile::ir::scopes::MissingLocal;
 use crate::compile::meta;
-use crate::compile::{self, IrErrorKind, ItemId, ModId, WithSpan};
+use crate::compile::{self, ErrorKind, IrErrorKind, ItemId, ModId, WithSpan};
 use crate::hir;
 use crate::query::{Query, Used};
 use crate::runtime::{self, ConstValue, Object, OwnedTuple, Repr, Value};
@@ -120,6 +120,14 @@ impl Interpreter<'_, '_> {
                         };
 
                         return Ok(const_value.to_value_with(self.q.context).with_span(span)?);
+                    }
+                    meta::Kind::Static => {
+                        return Err(compile::Error::new(
+                            span,
+                            ErrorKind::StaticInConstContext {
+                                item: self.q.pool.item(meta.item_meta.item).try_to_owned()?,
+                            },
+                        ));
                     }
                     _ => {
                         return Err(compile::Error::new(

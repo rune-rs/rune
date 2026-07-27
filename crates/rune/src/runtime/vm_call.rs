@@ -1,8 +1,8 @@
 use crate::alloc::prelude::*;
 use crate::runtime::vm_execution::VmExecutionState;
 use crate::runtime::{
-    Call, Future, Generator, Output, RuntimeContext, Stack, Stream, Unit, Value, Vm, VmError,
-    VmErrorKind, VmExecution,
+    Call, Future, Generator, Globals, Output, RuntimeContext, Stack, Stream, Unit, Value, Vm,
+    VmError, VmErrorKind, VmExecution,
 };
 use crate::sync::Arc;
 
@@ -16,6 +16,9 @@ pub(crate) struct VmCall {
     context: Option<Arc<RuntimeContext>>,
     /// Is set if the unit differs for the call for the current virtual machine.
     unit: Option<Arc<Unit>>,
+    /// Is set if the static item storage differs for the call for the current
+    /// virtual machine.
+    globals: Option<Globals>,
     /// The output to store the result of the call into.
     out: Output,
 }
@@ -25,12 +28,14 @@ impl VmCall {
         call: Call,
         context: Option<Arc<RuntimeContext>>,
         unit: Option<Arc<Unit>>,
+        globals: Option<Globals>,
         out: Output,
     ) -> Self {
         Self {
             call,
             context,
             unit,
+            globals,
             out,
         }
     }
@@ -55,6 +60,7 @@ impl VmCall {
                 execution.push_state(VmExecutionState {
                     context: self.context,
                     unit: self.unit,
+                    globals: self.globals,
                 })?;
 
                 return Ok(());
@@ -88,8 +94,9 @@ impl VmCall {
 
         let context = self.context.unwrap_or_else(|| vm.context().clone());
         let unit = self.unit.unwrap_or_else(|| vm.unit().clone());
+        let globals = self.globals.unwrap_or_else(|| vm.globals().clone());
 
-        let mut vm = Vm::with_stack(context, unit, new_stack);
+        let mut vm = Vm::with_stack(context, unit, new_stack).with_globals(globals);
         vm.set_ip(ip);
         Ok(vm)
     }

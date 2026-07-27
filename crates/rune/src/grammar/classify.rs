@@ -17,7 +17,7 @@ pub(crate) fn classify(node: &Node<'_>) -> (bool, NodeClass) {
         Item => {
             for node in node.children() {
                 let needs_semi = match node.kind() {
-                    ItemConst => return (true, NodeClass::Const),
+                    ItemConst | ItemStatic => return (true, NodeClass::Const),
                     ItemStruct => node
                         .children()
                         .rev()

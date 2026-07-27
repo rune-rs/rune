@@ -1,0 +1,10 @@
+static SEEN = [];
+
+fn record(value) {
+    SEEN.push(value);
+}
+
+record(1);
+record(2);
+
+println!("{SEEN:?}");

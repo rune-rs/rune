@@ -7,5 +7,5 @@ fn foo() {
 let gen = foo();
 
 while let Some(value) = gen.next() {
-    println!("from generator: {}", value);
+    println!("from generator: {value}");
 }

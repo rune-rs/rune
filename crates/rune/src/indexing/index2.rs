@@ -87,6 +87,7 @@ enum State<'a> {
     Module(Guard, IndexItem),
     Closure(Guard, IndexItem, Option<ast::Async>, Option<ast::Move>),
     Const(Guard, IndexItem, Option<Span>, Node<'a>, ExprSupport),
+    Static(Guard, IndexItem, Option<Span>, Node<'a>, ExprSupport),
 }
 
 struct Processor<'a> {
@@ -227,6 +228,22 @@ impl<'a> Processor<'a> {
                         item_meta,
                         indexing::ConstExpr::Node(node.node_at(idx.source_id, idx.tree.clone())),
                     )?;
+
+                    self.expr = expr;
+
+                    idx.items.pop(guard).with_span(&node)?;
+                    idx.item = idx_item;
+                    idx.nested_item = nested_item;
+                }
+                State::Static(guard, idx_item, nested_item, node, expr) => {
+                    let item_meta = idx.q.item_for("static", idx.item.id).with_span(self.span)?;
+
+                    let init = Some(indexing::ConstExpr::Node(
+                        node.node_at(idx.source_id, idx.tree.clone()),
+                    ));
+
+                    idx.q
+                        .index_static(item_meta, indexing::StaticItem { init })?;
 
                     self.expr = expr;
 
@@ -642,6 +659,9 @@ impl<'a> Processor<'a> {
             ItemConst => {
                 self.item_const(idx, p, mods, attrs)?;
             }
+            ItemStatic => {
+                self.item_static(idx, p, mods, attrs)?;
+            }
             ItemUse => {
                 item_use(idx, p, mods, attrs)?;
             }
@@ -807,6 +827,59 @@ impl<'a> Processor<'a> {
 
         self.stack
             .try_push(State::Const(guard, idx_item, last, value.clone(), expr))?;
+
+        self.stack.try_push(State::Stream(value.into_stream()))?;
+
+        mods.deny_all(idx)?;
+        attrs.deny_non_docs(idx)?;
+        Ok(())
+    }
+
+    fn item_static(
+        &mut self,
+        idx: &mut Indexer<'_, '_>,
+        p: &mut Stream<'a>,
+        mut mods: Mods,
+        attrs: Attrs,
+    ) -> Result<()> {
+        let expr = replace(&mut self.expr, ExprSupport::Yes);
+
+        if mods.static_token.take().is_none() {
+            idx.error(Error::msg(&*p, "missing `static` modifier"))?;
+        }
+
+        let (guard, name) = push_name(idx, p, "static")?;
+
+        // A static without an initializer is indexed immediately, since there
+        // is no expression to walk.
+        if let MaybeNode::None = p.eat(K![=]) {
+            let span = match &name {
+                Some(name) => name.span(),
+                None => self.span,
+            };
+
+            let item_meta = idx.insert_new_item(&span, mods.visibility.take(), &attrs.docs)?;
+
+            idx.q
+                .index_static(item_meta, indexing::StaticItem { init: None })?;
+
+            idx.items.pop(guard).with_span(span)?;
+
+            self.expr = expr;
+            mods.deny_all(idx)?;
+            attrs.deny_non_docs(idx)?;
+            return Ok(());
+        }
+
+        let value = p.expect(Expr)?;
+
+        let item_meta = idx.insert_new_item(&value, mods.visibility.take(), &attrs.docs)?;
+
+        let idx_item = idx.item.replace(item_meta.item);
+        let last = idx.nested_item.replace(value.span());
+
+        self.stack
+            .try_push(State::Static(guard, idx_item, last, value.clone(), expr))?;
 
         self.stack.try_push(State::Stream(value.into_stream()))?;
 
@@ -1310,6 +1383,7 @@ struct Mods {
     span: Span,
     visibility: Visibility,
     const_token: Option<ast::Const>,
+    static_token: Option<ast::Static>,
     async_token: Option<ast::Async>,
     move_token: Option<ast::Move>,
 }
@@ -1321,6 +1395,7 @@ impl Mods {
             span: p.span().head(),
             visibility: Visibility::Inherited,
             const_token: None,
+            static_token: None,
             async_token: None,
             move_token: None,
         };
@@ -1355,6 +1430,14 @@ impl Mods {
             }
         }
 
+        while let Some(tok) = p.try_ast::<ast::Static>()? {
+            if mods.static_token.is_some() {
+                cx.error(Error::msg(tok, "duplicate `static` modifier"))?;
+            } else {
+                mods.static_token = Some(tok);
+            }
+        }
+
         while let Some(tok) = p.try_ast::<ast::Async>()? {
             if mods.async_token.is_some() {
                 cx.error(Error::msg(tok, "duplicate `async` modifier"))?;
@@ -1382,6 +1465,10 @@ impl Mods {
 
         if let Some(span) = self.const_token {
             cx.error(Error::msg(span, "unsupported `const` modifier"))?;
+        }
+
+        if let Some(span) = self.static_token {
+            cx.error(Error::msg(span, "unsupported `static` modifier"))?;
         }
 
         if let Some(span) = self.async_token {

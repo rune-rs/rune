@@ -523,6 +523,8 @@ mod scripts;
 #[cfg(not(miri))]
 mod static_typing;
 #[cfg(not(miri))]
+mod statics;
+#[cfg(not(miri))]
 mod tuple;
 #[cfg(not(miri))]
 mod type_name_native;

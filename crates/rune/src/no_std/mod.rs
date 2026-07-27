@@ -8,6 +8,7 @@ use core::ptr::NonNull;
 pub struct RawEnv {
     pub(crate) context: Option<NonNull<()>>,
     pub(crate) unit: Option<NonNull<()>>,
+    pub(crate) globals: Option<NonNull<()>>,
     pub(crate) diagnostics: Option<NonNull<()>>,
 }
 
@@ -17,6 +18,7 @@ impl RawEnv {
         RawEnv {
             context: None,
             unit: None,
+            globals: None,
             diagnostics: None,
         }
     }

@@ -22,6 +22,7 @@ impl ExprCx for ErrorCx {
 struct Modifiers {
     is_pub: bool,
     is_const: bool,
+    is_static: bool,
     is_async: bool,
 }
 
@@ -228,6 +229,11 @@ fn stmt(p: &mut Parser<'_>) -> Result<()> {
             p.close_at(&inner_c, ItemConst)?;
             Item
         }
+        K![ident] if m.is_static => {
+            item_static(p)?;
+            p.close_at(&inner_c, ItemStatic)?;
+            Item
+        }
         _ => {
             labels(p)?;
 
@@ -252,6 +258,17 @@ fn item_const(p: &mut Parser<'_>) -> Result<()> {
     p.bump()?;
     p.bump_if(K![=])?;
     expr(p)?;
+    Ok(())
+}
+
+#[tracing::instrument(skip_all)]
+fn item_static(p: &mut Parser<'_>) -> Result<()> {
+    p.bump()?;
+
+    if p.bump_if(K![=])? {
+        expr(p)?;
+    }
+
     Ok(())
 }
 
@@ -336,6 +353,10 @@ fn modifiers(p: &mut Parser<'_>) -> Result<Modifiers> {
             }
             K![const] => {
                 mods.is_const = true;
+                p.bump()?;
+            }
+            K![static] => {
+                mods.is_static = true;
                 p.bump()?;
             }
             K![async] => {

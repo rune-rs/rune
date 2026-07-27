@@ -195,6 +195,10 @@ fn item<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
                 modifiers(fmt, p)?;
                 item_const(fmt, p)?;
             }
+            ItemStatic => {
+                modifiers(fmt, p)?;
+                item_static(fmt, p)?;
+            }
             _ => return Err(p.expected(Item)),
         }
 
@@ -1569,6 +1573,19 @@ fn item_const<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.one(K![=]).fmt(fmt)?;
     fmt.ws()?;
     p.pump()?.parse(|p| expr(fmt, p))?;
+    Ok(())
+}
+
+fn item_static<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    p.pump()?.fmt(fmt)?;
+
+    if let MaybeNode::Some(eq) = p.eat(K![=]) {
+        fmt.ws()?;
+        eq.fmt(fmt)?;
+        fmt.ws()?;
+        p.pump()?.parse(|p| expr(fmt, p))?;
+    }
+
     Ok(())
 }
 

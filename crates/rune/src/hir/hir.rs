@@ -230,6 +230,8 @@ pub(crate) enum ExprKind<'hir> {
     Template(&'hir BuiltInTemplate<'hir>),
     Format(&'hir BuiltInFormat<'hir>),
     Const(Hash),
+    /// A static item, read from the global storage of the running vm.
+    Static(Hash),
 }
 
 /// An internally resolved template.

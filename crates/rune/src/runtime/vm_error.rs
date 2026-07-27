@@ -7,7 +7,7 @@ use crate::alloc::error::CustomError;
 use crate::alloc::{self, String};
 use crate::runtime::unit::{BadInstruction, BadJump};
 use crate::sync::Arc;
-use crate::{vm_error, Any, Hash, ItemBuf};
+use crate::{vm_error, Any, Hash, Item, ItemBuf};
 
 use super::{
     AccessError, AnyObjError, AnyObjErrorKind, AnySequenceTakeError, BoxedPanic, CallFrame,
@@ -519,6 +519,18 @@ pub(crate) enum VmErrorKind {
     MissingDropSet {
         set: usize,
     },
+    MissingGlobals {
+        slot: usize,
+        name: Option<ItemBuf>,
+    },
+    BadGlobalSlot {
+        slot: usize,
+        name: Option<ItemBuf>,
+    },
+    UninitializedGlobal {
+        slot: usize,
+        name: Option<ItemBuf>,
+    },
     MissingRtti {
         hash: Hash,
     },
@@ -744,6 +756,18 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MissingDropSet { set } => {
                 write!(f, "Static drop set {set} does not exist")
+            }
+            VmErrorKind::MissingGlobals { slot, name } => {
+                write!(f, "No storage has been configured for the static ")?;
+                fmt_global(f, *slot, name.as_deref())
+            }
+            VmErrorKind::BadGlobalSlot { slot, name } => {
+                write!(f, "The configured storage has no slot for the static ")?;
+                fmt_global(f, *slot, name.as_deref())
+            }
+            VmErrorKind::UninitializedGlobal { slot, name } => {
+                write!(f, "Reading uninitialized static ")?;
+                fmt_global(f, *slot, name.as_deref())
             }
             VmErrorKind::MissingRtti { hash } => {
                 write!(f, "Missing runtime information for type with hash `{hash}`")
@@ -1099,5 +1123,14 @@ impl fmt::Debug for VmIntegerRepr {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.kind.fmt(f)
+    }
+}
+
+/// Format a static item for diagnostics, using its name if debug information
+/// was available and falling back to its slot if it wasn't.
+fn fmt_global(f: &mut fmt::Formatter<'_>, slot: usize, name: Option<&Item>) -> fmt::Result {
+    match name {
+        Some(name) => write!(f, "`{name}` (slot {slot})"),
+        None => write!(f, "in slot {slot}"),
     }
 }

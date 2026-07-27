@@ -28,6 +28,11 @@ pub struct DebugInfo {
     pub functions_rev: HashMap<usize, Hash>,
     /// Hash to identifier.
     pub hash_to_ident: HashMap<Hash, Box<str>>,
+    /// Static slots, indexed by slot.
+    ///
+    /// This is empty if debug information has been disabled, in which case
+    /// diagnostics have to refer to a static by its slot index.
+    pub globals: Vec<DebugGlobal>,
 }
 
 impl DebugInfo {
@@ -46,6 +51,36 @@ impl DebugInfo {
     /// Access an identifier for the given hash - if it exists.
     pub fn ident_for_hash(&self, hash: Hash) -> Option<&str> {
         Some(self.hash_to_ident.get(&hash)?)
+    }
+
+    /// Access debug information for the given static slot - if it exists.
+    pub fn global(&self, slot: usize) -> Option<&DebugGlobal> {
+        self.globals.get(slot)
+    }
+}
+
+/// Debug information for a static slot.
+#[derive(Debug, TryClone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[non_exhaustive]
+pub struct DebugGlobal {
+    /// The path of the static item occupying the slot.
+    pub path: ItemBuf,
+}
+
+impl DebugGlobal {
+    /// Construct a new static slot description.
+    #[inline]
+    pub fn new(path: ItemBuf) -> Self {
+        Self { path }
+    }
+}
+
+impl fmt::Display for DebugGlobal {
+    #[inline]
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(fmt, "{}", self.path)
     }
 }
 

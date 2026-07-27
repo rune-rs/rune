@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::{anyhow, Result};
 
 use crate::cli::{AssetKind, CommandBase, Config, ExitCode, Io, SharedFlags};
-use crate::runtime::{UnitStorage, VmError, VmExecution, VmOutcome};
+use crate::runtime::{Globals, UnitStorage, VmError, VmExecution, VmOutcome};
 use crate::sync::Arc;
 use crate::{Context, Hash, Sources, Unit, Value, Vm};
 
@@ -189,6 +189,7 @@ pub(super) async fn run(
         let mut drop_sets = unit.iter_static_drop_sets().peekable();
         let mut keys = unit.iter_static_object_keys().peekable();
         let mut constants = unit.iter_constants().peekable();
+        let mut globals = unit.iter_globals().peekable();
 
         if args.dump_functions && functions.peek().is_some() {
             writeln!(io.stdout, "# dynamic functions")?;
@@ -241,13 +242,25 @@ pub(super) async fn run(
                 writeln!(io.stdout, "{hash} = {constant:?}")?;
             }
         }
+
+        if globals.peek().is_some() {
+            writeln!(io.stdout, "# statics")?;
+
+            for (slot, init) in globals {
+                match unit.debug_info().and_then(|d| d.global(slot)) {
+                    Some(global) => writeln!(io.stdout, "{slot} = {global} ({init:?})")?,
+                    None => writeln!(io.stdout, "{slot} = {init:?}")?,
+                }
+            }
+        }
     }
 
     let runtime = Arc::try_new(context.runtime()?)?;
 
     let last = Instant::now();
 
-    let mut vm = Vm::new(runtime, unit);
+    let globals = Globals::new(unit.clone())?;
+    let mut vm = Vm::new(runtime, unit).with_globals(globals);
     let mut execution: VmExecution<_> = vm.execute(entry, ())?;
 
     let result = if args.trace {

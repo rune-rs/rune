@@ -9,6 +9,7 @@ use crate::hash::{Hash, IntoHash, ToTypeHash};
 use crate::modules::{cmp, option, result};
 use crate::runtime;
 use crate::sync::Arc;
+use crate::ItemBuf;
 
 mod ops;
 use self::ops::*;
@@ -16,12 +17,13 @@ use self::ops::*;
 use super::{
     budget, inst, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow,
     DynArgs, DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
-    GeneratorState, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp, InstRange,
-    InstShiftOp, InstTarget, InstValue, Object, Output, OwnedTuple, Pair, Panic, Protocol,
-    ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Repr,
-    RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type, TypeHash, TypeInfo,
-    TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError,
-    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution,
+    GeneratorState, Globals, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp,
+    InstRange, InstShiftOp, InstTarget, InstValue, Object, Output, OwnedTuple, Pair, Panic,
+    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type,
+    TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
+    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome,
+    VmSendExecution,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -113,6 +115,8 @@ pub struct Vm {
     stack: Stack,
     /// Frames relative to the stack.
     call_frames: alloc::Vec<CallFrame>,
+    /// Storage for static items declared by the unit.
+    globals: Globals,
 }
 
 impl Vm {
@@ -130,6 +134,11 @@ impl Vm {
     }
 
     /// Construct a new virtual machine with a custom stack.
+    ///
+    /// The virtual machine starts out without any storage for static items. If
+    /// the unit declares any, use [`with_globals`] to configure it.
+    ///
+    /// [`with_globals`]: Vm::with_globals
     pub const fn with_stack(context: Arc<RuntimeContext>, unit: Arc<Unit>, stack: Stack) -> Self {
         Self {
             context,
@@ -138,7 +147,20 @@ impl Vm {
             last_ip_len: 0,
             stack,
             call_frames: alloc::Vec::new(),
+            globals: Globals::empty(),
         }
+    }
+
+    /// Configure the storage used for static items declared by the unit.
+    ///
+    /// The storage is a handle, so the caller can hold on to a clone of it in
+    /// order to read and write static items while this virtual machine runs.
+    ///
+    /// See [`Globals`] for an example.
+    #[inline]
+    pub fn with_globals(mut self, globals: Globals) -> Self {
+        self.globals = globals;
+        self
     }
 
     /// Construct a vm with a default empty [RuntimeContext]. This is useful
@@ -161,6 +183,28 @@ impl Vm {
     /// Test if the virtual machine is the same context.
     pub fn is_same_unit(&self, unit: &Arc<Unit>) -> bool {
         Arc::ptr_eq(&self.unit, unit)
+    }
+
+    /// Test if the virtual machine uses the same static item storage.
+    pub fn is_same_globals(&self, globals: &Globals) -> bool {
+        self.globals.is_same(globals)
+    }
+
+    /// Access the storage for static items declared by the unit.
+    #[inline]
+    pub fn globals(&self) -> &Globals {
+        &self.globals
+    }
+
+    /// Access the storage for static items declared by the unit mutably.
+    ///
+    /// Note that this can be used to swap out the [`Globals`] of a running vm,
+    /// in the same way [`unit_mut`] swaps out the [`Unit`].
+    ///
+    /// [`unit_mut`]: Vm::unit_mut
+    #[inline]
+    pub fn globals_mut(&mut self) -> &mut Globals {
+        &mut self.globals
     }
 
     /// Set  the current instruction pointer.
@@ -585,7 +629,7 @@ impl Vm {
     }
 
     fn called_function_hook(&self, hash: Hash) -> Result<(), VmError> {
-        runtime::env::exclusive(|_, _, diagnostics| {
+        runtime::env::exclusive(|_, _, _, diagnostics| {
             if let Some(diagnostics) = diagnostics {
                 diagnostics.function_used(hash, self.ip())?;
             }
@@ -1031,7 +1075,8 @@ impl Vm {
 
         if let Some(at) = out.as_addr() {
             let stack = values.iter_mut().map(take).try_collect::<Stack>()?;
-            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
+            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack)
+                .with_globals(self.globals.clone());
             vm.ip = offset;
             *self.stack.at_mut(at)? = Value::try_from(Generator::new(vm))?;
         } else {
@@ -1053,7 +1098,8 @@ impl Vm {
 
         if let Some(at) = out.as_addr() {
             let stack = values.iter_mut().map(take).try_collect::<Stack>()?;
-            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
+            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack)
+                .with_globals(self.globals.clone());
             vm.ip = offset;
             *self.stack.at_mut(at)? = Value::try_from(Stream::new(vm))?;
         } else {
@@ -1075,7 +1121,8 @@ impl Vm {
 
         if let Some(at) = out.as_addr() {
             let stack = values.iter_mut().map(take).try_collect::<Stack>()?;
-            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack);
+            let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack)
+                .with_globals(self.globals.clone());
             vm.ip = offset;
             let mut execution = vm.into_execution();
             let future = Future::new(async move { execution.resume().await?.into_complete() })?;
@@ -1981,6 +2028,7 @@ impl Vm {
             } => Function::from_vm_offset(
                 self.context.clone(),
                 self.unit.clone(),
+                self.globals.clone(),
                 *offset,
                 *call,
                 *args,
@@ -2346,6 +2394,68 @@ impl Vm {
         Ok(())
     }
 
+    /// Resolve the name of a static slot from debug information, if it's
+    /// available, so that diagnostics can refer to it by name.
+    fn global_name(&self, slot: usize) -> Option<ItemBuf> {
+        let debug = self.unit.debug_info()?;
+        debug.global(slot)?.path.try_clone().ok()
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_global_get(&mut self, slot: usize, out: Output) -> Result<(), VmError> {
+        let value = match self.globals.try_get_at(slot) {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                // The slot exists but has never been assigned, so evaluate the
+                // initializer declared for it, if it has one.
+                let Some(init) = self.unit.global_init(slot) else {
+                    return Err(VmError::new(VmErrorKind::UninitializedGlobal {
+                        slot,
+                        name: self.global_name(slot),
+                    }));
+                };
+
+                let value = init.to_value_with(&*self.context)?;
+                self.globals.set_at(slot, value.clone()).map_err(|_| {
+                    VmError::new(VmErrorKind::BadGlobalSlot {
+                        slot,
+                        name: self.global_name(slot),
+                    })
+                })?;
+                value
+            }
+            Err(..) => {
+                let name = self.global_name(slot);
+
+                return Err(VmError::new(if self.globals.is_configured() {
+                    VmErrorKind::BadGlobalSlot { slot, name }
+                } else {
+                    VmErrorKind::MissingGlobals { slot, name }
+                }));
+            }
+        };
+
+        self.stack.store(out, value)?;
+        Ok(())
+    }
+
+    #[cfg_attr(feature = "bench", inline(never))]
+    fn op_global_set(&mut self, slot: usize, value: Address) -> Result<(), VmError> {
+        let value = self.stack.at(value).clone();
+
+        self.globals.set_at(slot, value).map_err(|_| {
+            let name = self.global_name(slot);
+
+            VmError::new(if self.globals.is_configured() {
+                VmErrorKind::BadGlobalSlot { slot, name }
+            } else {
+                VmErrorKind::MissingGlobals { slot, name }
+            })
+        })?;
+
+        Ok(())
+    }
+
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_bytes(&mut self, slot: usize, out: Output) -> Result<(), VmError> {
         let Some(bytes) = self.unit.lookup_bytes(slot) else {
@@ -2699,6 +2809,7 @@ impl Vm {
         let function = Function::from_vm_closure(
             self.context.clone(),
             self.unit.clone(),
+            self.globals.clone(),
             *offset,
             *call,
             *args,
@@ -2897,7 +3008,12 @@ impl Vm {
     where
         F: FnOnce() -> T,
     {
-        let _guard = runtime::env::Guard::new(self.context.clone(), self.unit.clone(), None);
+        let _guard = runtime::env::Guard::new(
+            self.context.clone(),
+            self.unit.clone(),
+            self.globals.clone(),
+            None,
+        );
         f()
     }
 
@@ -2918,7 +3034,12 @@ impl Vm {
 
         // NB: set up environment so that native function can access context and
         // unit.
-        let _guard = runtime::env::Guard::new(self.context.clone(), self.unit.clone(), diagnostics);
+        let _guard = runtime::env::Guard::new(
+            self.context.clone(),
+            self.unit.clone(),
+            self.globals.clone(),
+            diagnostics,
+        );
 
         let mut budget = budget::acquire();
 
@@ -3112,6 +3233,12 @@ impl Vm {
                 inst::Kind::String { slot, out } => {
                     self.op_string(slot, out)?;
                 }
+                inst::Kind::GlobalGet { slot, out } => {
+                    self.op_global_get(slot, out)?;
+                }
+                inst::Kind::GlobalSet { slot, value } => {
+                    self.op_global_set(slot, value)?;
+                }
                 inst::Kind::Bytes { slot, out } => {
                     self.op_bytes(slot, out)?;
                 }
@@ -3227,6 +3354,7 @@ impl TryClone for Vm {
             last_ip_len: self.last_ip_len,
             stack: self.stack.try_clone()?,
             call_frames: self.call_frames.try_clone()?,
+            globals: self.globals.clone(),
         })
     }
 }

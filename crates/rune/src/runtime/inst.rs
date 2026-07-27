@@ -678,6 +678,38 @@ pub(crate) enum Kind {
         /// Where to store the bytes.
         out: Output,
     },
+    /// Load the value of a static item from the configured global storage.
+    ///
+    /// If the slot has not been initialized yet, the initializer declared for
+    /// it in the unit is evaluated and stored first.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// => <value>
+    /// ```
+    #[cfg_attr(feature = "musli", musli(packed))]
+    GlobalGet {
+        /// The static slot to load the value from.
+        slot: usize,
+        /// Where to store the value.
+        out: Output,
+    },
+    /// Store a value into a static item in the configured global storage.
+    ///
+    /// # Operation
+    ///
+    /// ```text
+    /// <value>
+    /// =>
+    /// ```
+    #[cfg_attr(feature = "musli", musli(packed))]
+    GlobalSet {
+        /// The static slot to store the value in.
+        slot: usize,
+        /// The address of the value being stored.
+        value: Address,
+    },
     /// Pop the given number of values from the stack, and concatenate a string
     /// from them.
     ///

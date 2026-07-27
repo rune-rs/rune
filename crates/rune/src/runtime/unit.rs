@@ -89,6 +89,12 @@ pub struct Logic<S = DefaultStorage> {
     rtti: hash::Map<Arc<Rtti>>,
     /// Named constants
     constants: hash::Map<ConstValue>,
+    /// Initializers for statics declared in this unit, indexed by slot.
+    ///
+    /// A slot without an initializer has to be assigned before it can be read.
+    globals: Vec<Option<ConstValue>>,
+    /// Maps the type hash of a static item to the slot it has been assigned.
+    globals_rev: hash::Map<usize>,
 }
 
 impl<S> Unit<S> {
@@ -114,6 +120,8 @@ impl<S> Unit<S> {
         rtti: hash::Map<Arc<Rtti>>,
         debug: Option<Box<DebugInfo>>,
         constants: hash::Map<ConstValue>,
+        globals: Vec<Option<ConstValue>>,
+        globals_rev: hash::Map<usize>,
     ) -> Self {
         Self {
             logic: Logic {
@@ -125,6 +133,8 @@ impl<S> Unit<S> {
                 drop_sets,
                 rtti,
                 constants,
+                globals,
+                globals_rev,
             },
             debug,
         }
@@ -236,6 +246,43 @@ impl<S> Unit<S> {
     #[inline]
     pub(crate) fn constant(&self, hash: &Hash) -> Option<&ConstValue> {
         self.logic.constants.get(hash)
+    }
+
+    /// The number of static slots declared in this unit.
+    ///
+    /// This is the size that a [`Globals`] storage constructed for this unit
+    /// will have.
+    ///
+    /// [`Globals`]: crate::runtime::Globals
+    #[inline]
+    pub fn globals_len(&self) -> usize {
+        self.logic.globals.len()
+    }
+
+    /// Lookup the slot assigned to the static item with the given type hash.
+    ///
+    /// This is how a caller addresses a static by item without having to know
+    /// its slot.
+    #[inline]
+    pub fn global_slot(&self, hash: &Hash) -> Option<usize> {
+        self.logic.globals_rev.get(hash).copied()
+    }
+
+    /// Lookup the initializer for the given static slot, if it has one.
+    #[inline]
+    pub(crate) fn global_init(&self, slot: usize) -> Option<&ConstValue> {
+        self.logic.globals.get(slot)?.as_ref()
+    }
+
+    /// Iterate over all static slots in the unit.
+    #[cfg(feature = "cli")]
+    #[inline]
+    pub(crate) fn iter_globals(&self) -> impl Iterator<Item = (usize, Option<&ConstValue>)> + '_ {
+        self.logic
+            .globals
+            .iter()
+            .enumerate()
+            .map(|(slot, init)| (slot, init.as_ref()))
     }
 }
 

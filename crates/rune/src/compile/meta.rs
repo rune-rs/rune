@@ -132,6 +132,7 @@ impl Meta {
             Kind::Closure { .. } => Some(self.hash),
             Kind::AsyncBlock { .. } => Some(self.hash),
             Kind::Const => None,
+            Kind::Static => None,
             Kind::ConstFn => None,
             Kind::Macro => None,
             Kind::AttributeMacro => None,
@@ -235,6 +236,8 @@ pub enum Kind {
     },
     /// The constant expression.
     Const,
+    /// A static item, which occupies a slot in the unit's global storage.
+    Static,
     /// A constant function.
     ConstFn,
     /// Purely an import.

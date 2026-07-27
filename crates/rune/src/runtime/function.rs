@@ -13,7 +13,7 @@ use crate::sync::Arc;
 use crate::{Any, Hash};
 
 use super::{
-    Address, AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler,
+    Address, AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, Globals,
     GuardedArgs, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
     VmCall, VmError, VmErrorKind, VmHalt,
 };
@@ -197,13 +197,14 @@ impl Function {
     pub(crate) fn from_vm_offset(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
+        globals: Globals,
         offset: usize,
         call: Call,
         args: usize,
         hash: Hash,
     ) -> Self {
         Self(FunctionImpl::from_offset(
-            context, unit, offset, call, args, hash,
+            context, unit, globals, offset, call, args, hash,
         ))
     }
 
@@ -211,6 +212,7 @@ impl Function {
     pub(crate) fn from_vm_closure(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
+        globals: Globals,
         offset: usize,
         call: Call,
         args: usize,
@@ -220,6 +222,7 @@ impl Function {
         Self(FunctionImpl::from_closure(
             context,
             unit,
+            globals,
             offset,
             call,
             args,
@@ -508,13 +511,16 @@ impl TryClone for SyncFunction {
 }
 
 /// A stored function, of some specific kind.
-struct FunctionImpl<V> {
+struct FunctionImpl<V>
+where
+    V: FnValue,
+{
     inner: Inner<V>,
 }
 
 impl<V> TryClone for FunctionImpl<V>
 where
-    V: TryClone,
+    V: FnValue,
 {
     #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {
@@ -526,7 +532,7 @@ where
 
 impl<V> FunctionImpl<V>
 where
-    V: TryClone,
+    V: FnValue,
     OwnedTuple: TryFrom<Box<[V]>>,
     VmErrorKind: From<<OwnedTuple as TryFrom<Box<[V]>>>::Error>,
 {
@@ -664,6 +670,7 @@ where
     pub(crate) fn from_offset(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
+        globals: V::Globals,
         offset: usize,
         call: Call,
         args: usize,
@@ -673,6 +680,7 @@ where
             inner: Inner::FnOffset(FnOffset {
                 context,
                 unit,
+                globals,
                 offset,
                 call,
                 args,
@@ -685,6 +693,7 @@ where
     pub(crate) fn from_closure(
         context: Arc<RuntimeContext>,
         unit: Arc<Unit>,
+        globals: V::Globals,
         offset: usize,
         call: Call,
         args: usize,
@@ -696,6 +705,7 @@ where
                 fn_offset: FnOffset {
                     context,
                     unit,
+                    globals,
                     offset,
                     call,
                     args,
@@ -745,12 +755,12 @@ impl FunctionImpl<Value> {
                 }
 
                 Inner::FnClosureOffset(FnClosureOffset {
-                    fn_offset: closure.fn_offset,
+                    fn_offset: closure.fn_offset.into_sync(),
                     environment: env.try_into_boxed_slice()?,
                 })
             }
             Inner::FnHandler(inner) => Inner::FnHandler(inner),
-            Inner::FnOffset(inner) => Inner::FnOffset(inner),
+            Inner::FnOffset(inner) => Inner::FnOffset(inner.into_sync()),
             Inner::FnUnitStruct(inner) => Inner::FnUnitStruct(inner),
             Inner::FnTupleStruct(inner) => Inner::FnTupleStruct(inner),
         };
@@ -788,7 +798,10 @@ impl fmt::Debug for Function {
 }
 
 #[derive(Debug)]
-enum Inner<V> {
+enum Inner<V>
+where
+    V: FnValue,
+{
     /// A native function handler.
     /// This is wrapped as an `Arc<dyn FunctionHandler>`.
     FnHandler(FnHandler),
@@ -796,7 +809,7 @@ enum Inner<V> {
     ///
     /// This also captures the context and unit it belongs to allow for external
     /// calls.
-    FnOffset(FnOffset),
+    FnOffset(FnOffset<V>),
     /// A closure with a captured environment.
     ///
     /// This also captures the context and unit it belongs to allow for external
@@ -810,7 +823,7 @@ enum Inner<V> {
 
 impl<V> TryClone for Inner<V>
 where
-    V: TryClone,
+    V: FnValue,
 {
     fn try_clone(&self) -> alloc::Result<Self> {
         Ok(match self {
@@ -837,11 +850,61 @@ impl fmt::Debug for FnHandler {
     }
 }
 
-#[derive(Clone, TryClone)]
-struct FnOffset {
+/// The kind of value a function closes over, and with it the kind of static
+/// item storage the function is able to carry.
+///
+/// A [`Function`] carries the [`Globals`] of the virtual machine which produced
+/// it, so that calling it from the outside still observes the same statics. A
+/// [`SyncFunction`] can be sent between threads and the storage isn't thread
+/// safe, so it carries nothing.
+pub(crate) trait FnValue: TryClone {
+    /// How static item storage is represented for this kind of function.
+    type Globals: TryClone + Clone;
+
+    /// Materialize the storage a virtual machine should be given.
+    fn globals(globals: &Self::Globals) -> Globals;
+
+    /// Test if the given vm already uses this storage.
+    fn same_globals(globals: &Self::Globals, vm: &Vm) -> bool;
+}
+
+impl FnValue for Value {
+    type Globals = Globals;
+
+    #[inline]
+    fn globals(globals: &Self::Globals) -> Globals {
+        globals.clone()
+    }
+
+    #[inline]
+    fn same_globals(globals: &Self::Globals, vm: &Vm) -> bool {
+        vm.is_same_globals(globals)
+    }
+}
+
+impl FnValue for ConstValue {
+    type Globals = ();
+
+    #[inline]
+    fn globals(_: &Self::Globals) -> Globals {
+        Globals::empty()
+    }
+
+    #[inline]
+    fn same_globals(_: &Self::Globals, vm: &Vm) -> bool {
+        !vm.globals().is_configured()
+    }
+}
+
+struct FnOffset<V>
+where
+    V: FnValue,
+{
     context: Arc<RuntimeContext>,
     /// The unit where the function resides.
     unit: Arc<Unit>,
+    /// The storage for static items declared by the unit.
+    globals: V::Globals,
     /// The offset of the function.
     offset: usize,
     /// The calling convention.
@@ -852,13 +915,44 @@ struct FnOffset {
     hash: Hash,
 }
 
-impl FnOffset {
+impl<V> Clone for FnOffset<V>
+where
+    V: FnValue,
+{
+    fn clone(&self) -> Self {
+        Self {
+            context: self.context.clone(),
+            unit: self.unit.clone(),
+            globals: self.globals.clone(),
+            offset: self.offset,
+            call: self.call,
+            args: self.args,
+            hash: self.hash,
+        }
+    }
+}
+
+impl<V> TryClone for FnOffset<V>
+where
+    V: FnValue,
+{
+    #[inline]
+    fn try_clone(&self) -> alloc::Result<Self> {
+        Ok(self.clone())
+    }
+}
+
+impl<V> FnOffset<V>
+where
+    V: FnValue,
+{
     /// Perform a call into the specified offset and return the produced value.
     #[tracing::instrument(skip_all, fields(args = args.count(), extra = extra.count(), ?self.offset, ?self.call, ?self.args, ?self.hash))]
     fn call(&self, args: impl GuardedArgs, extra: impl Args) -> Result<Value, VmError> {
         check_args(args.count().wrapping_add(extra.count()), self.args)?;
 
-        let mut vm = Vm::new(self.context.clone(), self.unit.clone());
+        let mut vm = Vm::new(self.context.clone(), self.unit.clone())
+            .with_globals(V::globals(&self.globals));
 
         vm.set_ip(self.offset);
         let _guard = unsafe { args.guarded_into_stack(vm.stack_mut())? };
@@ -885,13 +979,15 @@ impl FnOffset {
         let same_unit = matches!(self.call, Call::Immediate if vm.is_same_unit(&self.unit));
         let same_context =
             matches!(self.call, Call::Immediate if vm.is_same_context(&self.context));
+        let same_globals =
+            matches!(self.call, Call::Immediate if V::same_globals(&self.globals, vm));
 
         vm.push_call_frame(self.offset, addr, args, Isolated::new(!same_context), out)?;
         extra.into_stack(vm.stack_mut())?;
 
         // Fast path, just allocate a call frame and keep running.
-        if same_context && same_unit {
-            tracing::trace!("same context and unit");
+        if same_context && same_unit && same_globals {
+            tracing::trace!("same context, unit and globals");
             return Ok(None);
         }
 
@@ -899,6 +995,7 @@ impl FnOffset {
             self.call,
             (!same_context).then(|| self.context.clone()),
             (!same_unit).then(|| self.unit.clone()),
+            (!same_globals).then(|| V::globals(&self.globals)),
             out,
         );
 
@@ -906,7 +1003,30 @@ impl FnOffset {
     }
 }
 
-impl fmt::Debug for FnOffset {
+impl FnOffset<Value> {
+    /// Shed the static item storage so that the function can be sent between
+    /// threads.
+    ///
+    /// The storage isn't thread safe, so a [`SyncFunction`] cannot carry it.
+    /// Reading a static through the resulting function reports that no storage
+    /// has been configured.
+    fn into_sync(self) -> FnOffset<ConstValue> {
+        FnOffset {
+            context: self.context,
+            unit: self.unit,
+            globals: (),
+            offset: self.offset,
+            call: self.call,
+            args: self.args,
+            hash: self.hash,
+        }
+    }
+}
+
+impl<V> fmt::Debug for FnOffset<V>
+where
+    V: FnValue,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FnOffset")
             .field("context", &(&self.context as *const _))
@@ -919,16 +1039,19 @@ impl fmt::Debug for FnOffset {
 }
 
 #[derive(Debug)]
-struct FnClosureOffset<V> {
+struct FnClosureOffset<V>
+where
+    V: FnValue,
+{
     /// The offset in the associated unit that the function lives.
-    fn_offset: FnOffset,
+    fn_offset: FnOffset<V>,
     /// Captured environment.
     environment: Box<[V]>,
 }
 
 impl<V> TryClone for FnClosureOffset<V>
 where
-    V: TryClone,
+    V: FnValue,
 {
     #[inline]
     fn try_clone(&self) -> alloc::Result<Self> {

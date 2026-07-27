@@ -30,6 +30,14 @@ impl Consts {
         self.resolved.get(&item)
     }
 
+    /// Remove the value for the constant at the given item.
+    ///
+    /// This is used for static items, which are const-evaluated to get their
+    /// initializer but must not become visible as constants.
+    pub(crate) fn remove(&mut self, item: ItemId) -> Option<ConstValue> {
+        self.resolved.remove(&item)
+    }
+
     /// Insert a constant value at the given item.
     pub(crate) fn insert(
         &mut self,

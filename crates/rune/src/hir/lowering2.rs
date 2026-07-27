@@ -2119,6 +2119,7 @@ fn expr_path_meta<'hir>(
             } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Const => Ok(hir::ExprKind::Const(meta.hash)),
+            meta::Kind::Static => Ok(hir::ExprKind::Static(meta.hash)),
             meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
                 Ok(hir::ExprKind::Type(Type::new(meta.hash)))
             }
@@ -2209,6 +2210,14 @@ fn pat_path<'hir>(
 
                     let const_value = const_value.try_clone().with_span(&*p)?;
                     return pat_const_value(cx, &const_value, &*p);
+                }
+                meta::Kind::Static => {
+                    return Err(Error::new(
+                        &*p,
+                        ErrorKind::StaticInPattern {
+                            item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
+                        },
+                    ));
                 }
                 _ => {
                     if let Some((0, kind)) = tuple_match_for(&meta) {

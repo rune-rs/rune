@@ -57,7 +57,7 @@ impl ProtocolCaller for EnvProtocolCaller {
             Ok(())
         }
 
-        crate::runtime::env::shared(|context, unit| {
+        crate::runtime::env::shared(|context, unit, globals| {
             let count = args.count() + 1;
             let hash = Hash::associated_function(target.type_hash(), protocol.hash);
 
@@ -73,7 +73,8 @@ impl ProtocolCaller for EnvProtocolCaller {
                 let mut stack = Stack::with_capacity(count)?;
                 stack.push(target)?;
                 args.push_to_stack(&mut stack)?;
-                let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack);
+                let mut vm = Vm::with_stack(context.clone(), unit.clone(), stack)
+                    .with_globals(globals.clone());
                 vm.set_ip(*offset);
                 return Ok(CallResultOnly::Ok(call.call_with_vm(vm)?));
             }

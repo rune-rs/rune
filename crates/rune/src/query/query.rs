@@ -63,6 +63,8 @@ pub(crate) struct QueryInner<'arena> {
     const_fns: HashMap<ItemId, Rc<ConstFn<'arena>>>,
     /// Indexed constant values.
     constants: HashMap<Hash, ConstValue>,
+    /// Initializers of indexed static items, for those which have one.
+    static_inits: HashMap<Hash, ConstValue>,
     /// The result of internally resolved macros.
     internal_macros: HashMap<NonZeroId, Arc<BuiltInMacro>>,
     /// Expanded macros.
@@ -83,6 +85,11 @@ impl QueryInner<'_> {
     /// Get a constant value but only from the dynamic query system.
     pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
         self.constants.get(&hash)
+    }
+
+    /// Get the initializer of a static item, if it has one.
+    pub(crate) fn get_static_init(&self, hash: Hash) -> Option<&ConstValue> {
+        self.static_inits.get(&hash)
     }
 }
 
@@ -706,6 +713,27 @@ impl<'a, 'arena> Query<'a, 'arena> {
         Ok(())
     }
 
+    /// Index a static item.
+    ///
+    /// Unlike a constant, a static is always built. It occupies a slot in the
+    /// unit whether or not any script reads it, since the caller has to be able
+    /// to address it by item.
+    #[tracing::instrument(skip_all)]
+    pub(crate) fn index_static(
+        &mut self,
+        item_meta: ItemMeta,
+        static_item: indexing::StaticItem,
+    ) -> compile::Result<()> {
+        tracing::trace!(item = ?self.pool.item(item_meta.item));
+
+        self.index_and_build(indexing::Entry {
+            item_meta,
+            indexed: Indexed::Static(static_item),
+        })?;
+
+        Ok(())
+    }
+
     /// Index a constant expression.
     #[tracing::instrument(skip_all)]
     pub(crate) fn index_const_expr(
@@ -833,7 +861,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
             parameters: Hash::EMPTY,
         };
 
-        self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
+        self.unit
+            .insert_meta(span, &meta, self.pool, self.inner, self.options.debug_info)?;
         self.insert_meta(meta).with_span(span)?;
         Ok(())
     }
@@ -907,7 +936,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
         if let Some(entry) = self.remove_indexed(span, item)? {
             let meta = self.build_indexed_entry(span, entry, used)?;
-            self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
+            self.unit
+                .insert_meta(span, &meta, self.pool, self.inner, self.options.debug_info)?;
             self.insert_meta(meta.try_clone()?).with_span(span)?;
             tracing::trace!(item = ?item, meta = ?meta, "build");
             return Ok(Some(meta));
@@ -1742,6 +1772,51 @@ impl<'a, 'arena> Query<'a, 'arena> {
 
                 meta::Kind::Const
             }
+            Indexed::Static(s) => {
+                if let Some(c) = s.init {
+                    let ir = {
+                        let mut hir_ctx = crate::hir::Ctxt::with_const(
+                            self.const_arena,
+                            self.borrow(),
+                            item_meta.location.source_id,
+                        )?;
+
+                        let hir = match c {
+                            indexing::ConstExpr::Ast(ast) => {
+                                crate::hir::lowering::expr(&mut hir_ctx, &ast)?
+                            }
+                            indexing::ConstExpr::Node(node) => {
+                                node.parse(|p| crate::hir::lowering2::expr(&mut hir_ctx, p))?
+                            }
+                        };
+
+                        let mut cx = ir::Ctxt {
+                            source_id: item_meta.location.source_id,
+                            q: self.borrow(),
+                        };
+                        ir::compiler::expr(&hir, &mut cx)?
+                    };
+
+                    let mut const_compiler = ir::Interpreter {
+                        budget: ir::Budget::new(1_000_000),
+                        scopes: ir::Scopes::new()?,
+                        module: item_meta.module,
+                        item: item_meta.item,
+                        q: self.borrow(),
+                    };
+
+                    let const_value = const_compiler.eval_const(&ir, used)?;
+
+                    // A static is not a constant, so make sure evaluating its
+                    // initializer doesn't leave it visible to const contexts.
+                    self.consts.remove(item_meta.item);
+
+                    let hash = self.pool.item_type_hash(item_meta.item);
+                    self.inner.static_inits.try_insert(hash, const_value)?;
+                }
+
+                meta::Kind::Static
+            }
             Indexed::ConstBlock(c) => {
                 let ir = {
                     let mut hir_ctx = crate::hir::Ctxt::with_const(
@@ -1882,7 +1957,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let entry = indexing::Entry { item_meta, indexed };
 
         let meta = self.build_indexed_entry(span, entry, used)?;
-        self.unit.insert_meta(span, &meta, self.pool, self.inner)?;
+        self.unit
+            .insert_meta(span, &meta, self.pool, self.inner, self.options.debug_info)?;
         self.insert_meta(meta).with_span(span)?;
         Ok(())
     }

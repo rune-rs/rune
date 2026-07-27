@@ -364,6 +364,12 @@ pub(crate) enum ErrorKind {
     UnsupportedAssignExpr,
     UnsupportedBinaryExpr,
     UnsupportedRef,
+    StaticInConstContext {
+        item: ItemBuf,
+    },
+    StaticInPattern {
+        item: ItemBuf,
+    },
     BadArgumentCount {
         expected: usize,
         actual: usize,
@@ -824,6 +830,18 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::UnsupportedRef => {
                 write!(f, "Cannot take reference of expression")?;
+            }
+            ErrorKind::StaticInConstContext { item } => {
+                write!(
+                    f,
+                    "The static `{item}` cannot be used in a constant context, since its value is only known at runtime"
+                )?;
+            }
+            ErrorKind::StaticInPattern { item } => {
+                write!(
+                    f,
+                    "The static `{item}` cannot be used in a pattern, since its value is only known at runtime"
+                )?;
             }
             ErrorKind::BadArgumentCount { expected, actual } => {
                 write!(f, "Wrong number of arguments {actual}, expected {expected}",)?;

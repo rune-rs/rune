@@ -178,6 +178,22 @@ fn bug_703() {
 }
 
 #[test]
+fn fmt_global_static() {
+    const INPUT: &str = r#"
+    static TEST1 = 1;static TEST2;
+    pub static TEST3 = [1, 2];
+    "#;
+
+    const EXPECTED: &str = r#"
+    static TEST1 = 1;
+    static TEST2;
+    pub static TEST3 = [1, 2];
+    "#;
+
+    assert_format!(INPUT, EXPECTED)
+}
+
+#[test]
 fn fmt_global_const() {
     const INPUT: &str = r#"
     const TEST1 = 1;const TEST2 = 2;
