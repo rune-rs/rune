@@ -1,6 +1,6 @@
 [package]
 name = "rune-alloc"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.95"
@@ -25,7 +25,7 @@ raw = []
 musli = ["dep:musli-core"]
 
 [dependencies]
-rune-alloc-macros = { version = "=0.14.0", path = "../rune-alloc-macros" }
+rune-alloc-macros = { version = "=0.15.0", path = "../rune-alloc-macros" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 musli-core = { version = "0.1.0", default-features = false, optional = true }

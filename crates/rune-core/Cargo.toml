@@ -1,6 +1,6 @@
 [package]
 name = "rune-core"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.95"
@@ -24,7 +24,7 @@ alloc = ["serde/alloc", "rune-alloc/alloc"]
 musli = ["dep:musli-core"]
 
 [dependencies]
-rune-alloc = { version = "0.14.0", path = "../rune-alloc", default-features = false, features = ["serde", "musli"] }
+rune-alloc = { version = "0.15.0", path = "../rune-alloc", default-features = false, features = ["serde", "musli"] }
 
 twox-hash = { version = "2.0.0", default-features = false, features = ["xxhash64"] }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
