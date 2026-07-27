@@ -23,6 +23,8 @@ pub enum Item {
     Mod(ast::ItemMod),
     /// A const declaration.
     Const(ast::ItemConst),
+    /// A static declaration.
+    Static(ast::ItemStatic),
     /// A macro call expanding into an item.
     MacroCall(ast::MacroCall),
 }
@@ -38,6 +40,7 @@ impl Item {
             Self::Impl(item) => &item.attributes,
             Self::Mod(item) => &item.attributes,
             Self::Const(item) => &item.attributes,
+            Self::Static(item) => &item.attributes,
             Self::MacroCall(item) => &item.attributes,
         }
     }
@@ -51,6 +54,7 @@ impl Item {
             Self::Impl(item) => &mut item.attributes,
             Self::Mod(item) => &mut item.attributes,
             Self::Const(item) => &mut item.attributes,
+            Self::Static(item) => &mut item.attributes,
             Self::MacroCall(item) => &mut item.attributes,
         }
     }
@@ -61,6 +65,7 @@ impl Item {
             Self::Use(..) => true,
             Self::Struct(st) => st.needs_semi_colon(),
             Self::Const(..) => true,
+            Self::Static(..) => true,
             _ => false,
         }
     }
@@ -76,6 +81,7 @@ impl Item {
             K![fn] => true,
             K![mod] => true,
             K![const] => true,
+            K![static] => true,
             _ => false,
         }
     }
@@ -95,6 +101,7 @@ impl Item {
             )?)
         } else {
             let mut const_token = p.parse::<Option<T![const]>>()?;
+            let mut static_token = p.parse::<Option<T![static]>>()?;
             let mut async_token = p.parse::<Option<T![async]>>()?;
 
             let item = match p.nth(0)? {
@@ -137,6 +144,13 @@ impl Item {
                             take(&mut visibility),
                             const_token,
                         )?)
+                    } else if let Some(static_token) = static_token.take() {
+                        Self::Static(ast::ItemStatic::parse_with_meta(
+                            p,
+                            take(&mut attributes),
+                            take(&mut visibility),
+                            static_token,
+                        )?)
                     } else {
                         Self::MacroCall(p.parse()?)
                     }
@@ -151,6 +165,10 @@ impl Item {
 
             if let Some(span) = const_token.option_span() {
                 return Err(compile::Error::unsupported(span, "const modifier"));
+            }
+
+            if let Some(span) = static_token.option_span() {
+                return Err(compile::Error::unsupported(span, "static modifier"));
             }
 
             if let Some(span) = async_token.option_span() {

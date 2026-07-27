@@ -337,6 +337,17 @@ impl Value {
         }
     }
 
+    /// Test if this is the empty placeholder value.
+    ///
+    /// This is what [`Value::take`] leaves behind, and what marks a static item
+    /// slot as uninitialized in [`Globals`].
+    ///
+    /// [`Globals`]: crate::runtime::Globals
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        matches!(self.repr, Repr::Inline(Inline::Empty))
+    }
+
     /// Construct a unit value.
     pub(crate) const fn unit() -> Self {
         Self {
@@ -547,7 +558,7 @@ impl Value {
     pub fn into_type_name(self) -> Result<String, VmError> {
         let hash = Hash::associated_function(self.type_hash(), &Protocol::INTO_TYPE_NAME);
 
-        crate::runtime::env::shared(|context, unit| {
+        crate::runtime::env::shared(|context, unit, _| {
             if let Some(name) = context.constant(&hash) {
                 match name.as_kind() {
                     ConstValueKind::String(s) => return Ok(String::try_from(s.as_ref())?),

@@ -50,6 +50,8 @@ pub(crate) enum Indexed {
     Function(Function),
     /// A constant expression.
     ConstExpr(ConstExpr),
+    /// A static item.
+    Static(StaticItem),
     /// A constant block.
     ConstBlock(ConstBlock),
     /// A constant function.
@@ -122,6 +124,13 @@ pub(crate) enum ConstExpr {
     Ast(Box<ast::Expr>),
     /// A node constant expression.
     Node(NodeAt),
+}
+
+/// A static item and the constant expression it is initialized with, if any.
+#[derive(Debug, TryClone)]
+pub(crate) struct StaticItem {
+    /// The initializer of the static, if it has one.
+    pub(crate) init: Option<ConstExpr>,
 }
 
 #[derive(Debug, TryClone)]

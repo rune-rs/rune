@@ -78,6 +78,9 @@ impl fmt::Display for MetaInfo {
             MetaInfoKind::Const => {
                 write!(fmt, "const {name}")?;
             }
+            MetaInfoKind::Static => {
+                write!(fmt, "static {name}")?;
+            }
             MetaInfoKind::ConstFn => {
                 write!(fmt, "const fn {name}")?;
             }
@@ -112,6 +115,7 @@ pub(crate) enum MetaInfoKind {
     Closure,
     AsyncBlock,
     Const,
+    Static,
     ConstFn,
     Import,
     Alias,
@@ -141,6 +145,7 @@ impl MetaInfoKind {
             meta::Kind::Closure { .. } => MetaInfoKind::Closure,
             meta::Kind::AsyncBlock { .. } => MetaInfoKind::AsyncBlock,
             meta::Kind::Const => MetaInfoKind::Const,
+            meta::Kind::Static => MetaInfoKind::Static,
             meta::Kind::ConstFn => MetaInfoKind::ConstFn,
             meta::Kind::Import { .. } => MetaInfoKind::Import,
             meta::Kind::Alias { .. } => MetaInfoKind::Alias,

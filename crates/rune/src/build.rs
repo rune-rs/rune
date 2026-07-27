@@ -13,7 +13,7 @@ use crate::compile::{
     self, CompileVisitor, Located, MetaError, Options, ParseOptionError, Pool, SourceLoader,
 };
 use crate::runtime::unit::{DefaultStorage, UnitEncoder};
-use crate::runtime::Unit;
+use crate::runtime::{Globals, Unit};
 use crate::sync::Arc;
 use crate::{parse, Context, Diagnostics, Item, SourceId, Sources, Vm};
 
@@ -512,11 +512,16 @@ impl<'a, S> Build<'a, S> {
 impl<'a> Build<'a, DefaultStorage> {
     /// Convenience method to build a [`Vm`] directly from the current build
     /// using default storage.
+    ///
+    /// The virtual machine is configured with freshly allocated [`Globals`]
+    /// storage for any static items the unit declares. Use [`Vm::globals`] to
+    /// access it.
     pub fn build_vm(self) -> Result<Vm, BuildError> {
         let (unit, runtime) = self.build_inner(|context| context.runtime())?;
         let runtime = runtime?;
         let runtime = Arc::try_new(runtime)?;
         let unit = Arc::try_new(unit)?;
-        Ok(Vm::new(runtime, unit))
+        let globals = Globals::new(unit.clone())?;
+        Ok(Vm::new(runtime, unit).with_globals(globals))
     }
 }

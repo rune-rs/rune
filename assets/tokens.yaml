@@ -400,6 +400,7 @@
 - {kind: "syntax", variant: "ItemEnum", doc: "an enum declaration"}
 - {kind: "syntax", variant: "ItemStruct", doc: "a struct declaration"}
 - {kind: "syntax", variant: "ItemConst", doc: "a constant item"}
+- {kind: "syntax", variant: "ItemStatic", doc: "a static item"}
 - {kind: "syntax", variant: "ItemFn", doc: "a function declaration"}
 - {kind: "syntax", variant: "ItemImpl", doc: "an impl"}
 - {kind: "syntax", variant: "ItemMod", doc: "a module declaration"}

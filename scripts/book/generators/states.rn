@@ -1,6 +1,6 @@
 fn print_once() {
     let out = yield 1;
-    println!("{:?}", out);
+    println!("{out:?}");
     2
 }
 

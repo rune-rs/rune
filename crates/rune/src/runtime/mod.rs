@@ -60,7 +60,7 @@ pub(crate) use self::const_value::{
 };
 
 pub mod debug;
-pub use self::debug::{DebugInfo, DebugInst};
+pub use self::debug::{DebugGlobal, DebugInfo, DebugInst};
 
 mod env;
 
@@ -76,6 +76,9 @@ pub use self::function::{Function, SyncFunction};
 mod future;
 pub use self::future::Future;
 pub(crate) use self::future::SelectFuture;
+
+mod globals;
+pub use self::globals::{Globals, GlobalsError};
 
 pub(crate) mod generator;
 pub use self::generator::Generator;

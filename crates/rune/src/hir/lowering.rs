@@ -1288,6 +1288,14 @@ fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, ast: &ast::Pat) -> compile::Result<hir
                                 let const_value = const_value.try_clone().with_span(ast)?;
                                 return pat_const_value(cx, &const_value, ast);
                             }
+                            meta::Kind::Static => {
+                                return Err(compile::Error::new(
+                                    ast,
+                                    ErrorKind::StaticInPattern {
+                                        item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
+                                    },
+                                ));
+                            }
                             _ => {
                                 if let Some((0, kind)) = tuple_match_for(&meta) {
                                     break 'path hir::PatPathKind::Kind(alloc!(kind));
@@ -1612,6 +1620,7 @@ fn expr_path_meta<'hir>(
             } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Function { .. } => Ok(hir::ExprKind::Fn(meta.hash)),
             meta::Kind::Const => Ok(hir::ExprKind::Const(meta.hash)),
+            meta::Kind::Static => Ok(hir::ExprKind::Static(meta.hash)),
             meta::Kind::Struct { .. } | meta::Kind::Type { .. } | meta::Kind::Enum { .. } => {
                 Ok(hir::ExprKind::Type(Type::new(meta.hash)))
             }

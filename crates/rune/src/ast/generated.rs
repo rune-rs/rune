@@ -8349,6 +8349,8 @@ pub enum Kind {
     ItemStruct,
     /// a constant item
     ItemConst,
+    /// a static item
+    ItemStatic,
     /// a function declaration
     ItemFn,
     /// an impl
@@ -8817,6 +8819,7 @@ impl parse::IntoExpectation for Kind {
             Self::ItemEnum => parse::Expectation::Syntax("an enum declaration"),
             Self::ItemStruct => parse::Expectation::Syntax("a struct declaration"),
             Self::ItemConst => parse::Expectation::Syntax("a constant item"),
+            Self::ItemStatic => parse::Expectation::Syntax("a static item"),
             Self::ItemFn => parse::Expectation::Syntax("a function declaration"),
             Self::ItemImpl => parse::Expectation::Syntax("an impl"),
             Self::ItemMod => parse::Expectation::Syntax("a module declaration"),

@@ -9,6 +9,7 @@
   - [Functions](./functions.md)
   - [Control flow](./control_flow.md)
   - [Variables and memory](./variables.md)
+  - [Statics](./statics.md)
   - [Loops](./loops.md)
   - [Pattern matching](./pattern_matching.md)
   - [Template literals](./template_literals.md)

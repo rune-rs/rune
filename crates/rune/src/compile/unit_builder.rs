@@ -13,7 +13,7 @@ use crate::compile::meta;
 use crate::compile::{self, Assembly, AssemblyInst, ErrorKind, Location, Pool, WithSpan};
 use crate::hash;
 use crate::query::QueryInner;
-use crate::runtime::debug::{DebugArgs, DebugSignature};
+use crate::runtime::debug::{DebugArgs, DebugGlobal, DebugSignature};
 use crate::runtime::inst;
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
@@ -21,7 +21,7 @@ use crate::runtime::{
     StaticString, Unit, UnitFn,
 };
 use crate::sync::Arc;
-use crate::{Context, Diagnostics, Hash, Item, SourceId};
+use crate::{Context, Diagnostics, Hash, Item, ItemBuf, SourceId};
 
 /// Errors that can be raised when linking units.
 #[derive(Debug)]
@@ -88,6 +88,11 @@ pub(crate) struct UnitBuilder {
     constants: hash::Map<ConstValue>,
     /// Hash to identifiers.
     hash_to_ident: HashMap<Hash, Box<str>>,
+    /// Initializers for static items, indexed by the slot they've been
+    /// assigned.
+    globals: Vec<Option<ConstValue>>,
+    /// Reverse lookup from the type hash of a static item to its slot.
+    globals_rev: hash::Map<usize>,
 }
 
 impl UnitBuilder {
@@ -166,7 +171,52 @@ impl UnitBuilder {
             self.rtti,
             self.debug,
             self.constants,
+            self.globals,
+            self.globals_rev,
         ))
+    }
+
+    /// Get the slot assigned to the static item with the given type hash,
+    /// allocating a new one if this is the first time we see it.
+    ///
+    /// Slots are handed out in the order they are requested, so a static which
+    /// is used before it is built still ends up with a single stable slot.
+    pub(crate) fn global_slot(&mut self, hash: Hash) -> alloc::Result<usize> {
+        if let Some(slot) = self.globals_rev.get(&hash).copied() {
+            return Ok(slot);
+        }
+
+        let slot = self.globals.len();
+        self.globals.try_push(None)?;
+        self.globals_rev.try_insert(hash, slot)?;
+        Ok(slot)
+    }
+
+    /// Record the initializer and the debug name for a static item.
+    pub(crate) fn insert_global(
+        &mut self,
+        hash: Hash,
+        path: &Item,
+        init: Option<ConstValue>,
+        debug_info: bool,
+    ) -> alloc::Result<usize> {
+        let slot = self.global_slot(hash)?;
+
+        if let Some(init) = init {
+            self.globals[slot] = Some(init);
+        }
+
+        if debug_info {
+            let debug = self.debug_mut()?;
+
+            while debug.globals.len() <= slot {
+                debug.globals.try_push(DebugGlobal::new(ItemBuf::new()))?;
+            }
+
+            debug.globals[slot] = DebugGlobal::new(path.try_to_owned()?);
+        }
+
+        Ok(slot)
     }
 
     /// Insert a static string and return its associated slot that can later be
@@ -316,6 +366,7 @@ impl UnitBuilder {
         meta: &meta::Meta,
         pool: &Pool,
         query: &mut QueryInner,
+        debug_info: bool,
     ) -> compile::Result<()> {
         debug_assert_eq! {
             pool.item_type_hash(meta.item_meta.item),
@@ -653,6 +704,15 @@ impl UnitBuilder {
 
                 self.constants
                     .try_insert(meta.hash, value)
+                    .with_span(span)?;
+            }
+            meta::Kind::Static => {
+                let init = match query.get_static_init(meta.hash) {
+                    Some(init) => Some(init.try_clone().with_span(span)?),
+                    None => None,
+                };
+
+                self.insert_global(meta.hash, pool.item(meta.item_meta.item), init, debug_info)
                     .with_span(span)?;
             }
             meta::Kind::Macro => (),

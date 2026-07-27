@@ -162,6 +162,11 @@ impl Pool {
         self.item_storage(id).hash
     }
 
+    /// Look up an item by its type hash, if it has been allocated.
+    pub(crate) fn item_for_hash(&self, hash: Hash) -> Option<&Item> {
+        Some(self.item(*self.hash_to_item.get(&hash)?))
+    }
+
     /// Lookup mod meta by the given identifier.
     pub(crate) fn module(&self, ModId(id): ModId) -> &ModMeta {
         let id = usize::try_from(id).expect("module id overflow");

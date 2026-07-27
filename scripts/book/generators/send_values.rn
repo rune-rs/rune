@@ -3,7 +3,7 @@ fn printer() {
 
     for _ in 0..2 {
         let out = yield;
-        println!("{:?}", out);
+        println!("{out:?}");
         collected.push(out);
     }
 

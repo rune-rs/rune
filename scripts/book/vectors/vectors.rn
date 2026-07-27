@@ -5,6 +5,6 @@ pub fn main() {
     println!("{}", values.1); // items in vectors can be accessed like tuple fields.
 
     for v in values {
-        println!("{}", v);
+        println!("{v}");
     }
 }

@@ -8,7 +8,7 @@ use crate::compile::{self, ErrorKind, WithSpan};
 use crate::hir;
 use crate::query::Query;
 use crate::runtime::{Bytes, Value};
-use crate::SourceId;
+use crate::{ItemBuf, SourceId};
 
 use tracing::instrument_ast;
 
@@ -53,6 +53,17 @@ pub(crate) fn expr(hir: &hir::Expr<'_>, c: &mut Ctxt<'_, '_>) -> compile::Result
 
             let value = value.to_value_with(c.q.context).with_span(span)?;
             ir::Ir::new(span, value)
+        }
+        hir::ExprKind::Static(hash) => {
+            let item = match c.q.pool.item_for_hash(hash) {
+                Some(item) => item.try_to_owned()?,
+                None => ItemBuf::new(),
+            };
+
+            return Err(compile::Error::new(
+                hir,
+                ErrorKind::StaticInConstContext { item },
+            ));
         }
         hir::ExprKind::Variable(name) => {
             return Ok(ir::Ir::new(span, name));

@@ -3,7 +3,7 @@ use core::fmt;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::hash;
-use crate::runtime::{ConstConstructImpl, ConstValue};
+use crate::runtime::{ConstConstructImpl, ConstContext, ConstValue};
 use crate::Hash;
 
 use super::FunctionHandler;
@@ -55,6 +55,13 @@ impl RuntimeContext {
     #[inline]
     pub(crate) fn construct(&self, hash: &Hash) -> Option<&ConstConstructImpl> {
         self.construct.get(hash)
+    }
+}
+
+impl ConstContext for RuntimeContext {
+    #[inline]
+    fn get(&self, hash: Hash) -> Option<&ConstConstructImpl> {
+        self.construct(&hash)
     }
 }
 
