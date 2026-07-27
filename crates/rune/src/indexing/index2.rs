@@ -4,13 +4,16 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::{self, Kind, Span, Spanned};
 use crate::compile::{
-    meta, Doc, DynLocation, Error, ErrorKind, Location, Result, Visibility, WithSpan,
+    meta, Doc, DynLocation, Error, ErrorKind, ItemMeta, Location, Result, Visibility, WithSpan,
 };
-use crate::grammar::{Ignore, MaybeNode, Node, NodeId, Remaining, Stream, StreamBuf};
+use crate::grammar::{ws, Ignore, MaybeNode, Node, NodeId, Remaining, Stream, StreamBuf};
 use crate::indexing;
 use crate::internal_macros::resolve_context;
-use crate::parse::Resolve;
-use crate::query::{Attrs, BuiltInLiteral, DeferEntry, ExpandMacroBuiltin, ImplItem, ImplItemKind};
+use crate::parse::{Resolve, ResolveContext};
+use crate::query::{
+    Attrs, BuiltInLiteral, DeferEntry, ExpandAttributeMacro, ExpandMacroBuiltin, ImplItem,
+    ImplItemKind,
+};
 use crate::runtime::Call;
 use crate::worker::{self, Import, ImportKind, ImportState};
 
@@ -243,22 +246,25 @@ impl<'a> Processor<'a> {
 
         match node.kind() {
             Expr => {
-                if matches!(self.expr, ExprSupport::No) {
-                    idx.error(Error::msg(
-                        &node,
-                        "expression is not supported during indexing",
-                    ))?;
-                    return Ok(());
-                }
-
-                let (mods, attrs, p) = node.parse(|p| {
+                let (mods, attrs, is_macro_call, p) = node.parse(|p| {
                     let mods = p
                         .eat(Modifiers)
                         .parse(|p| Mods::parse(idx, p))?
                         .unwrap_or_default();
                     let attrs = attributes(idx, p)?;
-                    Ok((mods, attrs, p.take_remaining()))
+                    let is_macro_call = matches!(p.peek(), ExprMacroCall);
+                    Ok((mods, attrs, is_macro_call, p.take_remaining()))
                 })?;
+
+                // Macro calls are legal in item position, since they might
+                // expand into items.
+                if matches!(self.expr, ExprSupport::No) && !is_macro_call {
+                    idx.error(Error::msg(
+                        self.span,
+                        "expression is not supported during indexing",
+                    ))?;
+                    return Ok(());
+                }
 
                 self.stack.try_push(State::Expr(mods, attrs))?;
                 self.stack.try_push(State::Stream(p))?;
@@ -394,7 +400,41 @@ impl<'a> Processor<'a> {
                 let l = idx.scopes.mark().with_span(self.span)?;
                 l.yields.try_push(node.span())?;
             }
+            InnerAttribute => {
+                node.parse(|p| inner_attribute(idx, p))?;
+                return Ok(());
+            }
             Item => {
+                // Any attribute which is not built in might be an attribute
+                // macro. Since resolving it depends on imports which have not
+                // necessarily been indexed yet, the whole item is deferred.
+                let mut has_macro_attribute = false;
+
+                for child in node.children() {
+                    if child.kind() == Attribute
+                        && is_macro_attribute(resolve_context!(idx.q), &child)?
+                    {
+                        has_macro_attribute = true;
+                        break;
+                    }
+                }
+
+                if has_macro_attribute {
+                    idx.q
+                        .inner
+                        .defer_queue
+                        .try_push_back(DeferEntry::ExpandAttributeMacro(ExpandAttributeMacro {
+                            node: node.node_at(idx.source_id, idx.tree.clone()),
+                            location: Location::new(idx.source_id, node.span()),
+                            root: idx.root,
+                            nested_item: idx.nested_item,
+                            macro_depth: idx.macro_depth,
+                            item: idx.item,
+                        }))?;
+
+                    return Ok(());
+                }
+
                 let result = node.parse(|p| {
                     let attrs = attributes(idx, p)?;
                     p.pump()?.parse(|p| self.item(idx, p, attrs))?;
@@ -907,7 +947,7 @@ fn item_struct(
 
     let item_meta = idx.insert_new_item(&*p, mods.visibility.take(), &attrs.docs)?;
 
-    let fields = p.pump()?.parse(|p| fields(idx, p))?;
+    let fields = p.pump()?.parse(|p| fields(idx, p, item_meta))?;
 
     idx.q.index_struct(item_meta, indexing::Struct { fields })?;
 
@@ -945,7 +985,7 @@ fn item_enum(
 
             let (guard, _) = push_name(idx, p, "variant")?;
             let item_meta = idx.insert_new_item(&*p, vis, &attrs.docs)?;
-            let fields = p.pump()?.parse(|p| fields(idx, p))?;
+            let fields = p.pump()?.parse(|p| fields(idx, p, item_meta))?;
             idx.items.pop(guard).with_span(&*p)?;
 
             Ok((item_meta, fields, attrs))
@@ -1114,60 +1154,118 @@ fn attributes(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Attrs> {
     Ok(attrs)
 }
 
+/// Test if the given attribute node might be an attribute macro, which is the
+/// case for anything which is not one of the built-in attributes.
+pub(crate) fn is_macro_attribute(cx: ResolveContext<'_, '_>, node: &Node<'_>) -> Result<bool> {
+    let Some(stream) = node.find(TokenStream) else {
+        return Ok(false);
+    };
+
+    let Some(first) = stream.children().find(|n| !matches!(n.kind(), ws!())) else {
+        return Ok(false);
+    };
+
+    if !matches!(first.kind(), K![ident]) {
+        return Ok(true);
+    }
+
+    let ident = first.ast::<ast::Ident>()?;
+
+    Ok(!matches!(
+        ident.resolve(cx)?,
+        "test" | "bench" | "doc" | "builtin"
+    ))
+}
+
 fn inner_attributes(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<()> {
     while let MaybeNode::Some(node) = p.eat(InnerAttribute) {
-        node.parse(|p| {
-            p.all([K![#], K![!], K!['[']])?;
-
-            p.expect(TokenStream)?.parse(|p| {
-                let ident = p.ast::<ast::Ident>()?;
-
-                match ident.resolve(resolve_context!(idx.q))? {
-                    "doc" => {
-                        p.expect(K![=])?;
-
-                        let str = p.ast::<ast::LitStr>()?;
-                        let str = str.resolve(resolve_context!(idx.q))?;
-
-                        let loc = DynLocation::new(idx.source_id, &*p);
-
-                        let item = idx.q.pool.item(idx.item.id);
-                        let hash = idx.q.pool.item_type_hash(idx.item.id);
-
-                        idx.q
-                            .visitor
-                            .visit_doc_comment(&loc, item, hash, &str)
-                            .with_span(&*p)?;
-                    }
-                    name => {
-                        idx.error(Error::msg(
-                            ident,
-                            try_format!("unsupported attribute `{name}`"),
-                        ))?;
-                    }
-                }
-
-                Ok(())
-            })?;
-
-            p.expect(K![']'])?;
-            Ok(())
-        })?;
+        node.parse(|p| inner_attribute(idx, p))?;
     }
 
     Ok(())
 }
 
-fn fields(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<meta::Fields> {
+/// Process a single inner attribute, which documents the item it is contained
+/// in.
+fn inner_attribute(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<()> {
+    p.all([K![#], K![!], K!['[']])?;
+
+    p.expect(TokenStream)?.parse(|p| {
+        let ident = p.ast::<ast::Ident>()?;
+
+        match ident.resolve(resolve_context!(idx.q))? {
+            "doc" => {
+                p.expect(K![=])?;
+
+                let str = p.ast::<ast::LitStr>()?;
+                let str = str.resolve(resolve_context!(idx.q))?;
+
+                let loc = DynLocation::new(idx.source_id, &*p);
+
+                let item = idx.q.pool.item(idx.item.id);
+                let hash = idx.q.pool.item_type_hash(idx.item.id);
+
+                idx.q
+                    .visitor
+                    .visit_doc_comment(&loc, item, hash, &str)
+                    .with_span(&*p)?;
+            }
+            name => {
+                idx.error(Error::msg(
+                    ident,
+                    try_format!("unsupported attribute `{name}`"),
+                ))?;
+            }
+        }
+
+        Ok(())
+    })?;
+
+    p.expect(K![']'])?;
+    Ok(())
+}
+
+/// Index a single field, collecting any documentation associated with it.
+fn field(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>, item_meta: ItemMeta) -> Result<ast::Ident> {
+    let attrs = attributes(idx, p)?;
+    let name = p.ast::<ast::Ident>()?;
+
+    let cx = resolve_context!(idx.q);
+    let field_name = name.resolve(cx)?;
+
+    for doc in &attrs.docs {
+        let doc_string = doc.doc_string.resolve(cx)?;
+
+        idx.q
+            .visitor
+            .visit_field_doc_comment(
+                &DynLocation::new(idx.source_id, doc),
+                idx.q.pool.item(item_meta.item),
+                idx.q.pool.item_type_hash(item_meta.item),
+                field_name,
+                doc_string.as_ref(),
+            )
+            .with_span(doc)?;
+    }
+
+    attrs.deny_non_docs(idx)?;
+    Ok(name)
+}
+
+fn fields(
+    idx: &mut Indexer<'_, '_>,
+    p: &mut Stream<'_>,
+    item_meta: ItemMeta,
+) -> Result<meta::Fields> {
     match p.kind() {
         StructBody => {
             p.one(K!['{']).exactly_one(idx)?;
             let mut fields = Vec::new();
             let mut comma = Remaining::default();
 
-            while let MaybeNode::Some(field) = p.eat(Field) {
+            while let MaybeNode::Some(node) = p.eat(Field) {
                 comma.exactly_one(idx)?;
-                let name = field.parse(|p| p.ast::<ast::Ident>())?;
+                let name = node.parse(|p| field(idx, p, item_meta))?;
                 let name = name.resolve(resolve_context!(idx.q))?;
                 let position = fields.len();
                 fields.try_push(meta::FieldMeta {
@@ -1188,8 +1286,9 @@ fn fields(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<meta::Fields>
             let mut count = 0;
             let mut comma = Remaining::default();
 
-            while p.eat(Field).is_some() {
+            while let MaybeNode::Some(node) = p.eat(Field) {
                 comma.exactly_one(idx)?;
+                node.parse(|p| field(idx, p, item_meta))?;
                 count += 1;
                 comma = p.remaining(idx, K![,])?;
             }

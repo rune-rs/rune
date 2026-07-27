@@ -328,11 +328,29 @@ impl BuiltInLiteral {
     }
 }
 
+/// Expand an item which has at least one attribute which might be an attribute
+/// macro.
+pub(crate) struct ExpandAttributeMacro {
+    /// The item node being expanded, including its attributes.
+    pub(crate) node: NodeAt,
+    /// Location of the item being expanded.
+    pub(crate) location: Location,
+    /// See [Indexer][crate::indexing::Indexer].
+    pub(crate) root: Option<SourceId>,
+    /// See [Indexer][crate::indexing::Indexer].
+    pub(crate) nested_item: Option<Span>,
+    /// See [Indexer][crate::indexing::Indexer].
+    pub(crate) macro_depth: usize,
+    /// Indexing item at macro expansion position.
+    pub(crate) item: indexing::IndexItem,
+}
+
 /// A deferred build entry.
 pub(crate) enum DeferEntry {
     ImplItem(ImplItem),
     ExpandMacroBuiltin(ExpandMacroBuiltin),
     ExpandMacroCall(ExpandMacroBuiltin),
+    ExpandAttributeMacro(ExpandAttributeMacro),
 }
 
 /// A compiled constant function.

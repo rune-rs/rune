@@ -104,6 +104,25 @@ pub(super) fn exprs(p: &mut Parser<'_>, separator: Kind) -> Result<()> {
     Ok(())
 }
 
+/// Parse the contents of an attribute, which is a path followed by the raw
+/// token stream which is passed along to attribute macros as its input.
+pub(super) fn attribute(p: &mut Parser<'_>) -> Result<()> {
+    p.open(Root)?;
+
+    path(p)?;
+
+    let c = p.checkpoint()?;
+
+    while !p.is_eof()? {
+        p.bump()?;
+    }
+
+    p.close_at(&c, TokenStream)?;
+    p.flush_ws()?;
+    p.close()?;
+    Ok(())
+}
+
 /// Parse comma-separated expressions.
 pub(super) fn format(p: &mut Parser<'_>) -> Result<()> {
     p.open(Root)?;
@@ -416,8 +435,10 @@ fn item_enum(p: &mut Parser<'_>) -> Result<()> {
     }
 
     if p.bump_if(K!['{'])? {
-        while matches!(p.peek()?, K![ident]) {
+        while matches!(p.peek()?, K![ident] | K![#]) {
             let variant = p.checkpoint()?;
+
+            attributes(p)?;
 
             p.bump()?;
 
@@ -456,8 +477,9 @@ fn struct_body(p: &mut Parser<'_>) -> Result<()> {
 
     p.bump()?;
 
-    while matches!(p.peek()?, K![ident]) {
+    while matches!(p.peek()?, K![ident] | K![#]) {
         let c = p.checkpoint()?;
+        attributes(p)?;
         p.bump()?;
         p.close_at(&c, Field)?;
         p.bump_while(K![,])?;
@@ -474,8 +496,9 @@ fn tuple_body(p: &mut Parser<'_>) -> Result<()> {
 
     p.bump()?;
 
-    while matches!(p.peek()?, K![ident]) {
+    while matches!(p.peek()?, K![ident] | K![#]) {
         let c = p.checkpoint()?;
+        attributes(p)?;
         p.bump()?;
         p.close_at(&c, Field)?;
         p.bump_while(K![,])?;
