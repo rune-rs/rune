@@ -16,8 +16,8 @@ use crate::internal_macros::resolve_context;
 use crate::macros::{MacroContext, TokenStream};
 use crate::parse::Resolve;
 use crate::query::{
-    BuiltInLiteral, BuiltInMacro2, DeferEntry, ExpandMacroBuiltin, ExpandedMacro,
-    GenericsParameters, ImplItem, ImplItemKind, Query, Used,
+    BuiltInLiteral, BuiltInMacro2, DeferEntry, ExpandAttributeMacro, ExpandMacroBuiltin,
+    ExpandedMacro, GenericsParameters, ImplItem, ImplItemKind, Query, Used,
 };
 use crate::SourceId;
 
@@ -134,6 +134,13 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                         let source_id = this.location.source_id;
 
                         if let Err(error) = self.expand_macro_call(this) {
+                            self.q.diagnostics.error(source_id, error)?;
+                        }
+                    }
+                    DeferEntry::ExpandAttributeMacro(this) => {
+                        let source_id = this.location.source_id;
+
+                        if let Err(error) = self.expand_attribute_macro(this) {
                             self.q.diagnostics.error(source_id, error)?;
                         }
                     }
@@ -610,6 +617,160 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         let id = this.finish()?;
         self.q
             .insert_expanded_macro(id, ExpandedMacro::Tree(tree))?;
+        Ok(())
+    }
+
+    /// Expand an item which is decorated with an attribute macro.
+    ///
+    /// The item is passed to the macro verbatim minus the attribute being
+    /// expanded, and is replaced in its entirety by whatever the macro
+    /// produces.
+    #[tracing::instrument(skip_all)]
+    fn expand_attribute_macro(&mut self, this: ExpandAttributeMacro) -> compile::Result<()> {
+        if this.macro_depth >= self.q.options.max_macro_depth {
+            return Err(compile::Error::new(
+                this.node.span(),
+                compile::ErrorKind::MaxMacroRecursion {
+                    depth: this.macro_depth,
+                    max: self.q.options.max_macro_depth,
+                },
+            ));
+        }
+
+        let item_meta = self
+            .q
+            .item_for("attribute macro", this.item.id)
+            .with_span(&this.node)?;
+
+        // Split the item into the attribute being expanded and the token
+        // stream of everything else, which is what the macro operates over.
+        let (attribute, item_stream) = this.node.parse(|p| {
+            let mut attribute = None;
+            let mut item_stream = TokenStream::new();
+
+            for child in p.node().children() {
+                if attribute.is_none()
+                    && child.kind() == Kind::Attribute
+                    && index2::is_macro_attribute(resolve_context!(self.q), &child)?
+                {
+                    attribute = Some(child);
+                    continue;
+                }
+
+                for node in child.walk().filter(|n| n.is_empty()) {
+                    item_stream.push(node.token())?;
+                }
+            }
+
+            p.ignore();
+            Ok((attribute, item_stream))
+        })?;
+
+        let Some(attribute) = attribute else {
+            return Err(compile::Error::msg(
+                &this.node,
+                "missing attribute to expand",
+            ));
+        };
+
+        let macro_span = attribute.span();
+
+        let tokens = attribute.parse(|p| {
+            p.expect(K![#])?;
+            p.expect(K!['['])?;
+            let tokens = p.expect(Kind::TokenStream)?;
+            p.expect(K![']'])?;
+            Ok(tokens)
+        })?;
+
+        // The contents of an attribute is stored as a raw token stream, so it
+        // has to be re-parsed to get at the path identifying the macro.
+        let attribute_tree = Rc::new(crate::grammar::node(tokens).attribute()?);
+
+        let mut parsed = None;
+
+        attribute_tree.parse_all(|p| {
+            let path = p.expect(Kind::Path)?;
+            let input = p.expect(Kind::TokenStream)?;
+            parsed = Some((path, input));
+            Ok(())
+        })?;
+
+        let Some((path, input)) = parsed else {
+            return Err(compile::Error::msg(macro_span, "missing attribute path"));
+        };
+
+        path.replace(Kind::IndexedPath(this.item.id));
+
+        let named = path.parse(|p| self.q.convert_path2_with(p, true, Used::Used, Used::Unused))?;
+
+        if let Some(spanned) = named.parameters.into_iter().flatten().next() {
+            return Err(compile::Error::new(
+                spanned.span(),
+                compile::ErrorKind::UnsupportedGenerics,
+            ));
+        }
+
+        let hash = self.q.pool.item_type_hash(named.item);
+
+        let Some(handler) = self.q.context.lookup_attribute_macro(hash) else {
+            return Err(compile::Error::msg(
+                macro_span,
+                try_format!("unsupported attribute `{}`", self.q.pool.item(named.item)),
+            ));
+        };
+
+        let input_span = input.span();
+
+        let mut input_stream = TokenStream::new();
+
+        for node in input
+            .children()
+            .flat_map(|c| c.walk())
+            .filter(|n| n.is_empty())
+        {
+            input_stream.push(node.token())?;
+        }
+
+        let items = crate::indexing::Items::new(self.q.pool.item(this.item.id))?;
+
+        let mut idx = crate::indexing::Indexer {
+            q: self.q.borrow(),
+            root: this.root,
+            source_id: this.location.source_id,
+            items,
+            scopes: crate::indexing::Scopes::new()?,
+            item: this.item,
+            nested_item: this.nested_item,
+            macro_depth: this.macro_depth + 1,
+            loaded: Some(&mut self.loaded),
+            queue: Some(&mut self.queue),
+            tree: this.node.tree(),
+        };
+
+        let output_stream = {
+            let mut macro_context = MacroContext {
+                macro_span,
+                input_span,
+                item_meta,
+                idx: &mut idx,
+            };
+
+            handler.call(&mut macro_context, &input_stream, &item_stream)?
+        };
+
+        let tree = Rc::new(crate::grammar::token_stream(&output_stream).root()?);
+        idx.tree = &tree;
+        tree.parse_all(|p| index2::file(&mut idx, p))?;
+
+        #[cfg(feature = "std")]
+        if self.q.options.print_tree {
+            tree.print(
+                &this.node,
+                format_args!("Expanded attribute macro {}", self.q.pool.item(named.item)),
+            )?;
+        }
+
         Ok(())
     }
 }

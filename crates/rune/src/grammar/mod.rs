@@ -94,6 +94,13 @@ impl<'a> Prepare<'a> {
         p.build()
     }
 
+    /// Parse the contents of an attribute as a path followed by its input.
+    pub(crate) fn attribute(self) -> compile::Result<Tree> {
+        let mut p = self.into_parser();
+        self::grammar::attribute(&mut p)?;
+        p.build()
+    }
+
     /// Parse format arguments.
     pub(crate) fn format(self) -> compile::Result<Tree> {
         let mut p = self.into_parser();
