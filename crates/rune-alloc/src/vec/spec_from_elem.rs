@@ -39,21 +39,23 @@ impl<T> SpecFromElem for T
 where
     T: TryClone + IsZero,
 {
-    #[inline]
-    default fn from_elem<A>(elem: T, n: usize, alloc: A) -> Result<Vec<T, A>, Error>
-    where
-        A: Allocator,
-    {
-        if elem.is_zero() {
-            return Ok(Vec {
-                buf: RawVec::try_with_capacity_zeroed_in(n, alloc)?,
-                len: n,
-            });
-        }
+    default_fn! {
+        #[inline]
+        fn from_elem<A>(elem: T, n: usize, alloc: A) -> Result<Vec<T, A>, Error>
+        where
+            A: Allocator,
+        {
+            if elem.is_zero() {
+                return Ok(Vec {
+                    buf: RawVec::try_with_capacity_zeroed_in(n, alloc)?,
+                    len: n,
+                });
+            }
 
-        let mut v = Vec::try_with_capacity_in(n, alloc)?;
-        v.try_extend_with(n, elem)?;
-        Ok(v)
+            let mut v = Vec::try_with_capacity_in(n, alloc)?;
+            v.try_extend_with(n, elem)?;
+            Ok(v)
+        }
     }
 }
 
