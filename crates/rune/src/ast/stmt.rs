@@ -8,6 +8,36 @@ fn ast_parse() {
     rt::<ast::Stmt>("let x = 1;");
     rt::<ast::Stmt>("#[attr] let a = f();");
     rt::<ast::Stmt>("line!().bar()");
+
+    // A block-like expression in statement position followed by parenthesis is
+    // treated as two statements rather than a call.
+    let block = rt::<ast::Block>("{ if true { } (1, 2, 3); }");
+    assert_eq!(block.statements.len(), 2);
+    assert!(matches!(
+        block.statements[0],
+        ast::Stmt::Expr(ast::Expr::If(..))
+    ));
+
+    let block = rt::<ast::Block>("{ match x { _ => () } (1, 2, 3); }");
+    assert_eq!(block.statements.len(), 2);
+    assert!(matches!(
+        block.statements[0],
+        ast::Stmt::Expr(ast::Expr::Match(..))
+    ));
+
+    let block = rt::<ast::Block>("{ { } (1, 2, 3); }");
+    assert_eq!(block.statements.len(), 2);
+    assert!(matches!(
+        block.statements[0],
+        ast::Stmt::Expr(ast::Expr::Block(..))
+    ));
+
+    let block = rt::<ast::Block>("{ if true { } [1, 2, 3]; }");
+    assert_eq!(block.statements.len(), 2);
+
+    // In expression position the same construct is a call.
+    let expr = rt::<ast::Expr>("if true { a } else { b }(1, 2, 3)");
+    assert!(matches!(expr, ast::Expr::Call(..)));
 }
 
 /// A statement within a block.
@@ -59,7 +89,7 @@ impl Parse for Stmt {
             let local = Box::try_new(ast::Local::parse_with_meta(p, take(&mut attributes))?)?;
             Self::Local(local)
         } else {
-            let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
+            let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::NOT_CALLABLE)?;
 
             // Parsed an expression which can be treated directly as an item.
             match p.parse()? {
@@ -120,7 +150,7 @@ impl Parse for ItemOrExpr {
             return Err(compile::Error::unsupported(span, "visibility modifier"));
         }
 
-        let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::CALLABLE)?;
+        let expr = ast::Expr::parse_with_meta(p, &mut attributes, ast::expr::NOT_CALLABLE)?;
 
         if let Some(span) = attributes.option_span() {
             return Err(compile::Error::unsupported(span, "attributes"));
