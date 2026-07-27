@@ -15,7 +15,7 @@ use crate::query::{Build, BuildEntry, Query, SecondaryBuild, Used};
 use crate::runtime::unit::UnitEncoder;
 use crate::shared::{Consts, Gen};
 use crate::worker::{LoadFileKind, Task, Worker};
-use crate::{Diagnostics, Sources};
+use crate::{Diagnostics, SourceId, Sources, Statics};
 
 /// Encode the given object into a collection of asm.
 pub(crate) fn compile(
@@ -29,6 +29,7 @@ pub(crate) fn compile(
     source_loader: &mut dyn SourceLoader,
     options: &Options,
     args: &[String],
+    statics: &Statics,
     unit_storage: &mut dyn UnitEncoder,
 ) -> alloc::Result<()> {
     // Shared id generator.
@@ -58,6 +59,14 @@ pub(crate) fn compile(
 
     // The worker queue.
     let mut worker = Worker::new(q);
+
+    // Declare any statics the caller has asked for before indexing, so that a
+    // source which uses one can be compiled against it.
+    for s in statics.iter() {
+        if let Err(error) = worker.q.declare_static(s.item()) {
+            worker.q.diagnostics.error(SourceId::empty(), error)?;
+        }
+    }
 
     // Queue up the initial sources to be loaded.
     for source_id in worker.q.sources.source_ids() {

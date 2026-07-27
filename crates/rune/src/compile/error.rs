@@ -370,6 +370,9 @@ pub(crate) enum ErrorKind {
     StaticInPattern {
         item: ItemBuf,
     },
+    ConflictingStatic {
+        item: ItemBuf,
+    },
     BadArgumentCount {
         expected: usize,
         actual: usize,
@@ -841,6 +844,12 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "The static `{item}` cannot be used in a pattern, since its value is only known at runtime"
+                )?;
+            }
+            ErrorKind::ConflictingStatic { item } => {
+                write!(
+                    f,
+                    "The item `{item}` conflicts with a static of the same name which was declared with the build"
                 )?;
             }
             ErrorKind::BadArgumentCount { expected, actual } => {

@@ -72,8 +72,34 @@ interior is an `Arc<Mutex<..>>`. See the `statics_threads` example.
 no extra setup. A `Vm` constructed directly starts without storage, and reading
 a static through it reports that none has been configured.
 
+#### Statics can be declared with the build
+
+A static doesn't have to come from the source being compiled. A collection of
+`Statics` can be handed to the build, and every static declared in it is added
+to the unit as if the source had declared it:
+
+```rust
+let mut statics = Statics::new();
+statics.insert(["REGISTRY"])?;
+
+let unit = rune::prepare(&mut sources)
+    .with_statics(&statics)
+    .build()?;
+```
+
+This lets a host hand scripts a piece of state it owns without the scripts
+having to declare it, in the same way a native module makes a function available
+to them. The name is an item, so `["config", "REGISTRY"]` declares the static
+inside of the `config` module.
+
+Since there is no source to evaluate, such a static has no initializer. It
+starts out uninitialized just like a `static REGISTRY;` in a script does, so the
+caller has to assign it before anything reads it. A source which declares an
+item of the same name is a compile error. See the `declared_statics` example.
+
 #### New API
 
+- `rune::Statics` and `Build::with_statics`.
 - `rune::runtime::Globals` and `rune::runtime::GlobalsError`.
 - `Vm::with_globals`, `Vm::globals`, `Vm::globals_mut` and `Vm::is_same_globals`.
 - `Unit::globals_len` and `Unit::global_slot`.
