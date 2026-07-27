@@ -1,0 +1,11 @@
+[package]
+name = "rune-hegel-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+rune = { path = "../crates/rune" }
+hegeltest = "0.28.2"

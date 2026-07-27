@@ -243,3 +243,13 @@ jobs:
     - run: cargo run --release --bin rune -- test --all-targets -O test-std=true
       env:
         RUNEFLAGS: v2=true
+
+  hegel_tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - run: cargo test
+      working-directory: hegel_tests
