@@ -52,12 +52,14 @@ where
     T: 'a + TryClone,
     A: Allocator,
 {
-    default fn spec_extend(&mut self, iterator: I) -> Result<(), Error> {
-        for value in iterator {
-            self.try_push(value.try_clone()?)?;
-        }
+    default_fn! {
+        fn spec_extend(&mut self, iterator: I) -> Result<(), Error> {
+            for value in iterator {
+                self.try_push(value.try_clone()?)?;
+            }
 
-        Ok(())
+            Ok(())
+        }
     }
 }
 
