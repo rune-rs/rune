@@ -1411,19 +1411,22 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_not(&mut self, addr: Address, out: Output) -> Result<(), VmError> {
         self.unary(addr, out, &Protocol::NOT, |inline| match *inline {
-            Inline::Bool(value) => Some(Inline::Bool(!value)),
-            Inline::Unsigned(value) => Some(Inline::Unsigned(!value)),
-            Inline::Signed(value) => Some(Inline::Signed(!value)),
-            _ => None,
+            Inline::Bool(value) => Ok(Some(Inline::Bool(!value))),
+            Inline::Unsigned(value) => Ok(Some(Inline::Unsigned(!value))),
+            Inline::Signed(value) => Ok(Some(Inline::Signed(!value))),
+            _ => Ok(None),
         })
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_neg(&mut self, addr: Address, out: Output) -> Result<(), VmError> {
         self.unary(addr, out, &Protocol::NEG, |inline| match *inline {
-            Inline::Signed(value) => Some(Inline::Signed(-value)),
-            Inline::Float(value) => Some(Inline::Float(-value)),
-            _ => None,
+            Inline::Signed(value) => {
+                let value = value.checked_neg().ok_or(VmErrorKind::Overflow)?;
+                Ok(Some(Inline::Signed(value)))
+            }
+            Inline::Float(value) => Ok(Some(Inline::Float(-value))),
+            _ => Ok(None),
         })
     }
 
@@ -1432,13 +1435,13 @@ impl Vm {
         operand: Address,
         out: Output,
         protocol: &'static Protocol,
-        op: impl FnOnce(&Inline) -> Option<Inline>,
+        op: impl FnOnce(&Inline) -> Result<Option<Inline>, VmErrorKind>,
     ) -> Result<(), VmError> {
         let operand = self.stack.at(operand);
 
         'fallback: {
             let store = match operand.as_ref() {
-                Repr::Inline(inline) => op(inline),
+                Repr::Inline(inline) => op(inline).map_err(VmError::new)?,
                 Repr::Any(..) => break 'fallback,
                 _ => None,
             };
