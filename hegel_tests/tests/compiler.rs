@@ -94,15 +94,19 @@ fn nested_source(shape: &str, depth: usize) -> String {
     source
 }
 
-/// Property: moderately deep expression nesting compiles (or errors) without
-/// crashing the process. Depth is capped at 20: deeper nesting aborts the
-/// process with a stack overflow in the recursive parser (rune-rs/rune#1040).
+/// Property: deep expression nesting compiles (or errors) without crashing the
+/// process.
+///
+/// Nesting is walked over an explicit stack rather than by recursing, so what
+/// bounds it is the `max-depth` option rather than the native stack. The depth
+/// here is well past what used to abort the process and is capped only to keep
+/// a case quick.
 #[test]
 fn nested_expressions_compile_without_crashing() {
     let context = Context::with_default_modules().expect("failed to build context");
 
     hegel::Hegel::new(|tc| {
-        let depth = tc.draw(generators::integers::<usize>().min_value(1).max_value(20));
+        let depth = tc.draw(generators::integers::<usize>().min_value(1).max_value(2000));
         let shape = tc.draw(generators::sampled_from(vec![
             "paren", "array", "block", "neg", "object", "call",
         ]));
