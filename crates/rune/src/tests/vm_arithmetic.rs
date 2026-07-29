@@ -7,6 +7,10 @@ macro_rules! op_tests {
         op_tests!(@unary $ty, !, $lhs, $out);
     };
 
+    ($ty:ty, - $lhs:literal = $out:expr) => {
+        op_tests!(@unary $ty, -, $lhs, $out);
+    };
+
     ($ty:ty, $lhs:literal $op:tt $rhs:literal = $out:expr) => {
         op_tests!(@binary $ty, $lhs, $op, $rhs, $out);
     };
@@ -166,6 +170,34 @@ macro_rules! error_test {
     }
 }
 
+macro_rules! unary_error_test {
+    ($op:tt $lhs:literal = $error:ident) => {
+        assert_vm_error!(
+            &format!(
+                r#"let a = {lhs}; {op} a;"#,
+                lhs = stringify!($lhs), op = stringify!($op),
+            ),
+            $error => {}
+        );
+
+        assert_vm_error!(
+            &format!(
+                r#"let a = #{{ padding: 0, field: {lhs} }}; {op} a.field;"#,
+                lhs = stringify!($lhs), op = stringify!($op),
+            ),
+            $error => {}
+        );
+
+        assert_vm_error!(
+            &format!(
+                r#"let a = (0, {lhs}); {op} a.1;"#,
+                lhs = stringify!($lhs), op = stringify!($op),
+            ),
+            $error => {}
+        );
+    }
+}
+
 #[test]
 fn i64() {
     op_tests!(i64, 10 + 2 = 12);
@@ -179,6 +211,7 @@ fn i64() {
     op_tests!(i64, 0b1100 << 2 = 0b1100 << 2);
     op_tests!(i64, 0b1100 >> 2 = 0b1100 >> 2);
     op_tests!(i64, !0b10100i64 = !0b10100i64);
+    op_tests!(i64, -10i64 = -10i64);
 
     error_test!(9223372036854775807i64 + 2 = Overflow);
     error_test!(-9223372036854775808i64 - 2 = Underflow);
@@ -187,6 +220,8 @@ fn i64() {
     error_test!(10 % 0 = DivideByZero);
     error_test!(0b1 << 64 = Overflow);
     error_test!(0b1 >> 64 = Underflow);
+
+    unary_error_test!(--9223372036854775808i64 = Overflow);
 }
 
 #[test]
