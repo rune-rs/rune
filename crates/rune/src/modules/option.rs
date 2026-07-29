@@ -671,9 +671,13 @@ pub(crate) fn option_try(this: &Option<Value>) -> Result<ControlFlow, VmError> {
     })
 }
 
+/// The iterator holds the value it hands out, and a script can nest one inside
+/// another - `a = Some(a).iter()` in a loop - so it hands it over rather than
+/// being dropped in place.
 #[derive(Any, Clone)]
 #[rune(item = ::std::option)]
 pub(crate) struct Iter {
+    #[rune(dismantle)]
     value: Option<Value>,
 }
 

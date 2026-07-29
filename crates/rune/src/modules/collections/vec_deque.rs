@@ -6,8 +6,8 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, Protocol, ProtocolCaller, RawAnyGuard, Ref, Value, Vec,
-    VmError, VmErrorKind,
+    Dismantle, EnvProtocolCaller, Formatter, Handover, Iterator, Protocol, ProtocolCaller,
+    RawAnyGuard, Ref, Value, Vec, VmError, VmErrorKind,
 };
 use crate::{Any, ContextError, Module};
 
@@ -91,7 +91,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// [`extend`]: VecDeque::extend
 /// [`append`]: VecDeque::append
 #[derive(Any, Default)]
-#[rune(module = crate, item = ::std::collections::vec_deque)]
+#[rune(module = crate, item = ::std::collections::vec_deque, dismantle)]
 pub(crate) struct VecDeque {
     inner: alloc::VecDeque<Value>,
 }
@@ -802,12 +802,19 @@ fn from(vec: Vec) -> VecDeque {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::collections::vec_deque)]
+#[rune(item = ::std::collections::vec_deque, dismantle)]
 pub(crate) struct Iter {
     iter: alloc::vec_deque::RawIter<Value>,
     // Drop must happen after the raw iterator.
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The deque is kept alive through a guard rather than through a slot, so
+/// taking the iterator apart releases the guard and hands the deque over.
+impl Dismantle for Iter {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl Iter {
@@ -818,12 +825,12 @@ impl Iter {
     }
 
     #[rune::function(keep, protocol = SIZE_HINT)]
-    fn size_hint(self) -> (usize, Option<usize>) {
+    fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
     }
 
     #[rune::function(keep, protocol = LEN)]
-    fn len(self) -> usize {
+    fn len(&self) -> usize {
         self.iter.len()
     }
 
@@ -847,5 +854,17 @@ impl iter::DoubleEndedIterator for Iter {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         Iter::next_back(self)
+    }
+}
+
+/// A deque removes the slots it is done with, which is what keeps the search
+/// for the way back out of it from walking over them again.
+impl Dismantle for VecDeque {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        // Every value is handed over in one pass over the deque, and what is
+        // left of it is dropped as soon as this returns.
+        while let Some(value) = self.inner.pop_back() {
+            out.push(value);
+        }
     }
 }

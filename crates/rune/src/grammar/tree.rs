@@ -180,6 +180,21 @@ impl<'a> StreamBuf<'a> {
         self.stream.end()?;
         Ok(out)
     }
+
+    /// Access the stream being referenced.
+    ///
+    /// Used by passes which walk nested nodes over an explicit stack instead of
+    /// recursively, since they have to park a partially consumed stream rather
+    /// than keep it on the call stack. Such a pass is responsible for calling
+    /// [`StreamBuf::end`] once it is done with the stream.
+    pub(crate) fn stream(&mut self) -> &mut Stream<'a> {
+        &mut self.stream
+    }
+
+    /// Require that the stream has been fully consumed.
+    pub(crate) fn end(self) -> Result<()> {
+        self.stream.end()
+    }
 }
 
 impl Spanned for StreamBuf<'_> {
@@ -899,7 +914,6 @@ impl<'a> Node<'a> {
     }
 
     /// Test if the current node is whitespace.
-    #[cfg(feature = "fmt")]
     pub(crate) fn is_whitespace(&self) -> bool {
         matches!(self.inner.value(), Kind::Whitespace)
     }
@@ -1243,15 +1257,6 @@ impl<'a> MaybeNode<'a> {
         match self {
             MaybeNode::Some(node) => node.fmt(o),
             MaybeNode::None => Ok(()),
-        }
-    }
-
-    /// Map the result.
-    #[cfg(feature = "fmt")]
-    pub(crate) fn and_then<O>(self, f: impl FnOnce(Node<'a>) -> Result<O>) -> Result<Option<O>> {
-        match self {
-            MaybeNode::Some(node) => Ok(Some(f(node)?)),
-            MaybeNode::None => Ok(None),
         }
     }
 

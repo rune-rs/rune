@@ -11,10 +11,10 @@ fn ensure_unambigious_items() {
         r#"enum Foo { Variant } mod Foo { struct Variant; }"#,
         span,
         _ => {
-            assert_eq!(span, span!(21, 28));
+            assert_eq!(span, span!(21, 48));
         },
         AmbiguousItem { .. } => {
-            assert_eq!(span, span!(11, 18));
+            assert_eq!(span, span!(11, 19));
         },
     };
 }

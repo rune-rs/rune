@@ -293,18 +293,6 @@ impl Diagnostics {
         )
     }
 
-    /// Add a warning about an unecessary semi-colon.
-    pub(crate) fn unnecessary_semi_colon(
-        &mut self,
-        source_id: SourceId,
-        span: &dyn Spanned,
-    ) -> alloc::Result<()> {
-        self.warning(
-            source_id,
-            WarningDiagnosticKind::UnnecessarySemiColon { span: span.span() },
-        )
-    }
-
     /// Add a warning about using a deprecated function
     pub(crate) fn used_deprecated(
         &mut self,

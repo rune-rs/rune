@@ -11,7 +11,7 @@ use crate::alloc::{self, HashMap, Vec, VecDeque};
 use crate::ast::{self, Kind, Span, Spanned};
 use crate::compile::{self, ItemId, ModId, WithSpan};
 use crate::grammar::{Node, Stream};
-use crate::indexing::{index, index2};
+use crate::indexing::index2;
 use crate::internal_macros::resolve_context;
 use crate::macros::{MacroContext, TokenStream};
 use crate::parse::Resolve;
@@ -196,47 +196,27 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let as_function_body = !kind.is_module() && self.q.options.script;
 
-        #[allow(clippy::collapsible_else_if)]
-        if self.q.options.v2 {
-            let tree = crate::grammar::text(source_id, source.as_str()).root()?;
+        let tree = crate::grammar::text(source_id, source.as_str())
+            .max_nesting(self.q.options.max_depth)
+            .root()?;
 
-            let tree = Rc::new(tree);
+        let tree = Rc::new(tree);
 
-            #[cfg(feature = "std")]
-            if self.q.options.print_tree {
-                tree.print_with_source(
-                    &Span::empty(),
-                    format_args!("Loading file (source: {source_id})"),
-                    source.as_str(),
-                )?;
-            }
+        #[cfg(feature = "std")]
+        if self.q.options.print_tree {
+            tree.print_with_source(
+                &Span::empty(),
+                format_args!("Loading file (source: {source_id})"),
+                source.as_str(),
+            )?;
+        }
 
-            if as_function_body {
-                let mut idx = indexer!(&tree);
-                tree.parse_all(|p: &mut crate::grammar::Stream| index2::bare(&mut idx, p))?;
-            } else {
-                let mut idx = indexer!(&tree);
-                tree.parse_all(|p| index2::file(&mut idx, p))?;
-            }
+        if as_function_body {
+            let mut idx = indexer!(&tree);
+            tree.parse_all(|p: &mut crate::grammar::Stream| index2::bare(&mut idx, p))?;
         } else {
-            if as_function_body {
-                let ast =
-                    crate::parse::parse_all::<ast::EmptyBlock>(source.as_str(), source_id, true)?;
-
-                let span = Span::new(0, source.len());
-
-                let empty = Rc::default();
-                let mut idx = indexer!(&empty);
-
-                index::empty_block_fn(&mut idx, ast, &span)?;
-            } else {
-                let mut ast =
-                    crate::parse::parse_all::<ast::File>(source.as_str(), source_id, true)?;
-
-                let empty = Rc::default();
-                let mut idx = indexer!(&empty);
-                index::file(&mut idx, &mut ast)?;
-            }
+            let mut idx = indexer!(&tree);
+            tree.parse_all(|p| index2::file(&mut idx, p))?;
         }
 
         Ok(())
@@ -274,33 +254,6 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         // we might introduce bounds which would not be communicated
         // through `Self`.
         match this.kind {
-            ImplItemKind::Ast { path, functions } => {
-                let named = self
-                    .q
-                    .convert_path_with(&path, true, Used::Used, Used::Unused)?;
-
-                if let Some((spanned, _)) = named.parameters.into_iter().flatten().next() {
-                    return Err(compile::Error::new(
-                        spanned.span(),
-                        compile::ErrorKind::UnsupportedGenerics,
-                    ));
-                }
-
-                tracing::trace!(item = ?self.q.pool.item(named.item), "next impl item entry");
-
-                let meta = self.q.lookup_meta(
-                    &this.location,
-                    named.item,
-                    GenericsParameters::default(),
-                )?;
-
-                let empty = Rc::default();
-                let mut idx = indexer!(&empty, named, meta);
-
-                for f in functions {
-                    index::item_fn(&mut idx, f)?;
-                }
-            }
             ImplItemKind::Node { path, functions } => {
                 let named =
                     path.parse(|p| self.q.convert_path2_with(p, true, Used::Used, Used::Unused))?;
@@ -346,10 +299,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             let close = match p.peek() {
                 K!['{'] => K!['}'],
                 K!['('] => K![')'],
+                K!['['] => K![']'],
                 token => {
                     return Err(compile::Error::msg(
                         p.peek_span(),
-                        try_format!("expected `{{` or `(`, found {token}"),
+                        try_format!("expected `(`, `[` or `{{`, found {token}"),
                     ));
                 }
             };
@@ -433,7 +387,9 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         this: &ExpandMacroBuiltin,
         stream: Node<'_>,
     ) -> compile::Result<BuiltInMacro2> {
-        let tree = crate::grammar::node(stream).format()?;
+        let tree = crate::grammar::node(stream)
+            .max_nesting(self.q.options.max_depth)
+            .format()?;
         let tree = Rc::new(tree);
 
         let items = crate::indexing::Items::new(self.q.pool.item(this.item.id))?;
@@ -471,7 +427,9 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         literal: BuiltInLiteral,
         stream: Node<'_>,
     ) -> compile::Result<BuiltInMacro2> {
-        let tree = crate::grammar::node(stream).exprs(K![,])?;
+        let tree = crate::grammar::node(stream)
+            .max_nesting(self.q.options.max_depth)
+            .exprs(K![,])?;
         let tree = Rc::new(tree);
 
         let items = crate::indexing::Items::new(self.q.pool.item(this.item.id))?;
@@ -530,10 +488,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             let close = match p.peek() {
                 K!['{'] => K!['}'],
                 K!['('] => K![')'],
+                K!['['] => K![']'],
                 token => {
                     return Err(compile::Error::msg(
                         p.peek_span(),
-                        try_format!("expected `{{` or `(`, found {token}"),
+                        try_format!("expected `(`, `[` or `{{`, found {token}"),
                     ));
                 }
             };
@@ -600,7 +559,9 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             handler.call(&mut macro_context, &input_stream)?
         };
 
-        let inner_tree = crate::grammar::token_stream(&output_stream).root()?;
+        let inner_tree = crate::grammar::token_stream(&output_stream)
+            .max_nesting(idx.q.options.max_depth)
+            .root()?;
 
         let tree = Rc::new(inner_tree);
         idx.tree = &tree;
@@ -685,7 +646,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         // The contents of an attribute is stored as a raw token stream, so it
         // has to be re-parsed to get at the path identifying the macro.
-        let attribute_tree = Rc::new(crate::grammar::node(tokens).attribute()?);
+        let attribute_tree = Rc::new(
+            crate::grammar::node(tokens)
+                .max_nesting(self.q.options.max_depth)
+                .attribute()?,
+        );
 
         let mut parsed = None;
 
@@ -759,7 +724,11 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             handler.call(&mut macro_context, &input_stream, &item_stream)?
         };
 
-        let tree = Rc::new(crate::grammar::token_stream(&output_stream).root()?);
+        let tree = Rc::new(
+            crate::grammar::token_stream(&output_stream)
+                .max_nesting(idx.q.options.max_depth)
+                .root()?,
+        );
         idx.tree = &tree;
         tree.parse_all(|p| index2::file(&mut idx, p))?;
 

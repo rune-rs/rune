@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{self, Bytes, Inline, Object, OwnedTuple, Repr, RttiKind, Vec};
+use crate::runtime::{self, env, Bytes, Inline, Object, OwnedTuple, Repr, RttiKind, Vec};
 use crate::TypeHash;
 
 use serde::de::{self, Deserialize as _, Error as _};
@@ -16,6 +16,10 @@ impl<'de> de::Deserialize<'de> for Value {
     where
         D: de::Deserializer<'de>,
     {
+        // Building a value out of a document descends into it by recursing, and
+        // how deeply the document nests is decided by whoever wrote it, so the
+        // walk is bounded the same way every other walk over a value is.
+        let _guard = env::enter_value().map_err(D::Error::custom)?;
         deserializer.deserialize_any(VmVisitor)
     }
 }
@@ -26,6 +30,12 @@ impl ser::Serialize for Value {
     where
         S: ser::Serializer,
     {
+        // A value graph is built by the machine, so how deeply it nests has
+        // nothing to do with how deep the source was, and it can even be
+        // cyclic. Descending into it recurses, so the walk is bounded the same
+        // way comparing, ordering, hashing and formatting one is.
+        let _guard = env::enter_value().map_err(S::Error::custom)?;
+
         match self.as_ref() {
             Repr::Inline(value) => match *value {
                 Inline::Empty => Err(ser::Error::custom("cannot serialize empty values")),

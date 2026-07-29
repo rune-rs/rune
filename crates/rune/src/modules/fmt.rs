@@ -8,7 +8,6 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::compile;
 use crate::macros::{FormatArgs, MacroContext, TokenStream};
-use crate::parse::Parser;
 use crate::runtime::{EnvProtocolCaller, Format, Formatter, VmError};
 use crate::{ContextError, Module};
 
@@ -60,7 +59,7 @@ pub(crate) fn format(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let args = p.parse::<FormatArgs>()?;
     p.eof()?;
     let expanded = args.expand(cx)?;

@@ -7,13 +7,13 @@ use core::task::{ready, Context, Poll, RawWaker, RawWakerVTable, Waker};
 use crate::alloc::prelude::*;
 use crate::async_vm_try;
 use crate::runtime::budget::Budget;
-use crate::runtime::{budget, Awaited};
+use crate::runtime::{budget, env, Awaited};
 use crate::shared::AssertSend;
 use crate::sync::Arc;
 
 use super::{
-    Address, GeneratorState, Globals, Output, RuntimeContext, Unit, Value, Vm, VmDiagnostics,
-    VmError, VmErrorKind, VmHalt, VmHaltInfo,
+    Address, GeneratorState, Globals, Handover, Output, RuntimeContext, Unit, Value, Vm,
+    VmDiagnostics, VmError, VmErrorKind, VmHalt, VmHaltInfo,
 };
 
 static COMPLETE_WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
@@ -514,62 +514,171 @@ where
         // projected fields.
         let this = unsafe { Pin::get_unchecked_mut(self) };
 
-        if let Some(value) = this.init.take() {
-            let state = replace(&mut this.execution.state, ExecutionState::Suspended);
+        poll_resume(
+            &mut *this.execution,
+            &mut this.init,
+            &mut this.awaited,
+            this.diagnostics.as_deref_mut(),
+            cx,
+        )
+    }
+}
 
-            if let ExecutionState::Resumed(out) = state {
-                let vm = this.execution.vm.as_mut();
-                async_vm_try!(vm.stack_mut().store(out, value));
+/// Drive an execution which has been resumed.
+///
+/// The state a resumed execution is driven with is taken apart here so that an
+/// execution which is borrowed - [`VmResume`] - and one which is owned -
+/// [`VmResumeOwned`] - are driven by the same loop.
+fn poll_resume<T>(
+    execution: &mut VmExecution<T>,
+    init: &mut Option<Value>,
+    awaited: &mut Option<Awaited>,
+    mut diagnostics: Option<&mut (dyn VmDiagnostics + '_)>,
+    cx: &mut Context<'_>,
+) -> Poll<Result<VmOutcome, VmError>>
+where
+    T: AsMut<Vm>,
+{
+    // An execution which is driven from inside the native frames of another one
+    // costs a native frame of its own, and a script decides how deeply it nests
+    // them, so the nesting is bounded here rather than left to overflow.
+    let _guard = async_vm_try!(env::enter_execution());
+
+    if let Some(value) = init.take() {
+        let state = replace(&mut execution.state, ExecutionState::Suspended);
+
+        if let ExecutionState::Resumed(out) = state {
+            let vm = execution.vm.as_mut();
+            async_vm_try!(vm.store(out, value));
+        }
+    }
+
+    loop {
+        let vm = execution.vm.as_mut();
+
+        if let Some(value) = &mut *awaited {
+            // SAFETY: The awaited value is never moved for as long as it is
+            // being polled.
+            let value = unsafe { Pin::new_unchecked(value) };
+            async_vm_try!(ready!(value.poll(cx, vm)));
+            *awaited = None;
+        }
+
+        let result = vm.run(match diagnostics {
+            Some(ref mut value) => Some(&mut **value),
+            None => None,
+        });
+
+        match async_vm_try!(VmError::with_vm(result, vm)) {
+            VmHalt::Exited(addr) => {
+                execution.state = ExecutionState::Exited(addr);
+            }
+            VmHalt::Awaited(value) => {
+                *awaited = Some(value);
+                continue;
+            }
+            VmHalt::VmCall(vm_call) => {
+                async_vm_try!(vm_call.into_execution(execution));
+                continue;
+            }
+            VmHalt::Yielded(addr, out) => {
+                let value = match addr {
+                    Some(addr) => vm.stack().at(addr).clone(),
+                    None => Value::unit(),
+                };
+
+                execution.state = ExecutionState::Resumed(out);
+                return Poll::Ready(Ok(VmOutcome::Yielded(value)));
+            }
+            VmHalt::Limited => {
+                return Poll::Ready(Ok(VmOutcome::Limited));
             }
         }
 
-        loop {
-            let vm = this.execution.vm.as_mut();
-
-            if let Some(awaited) = &mut this.awaited {
-                let awaited = unsafe { Pin::new_unchecked(awaited) };
-                async_vm_try!(ready!(awaited.poll(cx, vm)));
-                this.awaited = None;
-            }
-
-            let result = vm.run(match this.diagnostics {
-                Some(ref mut value) => Some(&mut **value),
-                None => None,
-            });
-
-            match async_vm_try!(VmError::with_vm(result, vm)) {
-                VmHalt::Exited(addr) => {
-                    this.execution.state = ExecutionState::Exited(addr);
-                }
-                VmHalt::Awaited(awaited) => {
-                    this.awaited = Some(awaited);
-                    continue;
-                }
-                VmHalt::VmCall(vm_call) => {
-                    async_vm_try!(vm_call.into_execution(this.execution));
-                    continue;
-                }
-                VmHalt::Yielded(addr, out) => {
-                    let value = match addr {
-                        Some(addr) => vm.stack().at(addr).clone(),
-                        None => Value::unit(),
-                    };
-
-                    this.execution.state = ExecutionState::Resumed(out);
-                    return Poll::Ready(Ok(VmOutcome::Yielded(value)));
-                }
-                VmHalt::Limited => {
-                    return Poll::Ready(Ok(VmOutcome::Limited));
-                }
-            }
-
-            if this.execution.states.is_empty() {
-                let value = async_vm_try!(this.execution.end());
-                return Poll::Ready(Ok(VmOutcome::Complete(value)));
-            }
-
-            async_vm_try!(this.execution.pop_state());
+        if execution.states.is_empty() {
+            let value = async_vm_try!(execution.end());
+            return Poll::Ready(Ok(VmOutcome::Complete(value)));
         }
+
+        async_vm_try!(execution.pop_state());
+    }
+}
+
+/// A future which drives an execution it owns.
+///
+/// A future built out of an `async` block owns its execution too, but that
+/// execution is only reachable from inside of the block. This is what an async
+/// call produces instead, so that the values a suspended execution holds can be
+/// handed over rather than dropped in place - see `Future::from_execution`.
+pub(crate) struct VmResumeOwned {
+    execution: VmExecution<Vm>,
+    init: Option<Value>,
+    awaited: Option<Awaited>,
+}
+
+impl VmResumeOwned {
+    /// Drive the given execution to completion.
+    pub(crate) fn new(execution: VmExecution<Vm>) -> Self {
+        Self {
+            execution,
+            init: Some(Value::empty()),
+            awaited: None,
+        }
+    }
+
+    /// Hand over the values the execution is working over.
+    ///
+    /// Nothing borrows the stack in between polls, so this is available even
+    /// while the execution is suspended.
+    /// Swap the next value the execution is working over with `value`.
+    pub(crate) fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume(self.execution.vm_mut().stack_mut());
+    }
+
+    /// Test whether this execution has yet to run a single instruction.
+    ///
+    /// An execution in this state holds nothing but the arguments of the call
+    /// which produced it, so the machine which awaits it can splice it in as an
+    /// ordinary call frame instead of driving it as a nested machine - see
+    /// [`Vm::splice_call`].
+    ///
+    /// [`Vm::splice_call`]: crate::runtime::Vm::splice_call
+    pub(crate) fn is_unstarted(&self) -> bool {
+        self.init.is_some()
+            && self.awaited.is_none()
+            && self.execution.states.is_empty()
+            && matches!(self.execution.state, ExecutionState::Initial)
+            && self.execution.vm.call_frames().is_empty()
+    }
+
+    /// Take the machine out of an unstarted execution, leaving an empty one
+    /// which shares its unit, context and storage behind.
+    pub(crate) fn take_vm(&mut self) -> Vm {
+        let vm = &mut self.execution.vm;
+
+        let replacement = Vm::new(vm.context().clone(), vm.unit().clone());
+        replace(vm, replacement)
+    }
+}
+
+impl Future for VmResumeOwned {
+    type Output = Result<Value, VmError>;
+
+    #[inline]
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: We are ensuring that we never move this value or any
+        // projected fields.
+        let this = unsafe { Pin::get_unchecked_mut(self) };
+
+        let outcome = ready!(poll_resume(
+            &mut this.execution,
+            &mut this.init,
+            &mut this.awaited,
+            None,
+            cx
+        ));
+
+        Poll::Ready(outcome.and_then(VmOutcome::into_complete))
     }
 }
 

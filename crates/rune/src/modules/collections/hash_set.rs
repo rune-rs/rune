@@ -8,7 +8,8 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, Table};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, Iterator, ProtocolCaller, RawAnyGuard, Ref, Value, VmError,
+    Dismantle, EnvProtocolCaller, Formatter, Handover, Iterator, ProtocolCaller, RawAnyGuard, Ref,
+    Value, VmError,
 };
 use crate::{Any, ContextError, Module};
 
@@ -112,7 +113,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert!(!m.contains((0, 2)));
 /// ```
 #[derive(Any)]
-#[rune(module = crate, item = ::std::collections::hash_set)]
+#[rune(module = crate, item = ::std::collections::hash_set, dismantle)]
 pub(crate) struct HashSet {
     table: Table<()>,
 }
@@ -385,7 +386,7 @@ impl HashSet {
                     this,
                     this_iter,
                     other_iter,
-                    _guards: (this_guard, other_guard),
+                    guards: (this_guard, other_guard),
                 }
             } else {
                 let this_iter = Table::iter_ref_raw(other);
@@ -395,7 +396,7 @@ impl HashSet {
                     this: other,
                     this_iter,
                     other_iter,
-                    _guards: (other_guard, this_guard),
+                    guards: (other_guard, this_guard),
                 }
             };
 
@@ -585,7 +586,8 @@ impl HashSet {
 
 #[derive(Any)]
 #[rune(item = ::std::collections::hash_set)]
-struct Iter {
+pub(crate) struct Iter {
+    #[rune(dismantle)]
     iter: IterRef<()>,
 }
 
@@ -608,8 +610,8 @@ impl Iter {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::collections::hash_set)]
-struct Intersection {
+#[rune(item = ::std::collections::hash_set, dismantle)]
+pub(crate) struct Intersection {
     this: IterRef<()>,
     other: Option<Ref<HashSet>>,
 }
@@ -643,8 +645,8 @@ impl Intersection {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::collections::hash_set)]
-struct Difference {
+#[rune(item = ::std::collections::hash_set, dismantle)]
+pub(crate) struct Difference {
     this: IterRef<()>,
     other: Option<Ref<HashSet>>,
 }
@@ -678,12 +680,12 @@ impl Difference {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::collections::hash_set)]
-struct Union {
+#[rune(item = ::std::collections::hash_set, dismantle)]
+pub(crate) struct Union {
     this: ptr::NonNull<Table<()>>,
     this_iter: RawIter<(Value, ())>,
     other_iter: RawIter<(Value, ())>,
-    _guards: (RawAnyGuard, RawAnyGuard),
+    guards: (RawAnyGuard, RawAnyGuard),
 }
 
 impl Union {
@@ -709,5 +711,48 @@ impl Union {
 
             Ok(None)
         }
+    }
+}
+
+/// A set is made of the values put into it, and a value which is itself made of
+/// values can be one of them, so it hands them over rather than being dropped
+/// in place.
+impl Dismantle for HashSet {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        // The set is emptied rather than walked in place, so that what it holds
+        // is handed over in one pass over it.
+        for (key, ()) in self.table.drain() {
+            out.push(key);
+        }
+    }
+}
+
+/// Each of these keeps the sets it walks alive through a reference rather than
+/// through a slot, so taking one apart hands them over rather than dropping
+/// them in place.
+impl Dismantle for Intersection {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume(&mut self.this);
+
+        if let Some(other) = &mut self.other {
+            out.consume_ref(other.guard_mut());
+        }
+    }
+}
+
+impl Dismantle for Difference {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume(&mut self.this);
+
+        if let Some(other) = &mut self.other {
+            out.consume_ref(other.guard_mut());
+        }
+    }
+}
+
+impl Dismantle for Union {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guards.0);
+        out.consume_ref(&mut self.guards.1);
     }
 }

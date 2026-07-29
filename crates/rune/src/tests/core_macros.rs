@@ -110,3 +110,28 @@ fn test_number_formatting() {
     test_case!("{:/^13b}", 42);
     test_case!("{:/>13b}", 42);
 }
+
+/// A macro is invoked through any of the three delimiters, as in Rust. Its
+/// input is a raw token stream either way, so which one is used says nothing
+/// about how it is expanded.
+#[test]
+fn macro_call_delimiters() {
+    let parens: String = eval(r#"format!("{}", 42)"#);
+    let brackets: String = eval(r#"format!["{}", 42]"#);
+    let braces: String = eval(r#"format!{"{}", 42}"#);
+
+    assert_eq!(parens, "42");
+    assert_eq!(brackets, "42");
+    assert_eq!(braces, "42");
+}
+
+/// A macro call is the head of the chain applied to it, whichever delimiter it
+/// was invoked through.
+#[test]
+fn macro_call_delimiters_chained() {
+    let parens: usize = eval(r#"format!("{}", 42).len()"#);
+    let brackets: usize = eval(r#"format!["{}", 42].len()"#);
+
+    assert_eq!(parens, 2);
+    assert_eq!(brackets, 2);
+}

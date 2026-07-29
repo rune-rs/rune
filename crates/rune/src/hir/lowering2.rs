@@ -6,11 +6,11 @@ use rust_alloc::rc::Rc;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{self, HashMap, HashSet};
+use crate::alloc::{self, Box, HashMap, HashSet};
 use crate::ast::{self, Delimiter, Kind, NumberSize, Span, Spanned};
 use crate::compile::{meta, Error, ErrorKind, ItemId, Result, WithSpan};
 use crate::grammar::{
-    classify, object_key, Ignore, MaybeNode, NodeClass, Remaining, Stream, StreamBuf, Tree,
+    classify, object_key, Ignore, MaybeNode, Node, NodeClass, Remaining, Stream, StreamBuf, Tree,
 };
 use crate::hash::ParametersBuilder;
 use crate::hir::{self, alloc_with};
@@ -156,7 +156,7 @@ fn statements<'hir>(
             }
             Expr => {
                 let expr = node.parse(|p| expr(cx, p))?;
-                let stmt = hir::Stmt::Expr(&*alloc!(expr));
+                let stmt = hir::Stmt::Expr(expr.span, expr!(expr));
                 cx.statements.try_push(stmt)?;
             }
             Item => {
@@ -217,7 +217,7 @@ fn statements<'hir>(
         );
 
         match cx.statements.pop() {
-            Some(hir::Stmt::Expr(e)) => Some(e),
+            Some(hir::Stmt::Expr(_, e)) => Some(e),
             Some(stmt) => {
                 cx.statements.try_push(stmt).with_span(&*p)?;
                 None
@@ -239,15 +239,34 @@ fn statements<'hir>(
     })
 }
 
+/// Reject attributes on a local declaration.
+///
+/// A statement is parsed without deciding up front whether it is an item, an
+/// expression or a local, so attributes are accepted by the grammar and it
+/// falls to whatever the statement turns out to be to reject them.
+fn deny_local_attributes(p: &mut Stream<'_>) -> Result<()> {
+    if let MaybeNode::Some(node) = p.eat(Attribute) {
+        return Err(Error::msg(
+            &node,
+            "Attributes on local declarations are not supported",
+        ));
+    }
+
+    Ok(())
+}
+
 /// Lower a local.
 #[instrument_ast(span = p)]
 pub(crate) fn local<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     p: &mut Stream<'_>,
 ) -> Result<hir::Local<'hir>> {
+    alloc_with!(cx, p);
+
     // Note: expression needs to be assembled before pattern, otherwise the
     // expression will see declarations in the pattern.
 
+    deny_local_attributes(p)?;
     p.expect(K![let])?;
     let pat = p.expect(Pat)?;
     p.expect(K![=])?;
@@ -259,7 +278,7 @@ pub(crate) fn local<'hir>(
     Ok(hir::Local {
         span: p.span(),
         pat,
-        expr,
+        expr: expr!(expr),
     })
 }
 
@@ -269,29 +288,8 @@ pub(crate) fn expr<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     p: &mut Stream<'_>,
 ) -> Result<hir::Expr<'hir>> {
-    alloc_with!(cx, ast);
-
-    p.remaining(cx, Attribute)?.ignore(cx)?;
-    p.eat(Modifiers);
-
-    while let MaybeNode::Some(label) = p.eat_matching(|k| matches!(k, K!['label])) {
-        let label = label.ast::<ast::Label>()?;
-
-        if let Some(existing) = &cx.label {
-            cx.error(Error::new(
-                label.span(),
-                ErrorKind::ConflictingLabels {
-                    existing: existing.span(),
-                },
-            ))?;
-        } else {
-            cx.label = Some(label);
-        }
-
-        p.one(K![:]).exactly_one(cx)?;
-    }
-
-    let kind = p.pump()?.parse(|p| expr_inner(cx, p))?.into_kind(cx)?;
+    let node = expr_prefix(cx, p)?;
+    let kind = inner_node(cx, node)?;
 
     if let Some(label) = cx.label.take() {
         return Err(Error::msg(label, "labels are not supported for expression"));
@@ -313,6 +311,2901 @@ fn expr_only<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
     })
 }
 
+/// An expression which is partially lowered, waiting on one of its children.
+enum ExprStep<'hir, 'a> {
+    /// Finish the `Expr` node wrapping an inner expression.
+    Wrapper { buf: StreamBuf<'a> },
+    /// Wrap the kind of an inner expression which had no `Expr` node around it.
+    Only { span: Span },
+    /// Finish a group, `( .. )`.
+    Group { buf: StreamBuf<'a>, empty: bool },
+    /// Finish a unary expression.
+    Unary { buf: StreamBuf<'a>, op: ast::UnOp },
+    /// Finish an assignment, having lowered its left-hand side.
+    AssignRhs { buf: StreamBuf<'a> },
+    /// Finish an assignment, having lowered its right-hand side.
+    Assign {
+        buf: StreamBuf<'a>,
+        lhs: hir::ExprId,
+    },
+    /// Continue a sequence of expressions, `[a, b]` or `(a, b)`.
+    Seq {
+        buf: StreamBuf<'a>,
+        items: Vec<hir::Expr<'hir>>,
+        comma: Remaining<'a>,
+        array: bool,
+    },
+    /// Finish a range which has one operand.
+    Range1 { buf: StreamBuf<'a>, kind: RangeKind },
+    /// Finish a block expression, `{ .. }`.
+    BlockExpr { buf: StreamBuf<'a> },
+    /// Finish the braces around a block body.
+    Block { buf: StreamBuf<'a> },
+    /// Finish a `return` or `yield` which has an operand.
+    OptExpr { buf: StreamBuf<'a>, yielded: bool },
+    /// Finish a `break` which has an operand.
+    Break {
+        buf: StreamBuf<'a>,
+        label: Option<ast::Label>,
+    },
+    /// Finish a `loop`, having lowered its body.
+    Loop {
+        buf: StreamBuf<'a>,
+        label: Option<&'hir str>,
+        condition: Option<&'hir hir::Condition<'hir>>,
+    },
+    /// Continue a `for`, having lowered its iterator.
+    ForIter {
+        buf: StreamBuf<'a>,
+        label: Option<&'hir str>,
+        pat: Node<'a>,
+        block: Node<'a>,
+    },
+    /// Finish a `for`, having lowered its body.
+    For {
+        buf: StreamBuf<'a>,
+        label: Option<&'hir str>,
+        binding: hir::PatBinding<'hir>,
+        iter: hir::ExprId,
+    },
+    /// Finish a branch of an `if`, having lowered its block.
+    IfBranch {
+        buf: StreamBuf<'a>,
+        start: Span,
+        branches: Vec<hir::ConditionalBranch<'hir>>,
+        condition: &'hir hir::Condition<'hir>,
+        else_buf: Option<StreamBuf<'a>>,
+    },
+    /// Finish the fallback of an `if`, having lowered its block.
+    IfElse {
+        buf: StreamBuf<'a>,
+        branches: Vec<hir::ConditionalBranch<'hir>>,
+        else_buf: StreamBuf<'a>,
+    },
+    /// Finish the subject of a `match`.
+    MatchSubject { buf: StreamBuf<'a> },
+    /// Finish a match arm which has just lowered its guard.
+    MatchGuard(Box<StepMatchGuard<'hir, 'a>>),
+    /// Finish a match arm which has just lowered its body.
+    MatchBody(Box<StepMatchBody<'hir, 'a>>),
+    /// Finish the left-hand side of a binary chain.
+    BinaryLhs { buf: StreamBuf<'a> },
+    /// Finish an operand of a binary chain.
+    BinaryRhs {
+        buf: StreamBuf<'a>,
+        lhs: hir::Expr<'hir>,
+        op: ast::BinOp,
+        needs: Needs,
+    },
+    /// Finish an async block, having lowered its body.
+    AsyncBlock(Box<StepAsyncBlock<'a>>),
+    /// Finish a const block, having lowered its body.
+    ConstBlock { buf: StreamBuf<'a> },
+    /// Finish a closure, having lowered its body.
+    Closure(Box<StepClosure<'hir, 'a>>),
+    /// Finish the base of a chain.
+    ChainBase { buf: StreamBuf<'a> },
+    /// Wrap the kind of a chain base into an inner expression.
+    BaseInner { span: Span },
+    /// Continue the arguments of a call in a chain.
+    ChainCall(Box<StepChainCall<'hir, 'a>>),
+    /// Finish an index in a chain.
+    ChainIndex(Box<StepChainIndex<'hir, 'a>>),
+    /// Finish the value of an object field.
+    ObjectValue {
+        buf: StreamBuf<'a>,
+        key_node: Node<'a>,
+        assignments: Vec<hir::FieldAssign<'hir>>,
+        keys_dup: HashMap<&'hir str, Span>,
+        key: (Span, &'hir str),
+    },
+    /// Finish the default arm of a `select`.
+    SelectDefault(Box<StepSelectDefault<'hir, 'a>>),
+    /// Finish the value of a `select` arm.
+    SelectValue(Box<StepSelectValue<'hir, 'a>>),
+    /// Finish the body of a `select` arm.
+    SelectBody(Box<StepSelectBody<'hir, 'a>>),
+    /// Finish a `let` condition, having lowered its expression.
+    CondLet { buf: StreamBuf<'a>, pat: Node<'a> },
+    /// Wrap a plain expression as a condition.
+    CondExpr,
+    /// Continue a `while`, having lowered its condition.
+    WhileCond {
+        buf: StreamBuf<'a>,
+        label: Option<&'hir str>,
+    },
+    /// Continue an `if`, having lowered its condition.
+    IfCond {
+        buf: StreamBuf<'a>,
+        start: Span,
+        branches: Vec<hir::ConditionalBranch<'hir>>,
+        else_buf: Option<StreamBuf<'a>>,
+    },
+    /// Continue the statements of a block body.
+    Stmts {
+        buf: StreamBuf<'a>,
+        label: Option<&'hir str>,
+        at: usize,
+        must_be_last: Option<Span>,
+        pending: Option<Pending>,
+    },
+    /// Finish a local declaration, having lowered its expression.
+    Local { buf: StreamBuf<'a>, pat: Node<'a> },
+    /// Finish a range which has two operands, having lowered its start.
+    RangeEnd {
+        buf: StreamBuf<'a>,
+        start: Option<hir::ExprId>,
+        inclusive: bool,
+    },
+}
+
+/// Finish an async block, having lowered its body.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepAsyncBlock<'a> {
+    buf: StreamBuf<'a>,
+    meta: meta::Meta,
+}
+
+/// Finish a closure, having lowered its body.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepClosure<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    meta: meta::Meta,
+    args: &'hir [hir::FnArg<'hir>],
+}
+
+/// Finish a match arm which has just lowered its guard.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepMatchGuard<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    arm: StreamBuf<'a>,
+    subject: hir::ExprId,
+    branches: Vec<hir::ExprMatchBranch<'hir>>,
+    pat: hir::PatBinding<'hir>,
+}
+
+/// Finish a match arm which has just lowered its body.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepMatchBody<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    arm: StreamBuf<'a>,
+    subject: hir::ExprId,
+    branches: Vec<hir::ExprMatchBranch<'hir>>,
+    pat: hir::PatBinding<'hir>,
+    condition: Option<hir::ExprId>,
+    was_block: bool,
+}
+
+/// Continue the arguments of a call in a chain.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepChainCall<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    call: StreamBuf<'a>,
+    inner: ExprInner<'hir, 'a>,
+    args: Vec<hir::Expr<'hir>>,
+    comma: Remaining<'a>,
+    start: Span,
+}
+
+/// Finish an index in a chain.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepChainIndex<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    index: StreamBuf<'a>,
+    inner: ExprInner<'hir, 'a>,
+    start: Span,
+}
+
+/// Finish the default arm of a `select`.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepSelectDefault<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    arm: StreamBuf<'a>,
+    state: SelectState<'hir>,
+    default_span: Span,
+    was_block: bool,
+}
+
+/// Finish the value of a `select` arm.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepSelectValue<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    arm: StreamBuf<'a>,
+    state: SelectState<'hir>,
+    pat: hir::PatBinding<'hir>,
+}
+
+/// Finish the body of a `select` arm.
+///
+/// Stored behind a [`Box`] so that the size of a work stack entry is not
+/// dominated by the largest construct.
+struct StepSelectBody<'hir, 'a> {
+    buf: StreamBuf<'a>,
+    arm: StreamBuf<'a>,
+    state: SelectState<'hir>,
+    pat: hir::PatBinding<'hir>,
+    was_block: bool,
+}
+
+/// Which one-operand range is being lowered.
+#[derive(Debug, Clone, Copy)]
+enum RangeKind {
+    From,
+    To,
+    ToInclusive,
+}
+
+/// What a `select` has accumulated so far.
+struct SelectState<'hir> {
+    exprs: Vec<hir::Expr<'hir>>,
+    branches: Vec<hir::ExprSelectBranch<'hir>>,
+    default: Option<(Span, hir::ExprId)>,
+}
+
+/// What lowering an expression produced.
+enum ExprState<'hir, 'a> {
+    /// An inner expression produced this kind.
+    Kind(hir::ExprKind<'hir>),
+    /// A complete expression, to be handed to the step below.
+    Expr(hir::Expr<'hir>),
+    /// A complete block, to be handed to the step below.
+    Block(hir::Block<'hir>),
+    /// A complete local declaration, to be handed to the step below.
+    Local(hir::Local<'hir>),
+    /// The base of a chain, which may still be an unresolved path.
+    Inner(ExprInner<'hir, 'a>),
+    /// A complete condition, to be handed to the step below.
+    Condition(hir::Condition<'hir>),
+    /// Park the step and lower the given node next.
+    Child(ExprStep<'hir, 'a>, Node<'a>, Start),
+}
+
+/// How a child node should be started.
+#[derive(Debug, Clone, Copy)]
+enum Start {
+    /// The child is an `Expr` node, as produced by `p.expect(Expr)`.
+    Wrapped,
+    /// The child is the inner expression, as produced by `p.pump()`.
+    Inner,
+    /// The child is a `BlockBody` node, lowered with the given label.
+    Body { label: Option<ast::Label> },
+    /// The child is a `Local` node.
+    Local,
+    /// The child is a `Block` node.
+    Block,
+    /// The child is the base of a chain.
+    Base { span: Span },
+    /// The child is the condition of an `if` or a `while`.
+    Condition,
+}
+
+/// Lower the inner expression in the given node.
+///
+/// Expressions nest through more or less every construct in the language.
+/// Rather than recursing, the nesting is kept on a heap allocated stack.
+/// Constructs which have not been converted yet fall back to lowering
+/// recursively, which is why this is safe to land in pieces.
+fn inner_node<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    node: Node<'a>,
+) -> Result<hir::ExprKind<'hir>> {
+    // The driver is re-entered for constructs which are not driven over its
+    // own stack, such as a block body, so it counts from wherever the caller
+    // had got to and hands the depth back on the way out.
+    let base = cx.const_depth;
+    let result = inner_node_inner(cx, node, base);
+    cx.const_depth = base;
+    result
+}
+
+fn inner_node_inner<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    node: Node<'a>,
+    base: usize,
+) -> Result<hir::ExprKind<'hir>> {
+    let span = node.span();
+    let mut stack = Vec::new();
+    let mut state = inner_start(cx, node)?;
+
+    loop {
+        cx.const_depth = base + stack.len();
+
+        match state {
+            ExprState::Kind(kind) => {
+                let Some(step) = stack.pop() else {
+                    return Ok(kind);
+                };
+
+                state = expr_resume(cx, step, ExprState::Kind(kind))?;
+            }
+            ExprState::Expr(expr) => {
+                let Some(step) = stack.pop() else {
+                    return Err(Error::msg(expr, "Expression without a parent"));
+                };
+
+                state = expr_resume(cx, step, ExprState::Expr(expr))?;
+            }
+            ExprState::Block(block) => {
+                let Some(step) = stack.pop() else {
+                    return Err(Error::msg(block, "Block without a parent"));
+                };
+
+                state = expr_resume(cx, step, ExprState::Block(block))?;
+            }
+            ExprState::Local(local) => {
+                let Some(step) = stack.pop() else {
+                    return Err(Error::msg(local, "Local without a parent"));
+                };
+
+                state = expr_resume(cx, step, ExprState::Local(local))?;
+            }
+            ExprState::Inner(inner) => {
+                let Some(step) = stack.pop() else {
+                    return Err(Error::msg(inner.span, "Chain base without a parent"));
+                };
+
+                state = expr_resume(cx, step, ExprState::Inner(inner))?;
+            }
+            ExprState::Condition(condition) => {
+                let Some(step) = stack.pop() else {
+                    return Err(Error::msg(Span::empty(), "Condition without a parent"));
+                };
+
+                state = expr_resume(cx, step, ExprState::Condition(condition))?;
+            }
+            ExprState::Child(step, node, start) => {
+                cx.const_nesting(&node, base + stack.len())?;
+                stack.try_push(step).with_span(span)?;
+
+                state = match start {
+                    Start::Wrapped => {
+                        let mut buf = node.into_stream();
+                        let inner = expr_prefix(cx, buf.stream())?;
+                        stack.try_push(ExprStep::Wrapper { buf }).with_span(span)?;
+                        inner_start(cx, inner)?
+                    }
+                    Start::Inner => {
+                        stack
+                            .try_push(ExprStep::Only { span: node.span() })
+                            .with_span(span)?;
+                        inner_start(cx, node)?
+                    }
+                    Start::Body { label } => stmts_start(cx, node.into_stream(), label)?,
+                    Start::Condition => {
+                        let span = node.span();
+
+                        if matches!(node.kind(), Condition) {
+                            let mut buf = node.into_stream();
+
+                            let (pat, node) = {
+                                let p = buf.stream();
+                                p.expect(K![let])?;
+                                let pat = p.expect(Pat)?;
+                                p.expect(K![=])?;
+                                (pat, p.expect(Expr)?)
+                            };
+
+                            stack
+                                .try_push(ExprStep::CondLet { buf, pat })
+                                .with_span(span)?;
+
+                            let mut buf = node.into_stream();
+                            let inner = expr_prefix(cx, buf.stream())?;
+                            stack.try_push(ExprStep::Wrapper { buf }).with_span(span)?;
+                            inner_start(cx, inner)?
+                        } else {
+                            stack.try_push(ExprStep::CondExpr).with_span(span)?;
+                            let mut buf = node.into_stream();
+                            let inner = expr_prefix(cx, buf.stream())?;
+                            stack.try_push(ExprStep::Wrapper { buf }).with_span(span)?;
+                            inner_start(cx, inner)?
+                        }
+                    }
+                    Start::Base { span } => {
+                        stack
+                            .try_push(ExprStep::BaseInner { span })
+                            .with_span(span)?;
+                        inner_start(cx, node)?
+                    }
+                    Start::Block => {
+                        let mut buf = node.into_stream();
+
+                        let node = {
+                            let p = buf.stream();
+                            p.expect(K!['{'])?;
+                            p.expect(BlockBody)?
+                        };
+
+                        ExprState::Child(ExprStep::Block { buf }, node, Start::Body { label: None })
+                    }
+                    Start::Local => {
+                        let mut buf = node.into_stream();
+
+                        let (pat, node) = {
+                            let p = buf.stream();
+                            deny_local_attributes(p)?;
+                            p.expect(K![let])?;
+                            let pat = p.expect(Pat)?;
+                            p.expect(K![=])?;
+                            (pat, p.expect(Expr)?)
+                        };
+
+                        ExprState::Child(ExprStep::Local { buf, pat }, node, Start::Wrapped)
+                    }
+                };
+            }
+        }
+    }
+}
+
+/// Consume the attributes, modifiers and labels which precede an expression,
+/// returning the node holding the expression itself.
+fn expr_prefix<'hir, 'a>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'a>) -> Result<Node<'a>> {
+    p.remaining(cx, Attribute)?.ignore(cx)?;
+    p.eat(Modifiers);
+
+    while let MaybeNode::Some(label) = p.eat_matching(|k| matches!(k, K!['label])) {
+        let label = label.ast::<ast::Label>()?;
+
+        if let Some(existing) = &cx.label {
+            cx.error(Error::new(
+                label.span(),
+                ErrorKind::ConflictingLabels {
+                    existing: existing.span(),
+                },
+            ))?;
+        } else {
+            cx.label = Some(label);
+        }
+
+        p.one(K![:]).exactly_one(cx)?;
+    }
+
+    p.pump()
+}
+
+/// Start lowering an inner expression, parking a step if it has children.
+fn inner_start<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    node: Node<'a>,
+) -> Result<ExprState<'hir, 'a>> {
+    let mut buf = node.into_stream();
+
+    match buf.stream().kind() {
+        ExprGroup => {
+            {
+                let p = buf.stream();
+                p.expect(K!['('])?;
+            }
+
+            if let MaybeNode::Some(node) = buf.stream().eat(Expr) {
+                return Ok(ExprState::Child(
+                    ExprStep::Group { buf, empty: false },
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                let expr = hir::Expr {
+                    span: p.span(),
+                    kind: hir::ExprKind::Tuple(&hir::ExprSeq { items: &[] }),
+                };
+
+                p.expect(K![')'])?;
+                hir::ExprKind::Group(expr!(expr))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprEmptyGroup => {
+            let node = {
+                let p = buf.stream();
+                p.expect(Kind::Open(Delimiter::Empty))?;
+                p.expect(Expr)?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Group { buf, empty: true },
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprUnary => {
+            let (op, node) = {
+                let p = buf.stream();
+                let op = p.ast::<ast::UnOp>()?;
+
+                if let ast::UnOp::BorrowRef { .. } = op {
+                    return Err(Error::new(op, ErrorKind::UnsupportedRef));
+                }
+
+                (op, p.pump()?)
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Unary { buf, op },
+                node,
+                Start::Inner,
+            ))
+        }
+        ExprAssign => {
+            let node = buf.stream().expect(Expr)?;
+
+            Ok(ExprState::Child(
+                ExprStep::AssignRhs { buf },
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprArray => {
+            {
+                let p = buf.stream();
+                p.expect(K!['['])?;
+            }
+
+            expr_seq_next(cx, buf, Vec::new(), Remaining::default(), true)
+        }
+        ExprTuple => {
+            {
+                let p = buf.stream();
+                p.expect(K!['('])?;
+            }
+
+            expr_seq_next(cx, buf, Vec::new(), Remaining::default(), false)
+        }
+        ExprRangeFrom => {
+            let node = {
+                let p = buf.stream();
+                let node = p.pump()?;
+                p.expect(K![..])?;
+                node
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Range1 {
+                    buf,
+                    kind: RangeKind::From,
+                },
+                node,
+                Start::Inner,
+            ))
+        }
+        ExprRangeTo => {
+            let node = {
+                let p = buf.stream();
+                p.expect(K![..])?;
+                p.pump()?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Range1 {
+                    buf,
+                    kind: RangeKind::To,
+                },
+                node,
+                Start::Inner,
+            ))
+        }
+        ExprRangeToInclusive => {
+            let node = {
+                let p = buf.stream();
+                p.expect(K![..=])?;
+                p.pump()?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Range1 {
+                    buf,
+                    kind: RangeKind::ToInclusive,
+                },
+                node,
+                Start::Inner,
+            ))
+        }
+        ExprRange | ExprRangeInclusive => {
+            let inclusive = matches!(buf.stream().kind(), ExprRangeInclusive);
+            let node = buf.stream().pump()?;
+
+            Ok(ExprState::Child(
+                ExprStep::RangeEnd {
+                    buf,
+                    start: None,
+                    inclusive,
+                },
+                node,
+                Start::Inner,
+            ))
+        }
+        ExprRangeFull => {
+            let kind = {
+                let p = buf.stream();
+                p.expect(K![..])?;
+                alloc_with!(cx, p);
+                hir::ExprKind::Range(alloc!(hir::ExprRange::RangeFull))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprReturn | ExprYield => {
+            let yielded = matches!(buf.stream().kind(), ExprYield);
+
+            let node = {
+                let p = buf.stream();
+                p.expect(if yielded { K![yield] } else { K![return] })?;
+                p.eat(Expr)
+            };
+
+            if let MaybeNode::Some(node) = node {
+                return Ok(ExprState::Child(
+                    ExprStep::OptExpr { buf, yielded },
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+
+            let kind = if yielded {
+                hir::ExprKind::Yield(None)
+            } else {
+                hir::ExprKind::Return(None)
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprBreak => {
+            let (label, node) = {
+                let p = buf.stream();
+                p.expect(K![break])?;
+
+                let label = p
+                    .eat_matching(|k| matches!(k, K!['label]))
+                    .ast::<ast::Label>()?;
+
+                (label, p.eat(Expr))
+            };
+
+            if let MaybeNode::Some(node) = node {
+                return Ok(ExprState::Child(
+                    ExprStep::Break { buf, label },
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+
+            let kind = expr_break_kind(cx, &mut buf, label, None)?;
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprLoop => {
+            let label = loop_label(cx, &mut buf)?;
+            cx.scopes.push_loop(label)?;
+
+            let node = {
+                let p = buf.stream();
+                p.expect(K![loop])?;
+                p.expect(Block)?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Loop {
+                    buf,
+                    label,
+                    condition: None,
+                },
+                node,
+                Start::Block,
+            ))
+        }
+        ExprWhile => {
+            let label = loop_label(cx, &mut buf)?;
+            cx.scopes.push_loop(label)?;
+
+            let node = {
+                let p = buf.stream();
+                p.expect(K![while])?;
+                p.pump()?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::WhileCond { buf, label },
+                node,
+                Start::Condition,
+            ))
+        }
+        ExprFor => {
+            let (pat, iter, block) = {
+                let p = buf.stream();
+                p.expect(K![for])?;
+                let pat = p.expect(Pat)?;
+                p.expect(K![in])?;
+                let iter = p.expect(Expr)?;
+                let block = p.expect(Block)?;
+                (pat, iter, block)
+            };
+
+            let label = loop_label(cx, &mut buf)?;
+
+            Ok(ExprState::Child(
+                ExprStep::ForIter {
+                    buf,
+                    label,
+                    pat,
+                    block,
+                },
+                iter,
+                Start::Wrapped,
+            ))
+        }
+        ExprIf => {
+            let (start, node) = {
+                let p = buf.stream();
+                let start = p.expect(K![if])?.span();
+                cx.scopes.push_loop(None)?;
+                (start, p.pump()?)
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::IfCond {
+                    buf,
+                    start,
+                    branches: Vec::new(),
+                    else_buf: None,
+                },
+                node,
+                Start::Condition,
+            ))
+        }
+        ExprMatch => {
+            let node = {
+                let p = buf.stream();
+                p.expect(K![match])?;
+                p.expect(Expr)?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::MatchSubject { buf },
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprBinary => {
+            let node = buf.stream().pump()?;
+
+            Ok(ExprState::Child(
+                ExprStep::BinaryLhs { buf },
+                node,
+                Start::Inner,
+            ))
+        }
+        AsyncBlock(item) => {
+            let meta = {
+                let p = buf.stream();
+
+                if cx.const_eval {
+                    return Err(Error::msg(
+                        &*p,
+                        "async blocks are not supported in constant contexts",
+                    ));
+                };
+
+                let item = cx.q.item_for("lowering async block", item).with_span(&*p)?;
+                let meta = cx.lookup_meta(&*p, item.item, GenericsParameters::default())?;
+
+                let meta::Kind::AsyncBlock { .. } = meta.kind else {
+                    return Err(Error::expected_meta(
+                        &*p,
+                        meta.info(cx.q.pool)?,
+                        "async block",
+                    ));
+                };
+
+                meta
+            };
+
+            cx.scopes.push_captures()?;
+
+            let node = {
+                let p = buf.stream();
+                p.expect(K!['{'])?;
+                p.expect(BlockBody)?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::AsyncBlock(Box::try_new(StepAsyncBlock { buf, meta })?),
+                node,
+                Start::Body { label: None },
+            ))
+        }
+        ConstBlock(item) => {
+            if cx.const_eval {
+                let node = {
+                    let p = buf.stream();
+                    p.expect(K!['{'])?;
+                    p.expect(BlockBody)?
+                };
+
+                return Ok(ExprState::Child(
+                    ExprStep::ConstBlock { buf },
+                    node,
+                    Start::Body { label: None },
+                ));
+            }
+
+            let kind = {
+                let p = buf.stream();
+                let item = cx.q.item_for("lowering const block", item).with_span(&*p)?;
+                let meta = cx.lookup_meta(&*p, item.item, GenericsParameters::default())?;
+
+                let meta::Kind::Const = meta.kind else {
+                    return Err(Error::expected_meta(
+                        &*p,
+                        meta.info(cx.q.pool)?,
+                        "constant block",
+                    ));
+                };
+
+                p.ignore();
+                hir::ExprKind::Const(meta.hash)
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        Closure(item) => {
+            let (meta, args) = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                let Some(meta) = cx.q.query_meta(&*p, item, Used::default())? else {
+                    return Err(Error::new(
+                        &*p,
+                        ErrorKind::MissingItem {
+                            item: cx.q.pool.item(item).try_to_owned()?,
+                        },
+                    ));
+                };
+
+                let meta::Kind::Closure { .. } = meta.kind else {
+                    return Err(Error::expected_meta(
+                        &*p,
+                        meta.info(cx.q.pool)?,
+                        "a closure",
+                    ));
+                };
+
+                cx.scopes.push_captures()?;
+
+                let args = p.expect(ClosureArguments)?.parse(|p| {
+                    if matches!(p.peek(), K![||]) {
+                        p.pump()?;
+                        return Ok(&[][..]);
+                    };
+
+                    p.expect(K![|])?;
+
+                    let mut args = Vec::new();
+                    let mut comma = Remaining::default();
+
+                    while let MaybeNode::Some(pat) = p.eat(Pat) {
+                        comma.exactly_one(cx)?;
+                        let binding = pat.parse(|p| self::pat_binding(cx, p))?;
+                        comma = p.remaining(cx, K![,])?;
+                        args.try_push(hir::FnArg::Pat(alloc!(binding)))
+                            .with_span(&*p)?;
+                    }
+
+                    comma.at_most_one(cx)?;
+                    p.expect(K![|])?;
+                    Ok(iter!(args))
+                })?;
+
+                (meta, args)
+            };
+
+            let node = buf.stream().expect(Expr)?;
+
+            Ok(ExprState::Child(
+                ExprStep::Closure(Box::try_new(StepClosure { buf, meta, args })?),
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprChain => {
+            let label = cx.label.take();
+            let node = buf.stream().pump()?;
+            cx.label = label;
+
+            if matches!(node.kind(), IndexedPath(..)) {
+                let mut base = node.into_stream();
+                let inner = expr_path(cx, base.stream())?;
+                base.end()?;
+                return chain_next(cx, buf, inner);
+            }
+
+            let span = node.span();
+
+            Ok(ExprState::Child(
+                ExprStep::ChainBase { buf },
+                node,
+                Start::Base { span },
+            ))
+        }
+        ExprObject => {
+            let key_node = {
+                let p = buf.stream();
+                let key = p.pump()?;
+                p.expect(K!['{'])?;
+                key
+            };
+
+            object_next(
+                cx,
+                buf,
+                key_node,
+                Vec::new(),
+                Remaining::default(),
+                HashMap::new(),
+            )
+        }
+        ExprSelect => {
+            {
+                let p = buf.stream();
+                p.expect(K![select])?;
+                p.expect(K!['{'])?;
+            }
+
+            let state = SelectState {
+                exprs: Vec::new(),
+                branches: Vec::new(),
+                default: None,
+            };
+
+            select_next(cx, buf, state, Remaining::default(), false)
+        }
+        Block => {
+            let label = cx.label.take();
+
+            let node = {
+                let p = buf.stream();
+                p.expect(K!['{'])?;
+                p.expect(BlockBody)?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::BlockExpr { buf },
+                node,
+                Start::Body { label },
+            ))
+        }
+        _ => {
+            // Not converted yet, so lower it recursively. Its own children
+            // still come back through this driver.
+            let kind = {
+                let p = buf.stream();
+                expr_inner(cx, p)?.into_kind(cx)?
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+    }
+}
+
+/// Resume an expression whose child has just been lowered.
+fn expr_resume<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    step: ExprStep<'hir, 'a>,
+    value: ExprState<'hir, 'a>,
+) -> Result<ExprState<'hir, 'a>> {
+    match step {
+        ExprStep::Wrapper { mut buf } => {
+            let ExprState::Kind(kind) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected an expression"));
+            };
+
+            let span = buf.stream().span();
+
+            if let Some(label) = cx.label.take() {
+                return Err(Error::msg(label, "labels are not supported for expression"));
+            }
+
+            buf.end()?;
+            Ok(ExprState::Expr(hir::Expr { span, kind }))
+        }
+        ExprStep::Only { span } => {
+            let ExprState::Kind(kind) = value else {
+                return Err(Error::msg(span, "Expected an expression"));
+            };
+
+            Ok(ExprState::Expr(hir::Expr { span, kind }))
+        }
+        ExprStep::BlockExpr { mut buf } => {
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                p.expect(K!['}'])?;
+                alloc_with!(cx, p);
+                hir::ExprKind::Block(alloc!(block))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::Stmts {
+            buf,
+            label,
+            at,
+            must_be_last,
+            pending,
+            ..
+        } => {
+            let Some(pending) = pending else {
+                return Err(Error::msg(Span::empty(), "Expected a statement"));
+            };
+
+            match value {
+                ExprState::Expr(expr) => {
+                    let span = expr.span;
+                    let id = cx.exprs.insert(expr).with_span(span)?;
+                    let stmt = hir::Stmt::Expr(span, id);
+                    cx.statements.try_push(stmt).with_span(pending.span)?;
+                }
+                ExprState::Local(local) => {
+                    let local = cx.arena.alloc(local).map_err(|e| {
+                        Error::new(
+                            pending.span,
+                            ErrorKind::ArenaAllocError {
+                                requested: e.requested,
+                            },
+                        )
+                    })?;
+
+                    let stmt = hir::Stmt::Local(local);
+                    cx.statements.try_push(stmt).with_span(pending.span)?;
+                }
+                _ => {
+                    return Err(Error::msg(pending.span, "Expected a statement"));
+                }
+            }
+
+            stmts_after(cx, buf, label, at, must_be_last, pending)
+        }
+        ExprStep::Local { mut buf, pat } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let local = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let expr = expr!(expr);
+                let pat = pat.parse(|p| self::pat_binding(cx, p))?;
+
+                hir::Local {
+                    span: p.span(),
+                    pat,
+                    expr,
+                }
+            };
+
+            buf.end()?;
+            Ok(ExprState::Local(local))
+        }
+        ExprStep::Block { mut buf } => {
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            buf.stream().expect(K!['}'])?;
+            buf.end()?;
+            Ok(ExprState::Block(block))
+        }
+        ExprStep::OptExpr { mut buf, yielded } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let expr = Some(expr!(expr));
+
+                if yielded {
+                    hir::ExprKind::Yield(expr)
+                } else {
+                    hir::ExprKind::Return(expr)
+                }
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::Break { mut buf, label } => {
+            let expr = expect_expr(&mut buf, value)?;
+            let kind = expr_break_kind(cx, &mut buf, label, Some(expr))?;
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::Loop {
+            mut buf,
+            label,
+            condition,
+        } => {
+            let ExprState::Block(body) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                alloc_with!(cx, p);
+
+                hir::ExprKind::Loop(alloc!(hir::ExprLoop {
+                    label,
+                    condition,
+                    body,
+                    drop: iter!(layer.into_drop_order()),
+                }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::ForIter {
+            mut buf,
+            label,
+            pat,
+            block,
+        } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let iter = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                expr!(expr)
+            };
+
+            cx.scopes.push_loop(label)?;
+
+            let binding = pat.parse(|p| self::pat_binding(cx, p))?;
+
+            Ok(ExprState::Child(
+                ExprStep::For {
+                    buf,
+                    label,
+                    binding,
+                    iter,
+                },
+                block,
+                Start::Block,
+            ))
+        }
+        ExprStep::For {
+            mut buf,
+            label,
+            binding,
+            iter,
+        } => {
+            let ExprState::Block(body) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                alloc_with!(cx, p);
+
+                hir::ExprKind::For(alloc!(hir::ExprFor {
+                    label,
+                    binding,
+                    iter,
+                    body,
+                    drop: iter!(layer.into_drop_order()),
+                }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::IfBranch {
+            mut buf,
+            start,
+            mut branches,
+            condition,
+            else_buf,
+        } => {
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            {
+                let p = buf.stream();
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                alloc_with!(cx, p);
+
+                branches
+                    .try_push(hir::ConditionalBranch {
+                        span: start.join(block.span),
+                        block,
+                        condition,
+                        drop: iter!(layer.into_drop_order()),
+                    })
+                    .with_span(start)?;
+            }
+
+            if let Some(else_buf) = else_buf {
+                else_buf.end()?;
+            }
+
+            if_next(cx, buf, start, branches)
+        }
+        ExprStep::IfElse {
+            mut buf,
+            branches,
+            else_buf,
+        } => {
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            else_buf.end()?;
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let fallback = Some(&*alloc!(block));
+
+                hir::ExprKind::If(alloc!(hir::Conditional {
+                    branches: iter!(branches),
+                    fallback,
+                }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::MatchSubject { mut buf } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let subject = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let subject = expr!(expr);
+                p.expect(K!['{'])?;
+                subject
+            };
+
+            match_next(cx, buf, subject, Vec::new(), Remaining::default(), false)
+        }
+        ExprStep::MatchGuard(step) => {
+            let StepMatchGuard {
+                buf,
+                mut arm,
+                subject,
+                branches,
+                pat,
+            } = Box::into_inner(step);
+
+            let expr = expect_expr(&mut arm, value)?;
+
+            let (condition, node, was_block) = {
+                let p = arm.stream();
+                alloc_with!(cx, p);
+                let condition = Some(expr!(expr));
+                p.expect(K![=>])?;
+                let node = p.expect(Expr)?;
+                let was_block = node_is_block(&node);
+                (condition, node, was_block)
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::MatchBody(Box::try_new(StepMatchBody {
+                    buf,
+                    arm,
+                    subject,
+                    branches,
+                    pat,
+                    condition,
+                    was_block,
+                })?),
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprStep::MatchBody(step) => {
+            let StepMatchBody {
+                buf,
+                mut arm,
+                subject,
+                mut branches,
+                pat,
+                condition,
+                was_block,
+            } = Box::into_inner(step);
+
+            let expr = expect_expr(&mut arm, value)?;
+
+            {
+                let p = arm.stream();
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                alloc_with!(cx, p);
+
+                branches
+                    .try_push(hir::ExprMatchBranch {
+                        span: p.span(),
+                        pat,
+                        condition,
+                        body: expr!(expr),
+                        drop: iter!(layer.into_drop_order()),
+                    })
+                    .with_span(&*p)?;
+            }
+
+            arm.end()?;
+
+            let mut buf = buf;
+            let comma = buf.stream().remaining(cx, K![,])?;
+            match_next(cx, buf, subject, branches, comma, was_block)
+        }
+        ExprStep::BinaryLhs { mut buf } => {
+            let lhs = expect_expr(&mut buf, value)?;
+            binary_next(cx, buf, lhs)
+        }
+        ExprStep::BinaryRhs {
+            mut buf,
+            lhs,
+            op,
+            needs,
+        } => {
+            let rhs = expect_expr(&mut buf, value)?;
+            cx.needs = needs;
+
+            let lhs = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                let span = lhs.span.join(rhs.span);
+
+                let kind = hir::ExprKind::Binary(alloc!(hir::ExprBinary {
+                    lhs: expr!(lhs),
+                    op,
+                    rhs: expr!(rhs),
+                }));
+
+                hir::Expr { span, kind }
+            };
+
+            binary_next(cx, buf, lhs)
+        }
+        ExprStep::AsyncBlock(step) => {
+            let StepAsyncBlock { mut buf, meta } = Box::into_inner(step);
+
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            let meta::Kind::AsyncBlock { call, do_move, .. } = meta.kind else {
+                return Err(Error::msg(buf.stream().span(), "Expected an async block"));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                p.expect(K!['}'])?;
+
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                cx.q.set_used(&meta.item_meta)?;
+
+                alloc_with!(cx, p);
+
+                let block = &*alloc!(block);
+                let captures = &*iter!(layer.captures().map(|(_, id)| id));
+
+                let Some(queue) = cx.secondary_builds.as_mut() else {
+                    return Err(Error::new(&*p, ErrorKind::AsyncBlockInConst));
+                };
+
+                queue.try_push(query::SecondaryBuildEntry {
+                    item_meta: meta.item_meta,
+                    build: query::SecondaryBuild::AsyncBlock(query::AsyncBlock {
+                        hir: alloc!(hir::AsyncBlock { block, captures }),
+                        call,
+                    }),
+                })?;
+
+                hir::ExprKind::AsyncBlock(alloc!(hir::ExprAsyncBlock {
+                    hash: meta.hash,
+                    do_move,
+                    captures,
+                }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::ConstBlock { mut buf } => {
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                p.expect(K!['}'])?;
+                alloc_with!(cx, p);
+                hir::ExprKind::Block(alloc!(block))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::Closure(step) => {
+            let StepClosure {
+                mut buf,
+                meta,
+                args,
+            } = Box::into_inner(step);
+
+            let body = expect_expr(&mut buf, value)?;
+
+            let meta::Kind::Closure { call, do_move, .. } = meta.kind else {
+                return Err(Error::msg(buf.stream().span(), "Expected a closure"));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                let body_span = body.span;
+                let body = expr!(body);
+
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                cx.q.set_used(&meta.item_meta)?;
+
+                let captures = &*iter!(layer.captures().map(|(_, id)| id));
+
+                let Some(queue) = cx.secondary_builds.as_mut() else {
+                    return Err(Error::new(&*p, ErrorKind::ClosureInConst));
+                };
+
+                queue.try_push(query::SecondaryBuildEntry {
+                    item_meta: meta.item_meta,
+                    build: query::SecondaryBuild::Closure(query::Closure {
+                        hir: alloc!(hir::ExprClosure {
+                            span: body_span,
+                            args,
+                            body,
+                            captures,
+                        }),
+                        call,
+                    }),
+                })?;
+
+                if captures.is_empty() {
+                    hir::ExprKind::Fn(meta.hash)
+                } else {
+                    hir::ExprKind::CallClosure(alloc!(hir::ExprCallClosure {
+                        hash: meta.hash,
+                        do_move,
+                        captures,
+                    }))
+                }
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::ChainBase { buf } => {
+            let ExprState::Inner(inner) = value else {
+                return Err(Error::msg(Span::empty(), "Expected a chain base"));
+            };
+
+            chain_next(cx, buf, inner)
+        }
+        ExprStep::BaseInner { span } => {
+            let ExprState::Kind(kind) = value else {
+                return Err(Error::msg(span, "Expected an expression"));
+            };
+
+            Ok(ExprState::Inner(chain_inner(span, kind)))
+        }
+        ExprStep::ChainCall(step) => {
+            let StepChainCall {
+                buf,
+                call,
+                inner,
+                mut args,
+                comma,
+                start,
+            } = Box::into_inner(step);
+
+            let mut call = call;
+            let expr = expect_expr(&mut call, value)?;
+            comma.exactly_one(cx)?;
+            args.try_push(expr).with_span(start)?;
+            let comma = call.stream().one(K![,]);
+
+            match chain_call_next(cx, buf, call, inner, args, comma, start)? {
+                ChainOutcome::State(state) => Ok(state),
+                ChainOutcome::Continue(buf, inner) => chain_next(cx, buf, inner),
+            }
+        }
+        ExprStep::ChainIndex(step) => {
+            let StepChainIndex {
+                buf,
+                index,
+                inner,
+                start,
+            } = Box::into_inner(step);
+
+            let mut index = index;
+            let expr = expect_expr(&mut index, value)?;
+
+            let kind = {
+                let p = index.stream();
+                p.expect(K![']'])?;
+
+                let span = inner.span;
+                let target_kind = inner.into_kind(cx)?;
+                alloc_with!(cx, p);
+
+                hir::ExprKind::Index(alloc!(hir::ExprIndex {
+                    target: expr!(hir::Expr {
+                        span,
+                        kind: target_kind
+                    }),
+                    index: expr!(expr),
+                }))
+            };
+
+            index.end()?;
+            chain_next(cx, buf, chain_inner(start, kind))
+        }
+        ExprStep::ObjectValue {
+            mut buf,
+            key_node,
+            mut assignments,
+            mut keys_dup,
+            key: (key_span, key),
+        } => {
+            let assign = expect_expr(&mut buf, value)?;
+
+            if let Some(_existing) = keys_dup.try_insert(key, key_span)? {
+                return Err(Error::new(
+                    key_span,
+                    ErrorKind::DuplicateObjectKey {
+                        #[cfg(feature = "emit")]
+                        existing: _existing.span(),
+                        #[cfg(feature = "emit")]
+                        object: buf.stream().span(),
+                    },
+                ));
+            }
+
+            let comma = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                assignments
+                    .try_push(hir::FieldAssign {
+                        key: (key_span, key),
+                        assign: expr!(assign),
+                        position: None,
+                    })
+                    .with_span(key_span)?;
+
+                p.one(K![,])
+            };
+
+            object_next(cx, buf, key_node, assignments, comma, keys_dup)
+        }
+        ExprStep::SelectDefault(step) => {
+            let StepSelectDefault {
+                buf,
+                mut arm,
+                mut state,
+                default_span,
+                was_block,
+            } = Box::into_inner(step);
+
+            let body = expect_expr(&mut arm, value)?;
+
+            {
+                let p = arm.stream();
+                alloc_with!(cx, p);
+
+                if let Some((existing, _)) = state.default {
+                    cx.error(Error::new(
+                        default_span,
+                        ErrorKind::DuplicateSelectDefault { existing },
+                    ))?;
+                } else {
+                    state.default = Some((body.span, expr!(body)));
+                }
+            }
+
+            arm.end()?;
+
+            let mut buf = buf;
+            let comma = buf.stream().remaining(cx, K![,])?;
+            select_next(cx, buf, state, comma, was_block)
+        }
+        ExprStep::SelectValue(step) => {
+            let StepSelectValue {
+                buf,
+                mut arm,
+                mut state,
+                pat,
+            } = Box::into_inner(step);
+
+            let expr = expect_expr(&mut arm, value)?;
+            state.exprs.try_push(expr).with_span(arm.stream().span())?;
+
+            let (node, was_block) = {
+                let p = arm.stream();
+                p.expect(K![=>])?;
+                let node = p.expect(Expr)?;
+                let was_block = node_is_block(&node);
+                (node, was_block)
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::SelectBody(Box::try_new(StepSelectBody {
+                    buf,
+                    arm,
+                    state,
+                    pat,
+                    was_block,
+                })?),
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprStep::SelectBody(step) => {
+            let StepSelectBody {
+                buf,
+                mut arm,
+                mut state,
+                pat,
+                was_block,
+            } = Box::into_inner(step);
+
+            let body = expect_expr(&mut arm, value)?;
+
+            {
+                let p = arm.stream();
+                let layer = cx.scopes.pop().with_span(&*p)?;
+                alloc_with!(cx, p);
+
+                state
+                    .branches
+                    .try_push(hir::ExprSelectBranch {
+                        pat,
+                        body: expr!(body),
+                        drop: iter!(layer.into_drop_order()),
+                    })
+                    .with_span(&*p)?;
+            }
+
+            arm.end()?;
+
+            let mut buf = buf;
+            let comma = buf.stream().remaining(cx, K![,])?;
+            select_next(cx, buf, state, comma, was_block)
+        }
+        ExprStep::CondLet { mut buf, pat } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let condition = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let expr = expr!(expr);
+                let pat = pat.parse(|p| self::pat_binding(cx, p))?;
+                hir::Condition::ExprLet(alloc!(hir::ExprLet { pat, expr }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Condition(condition))
+        }
+        ExprStep::CondExpr => {
+            let ExprState::Expr(expr) = value else {
+                return Err(Error::msg(Span::empty(), "Expected a condition"));
+            };
+
+            let span = expr.span;
+            let id = cx.exprs.insert(expr).with_span(span)?;
+            Ok(ExprState::Condition(hir::Condition::Expr(span, id)))
+        }
+        ExprStep::WhileCond { mut buf, label } => {
+            let ExprState::Condition(condition) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a condition"));
+            };
+
+            let (condition, node) = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let condition = Some(&*alloc!(condition));
+                (condition, p.expect(Block)?)
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Loop {
+                    buf,
+                    label,
+                    condition,
+                },
+                node,
+                Start::Block,
+            ))
+        }
+        ExprStep::IfCond {
+            mut buf,
+            start,
+            branches,
+            else_buf,
+        } => {
+            let ExprState::Condition(condition) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a condition"));
+            };
+
+            let condition = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                &*alloc!(condition)
+            };
+
+            let node = match &else_buf {
+                Some(_) => None,
+                None => Some(buf.stream().expect(Block)?),
+            };
+
+            let (node, else_buf) = match node {
+                Some(node) => (node, else_buf),
+                None => {
+                    let mut else_buf = else_buf.expect("checked above");
+                    let node = else_buf.stream().expect(Block)?;
+                    (node, Some(else_buf))
+                }
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::IfBranch {
+                    buf,
+                    start,
+                    branches,
+                    condition,
+                    else_buf,
+                },
+                node,
+                Start::Block,
+            ))
+        }
+        ExprStep::Group { mut buf, empty } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                if empty {
+                    p.expect(Kind::Close(Delimiter::Empty))?;
+                } else {
+                    p.expect(K![')'])?;
+                }
+
+                hir::ExprKind::Group(expr!(expr))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::Unary { mut buf, op } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let expr = expr!(expr);
+                hir::ExprKind::Unary(alloc!(hir::ExprUnary { op, expr }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::AssignRhs { mut buf } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let (lhs, node) = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let lhs = expr!(expr);
+                p.expect(K![=])?;
+                (lhs, p.expect(Expr)?)
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::Assign { buf, lhs },
+                node,
+                Start::Wrapped,
+            ))
+        }
+        ExprStep::Assign { mut buf, lhs } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let rhs = expr!(expr);
+                hir::ExprKind::Assign(alloc!(hir::ExprAssign { lhs, rhs }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::Seq {
+            mut buf,
+            mut items,
+            comma,
+            array,
+        } => {
+            let expr = expect_expr(&mut buf, value)?;
+            comma.exactly_one(cx)?;
+            items.try_push(expr).with_span(buf.stream().span())?;
+            let comma = buf.stream().one(K![,]);
+            expr_seq_next(cx, buf, items, comma, array)
+        }
+        ExprStep::Range1 { mut buf, kind } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let kind = {
+                let p = buf.stream();
+
+                match kind {
+                    RangeKind::From => {
+                        alloc_with!(cx, p);
+                        let start = expr!(expr);
+                        hir::ExprKind::Range(alloc!(hir::ExprRange::RangeFrom { start }))
+                    }
+                    RangeKind::To => {
+                        alloc_with!(cx, p);
+                        let end = expr!(expr);
+                        hir::ExprKind::Range(alloc!(hir::ExprRange::RangeTo { end }))
+                    }
+                    RangeKind::ToInclusive => {
+                        alloc_with!(cx, p);
+                        let end = expr!(expr);
+                        hir::ExprKind::Range(alloc!(hir::ExprRange::RangeToInclusive { end }))
+                    }
+                }
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+        ExprStep::RangeEnd {
+            mut buf,
+            start,
+            inclusive,
+        } => {
+            let expr = expect_expr(&mut buf, value)?;
+
+            let Some(start) = start else {
+                let (start, node) = {
+                    let p = buf.stream();
+                    alloc_with!(cx, p);
+                    let start = expr!(expr);
+
+                    if inclusive {
+                        p.expect(K![..=])?;
+                    } else {
+                        p.expect(K![..])?;
+                    }
+
+                    (start, p.pump()?)
+                };
+
+                return Ok(ExprState::Child(
+                    ExprStep::RangeEnd {
+                        buf,
+                        start: Some(start),
+                        inclusive,
+                    },
+                    node,
+                    Start::Inner,
+                ));
+            };
+
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let end = expr!(expr);
+
+                if inclusive {
+                    hir::ExprKind::Range(alloc!(hir::ExprRange::RangeInclusive { start, end }))
+                } else {
+                    hir::ExprKind::Range(alloc!(hir::ExprRange::Range { start, end }))
+                }
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+    }
+}
+
+/// Lower the next item of a sequence expression, or finish it.
+fn expr_seq_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    items: Vec<hir::Expr<'hir>>,
+    comma: Remaining<'a>,
+    array: bool,
+) -> Result<ExprState<'hir, 'a>> {
+    if let MaybeNode::Some(node) = buf.stream().eat(Expr) {
+        return Ok(ExprState::Child(
+            ExprStep::Seq {
+                buf,
+                items,
+                comma,
+                array,
+            },
+            node,
+            Start::Wrapped,
+        ));
+    }
+
+    if array {
+        comma.at_most_one(cx)?;
+    } else if items.len() <= 1 {
+        comma.exactly_one(cx)?;
+    } else {
+        comma.at_most_one(cx)?;
+    }
+
+    let kind = {
+        let p = buf.stream();
+        p.expect(if array { K![']'] } else { K![')'] })?;
+        alloc_with!(cx, p);
+
+        let seq = alloc!(hir::ExprSeq {
+            items: iter!(items, |e| expr!(e))
+        });
+
+        if array {
+            hir::ExprKind::Vec(seq)
+        } else {
+            hir::ExprKind::Tuple(seq)
+        }
+    };
+
+    buf.end()?;
+    Ok(ExprState::Kind(kind))
+}
+
+/// The statement whose child is currently being lowered.
+#[derive(Debug, Clone, Copy)]
+struct Pending {
+    needs_semi: bool,
+    class: NodeClass,
+    span: Span,
+}
+
+/// Start lowering the statements of a block body.
+fn stmts_start<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    label: Option<ast::Label>,
+) -> Result<ExprState<'hir, 'a>> {
+    let label = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
+
+        match label {
+            Some(label) => Some(alloc_str!(label.resolve(resolve_context!(cx.q))?)),
+            None => None,
+        }
+    };
+
+    cx.scopes.push(label)?;
+
+    let at = cx.statements.len();
+
+    stmts_next(cx, buf, label, at, None, true)
+}
+
+/// Lower the next statement of a block body, or finish it.
+fn stmts_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    label: Option<&'hir str>,
+    at: usize,
+    must_be_last: Option<Span>,
+    mut last_item: bool,
+) -> Result<ExprState<'hir, 'a>> {
+    while let Some(node) = buf.stream().next() {
+        let (needs_semi, class) = classify(&node);
+        let span = node.span();
+
+        let pending = Some(Pending {
+            needs_semi,
+            class,
+            span,
+        });
+
+        match node.kind() {
+            Local => {
+                return Ok(ExprState::Child(
+                    ExprStep::Stmts {
+                        buf,
+                        label,
+                        at,
+                        must_be_last,
+                        pending,
+                    },
+                    node,
+                    Start::Local,
+                ));
+            }
+            Expr => {
+                return Ok(ExprState::Child(
+                    ExprStep::Stmts {
+                        buf,
+                        label,
+                        at,
+                        must_be_last,
+                        pending,
+                    },
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+            Item => {
+                let semi = buf.stream().remaining(cx, K![;])?;
+
+                if needs_semi {
+                    semi.exactly_one(cx)?;
+                } else {
+                    semi.at_most_one(cx)?;
+                }
+
+                last_item = true;
+                continue;
+            }
+            _ => {
+                cx.error(node.expected("an expression or local"))?;
+                continue;
+            }
+        }
+    }
+
+    let block = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
+
+        let value = 'out: {
+            if last_item {
+                break 'out None;
+            }
+
+            debug_assert!(
+                at < cx.statements.len(),
+                "starting point for assertions must be prior to buffer size"
+            );
+
+            match cx.statements.pop() {
+                Some(hir::Stmt::Expr(_, e)) => Some(e),
+                Some(stmt) => {
+                    cx.statements.try_push(stmt).with_span(&*p)?;
+                    None
+                }
+                None => None,
+            }
+        };
+
+        let statements = iter!(cx.statements.drain(at..));
+        let layer = cx.scopes.pop().with_span(&*p)?;
+
+        hir::Block {
+            span: p.span(),
+            label,
+            statements,
+            value,
+            drop: iter!(layer.into_drop_order()),
+        }
+    };
+
+    buf.end()?;
+    Ok(ExprState::Block(block))
+}
+
+/// Apply the statement separator rules once a statement has been lowered.
+fn stmts_after<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    label: Option<&'hir str>,
+    at: usize,
+    mut must_be_last: Option<Span>,
+    pending: Pending,
+) -> Result<ExprState<'hir, 'a>> {
+    let Pending {
+        needs_semi,
+        class,
+        span,
+    } = pending;
+
+    let semis = buf.stream().remaining(cx, K![;])?;
+
+    let last_item = semis.is_present();
+
+    if let Some(span) = must_be_last {
+        cx.error(Error::new(
+            span,
+            ErrorKind::ExpectedBlockSemiColon {
+                #[cfg(feature = "emit")]
+                followed_span: span,
+            },
+        ))?;
+    }
+
+    if matches!(class, NodeClass::Expr) && semis.is_absent() {
+        must_be_last = Some(span);
+    }
+
+    if let Some(span) = semis.trailing() {
+        cx.error(Error::msg(span, "unused semi-colons"))?;
+    }
+
+    if needs_semi {
+        semis.at_least_one(cx)?;
+    } else {
+        semis.at_most_one(cx)?;
+    }
+
+    stmts_next(cx, buf, label, at, must_be_last, last_item)
+}
+
+/// Resolve the label which applies to a loop.
+fn loop_label<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    buf: &mut StreamBuf<'_>,
+) -> Result<Option<&'hir str>> {
+    let p = buf.stream();
+    alloc_with!(cx, p);
+
+    match cx.label.take() {
+        Some(label) => Ok(Some(alloc_str!(label.resolve(resolve_context!(cx.q))?))),
+        None => Ok(None),
+    }
+}
+
+/// Build the kind of a `break`, which needs the drop order of the loop it
+/// breaks out of.
+fn expr_break_kind<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    buf: &mut StreamBuf<'_>,
+    label: Option<ast::Label>,
+    expr: Option<hir::Expr<'hir>>,
+) -> Result<hir::ExprKind<'hir>> {
+    let p = buf.stream();
+    alloc_with!(cx, p);
+
+    let label = match label {
+        Some(label) => Some(label.resolve(resolve_context!(cx.q))?),
+        None => None,
+    };
+
+    let Some(drop) = cx.scopes.loop_drop(label)? else {
+        if let Some(label) = label {
+            return Err(Error::new(
+                &*p,
+                ErrorKind::MissingLabel {
+                    label: label.try_into()?,
+                },
+            ));
+        } else {
+            return Err(Error::new(&*p, ErrorKind::BreakUnsupported));
+        }
+    };
+
+    Ok(hir::ExprKind::Break(alloc!(hir::ExprBreak {
+        label: match label {
+            Some(label) => Some(alloc_str!(label)),
+            None => None,
+        },
+        expr: match expr {
+            Some(expr) => Some(expr!(expr)),
+            None => None,
+        },
+        drop: iter!(drop),
+    })))
+}
+
+/// Continue the `else` chain of an `if`, or finish it.
+fn if_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    start: Span,
+    branches: Vec<hir::ConditionalBranch<'hir>>,
+) -> Result<ExprState<'hir, 'a>> {
+    match buf.stream().peek() {
+        ExprElse => {
+            let mut else_buf = buf.stream().pump()?.into_stream();
+
+            let node = {
+                let p = else_buf.stream();
+                p.expect(K![else])?;
+                p.expect(Block)?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::IfElse {
+                    buf,
+                    branches,
+                    else_buf,
+                },
+                node,
+                Start::Block,
+            ))
+        }
+        ExprElseIf => {
+            let mut else_buf = buf.stream().pump()?.into_stream();
+
+            let node = {
+                let p = else_buf.stream();
+                p.expect(K![else])?;
+                p.expect(K![if])?;
+                cx.scopes.push_loop(None)?;
+                p.pump()?
+            };
+
+            Ok(ExprState::Child(
+                ExprStep::IfCond {
+                    buf,
+                    start,
+                    branches,
+                    else_buf: Some(else_buf),
+                },
+                node,
+                Start::Condition,
+            ))
+        }
+        _ => {
+            let kind = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                hir::ExprKind::If(alloc!(hir::Conditional {
+                    branches: iter!(branches),
+                    fallback: None,
+                }))
+            };
+
+            buf.end()?;
+            Ok(ExprState::Kind(kind))
+        }
+    }
+}
+
+/// Test if the expression in the given node is a block, which decides whether
+/// a match arm needs a trailing comma.
+fn node_is_block(node: &Node<'_>) -> bool {
+    let Some(node) = node.children().find(|n| !n.is_whitespace()) else {
+        return false;
+    };
+
+    matches!(node.kind(), Block)
+}
+
+/// Lower the next arm of a `match`, or finish it.
+fn match_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    subject: hir::ExprId,
+    branches: Vec<hir::ExprMatchBranch<'hir>>,
+    comma: Remaining<'a>,
+    was_block: bool,
+) -> Result<ExprState<'hir, 'a>> {
+    if let MaybeNode::Some(node) = buf.stream().eat(ExprMatchArm) {
+        if was_block {
+            comma.at_most_one(cx)?;
+        } else {
+            comma.exactly_one(cx)?;
+        }
+
+        let mut arm = node.into_stream();
+
+        cx.scopes.push(None)?;
+
+        let pat = arm.stream().expect(Pat)?.parse(|p| pat_binding(cx, p))?;
+
+        if arm.stream().eat(K![if]).is_some() {
+            let node = arm.stream().expect(Expr)?;
+
+            return Ok(ExprState::Child(
+                ExprStep::MatchGuard(Box::try_new(StepMatchGuard {
+                    buf,
+                    arm,
+                    subject,
+                    branches,
+                    pat,
+                })?),
+                node,
+                Start::Wrapped,
+            ));
+        }
+
+        let (node, was_block) = {
+            let p = arm.stream();
+            p.expect(K![=>])?;
+            let node = p.expect(Expr)?;
+            let was_block = node_is_block(&node);
+            (node, was_block)
+        };
+
+        return Ok(ExprState::Child(
+            ExprStep::MatchBody(Box::try_new(StepMatchBody {
+                buf,
+                arm,
+                subject,
+                branches,
+                pat,
+                condition: None,
+                was_block,
+            })?),
+            node,
+            Start::Wrapped,
+        ));
+    }
+
+    comma.at_most_one(cx)?;
+
+    let kind = {
+        let p = buf.stream();
+        p.expect(K!['}'])?;
+        alloc_with!(cx, p);
+
+        hir::ExprKind::Match(alloc!(hir::ExprMatch {
+            expr: subject,
+            branches: iter!(branches),
+        }))
+    };
+
+    buf.end()?;
+    Ok(ExprState::Kind(kind))
+}
+
+/// Lower the next operand of a binary chain, or finish it.
+///
+/// The chain itself is flat in the source, so this loops rather than nesting -
+/// only the operands are children.
+fn binary_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    lhs: hir::Expr<'hir>,
+) -> Result<ExprState<'hir, 'a>> {
+    if buf.stream().is_eof() {
+        buf.end()?;
+        return Ok(ExprState::Kind(lhs.kind));
+    }
+
+    let (op, node) = {
+        let p = buf.stream();
+        let node = p.expect(ExprOperator)?;
+
+        let Some(op) = node
+            .tokens::<2>()
+            .as_deref()
+            .and_then(ast::BinOp::from_slice)
+        else {
+            return Err(node.expected("valid operator"));
+        };
+
+        (op, p.pump()?)
+    };
+
+    let rhs_needs = match op {
+        ast::BinOp::As(..) | ast::BinOp::Is(..) | ast::BinOp::IsNot(..) => Needs::Type,
+        _ => Needs::Value,
+    };
+
+    let needs = replace(&mut cx.needs, rhs_needs);
+
+    Ok(ExprState::Child(
+        ExprStep::BinaryRhs {
+            buf,
+            lhs,
+            op,
+            needs,
+        },
+        node,
+        Start::Inner,
+    ))
+}
+
+/// What lowering a chain element produced.
+enum ChainOutcome<'hir, 'a> {
+    /// The chain is suspended or complete.
+    State(ExprState<'hir, 'a>),
+    /// Continue the chain with the given base.
+    Continue(StreamBuf<'a>, ExprInner<'hir, 'a>),
+}
+
+/// Lower the elements of a chain, or finish it.
+///
+/// A chain is flat in the source, so this loops over its elements rather than
+/// nesting - only the arguments of a call and the index of an index are
+/// children.
+fn chain_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    mut inner: ExprInner<'hir, 'a>,
+) -> Result<ExprState<'hir, 'a>> {
+    loop {
+        let start = inner.span;
+
+        let Some(node) = buf.stream().next() else {
+            let kind = inner.into_kind(cx)?;
+            buf.end()?;
+            return Ok(ExprState::Kind(kind));
+        };
+
+        let span = start.join(node.span());
+
+        match node.kind() {
+            ExprCall => {
+                let mut call = node.into_stream();
+                call.stream().expect(K!['('])?;
+
+                match chain_call_next(cx, buf, call, inner, Vec::new(), Remaining::default(), span)?
+                {
+                    ChainOutcome::State(state) => return Ok(state),
+                    ChainOutcome::Continue(next_buf, next_inner) => {
+                        buf = next_buf;
+                        inner = next_inner;
+                    }
+                }
+            }
+            ExprIndex => {
+                let mut index = node.into_stream();
+
+                let node = {
+                    let p = index.stream();
+                    p.expect(K!['['])?;
+                    p.expect(Expr)?
+                };
+
+                return Ok(ExprState::Child(
+                    ExprStep::ChainIndex(Box::try_new(StepChainIndex {
+                        buf,
+                        index,
+                        inner,
+                        start: span,
+                    })?),
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+            ExprField => {
+                let kind = node.parse(|p| expr_field(cx, p, inner))?;
+                inner = chain_inner(span, kind);
+            }
+            ExprAwait => {
+                let kind = node.parse(|p| expr_await(cx, p, inner))?;
+                inner = chain_inner(span, kind);
+            }
+            ExprTry => {
+                let kind = node.parse(|p| expr_try(cx, p, inner))?;
+                inner = chain_inner(span, kind);
+            }
+            _ => return Err(node.expected(ExprChain)),
+        }
+    }
+}
+
+/// Lower the next argument of a call in a chain, or finish the call.
+fn chain_call_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    buf: StreamBuf<'a>,
+    mut call: StreamBuf<'a>,
+    inner: ExprInner<'hir, 'a>,
+    args: Vec<hir::Expr<'hir>>,
+    comma: Remaining<'a>,
+    start: Span,
+) -> Result<ChainOutcome<'hir, 'a>> {
+    if let MaybeNode::Some(node) = call.stream().eat(Expr) {
+        return Ok(ChainOutcome::State(ExprState::Child(
+            ExprStep::ChainCall(Box::try_new(StepChainCall {
+                buf,
+                call,
+                inner,
+                args,
+                comma,
+                start,
+            })?),
+            node,
+            Start::Wrapped,
+        )));
+    }
+
+    comma.at_most_one(cx)?;
+
+    let kind = {
+        let p = call.stream();
+        p.expect(K![')'])?;
+        let call = inner.into_call(cx, args.len())?;
+        alloc_with!(cx, p);
+
+        hir::ExprKind::Call(alloc!(hir::ExprCall {
+            call,
+            args: iter!(args, |e| expr!(e)),
+        }))
+    };
+
+    call.end()?;
+    Ok(ChainOutcome::Continue(buf, chain_inner(start, kind)))
+}
+
+/// Wrap a chain element's kind so that it becomes the base of the next one.
+fn chain_inner<'hir, 'a>(span: Span, kind: hir::ExprKind<'hir>) -> ExprInner<'hir, 'a> {
+    ExprInner {
+        span,
+        kind: ExprInnerKind::Kind(kind),
+    }
+}
+
+/// Lower the next field of an object, or finish it.
+fn object_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    key_node: Node<'a>,
+    mut assignments: Vec<hir::FieldAssign<'hir>>,
+    mut comma: Remaining<'a>,
+    mut keys_dup: HashMap<&'hir str, Span>,
+) -> Result<ExprState<'hir, 'a>> {
+    while matches!(buf.stream().peek(), object_key!()) {
+        comma.exactly_one(cx)?;
+
+        let (key_span, key) = {
+            let p = buf.stream();
+            alloc_with!(cx, p);
+
+            match p.peek() {
+                K![str] => {
+                    let lit = p.ast::<ast::LitStr>()?;
+                    let string = lit.resolve(resolve_context!(cx.q))?;
+                    (lit.span(), alloc_str!(string.as_ref()))
+                }
+                K![ident] => {
+                    let ident = p.ast::<ast::Ident>()?;
+                    let string = ident.resolve(resolve_context!(cx.q))?;
+                    (ident.span(), alloc_str!(string))
+                }
+                _ => {
+                    return Err(p.expected("object key"));
+                }
+            }
+        };
+
+        if buf.stream().eat(K![:]).is_some() {
+            let node = buf.stream().expect(Expr)?;
+
+            return Ok(ExprState::Child(
+                ExprStep::ObjectValue {
+                    buf,
+                    key_node,
+                    assignments,
+                    keys_dup,
+                    key: (key_span, key),
+                },
+                node,
+                Start::Wrapped,
+            ));
+        }
+
+        let assign = {
+            let Some((name, _)) = cx.scopes.get(hir::Name::Str(key))? else {
+                return Err(Error::new(
+                    key_span,
+                    ErrorKind::MissingLocal {
+                        name: key.try_to_string()?.try_into()?,
+                    },
+                ));
+            };
+
+            hir::Expr {
+                span: key_span,
+                kind: hir::ExprKind::Variable(name),
+            }
+        };
+
+        if let Some(_existing) = keys_dup.try_insert(key, key_span)? {
+            return Err(Error::new(
+                key_span,
+                ErrorKind::DuplicateObjectKey {
+                    #[cfg(feature = "emit")]
+                    existing: _existing.span(),
+                    #[cfg(feature = "emit")]
+                    object: buf.stream().span(),
+                },
+            ));
+        }
+
+        {
+            let p = buf.stream();
+            alloc_with!(cx, p);
+
+            assignments
+                .try_push(hir::FieldAssign {
+                    key: (key_span, key),
+                    assign: expr!(assign),
+                    position: None,
+                })
+                .with_span(key_span)?;
+        }
+
+        comma = buf.stream().one(K![,]);
+    }
+
+    comma.at_most_one(cx)?;
+    buf.stream().expect(K!['}'])?;
+
+    let kind = object_kind(cx, &mut buf, &key_node, &mut assignments)?;
+
+    let kind = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
+
+        hir::ExprKind::Object(alloc!(hir::ExprObject {
+            kind,
+            assignments: iter!(assignments),
+        }))
+    };
+
+    buf.end()?;
+    Ok(ExprState::Kind(kind))
+}
+
+/// Resolve the kind of an object literal from the key which precedes it.
+fn object_kind<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    buf: &mut StreamBuf<'_>,
+    key_node: &Node<'_>,
+    assignments: &mut [hir::FieldAssign<'hir>],
+) -> Result<hir::ExprObjectKind> {
+    fn check_object_fields(
+        span: Span,
+        assignments: &mut [hir::FieldAssign<'_>],
+        fields: &[meta::FieldMeta],
+        item: &crate::Item,
+    ) -> Result<()> {
+        let mut named = HashMap::new();
+
+        for f in fields {
+            named.try_insert(f.name.as_ref(), f)?;
+        }
+
+        for assign in assignments.iter_mut() {
+            let Some(meta) = named.remove(assign.key.1) else {
+                return Err(Error::new(
+                    assign.key.0,
+                    ErrorKind::LitObjectNotField {
+                        field: assign.key.1.try_into()?,
+                        item: item.try_to_owned()?,
+                    },
+                ));
+            };
+
+            assign.position = Some(meta.position);
+        }
+
+        if let Some(field) = named.into_keys().next() {
+            return Err(Error::new(
+                span,
+                ErrorKind::LitObjectMissingField {
+                    field: field.try_into()?,
+                    item: item.try_to_owned()?,
+                },
+            ));
+        }
+
+        Ok(())
+    }
+
+    match key_node.kind() {
+        AnonymousObjectKey => Ok(hir::ExprObjectKind::Anonymous),
+        IndexedPath(..) => {
+            let (named, span) = key_node
+                .clone()
+                .parse(|p| Ok((cx.q.convert_path2(p)?, p.span())))?;
+
+            let parameters = generics_parameters(cx, &named)?;
+            let meta = cx.lookup_meta(&span, named.item, parameters)?;
+            let item = cx.q.pool.item(meta.item_meta.item);
+
+            match &meta.kind {
+                meta::Kind::Struct {
+                    fields: meta::Fields::Empty,
+                    constructor,
+                    ..
+                } => {
+                    check_object_fields(span, assignments, &[], item)?;
+
+                    Ok(match constructor {
+                        Some(_) => hir::ExprObjectKind::ExternalType {
+                            hash: meta.hash,
+                            args: 0,
+                        },
+                        None => hir::ExprObjectKind::Struct { hash: meta.hash },
+                    })
+                }
+                meta::Kind::Struct {
+                    fields: meta::Fields::Named(st),
+                    constructor,
+                    ..
+                } => {
+                    check_object_fields(span, assignments, &st.fields, item)?;
+
+                    Ok(match constructor {
+                        Some(_) => hir::ExprObjectKind::ExternalType {
+                            hash: meta.hash,
+                            args: st.fields.len(),
+                        },
+                        None => hir::ExprObjectKind::Struct { hash: meta.hash },
+                    })
+                }
+                _ => Err(Error::new(
+                    span,
+                    ErrorKind::UnsupportedLitObject {
+                        meta: meta.info(cx.q.pool)?,
+                    },
+                )),
+            }
+        }
+        _ => Err(buf.stream().expected("object key")),
+    }
+}
+
+/// Lower the next arm of a `select`, or finish it.
+fn select_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    state: SelectState<'hir>,
+    comma: Remaining<'a>,
+    was_block: bool,
+) -> Result<ExprState<'hir, 'a>> {
+    if let MaybeNode::Some(node) = buf.stream().eat(ExprSelectArm) {
+        if was_block {
+            comma.at_most_one(cx)?;
+        } else {
+            comma.exactly_one(cx)?;
+        }
+
+        let mut arm = node.into_stream();
+
+        cx.scopes.push(None)?;
+
+        match arm.stream().peek() {
+            K![default] => {
+                let (default_span, node, was_block) = {
+                    let p = arm.stream();
+                    let default_token = p.expect(K![default])?;
+                    p.expect(K![=>])?;
+                    let node = p.expect(Expr)?;
+                    let was_block = node_is_block(&node);
+                    (default_token.span(), node, was_block)
+                };
+
+                return Ok(ExprState::Child(
+                    ExprStep::SelectDefault(Box::try_new(StepSelectDefault {
+                        buf,
+                        arm,
+                        state,
+                        default_span,
+                        was_block,
+                    })?),
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+            Pat => {
+                let (pat, node) = {
+                    let p = arm.stream();
+                    let pat = p.expect(Pat)?.parse(|p| pat_binding(cx, p))?;
+                    p.expect(K![=])?;
+                    (pat, p.expect(Expr)?)
+                };
+
+                return Ok(ExprState::Child(
+                    ExprStep::SelectValue(Box::try_new(StepSelectValue {
+                        buf,
+                        arm,
+                        state,
+                        pat,
+                    })?),
+                    node,
+                    Start::Wrapped,
+                ));
+            }
+            _ => {
+                return Err(arm.stream().expected(ExprSelectArm));
+            }
+        }
+    }
+
+    comma.at_most_one(cx)?;
+
+    let kind = {
+        let p = buf.stream();
+        p.expect(K!['}'])?;
+        alloc_with!(cx, p);
+
+        let SelectState {
+            exprs,
+            branches,
+            default,
+        } = state;
+
+        hir::ExprKind::Select(alloc!(hir::ExprSelect {
+            exprs: iter!(exprs, |e| expr!(e)),
+            branches: iter!(branches),
+            default: default.map(|(_, expr)| expr),
+        }))
+    };
+
+    buf.end()?;
+    Ok(ExprState::Kind(kind))
+}
+
+/// Require that a resumed child produced a complete expression.
+fn expect_expr<'hir>(
+    buf: &mut StreamBuf<'_>,
+    value: ExprState<'hir, '_>,
+) -> Result<hir::Expr<'hir>> {
+    match value {
+        ExprState::Expr(expr) => Ok(expr),
+        _ => Err(Error::msg(buf.stream().span(), "Expected an expression")),
+    }
+}
+
 struct ExprInner<'hir, 'a> {
     span: Span,
     kind: ExprInnerKind<'hir, 'a>,
@@ -324,7 +3217,7 @@ enum ExprInnerKind<'hir, 'a> {
 }
 
 impl<'hir> ExprInner<'hir, '_> {
-    fn into_call(self, cx: &mut Ctxt<'hir, '_, '_>, args: usize) -> Result<hir::Call<'hir>> {
+    fn into_call(self, cx: &mut Ctxt<'hir, '_, '_>, args: usize) -> Result<hir::Call> {
         match self.kind {
             ExprInnerKind::Path(p) => {
                 let named = p.parse(|p| cx.q.convert_path2(p))?;
@@ -382,13 +3275,7 @@ impl<'hir> ExprInner<'hir, '_> {
                         };
                     }
                     meta::Kind::ConstFn => {
-                        let from =
-                            cx.q.item_for("lowering constant function", named.item)
-                                .with_span(self.span)?;
-
                         return Ok(hir::Call::ConstFn {
-                            from_module: from.module,
-                            from_item: from.item,
                             id: meta.item_meta.item,
                         });
                     }
@@ -424,13 +3311,10 @@ impl<'hir> ExprInner<'hir, '_> {
                             }
                         };
 
-                        Ok(hir::Call::Associated {
-                            target: alloc!(target),
-                            hash,
-                        })
+                        Ok(hir::Call::Associated { target, hash })
                     }
                     kind => Ok(hir::Call::Expr {
-                        expr: alloc!(hir::Expr {
+                        expr: expr!(hir::Expr {
                             span: self.span,
                             kind
                         }),
@@ -466,7 +3350,7 @@ impl<'hir> ExprInner<'hir, '_> {
                     }
                 }
 
-                let kind = if !parameters.parameters.is_empty() {
+                let kind = if !parameters.is_empty() {
                     ErrorKind::MissingItemParameters {
                         item: cx.q.pool.item(named.item).try_to_owned()?,
                         parameters: parameters.parameters,
@@ -672,8 +3556,23 @@ fn expr_path<'hir, 'a>(
 }
 
 /// Lower the given path.
+///
+/// What an expansion produced is lowered from a tree of its own, so this
+/// recurses rather than descending through the driver, and how deeply
+/// expansions may nest is bounded here.
 #[instrument_ast(span = p)]
 fn expr_expanded_macro<'hir>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    p: &mut Stream<'_>,
+    id: NonZeroId,
+) -> Result<hir::ExprKind<'hir>> {
+    cx.enter_expansion(&*p)?;
+    let result = expr_expanded_macro_inner(cx, p, id);
+    cx.leave_expansion();
+    result
+}
+
+fn expr_expanded_macro_inner<'hir>(
     cx: &mut Ctxt<'hir, '_, '_>,
     p: &mut Stream<'_>,
     id: NonZeroId,
@@ -842,7 +3741,7 @@ fn expr_format_macro<'hir>(
                         return Err(Error::unsupported(arg, "argument out-of-bounds"));
                     };
 
-                    spec.precision = NonZero::new(f);
+                    spec.precision = Some(f);
                 }
                 "type" => {
                     if spec.format_type.is_some() {
@@ -868,8 +3767,9 @@ fn expr_format_macro<'hir>(
         }
 
         let format = alloc!(hir::BuiltInFormat {
+            span: expr.span,
             spec,
-            value: alloc!(expr),
+            value: expr!(expr),
         });
 
         Ok(hir::ExprKind::Format(format))
@@ -915,7 +3815,7 @@ fn expr_template_macro<'hir>(
         let template = alloc!(hir::BuiltInTemplate {
             span: p.span(),
             from_literal: literal.is_yes(),
-            exprs: iter!(exprs),
+            exprs: iter!(exprs, |e| expr!(e)),
         });
 
         Ok(hir::ExprKind::Template(template))
@@ -930,7 +3830,12 @@ fn expr_return<'hir>(
     alloc_with!(cx, p);
     p.expect(K![return])?;
     let expr = p.eat(Expr).parse(|p| expr(cx, p))?;
-    Ok(hir::ExprKind::Return(option!(expr)))
+    let expr = match expr {
+        Some(expr) => Some(expr!(expr)),
+        None => None,
+    };
+
+    Ok(hir::ExprKind::Return(expr))
 }
 
 #[instrument_ast(span = p)]
@@ -941,7 +3846,12 @@ fn expr_yield<'hir>(
     alloc_with!(cx, p);
     p.expect(K![yield])?;
     let expr = p.eat(Expr).parse(|p| expr(cx, p))?;
-    Ok(hir::ExprKind::Yield(option!(expr)))
+    let expr = match expr {
+        Some(expr) => Some(expr!(expr)),
+        None => None,
+    };
+
+    Ok(hir::ExprKind::Yield(expr))
 }
 
 #[instrument_ast(span = p)]
@@ -982,7 +3892,10 @@ fn expr_break<'hir>(
             Some(label) => Some(alloc_str!(label)),
             None => None,
         },
-        expr: option!(expr),
+        expr: match expr {
+            Some(expr) => Some(expr!(expr)),
+            None => None,
+        },
         drop: iter!(drop),
     })))
 }
@@ -1051,7 +3964,7 @@ fn expr_array<'hir>(
     p.expect(K![']'])?;
 
     let seq = alloc!(hir::ExprSeq {
-        items: iter!(items)
+        items: iter!(items, |e| expr!(e))
     });
 
     Ok(hir::ExprKind::Vec(seq))
@@ -1085,7 +3998,7 @@ fn expr_tuple<'hir>(
     p.expect(K![')'])?;
 
     let seq = alloc!(hir::ExprSeq {
-        items: iter!(items)
+        items: iter!(items, |e| expr!(e))
     });
 
     Ok(hir::ExprKind::Tuple(seq))
@@ -1109,7 +4022,7 @@ fn expr_group<'hir>(
     };
 
     p.expect(K![')'])?;
-    Ok(hir::ExprKind::Group(alloc!(expr)))
+    Ok(hir::ExprKind::Group(expr!(expr)))
 }
 
 #[instrument_ast(span = p)]
@@ -1123,7 +4036,7 @@ fn expr_empty_group<'hir>(
     let expr = p.expect(Expr)?.parse(|p| expr(cx, p))?;
     p.expect(Kind::Close(Delimiter::Empty))?;
 
-    Ok(hir::ExprKind::Group(alloc!(expr)))
+    Ok(hir::ExprKind::Group(expr!(expr)))
 }
 
 /// Lower the given tuple.
@@ -1193,7 +4106,7 @@ fn expr_object<'hir>(
 
         assignments.try_push(hir::FieldAssign {
             key: (key_span, key),
-            assign,
+            assign: expr!(assign),
             position: None,
         })?;
 
@@ -1352,9 +4265,13 @@ fn expr_unary<'hir>(
         return Err(Error::new(op, ErrorKind::UnsupportedRef));
     }
 
-    let expr = p.pump()?.parse(|p| expr_only(cx, p))?;
+    let inner = p.pump()?.parse(|p| expr_only(cx, p))?;
+    let inner = expr!(inner);
 
-    Ok(hir::ExprKind::Unary(alloc!(hir::ExprUnary { op, expr })))
+    Ok(hir::ExprKind::Unary(alloc!(hir::ExprUnary {
+        op,
+        expr: inner
+    })))
 }
 
 #[instrument_ast(span = p)]
@@ -1394,15 +4311,15 @@ fn expr_binary<'hir>(
         let lhs_span = replace(&mut lhs_span, span);
 
         lhs = hir::ExprKind::Binary(alloc!(hir::ExprBinary {
-            lhs: hir::Expr {
+            lhs: expr!(hir::Expr {
                 span: lhs_span,
                 kind: lhs
-            },
+            }),
             op,
-            rhs: hir::Expr {
+            rhs: expr!(hir::Expr {
                 span: rhs_span,
                 kind: rhs
-            },
+            }),
         }));
     }
 
@@ -1425,6 +4342,9 @@ fn expr_assign<'hir>(
     let lhs = p.expect(Expr)?.parse(|p| expr(cx, p))?;
     p.expect(K![=])?;
     let rhs = p.expect(Expr)?.parse(|p| expr(cx, p))?;
+
+    let lhs = expr!(lhs);
+    let rhs = expr!(rhs);
 
     Ok(hir::ExprKind::Assign(alloc!(hir::ExprAssign { lhs, rhs })))
 }
@@ -1525,7 +4445,7 @@ fn expr_match<'hir>(
 
             let condition = if p.eat(K![if]).is_some() {
                 let expr = p.expect(Expr)?.parse(|p| self::expr(cx, p))?;
-                Some(&*alloc!(expr))
+                Some(expr!(expr))
             } else {
                 None
             };
@@ -1544,7 +4464,7 @@ fn expr_match<'hir>(
                 span: p.span(),
                 pat,
                 condition,
-                body,
+                body: expr!(body),
                 drop: iter!(layer.into_drop_order()),
             })?;
 
@@ -1558,7 +4478,7 @@ fn expr_match<'hir>(
     p.expect(K!['}'])?;
 
     Ok(hir::ExprKind::Match(alloc!(hir::ExprMatch {
-        expr: alloc!(expr),
+        expr: expr!(expr),
         branches: iter!(branches),
     })))
 }
@@ -1572,7 +4492,7 @@ fn expr_select<'hir>(
 
     let mut exprs = Vec::new();
     let mut branches = Vec::new();
-    let mut default = None::<hir::Expr>;
+    let mut default = None::<(Span, hir::ExprId)>;
 
     p.expect(K![select])?;
 
@@ -1602,15 +4522,13 @@ fn expr_select<'hir>(
                         Ok((expr, is_block))
                     })?;
 
-                    if let Some(existing) = &default {
+                    if let Some((existing, _)) = default {
                         cx.error(Error::new(
                             &default_token,
-                            ErrorKind::DuplicateSelectDefault {
-                                existing: existing.span(),
-                            },
+                            ErrorKind::DuplicateSelectDefault { existing },
                         ))?;
                     } else {
-                        default = Some(body);
+                        default = Some((body.span, expr!(body)));
                     }
 
                     Ok(is_block)
@@ -1632,7 +4550,7 @@ fn expr_select<'hir>(
 
                     branches.try_push(hir::ExprSelectBranch {
                         pat,
-                        body,
+                        body: expr!(body),
                         drop: iter!(layer.into_drop_order()),
                     })?;
 
@@ -1649,9 +4567,9 @@ fn expr_select<'hir>(
     p.expect(K!['}'])?;
 
     Ok(hir::ExprKind::Select(alloc!(hir::ExprSelect {
-        exprs: iter!(exprs),
+        exprs: iter!(exprs, |e| expr!(e)),
         branches: iter!(branches),
-        default: option!(default),
+        default: default.map(|(_, expr)| expr),
     })))
 }
 
@@ -1733,7 +4651,7 @@ fn expr_for<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir
     Ok(hir::ExprKind::For(alloc!(hir::ExprFor {
         label,
         binding,
-        iter,
+        iter: expr!(iter),
         body,
         drop: iter!(layer.into_drop_order()),
     })))
@@ -1749,6 +4667,9 @@ fn expr_range<'hir>(
     let start = p.pump()?.parse(|p| expr_only(cx, p))?;
     p.expect(K![..])?;
     let end = p.pump()?.parse(|p| expr_only(cx, p))?;
+
+    let start = expr!(start);
+    let end = expr!(end);
 
     Ok(hir::ExprKind::Range(alloc!(hir::ExprRange::Range {
         start,
@@ -1767,6 +4688,9 @@ fn expr_range_inclusive<'hir>(
     p.expect(K![..=])?;
     let end = p.pump()?.parse(|p| expr_only(cx, p))?;
 
+    let start = expr!(start);
+    let end = expr!(end);
+
     Ok(hir::ExprKind::Range(alloc!(
         hir::ExprRange::RangeInclusive { start, end }
     )))
@@ -1781,6 +4705,8 @@ fn expr_range_from<'hir>(
 
     let start = p.pump()?.parse(|p| expr_only(cx, p))?;
     p.expect(K![..])?;
+
+    let start = expr!(start);
 
     Ok(hir::ExprKind::Range(alloc!(hir::ExprRange::RangeFrom {
         start,
@@ -1809,6 +4735,8 @@ fn expr_range_to<'hir>(
     p.expect(K![..])?;
     let end = p.pump()?.parse(|p| expr_only(cx, p))?;
 
+    let end = expr!(end);
+
     Ok(hir::ExprKind::Range(alloc!(hir::ExprRange::RangeTo {
         end,
     })))
@@ -1824,6 +4752,8 @@ fn expr_range_to_inclusive<'hir>(
     p.expect(K![..=])?;
     let end = p.pump()?.parse(|p| expr_only(cx, p))?;
 
+    let end = expr!(end);
+
     Ok(hir::ExprKind::Range(alloc!(
         hir::ExprRange::RangeToInclusive { end }
     )))
@@ -1838,13 +4768,18 @@ fn condition<'hir>(
 
     match p.kind() {
         Condition => Ok(hir::Condition::ExprLet(alloc!(expr_let(cx, p)?))),
-        Expr => Ok(hir::Condition::Expr(alloc!(expr(cx, p)?))),
+        Expr => {
+            let expr = expr(cx, p)?;
+            Ok(hir::Condition::Expr(expr.span, expr!(expr)))
+        }
         _ => Err(p.expected(Condition)),
     }
 }
 
 #[instrument_ast(span = p)]
 fn expr_let<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::ExprLet<'hir>> {
+    alloc_with!(cx, p);
+
     p.expect(K![let])?;
     let pat = p.expect(Pat)?;
     p.expect(K![=])?;
@@ -1853,7 +4788,10 @@ fn expr_let<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir
     let expr = expr.parse(|p| self::expr(cx, p))?;
     let pat = pat.parse(|p| self::pat_binding(cx, p))?;
 
-    Ok(hir::ExprLet { pat, expr })
+    Ok(hir::ExprLet {
+        pat,
+        expr: expr!(expr),
+    })
 }
 
 /// Assemble a closure expression.
@@ -1911,7 +4849,8 @@ fn expr_closure<'hir>(
     })?;
 
     let body = p.expect(Expr)?.parse(|p| expr(cx, p))?;
-    let body = alloc!(body);
+    let body_span = body.span;
+    let body = expr!(body);
 
     let layer = cx.scopes.pop().with_span(&*p)?;
 
@@ -1927,6 +4866,7 @@ fn expr_closure<'hir>(
         item_meta: meta.item_meta,
         build: query::SecondaryBuild::Closure(query::Closure {
             hir: alloc!(hir::ExprClosure {
+                span: body_span,
                 args,
                 body,
                 captures,
@@ -1973,7 +4913,7 @@ fn expr_call<'hir>(
 
     let kind = hir::ExprKind::Call(alloc!(hir::ExprCall {
         call,
-        args: iter!(args),
+        args: iter!(args, |e| expr!(e)),
     }));
 
     Ok(kind)
@@ -2035,7 +4975,7 @@ fn expr_field<'hir>(
     let kind = inner.into_kind(cx)?;
 
     let kind = hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
-        expr: hir::Expr { span, kind },
+        expr: expr!(hir::Expr { span, kind }),
         expr_field,
     }));
 
@@ -2058,8 +4998,8 @@ fn expr_index<'hir>(
     let kind = inner.into_kind(cx)?;
 
     let kind = hir::ExprKind::Index(alloc!(hir::ExprIndex {
-        target: hir::Expr { span, kind },
-        index,
+        target: expr!(hir::Expr { span, kind }),
+        index: expr!(index),
     }));
 
     Ok(kind)
@@ -2079,7 +5019,7 @@ fn expr_await<'hir>(
     let span = inner.span;
     let kind = inner.into_kind(cx)?;
 
-    Ok(hir::ExprKind::Await(alloc!(hir::Expr { span, kind })))
+    Ok(hir::ExprKind::Await(expr!(hir::Expr { span, kind })))
 }
 
 #[instrument_ast(span = p)]
@@ -2092,7 +5032,7 @@ fn expr_try<'hir>(
     p.expect(K![?])?;
     let span = inner.span.join(p.span());
     let kind = inner.into_kind(cx)?;
-    Ok(hir::ExprKind::Try(alloc!(hir::Expr { span, kind })))
+    Ok(hir::ExprKind::Try(expr!(hir::Expr { span, kind })))
 }
 
 /// Compile an item.
@@ -2155,35 +5095,9 @@ fn pat_binding_with<'hir>(
     self_value: bool,
 ) -> Result<hir::PatBinding<'hir>> {
     alloc_with!(cx, p);
-    let pat = p.pump()?.parse(|p| pat_inner(cx, p, self_value))?;
+    let pat = pat_node(cx, p.pump()?, self_value)?;
     let names = iter!(cx.pattern_bindings.drain(..));
     Ok(hir::PatBinding { pat, names })
-}
-
-/// Parses a pattern inside of a binding.
-fn pat<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Pat<'hir>> {
-    p.pump()?.parse(|p| pat_inner(cx, p, false))
-}
-
-fn pat_inner<'hir>(
-    cx: &mut Ctxt<'hir, '_, '_>,
-    p: &mut Stream<'_>,
-    self_value: bool,
-) -> Result<hir::Pat<'hir>> {
-    alloc_with!(cx, p);
-
-    match p.kind() {
-        Lit => pat_lit(cx, p),
-        PatIgnore => Ok(hir::Pat {
-            span: p.expect(K![_])?.span(),
-            kind: hir::PatKind::Ignore,
-        }),
-        IndexedPath(..) => pat_path(cx, p, self_value),
-        PatTuple => pat_tuple(cx, p),
-        PatObject => pat_object(cx, p),
-        PatArray => pat_array(cx, p),
-        _ => Err(p.expected(Pat)),
-    }
 }
 
 #[instrument_ast(span = p)]
@@ -2259,7 +5173,7 @@ fn pat_lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir:
 
     let lit = lit(cx, p)?;
 
-    let expr = alloc!(hir::Expr {
+    let expr = expr!(hir::Expr {
         span: p.span(),
         kind: hir::ExprKind::Lit(lit),
     });
@@ -2270,45 +5184,245 @@ fn pat_lit<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir:
     })
 }
 
-#[instrument_ast(span = p)]
-fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Pat<'hir>> {
-    alloc_with!(cx, p);
+/// A pattern which is partially lowered, waiting on one of its children.
+enum PatStep<'hir, 'a> {
+    /// A tuple or an array pattern.
+    Seq {
+        buf: StreamBuf<'a>,
+        path: Option<Node<'a>>,
+        items: Vec<hir::Pat<'hir>>,
+        comma: Remaining<'a>,
+        array: bool,
+    },
+    /// An object pattern, waiting on the value of `key`.
+    Object {
+        buf: StreamBuf<'a>,
+        path: Option<Node<'a>>,
+        bindings: Vec<hir::Binding<'hir>>,
+        keys_dup: HashMap<&'hir str, Span>,
+        key: (Span, &'hir str),
+    },
+}
 
-    let path = p.eat_matching(|kind| matches!(kind, IndexedPath(..)));
+/// What lowering a pattern produced.
+enum PatState<'hir, 'a> {
+    /// The pattern is complete, along with the stream it was lowered from.
+    Done(StreamBuf<'a>, hir::Pat<'hir>),
+    /// Park the step and lower the given child pattern next.
+    Child(PatStep<'hir, 'a>, Node<'a>),
+}
 
-    p.expect(K!['('])?;
+/// Lower the pattern in the given node.
+///
+/// Patterns nest through tuple, object and array patterns, which is walked over
+/// an explicit stack rather than recursively.
+fn pat_node<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    node: Node<'a>,
+    self_value: bool,
+) -> Result<hir::Pat<'hir>> {
+    let span = node.span();
+    let mut stack = Vec::new();
+    let mut state = pat_start(cx, node.into_stream(), self_value)?;
 
-    let mut items = Vec::new();
-    let mut comma = Remaining::default();
+    loop {
+        match state {
+            PatState::Done(buf, pat) => {
+                buf.end()?;
 
-    while let Some(pat) = p.eat(Pat).parse(|p| self::pat(cx, p))? {
-        comma.exactly_one(cx)?;
-        items.try_push(pat)?;
-        comma = p.one(K![,]);
+                let Some(step) = stack.pop() else {
+                    return Ok(pat);
+                };
+
+                state = pat_resume(cx, step, pat)?;
+            }
+            PatState::Child(step, node) => {
+                stack.try_push(step).with_span(span)?;
+                state = pat_start(cx, node.into_stream(), false)?;
+            }
+        }
+    }
+}
+
+/// Start lowering a pattern, parking a step if it has children.
+fn pat_start<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    self_value: bool,
+) -> Result<PatState<'hir, 'a>> {
+    match buf.stream().kind() {
+        Lit => {
+            let p = buf.stream();
+            let pat = pat_lit(cx, p)?;
+            Ok(PatState::Done(buf, pat))
+        }
+        PatIgnore => {
+            let p = buf.stream();
+
+            let pat = hir::Pat {
+                span: p.expect(K![_])?.span(),
+                kind: hir::PatKind::Ignore,
+            };
+
+            Ok(PatState::Done(buf, pat))
+        }
+        IndexedPath(..) => {
+            let p = buf.stream();
+            let pat = pat_path(cx, p, self_value)?;
+            Ok(PatState::Done(buf, pat))
+        }
+        PatTuple => {
+            let path = {
+                let p = buf.stream();
+                let path = match p.eat_matching(|kind| matches!(kind, IndexedPath(..))) {
+                    MaybeNode::Some(node) => Some(node),
+                    MaybeNode::None => None,
+                };
+
+                p.expect(K!['('])?;
+                path
+            };
+
+            pat_seq_next(cx, buf, path, Vec::new(), Remaining::default(), false)
+        }
+        PatArray => {
+            {
+                let p = buf.stream();
+                p.expect(K!['['])?;
+            }
+
+            pat_seq_next(cx, buf, None, Vec::new(), Remaining::default(), true)
+        }
+        PatObject => {
+            let path = {
+                let p = buf.stream();
+                let key = p.pump()?;
+
+                let path = match key.kind() {
+                    AnonymousObjectKey => None,
+                    IndexedPath(..) => Some(key),
+                    _ => {
+                        return Err(p.expected_peek("object kind"));
+                    }
+                };
+
+                p.expect(K!['{'])?;
+                path
+            };
+
+            pat_object_next(
+                cx,
+                buf,
+                path,
+                Vec::new(),
+                Remaining::default(),
+                HashMap::new(),
+            )
+        }
+        _ => Err(buf.stream().expected(Pat)),
+    }
+}
+
+/// Resume a pattern whose child has just been lowered.
+fn pat_resume<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    step: PatStep<'hir, 'a>,
+    pat: hir::Pat<'hir>,
+) -> Result<PatState<'hir, 'a>> {
+    match step {
+        PatStep::Seq {
+            mut buf,
+            path,
+            mut items,
+            comma,
+            array,
+        } => {
+            comma.exactly_one(cx)?;
+            items.try_push(pat).with_span(buf.stream().span())?;
+            let comma = buf.stream().one(K![,]);
+            pat_seq_next(cx, buf, path, items, comma, array)
+        }
+        PatStep::Object {
+            mut buf,
+            path,
+            mut bindings,
+            keys_dup,
+            key: (_, key),
+        } => {
+            let binding = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                hir::Binding::Binding(p.span(), key, alloc!(pat))
+            };
+
+            bindings.try_push(binding).with_span(buf.stream().span())?;
+            let comma = buf.stream().one(K![,]);
+            pat_object_next(cx, buf, path, bindings, comma, keys_dup)
+        }
+    }
+}
+
+/// Lower the next item of a tuple or array pattern, or finish it.
+fn pat_seq_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    path: Option<Node<'a>>,
+    items: Vec<hir::Pat<'hir>>,
+    comma: Remaining<'a>,
+    array: bool,
+) -> Result<PatState<'hir, 'a>> {
+    if let MaybeNode::Some(node) = buf.stream().eat(Pat) {
+        let node = node.parse(|p| p.pump())?;
+
+        return Ok(PatState::Child(
+            PatStep::Seq {
+                buf,
+                path,
+                items,
+                comma,
+                array,
+            },
+            node,
+        ));
     }
 
-    let is_open = if p.eat(K![..]).is_some() {
-        comma.exactly_one(cx)?;
-        true
-    } else {
-        comma.at_most_one(cx)?;
-        false
+    let (is_open, span) = {
+        let p = buf.stream();
+
+        let is_open = if p.eat(K![..]).is_some() {
+            comma.exactly_one(cx)?;
+            true
+        } else {
+            comma.at_most_one(cx)?;
+            false
+        };
+
+        p.expect(if array { K![']'] } else { K![')'] })?;
+        (is_open, p.span())
     };
 
-    p.expect(K![')'])?;
+    let items = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
+        iter!(items)
+    };
 
-    let items = iter!(items);
-
-    let kind = if let MaybeNode::Some(path) = path {
-        let (named, span) = path.parse(|p| Ok((cx.q.convert_path2(p)?, p.span())))?;
+    let kind = if array {
+        hir::PatSequenceKind::Sequence {
+            hash: runtime::Vec::HASH,
+            count: items.len(),
+            is_open,
+        }
+    } else if let Some(path) = path {
+        let (named, path_span) = path.parse(|p| Ok((cx.q.convert_path2(p)?, p.span())))?;
         let parameters = generics_parameters(cx, &named)?;
-        let meta = cx.lookup_meta(&span, named.item, parameters)?;
+        let meta = cx.lookup_meta(&path_span, named.item, parameters)?;
 
         // Treat the current meta as a tuple and get the number of arguments it
         // should receive and the type check that applies to it.
         let Some((args, kind)) = tuple_match_for(&meta) else {
             return Err(Error::expected_meta(
-                span,
+                path_span,
                 meta.info(cx.q.pool)?,
                 "type that can be used in a tuple pattern",
             ));
@@ -2316,7 +5430,7 @@ fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
 
         if !(args == items.len() || items.len() < args && is_open) {
             cx.error(Error::new(
-                span,
+                path_span,
                 ErrorKind::BadArgumentCount {
                     expected: args,
                     actual: items.len(),
@@ -2333,48 +5447,49 @@ fn pat_tuple<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hi
         }
     };
 
-    Ok(hir::Pat {
-        span: p.span(),
-        kind: hir::PatKind::Sequence(alloc!(hir::PatSequence { kind, items })),
-    })
-}
+    let pat = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
 
-#[instrument_ast(span = p)]
-fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Pat<'hir>> {
-    alloc_with!(cx, p);
-
-    let key = p.pump()?;
-
-    let path = match key.kind() {
-        AnonymousObjectKey => None,
-        IndexedPath(..) => Some(key),
-        _ => {
-            return Err(p.expected_peek("object kind"));
+        hir::Pat {
+            span,
+            kind: hir::PatKind::Sequence(alloc!(hir::PatSequence { kind, items })),
         }
     };
 
-    p.expect(K!['{'])?;
+    Ok(PatState::Done(buf, pat))
+}
 
-    let mut bindings = Vec::new();
-    let mut comma = Remaining::default();
-    let mut keys_dup = HashMap::new();
-
-    while matches!(p.peek(), object_key!()) {
+/// Lower the next field of an object pattern, or finish it.
+fn pat_object_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    path: Option<Node<'a>>,
+    mut bindings: Vec<hir::Binding<'hir>>,
+    mut comma: Remaining<'a>,
+    mut keys_dup: HashMap<&'hir str, Span>,
+) -> Result<PatState<'hir, 'a>> {
+    while matches!(buf.stream().peek(), object_key!()) {
         comma.exactly_one(cx)?;
 
-        let (span, key) = match p.peek() {
-            K![str] => {
-                let lit = p.ast::<ast::LitStr>()?;
-                let string = lit.resolve(resolve_context!(cx.q))?;
-                (lit.span(), alloc_str!(string.as_ref()))
-            }
-            K![ident] => {
-                let ident = p.ast::<ast::Ident>()?;
-                let string = ident.resolve(resolve_context!(cx.q))?;
-                (ident.span(), alloc_str!(string))
-            }
-            _ => {
-                return Err(p.expected_peek("object key"));
+        let (span, key) = {
+            let p = buf.stream();
+            alloc_with!(cx, p);
+
+            match p.peek() {
+                K![str] => {
+                    let lit = p.ast::<ast::LitStr>()?;
+                    let string = lit.resolve(resolve_context!(cx.q))?;
+                    (lit.span(), alloc_str!(string.as_ref()))
+                }
+                K![ident] => {
+                    let ident = p.ast::<ast::Ident>()?;
+                    let string = ident.resolve(resolve_context!(cx.q))?;
+                    (ident.span(), alloc_str!(string))
+                }
+                _ => {
+                    return Err(p.expected_peek("object key"));
+                }
             }
         };
 
@@ -2385,43 +5500,62 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
                     #[cfg(feature = "emit")]
                     existing: _existing.span(),
                     #[cfg(feature = "emit")]
-                    object: p.span(),
+                    object: buf.stream().span(),
                 },
             ));
         }
 
-        if p.eat(K![:]).is_some() {
-            let pat = p.expect(Pat)?.parse(|p| pat(cx, p))?;
-            bindings.try_push(hir::Binding::Binding(p.span(), key, alloc!(pat)))?;
-        } else {
-            let id = cx.scopes.define(hir::Name::Str(key), &*p)?;
-            cx.pattern_bindings.try_push(id)?;
-            bindings.try_push(hir::Binding::Ident(p.span(), key, id))?;
+        if buf.stream().eat(K![:]).is_some() {
+            let node = buf.stream().expect(Pat)?.parse(|p| p.pump())?;
+
+            return Ok(PatState::Child(
+                PatStep::Object {
+                    buf,
+                    path,
+                    bindings,
+                    keys_dup,
+                    key: (span, key),
+                },
+                node,
+            ));
         }
 
-        comma = p.one(K![,]);
+        let binding = {
+            let p = buf.stream();
+            let id = cx.scopes.define(hir::Name::Str(key), &*p)?;
+            cx.pattern_bindings.try_push(id)?;
+            hir::Binding::Ident(p.span(), key, id)
+        };
+
+        bindings.try_push(binding).with_span(span)?;
+        comma = buf.stream().one(K![,]);
     }
 
-    let is_open = if p.eat(K![..]).is_some() {
-        comma.exactly_one(cx)?;
-        true
-    } else {
-        comma.at_most_one(cx)?;
-        false
-    };
+    let (is_open, span) = {
+        let p = buf.stream();
 
-    p.expect(K!['}'])?;
+        let is_open = if p.eat(K![..]).is_some() {
+            comma.exactly_one(cx)?;
+            true
+        } else {
+            comma.at_most_one(cx)?;
+            false
+        };
+
+        p.expect(K!['}'])?;
+        (is_open, p.span())
+    };
 
     let kind = match path {
         Some(path) => {
-            let (named, span) = path.parse(|p| Ok((cx.q.convert_path2(p)?, p.span())))?;
+            let (named, path_span) = path.parse(|p| Ok((cx.q.convert_path2(p)?, p.span())))?;
             let parameters = generics_parameters(cx, &named)?;
-            let meta = cx.lookup_meta(&span, named.item, parameters)?;
+            let meta = cx.lookup_meta(&path_span, named.item, parameters)?;
 
             let Some((mut fields, kind)) = struct_match_for(&meta, is_open && bindings.is_empty())?
             else {
                 return Err(Error::expected_meta(
-                    span,
+                    path_span,
                     meta.info(cx.q.pool)?,
                     "type that can be used in a struct pattern",
                 ));
@@ -2430,7 +5564,7 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
             for binding in bindings.iter() {
                 if !fields.remove(binding.key()) {
                     return Err(Error::new(
-                        span,
+                        path_span,
                         ErrorKind::LitObjectNotField {
                             field: binding.key().try_into()?,
                             item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
@@ -2444,7 +5578,7 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
                 fields.sort();
 
                 return Err(Error::new(
-                    p.span(),
+                    span,
                     ErrorKind::PatternMissingFields {
                         item: cx.q.pool.item(meta.item_meta.item).try_to_owned()?,
                         #[cfg(feature = "emit")]
@@ -2462,51 +5596,18 @@ fn pat_object<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<h
         },
     };
 
-    let bindings = iter!(bindings);
+    let pat = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
+        let bindings = iter!(bindings);
 
-    Ok(hir::Pat {
-        span: p.span(),
-        kind: hir::PatKind::Object(alloc!(hir::PatObject { kind, bindings })),
-    })
-}
-
-#[instrument_ast(span = p)]
-fn pat_array<'hir>(cx: &mut Ctxt<'hir, '_, '_>, p: &mut Stream<'_>) -> Result<hir::Pat<'hir>> {
-    alloc_with!(cx, p);
-
-    p.expect(K!['['])?;
-
-    let mut items = Vec::new();
-    let mut comma = Remaining::default();
-
-    while let Some(pat) = p.eat(Pat).parse(|p| self::pat(cx, p))? {
-        comma.exactly_one(cx)?;
-        items.try_push(pat)?;
-        comma = p.one(K![,]);
-    }
-
-    let is_open = if p.eat(K![..]).is_some() {
-        comma.exactly_one(cx)?;
-        true
-    } else {
-        comma.at_most_one(cx)?;
-        false
+        hir::Pat {
+            span,
+            kind: hir::PatKind::Object(alloc!(hir::PatObject { kind, bindings })),
+        }
     };
 
-    p.expect(K![']'])?;
-
-    let items = iter!(items);
-
-    let kind = hir::PatSequenceKind::Sequence {
-        hash: runtime::Vec::HASH,
-        count: items.len(),
-        is_open,
-    };
-
-    Ok(hir::Pat {
-        span: p.span(),
-        kind: hir::PatKind::Sequence(alloc!(hir::PatSequence { kind, items })),
-    })
+    Ok(PatState::Done(buf, pat))
 }
 
 fn generics_parameters(
@@ -2533,6 +5634,13 @@ fn generics_parameters(
 }
 
 fn generic_arguments(cx: &mut Ctxt<'_, '_, '_>, p: &mut Stream<'_>) -> Result<Hash> {
+    cx.enter_generics(&*p)?;
+    let result = generic_arguments_inner(cx, p);
+    cx.leave_generics();
+    result
+}
+
+fn generic_arguments_inner(cx: &mut Ctxt<'_, '_, '_>, p: &mut Stream<'_>) -> Result<Hash> {
     p.expect(K![<])?;
 
     let mut comma = Remaining::default();
@@ -2632,7 +5740,7 @@ fn pat_const_value<'hir>(
             },
         };
 
-        hir::PatKind::Lit(alloc!(hir::Expr {
+        hir::PatKind::Lit(expr!(hir::Expr {
             span: span.span(),
             kind: hir::ExprKind::Lit(lit),
         }))

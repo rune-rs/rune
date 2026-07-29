@@ -1,10 +1,10 @@
 use crate as rune;
-use crate::runtime::{Ref, Value};
+use crate::runtime::{Dismantle, Handover, Ref, Value};
 use crate::Any;
 
 /// An efficient reference counter iterator over a vector.
 #[derive(Any)]
-#[rune(item = ::std::slice)]
+#[rune(item = ::std::slice, dismantle)]
 pub struct Iter {
     vec: Ref<[Value]>,
     front: usize,
@@ -97,5 +97,24 @@ impl DoubleEndedIterator for Iter {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         Iter::next_back(self)
+    }
+}
+
+/// The vector is kept alive through a reference rather than through a slot, so
+/// taking the iterator apart releases the reference and hands the vector over,
+/// which is what keeps a script which nests iterators - `a = [a].iter()` in a
+/// loop - from being dropped one native frame per level.
+impl Dismantle for Iter {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        let Some(vec) = Ref::take_value(&mut self.vec) else {
+            return;
+        };
+
+        // The reference has been released, so nothing may look at what it
+        // pointed to again.
+        self.vec = Ref::from_static(&[]);
+        self.front = 0;
+        self.back = 0;
+        out.push(vec);
     }
 }

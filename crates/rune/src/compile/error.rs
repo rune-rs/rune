@@ -12,7 +12,6 @@ use crate::alloc::{self, Box, String, Vec};
 use crate::ast;
 use crate::ast::unescape;
 use crate::ast::{Span, Spanned};
-use crate::compile::ir;
 use crate::compile::num::FromFloatError;
 use crate::compile::{HasSpan, Location, MetaInfo, Visibility};
 use crate::hash::TooManyParameters;
@@ -21,9 +20,7 @@ use crate::macros::{SyntheticId, SyntheticKind};
 use crate::parse::{Expectation, IntoExpectation, LexerMode};
 use crate::runtime::debug::DebugSignature;
 use crate::runtime::unit::EncodeError;
-use crate::runtime::{
-    AccessError, AnyObjError, ExpectedType, RuntimeError, TypeInfo, TypeOf, VmError,
-};
+use crate::runtime::{AccessError, AnyObjError, ExpectedType, RuntimeError, TypeInfo, VmError};
 #[cfg(feature = "std")]
 use crate::source;
 use crate::{Hash, Item, ItemBuf, SourceId};
@@ -141,13 +138,6 @@ impl From<io::Error> for ErrorKind {
     }
 }
 
-impl From<ir::scopes::MissingLocal> for ErrorKind {
-    #[inline]
-    fn from(error: ir::scopes::MissingLocal) -> Self {
-        ErrorKind::MissingLocal { name: error.0 }
-    }
-}
-
 #[cfg(feature = "anyhow")]
 impl From<anyhow::Error> for ErrorKind {
     #[inline]
@@ -250,20 +240,6 @@ impl Error {
             },
         )
     }
-
-    /// An error raised when we expect a certain constant value but get another.
-    pub(crate) fn expected_type<E>(spanned: impl Spanned, actual: TypeInfo) -> Self
-    where
-        E: TypeOf,
-    {
-        Self::new(
-            spanned,
-            IrErrorKind::Expected {
-                expected: TypeInfo::from(E::STATIC_TYPE_INFO),
-                actual,
-            },
-        )
-    }
 }
 
 /// Compiler error.
@@ -276,7 +252,12 @@ pub(crate) enum ErrorKind {
     AllocError {
         error: alloc::Error,
     },
-    Ir(IrErrorKind),
+    /// Trying to resolve a cycle of constants.
+    ConstCycle,
+    /// Constant evaluation ran out of its instruction budget.
+    ConstBudgetExceeded {
+        budget: usize,
+    },
     Meta(MetaError),
     Access(AccessError),
     Vm(VmError),
@@ -343,7 +324,6 @@ pub(crate) enum ErrorKind {
     UnsupportedModuleItem {
         item: ItemBuf,
     },
-    UnsupportedSelf,
     UnsupportedUnaryOp {
         op: ast::UnOp,
     },
@@ -393,18 +373,15 @@ pub(crate) enum ErrorKind {
     BreakUnsupportedValue,
     ContinueUnsupported,
     ContinueUnsupportedBlock,
-    SelectMultipleDefaults,
     ExpectedBlockSemiColon {
         #[cfg(feature = "emit")]
         followed_span: Span,
     },
     FnConstAsyncConflict,
-    BlockConstAsyncConflict,
     ClosureKind,
     UnsupportedSelfType,
     UnsupportedSuper,
     UnsupportedSuperInSelfType,
-    UnsupportedAfterGeneric,
     IllegalUseSegment,
     UseAliasNotSupported,
     FunctionConflict {
@@ -455,13 +432,9 @@ pub(crate) enum ErrorKind {
         label: Box<str>,
     },
     ExpectedLeadingPathSegment,
-    UnsupportedVisibility,
     ExpectedMeta {
         expected: &'static str,
         meta: MetaInfo,
-    },
-    NoSuchBuiltInMacro {
-        name: Box<str>,
     },
     VariableMoved {
         #[cfg(feature = "emit")]
@@ -493,6 +466,24 @@ pub(crate) enum ErrorKind {
     },
     MaxMacroRecursion {
         depth: usize,
+        max: usize,
+    },
+    MaxDepth {
+        max: usize,
+    },
+    MaxNesting {
+        max: usize,
+    },
+    MaxConstDepth {
+        max: usize,
+    },
+    MaxGenericsDepth {
+        max: usize,
+    },
+    ItemRecursionLimit {
+        max: usize,
+    },
+    MaxAstDepth {
         max: usize,
     },
     YieldInConst,
@@ -528,9 +519,6 @@ pub(crate) enum ErrorKind {
     ExpectedMacroCloseDelimiter {
         expected: ast::Kind,
         actual: ast::Kind,
-    },
-    MultipleMatchingAttributes {
-        name: &'static str,
     },
     MissingSourceId {
         source_id: SourceId,
@@ -598,7 +586,6 @@ pub(crate) enum ErrorKind {
     ArenaAllocError {
         requested: usize,
     },
-    UnsupportedPatternRest,
     UnsupportedMut,
     UnsupportedSuffix,
     ClosureInConst,
@@ -667,7 +654,6 @@ impl ErrorKind {
 impl core::error::Error for ErrorKind {
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
-            ErrorKind::Ir(source) => Some(source),
             ErrorKind::Meta(source) => Some(source),
             ErrorKind::Access(source) => Some(source),
             ErrorKind::Vm(source) => Some(source),
@@ -693,8 +679,14 @@ impl fmt::Display for ErrorKind {
             ErrorKind::AllocError { error } => {
                 error.fmt(f)?;
             }
-            ErrorKind::Ir(error) => {
-                error.fmt(f)?;
+            ErrorKind::ConstCycle => {
+                write!(f, "Constant cycle detected")?;
+            }
+            ErrorKind::ConstBudgetExceeded { budget } => {
+                write!(
+                    f,
+                    "Constant evaluation exceeded its budget of {budget} instructions"
+                )?;
             }
             ErrorKind::Meta(error) => {
                 error.fmt(f)?;
@@ -807,9 +799,6 @@ impl fmt::Display for ErrorKind {
             ErrorKind::UnsupportedModuleItem { item } => {
                 write!(f, "Cannot load module for `{item}`")?;
             }
-            ErrorKind::UnsupportedSelf => {
-                write!(f, "Keyword `self` not supported here")?;
-            }
             ErrorKind::UnsupportedUnaryOp { op } => {
                 write!(f, "Unsupported unary operator `{op}`")?;
             }
@@ -885,9 +874,6 @@ impl fmt::Display for ErrorKind {
             ErrorKind::ContinueUnsupportedBlock => {
                 write!(f, "Labeled blocks cannot be `continue`'d")?;
             }
-            ErrorKind::SelectMultipleDefaults => {
-                write!(f, "Multiple `default` branches in select")?;
-            }
             ErrorKind::ExpectedBlockSemiColon { .. } => {
                 write!(f, "Expected expression to be terminated by a semicolon `;`")?;
             }
@@ -895,12 +881,6 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "An `fn` can't both be `async` and `const` at the same time"
-                )?;
-            }
-            ErrorKind::BlockConstAsyncConflict => {
-                write!(
-                    f,
-                    "A block can't both be `async` and `const` at the same time"
                 )?;
             }
             ErrorKind::ClosureKind => {
@@ -922,12 +902,6 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "Keyword `super` can't be used in paths starting with `Self`"
-                )?;
-            }
-            ErrorKind::UnsupportedAfterGeneric => {
-                write!(
-                    f,
-                    "This kind of path component cannot follow a generic argument"
                 )?;
             }
             ErrorKind::IllegalUseSegment => {
@@ -1005,14 +979,8 @@ impl fmt::Display for ErrorKind {
             ErrorKind::ExpectedLeadingPathSegment => {
                 write!(f, "Segment is only supported in the first position")?;
             }
-            ErrorKind::UnsupportedVisibility => {
-                write!(f, "Visibility modifier not supported")?;
-            }
             ErrorKind::ExpectedMeta { expected, meta } => {
                 write!(f, "Expected {expected} but got `{meta}`")?;
-            }
-            ErrorKind::NoSuchBuiltInMacro { name } => {
-                write!(f, "No such built-in macro `{name}`")?;
             }
             ErrorKind::VariableMoved { .. } => {
                 write!(f, "Variable moved")?;
@@ -1045,6 +1013,42 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "Reached macro recursion limit at {depth}, limit is {max}",
+                )?;
+            }
+            ErrorKind::MaxGenericsDepth { max } => {
+                write!(
+                    f,
+                    "Generic arguments nest too deeply, limit is {max} (see the `max-depth` option)",
+                )?;
+            }
+            ErrorKind::ItemRecursionLimit { max } => {
+                write!(
+                    f,
+                    "Items depend on each other too deeply to be built, limit is {max}",
+                )?;
+            }
+            ErrorKind::MaxNesting { max } => {
+                write!(
+                    f,
+                    "Expression nests too deeply, limit is {max} (see the `max-depth` option)",
+                )?;
+            }
+            ErrorKind::MaxDepth { max } => {
+                write!(
+                    f,
+                    "Expression is nested too deeply, limit is {max} (see the `max-depth` option)",
+                )?;
+            }
+            ErrorKind::MaxConstDepth { max } => {
+                write!(
+                    f,
+                    "Constant expression is nested too deeply, limit is {max}",
+                )?;
+            }
+            ErrorKind::MaxAstDepth { max } => {
+                write!(
+                    f,
+                    "Macro input is too deep, limit is {max} (see the `max-ast-depth` option)",
                 )?;
             }
             ErrorKind::YieldInConst => {
@@ -1116,9 +1120,6 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::ExpectedMacroCloseDelimiter { expected, actual } => {
                 write!(f, "Expected close delimiter {expected}, but got {actual}")?;
-            }
-            ErrorKind::MultipleMatchingAttributes { name } => {
-                write!(f, "Can only specify one attribute named `{name}`")?;
             }
             ErrorKind::MissingSourceId { source_id } => {
                 write!(f, "Missing source id `{source_id}`")?;
@@ -1198,9 +1199,6 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::ArenaAllocError { requested } => {
                 write!(f, "Allocation error for {requested} bytes")?;
-            }
-            ErrorKind::UnsupportedPatternRest => {
-                write!(f, "Pattern `..` is not supported in this location")?;
             }
             ErrorKind::UnsupportedMut => {
                 write!(
@@ -1350,13 +1348,6 @@ impl From<alloc::alloc::AllocError> for ErrorKind {
     }
 }
 
-impl From<IrErrorKind> for ErrorKind {
-    #[inline]
-    fn from(error: IrErrorKind) -> Self {
-        ErrorKind::Ir(error)
-    }
-}
-
 impl From<MetaError> for ErrorKind {
     #[inline]
     fn from(error: MetaError) -> Self {
@@ -1431,88 +1422,6 @@ impl From<unescape::ErrorKind> for ErrorKind {
     #[inline]
     fn from(source: unescape::ErrorKind) -> Self {
         ErrorKind::UnescapeError(source)
-    }
-}
-
-/// Error when encoding AST.
-#[derive(Debug)]
-#[non_exhaustive]
-pub(crate) enum IrErrorKind {
-    /// Encountered an expression that is not supported as a constant
-    /// expression.
-    NotConst,
-    /// Trying to process a cycle of constants.
-    ConstCycle,
-    /// Encountered a compile meta used in an inappropriate position.
-    UnsupportedMeta {
-        /// Unsupported compile meta.
-        meta: MetaInfo,
-    },
-    /// A constant evaluation errored.
-    Expected {
-        /// The expected value.
-        expected: TypeInfo,
-        /// The value we got instead.
-        actual: TypeInfo,
-    },
-    /// Exceeded evaluation budget.
-    BudgetExceeded,
-    /// Missing a tuple index.
-    MissingIndex {
-        /// The index that was missing.
-        index: usize,
-    },
-    /// Missing an object field.
-    MissingField {
-        /// The field that was missing.
-        field: Box<str>,
-    },
-    /// Error raised when trying to use a break outside of a loop.
-    BreakOutsideOfLoop,
-    ArgumentCountMismatch {
-        actual: usize,
-        expected: usize,
-    },
-}
-
-impl core::error::Error for IrErrorKind {}
-
-impl fmt::Display for IrErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            IrErrorKind::NotConst => {
-                write!(f, "Expected a constant expression")?;
-            }
-            IrErrorKind::ConstCycle => {
-                write!(f, "Constant cycle detected")?;
-            }
-            IrErrorKind::UnsupportedMeta { meta } => {
-                write!(f, "Item `{meta}` is not supported here",)?
-            }
-            IrErrorKind::Expected { expected, actual } => {
-                write!(f, "Expected a value of type {expected} but got {actual}",)?
-            }
-            IrErrorKind::BudgetExceeded => {
-                write!(f, "Evaluation budget exceeded")?;
-            }
-            IrErrorKind::MissingIndex { index } => {
-                write!(f, "Missing index {index}")?;
-            }
-            IrErrorKind::MissingField { field } => {
-                write!(f, "Missing field `{field}`")?;
-            }
-            IrErrorKind::BreakOutsideOfLoop => {
-                write!(f, "Break outside of supported loop")?;
-            }
-            IrErrorKind::ArgumentCountMismatch { actual, expected } => {
-                write!(
-                    f,
-                    "Argument count mismatch, got {actual} but expected {expected}",
-                )?;
-            }
-        }
-
-        Ok(())
     }
 }
 

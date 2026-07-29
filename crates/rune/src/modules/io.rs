@@ -10,7 +10,6 @@ use crate::alloc;
 use crate::alloc::fmt::TryWrite;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
-use crate::parse::Parser;
 #[cfg(feature = "std")]
 use crate::runtime::{Address, Formatter, Memory, Output, VmError};
 use crate::{docstring, ContextError, Module};
@@ -151,7 +150,7 @@ pub(crate) fn print_macro(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(cx)?;
     Ok(quote!(::std::io::print(#expanded)).into_token_stream(cx)?)
@@ -195,7 +194,7 @@ pub(crate) fn println_macro(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(cx)?;
     Ok(quote!(::std::io::println(#expanded)).into_token_stream(cx)?)

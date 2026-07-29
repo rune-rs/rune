@@ -40,7 +40,7 @@ fn continue_outside_of_loop() {
 fn test_pointers() {
     assert_errors! {
         "let n = 0; foo(&n); fn foo(n) {}",
-        span!(15, 17), UnsupportedRef
+        span!(15, 16), UnsupportedRef
     };
 }
 
@@ -54,12 +54,12 @@ fn test_template_strings() {
 fn test_wrong_arguments() {
     assert_errors! {
         "Some(1, 2)",
-        span!(4, 10), BadArgumentCount { expected: 1, actual: 2, .. }
+        span!(0, 4), BadArgumentCount { expected: 1, actual: 2, .. }
     };
 
     assert_errors! {
         "None(1)",
-        span!(4, 7), BadArgumentCount { expected: 0, actual: 1, .. }
+        span!(0, 4), BadArgumentCount { expected: 0, actual: 1, .. }
     };
 }
 
@@ -67,7 +67,7 @@ fn test_wrong_arguments() {
 fn test_bad_struct_declaration() {
     assert_errors! {
         "struct Foo { a, b } Foo { a: 12 }",
-        span!(20, 33), LitObjectMissingField { field, .. } => {
+        span!(20, 23), LitObjectMissingField { field, .. } => {
             assert_eq!(field.as_ref(), "b");
         }
     };
@@ -81,6 +81,6 @@ fn test_bad_struct_declaration() {
 
     assert_errors! {
         "None(1)",
-        span!(4, 7), BadArgumentCount { expected: 0, actual: 1, .. }
+        span!(0, 4), BadArgumentCount { expected: 0, actual: 1, .. }
     };
 }

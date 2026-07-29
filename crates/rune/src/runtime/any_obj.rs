@@ -8,7 +8,7 @@ use crate::alloc::{self, Box};
 use crate::{Any, Hash};
 
 use super::{
-    Access, AccessError, AnyObjVtable, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, Mut,
+    Access, AccessError, AnyObjVtable, AnyTypeInfo, BorrowMut, BorrowRef, FromValue, Handover, Mut,
     RawAccessGuard, RawAnyGuard, Ref, RefVtable, RuntimeError, Shared, Snapshot, ToValue, TypeInfo,
     Value,
 };
@@ -104,6 +104,58 @@ impl AnyObj {
 
         let shared = NonNull::from(Box::leak(Box::try_new(shared)?)).cast();
         Ok(Self { shared })
+    }
+
+    /// Test if this is the last reference to a value which it owns, which means
+    /// that dropping it drops the value it stores.
+    ///
+    /// A value which is only pointed at is never dropped through this, so
+    /// unlike an [`AnySequence`] it is not enough for it to be the last
+    /// reference.
+    ///
+    /// This is what permits the value to be taken apart rather than dropped in
+    /// place, see [`Value`]'s destructor.
+    ///
+    /// [`AnySequence`]: crate::runtime::AnySequence
+    ///
+    /// [`Value`]: crate::runtime::Value
+    #[inline]
+    pub(crate) fn is_last_owner(&self) -> bool {
+        // SAFETY: Since we have a reference to this object, we know that the
+        // shared data is live.
+        unsafe { vtable(self).is_owned() && self.shared.as_ref().count.get() == 1 }
+    }
+
+    /// Hand over the values which the stored value is made of.
+    ///
+    /// This is how a graph of values is taken apart without recursing into it:
+    /// which values are inside is only known to the type which is stored, so it
+    /// is asked through its vtable - see [`Dismantle`].
+    ///
+    /// Nothing is handed over unless dropping this handle is what drops the
+    /// value, since the values are only being taken out because the value they
+    /// are in is going away.
+    ///
+    /// [`Dismantle`]: crate::runtime::Dismantle
+    pub(crate) fn dismantle(&self, out: &mut Handover<'_>) {
+        if !self.is_last_owner() {
+            return;
+        }
+
+        let Some(dismantle) = vtable(self).dismantle else {
+            return;
+        };
+
+        // SAFETY: The vtable is the one for the type which is stored, and the
+        // access guard is what keeps anything else from looking at it while the
+        // values are handed over.
+        unsafe {
+            let Ok(_guard) = self.shared.as_ref().access.exclusive() else {
+                return;
+            };
+
+            dismantle(self.shared, out)
+        }
     }
 
     /// Coerce into a typed object.
@@ -236,6 +288,14 @@ impl AnyObj {
                     shared.as_ref().access.release();
                     AnyObjData::dec(shared)
                 },
+                // The reference keeps the value alive, so it can be handed
+                // back: releasing the access and handing the count over is what
+                // dropping does, minus the count being given up.
+                into_value: Some(|shared: NonNull<()>| {
+                    let shared = shared.cast::<AnyObjData>();
+                    shared.as_ref().access.release();
+                    Value::from(AnyObj::from_raw(shared))
+                }),
             };
 
             let guard = RawAnyGuard::new(this.shared.cast(), vtable);
@@ -280,6 +340,14 @@ impl AnyObj {
                     shared.as_ref().access.release();
                     AnyObjData::dec(shared)
                 },
+                // The reference keeps the value alive, so it can be handed
+                // back: releasing the access and handing the count over is what
+                // dropping does, minus the count being given up.
+                into_value: Some(|shared: NonNull<()>| {
+                    let shared = shared.cast::<AnyObjData>();
+                    shared.as_ref().access.release();
+                    Value::from(AnyObj::from_raw(shared))
+                }),
             };
 
             let guard = RawAnyGuard::new(this.shared.cast(), vtable);

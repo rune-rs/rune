@@ -340,6 +340,7 @@ impl Source {
         }
     }
 
+    #[cfg(feature = "workspace")]
     pub(crate) fn len(&self) -> usize {
         self.source.len()
     }

@@ -176,6 +176,33 @@ impl UnitBuilder {
         ))
     }
 
+    /// Build a runtime unit out of the builder without consuming it.
+    ///
+    /// This is what makes it possible to execute a unit which is still being
+    /// built, which constant evaluation relies on - it compiles the constant
+    /// into an interior unit and has to run it while the outer compilation is
+    /// still in progress.
+    ///
+    /// Debug information is deliberately not included. The caller of a constant
+    /// evaluation already knows the span it is evaluating, and copying the debug
+    /// info of the interior unit for every evaluation is not worth what it adds
+    /// to the diagnostic.
+    pub(crate) fn snapshot<S>(&self, storage: S) -> alloc::Result<Unit<S>> {
+        Ok(Unit::new(
+            storage,
+            self.functions.try_clone()?,
+            self.static_strings.try_clone()?,
+            self.static_bytes.try_clone()?,
+            self.static_object_keys.try_clone()?,
+            self.drop_sets.try_clone()?,
+            self.rtti.try_clone()?,
+            None,
+            self.constants.try_clone()?,
+            self.globals.try_clone()?,
+            self.globals_rev.try_clone()?,
+        ))
+    }
+
     /// Get the slot assigned to the static item with the given type hash,
     /// allocating a new one if this is the first time we see it.
     ///
@@ -828,6 +855,47 @@ impl UnitBuilder {
 
         self.debug_mut()?.functions.try_insert(hash, signature)?;
         self.functions_rev.try_insert(offset, hash)?;
+        self.add_assembly(location, assembly, unit_storage, size)?;
+        Ok(())
+    }
+
+    /// Declare a function which only exists inside of the unit it is being
+    /// assembled into, addressed by hash rather than by item.
+    ///
+    /// This is used by constant evaluation, which assembles the constants it
+    /// evaluates into an interior unit. Those functions are never looked up by
+    /// name and never outlive the evaluation, so they carry no debug signature
+    /// and no `INTO_TYPE_NAME` constant.
+    pub(crate) fn new_const_function(
+        &mut self,
+        location: Location,
+        hash: Hash,
+        args: usize,
+        assembly: Assembly,
+        unit_storage: &mut dyn UnitEncoder,
+        size: usize,
+    ) -> compile::Result<()> {
+        let offset = unit_storage.offset();
+
+        let info = UnitFn::Offset {
+            offset,
+            call: Call::Immediate,
+            args,
+            captures: None,
+        };
+
+        if self
+            .functions
+            .try_insert(hash, info)
+            .with_span(location.span)?
+            .is_some()
+        {
+            return Err(compile::Error::new(
+                location.span,
+                ErrorKind::FunctionConflictHash { hash },
+            ));
+        }
+
         self.add_assembly(location, assembly, unit_storage, size)?;
         Ok(())
     }

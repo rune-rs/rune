@@ -78,6 +78,14 @@ fn is_instance(node: &Node<'_>) -> alloc::Result<(bool, Vec<Span>)> {
 #[derive(Debug)]
 enum State<'a> {
     Stream(StreamBuf<'a>),
+    /// The children of an `ExprChain`, iterated like any other stream.
+    ///
+    /// A chain is built around its first element, so that element is the
+    /// expression the modifiers and attributes of the surrounding `Expr` were
+    /// written for - `async { .. }.await` is the same block as `async { .. }`.
+    /// The frame is kept apart from [`State::Stream`] so that
+    /// [`Processor::enclosing_expr`] can see through it.
+    Chain(StreamBuf<'a>),
     Expr(Mods, Attrs),
     Block(Guard, IndexItem),
     ConstBlock(Guard, IndexItem, Node<'a>),
@@ -112,9 +120,33 @@ impl<'a> Processor<'a> {
         self
     }
 
+    /// The modifiers and attributes of the expression the node being processed
+    /// was parsed as, if it is that expression rather than one nested in it.
+    ///
+    /// The frame beneath the current one is the stream of the enclosing `Expr`,
+    /// with a chain in between if the expression is chained. Anything else
+    /// which contains a block - `if cond { .. }`, a nested `Expr`, an item -
+    /// has a frame of its own, so a modifier cannot reach into it.
+    fn enclosing_expr(&mut self) -> Option<(&mut Mods, &mut Attrs)> {
+        let mut n = self.stack.len().checked_sub(1)?;
+
+        while matches!(self.stack.get(n)?, State::Chain(..)) {
+            n = n.checked_sub(1)?;
+        }
+
+        if !matches!(self.stack.get(n)?, State::Stream(..)) {
+            return None;
+        }
+
+        match self.stack.get_mut(n.checked_sub(1)?)? {
+            State::Expr(mods, attrs) => Some((mods, attrs)),
+            _ => None,
+        }
+    }
+
     fn process(mut self, idx: &mut Indexer<'_, '_>) -> Result<()> {
         loop {
-            if let Some(State::Stream(p)) = self.stack.last_mut() {
+            if let Some(State::Stream(p) | State::Chain(p)) = self.stack.last_mut() {
                 let Some(node) = p.next() else {
                     self.stack.pop();
                     continue;
@@ -251,7 +283,7 @@ impl<'a> Processor<'a> {
                     idx.item = idx_item;
                     idx.nested_item = nested_item;
                 }
-                State::Stream(..) => {}
+                State::Stream(..) | State::Chain(..) => {}
             }
         }
 
@@ -288,13 +320,10 @@ impl<'a> Processor<'a> {
                 return Ok(());
             }
             ExprMacroCall => {
-                let builtin;
-
-                if let [.., State::Expr(_, attrs), _] = &mut self.stack[..] {
-                    builtin = attrs.builtin.take();
-                } else {
-                    builtin = None;
-                }
+                let builtin = match self.enclosing_expr() {
+                    Some((_, attrs)) => attrs.builtin.take(),
+                    None => None,
+                };
 
                 let (literal, is_builtin) = match builtin {
                     Some((_, literal)) => (literal, true),
@@ -333,16 +362,10 @@ impl<'a> Processor<'a> {
                 return Ok(());
             }
             ExprClosure => {
-                let async_token;
-                let move_token;
-
-                if let [.., State::Expr(mods, _), _] = &mut self.stack[..] {
-                    async_token = mods.async_token.take();
-                    move_token = mods.move_token.take();
-                } else {
-                    async_token = None;
-                    move_token = None;
-                }
+                let (async_token, move_token) = match self.enclosing_expr() {
+                    Some((mods, _)) => (mods.async_token.take(), mods.move_token.take()),
+                    None => (None, None),
+                };
 
                 let guard = idx.push_id()?;
                 idx.scopes.push()?;
@@ -352,32 +375,36 @@ impl<'a> Processor<'a> {
                     .try_push(State::Closure(guard, item, async_token, move_token))?;
                 node.replace(Closure(idx.item.id));
             }
+            ExprChain => {
+                let mut p = node.into_stream();
+
+                if !p.is_eof() {
+                    self.stack.try_push(State::Chain(p)).with_span(self.span)?;
+                }
+
+                return Ok(());
+            }
             Path => {
                 node.replace(IndexedPath(idx.item.id));
             }
             Block => {
-                let async_token;
-                let const_token;
-                let move_token;
-
-                if let [.., State::Expr(mods, _), _] = &mut self.stack[..] {
-                    async_token = mods.async_token.take();
-                    const_token = mods.const_token.take();
-                    move_token = mods.move_token.take();
-                } else {
-                    async_token = None;
-                    const_token = None;
-                    move_token = None;
-                }
+                let (async_token, const_token, move_token) = match self.enclosing_expr() {
+                    Some((mods, _)) => (
+                        mods.async_token.take(),
+                        mods.const_token.take(),
+                        mods.move_token.take(),
+                    ),
+                    None => (None, None, None),
+                };
 
                 let guard = idx.push_id()?;
                 let item_meta = idx.insert_new_item(&self.span, Visibility::Inherited, &[])?;
                 let item = idx.item.replace(item_meta.item);
 
                 let kind = match (async_token, const_token) {
-                    (Some(const_token), Some(async_token)) => {
+                    (Some(async_token), Some(const_token)) => {
                         idx.error(Error::new(
-                            const_token.span.join(async_token.span),
+                            async_token.span.join(const_token.span),
                             ErrorKind::FnConstAsyncConflict,
                         ))?;
 
@@ -387,6 +414,14 @@ impl<'a> Processor<'a> {
                     (None, Some(..)) => ExprBlockKind::Const,
                     _ => ExprBlockKind::Default,
                 };
+
+                // As in Rust, `move` says something only about a block which
+                // captures, which is an async one.
+                if !matches!(kind, ExprBlockKind::Async) {
+                    if let Some(span) = &move_token {
+                        idx.error(Error::msg(span, "unsupported `move` modifier"))?;
+                    }
+                }
 
                 match kind {
                     ExprBlockKind::Default => {
@@ -685,6 +720,16 @@ impl<'a> Processor<'a> {
 
         p.expect(K![fn])?;
 
+        // A function carries `const` and `async` through to `validate_call`,
+        // but the remaining modifiers have no meaning on it.
+        if let Some(span) = &mods.static_token {
+            idx.error(Error::msg(span, "unsupported `static` modifier"))?;
+        }
+
+        if let Some(span) = &mods.move_token {
+            idx.error(Error::msg(span, "unsupported `move` modifier"))?;
+        }
+
         let (guard, name) = push_name(idx, p, "function")?;
         let item_meta = idx.insert_new_item(&*p, mods.visibility, &attrs.docs)?;
         let item = idx.item.replace(item_meta.item);
@@ -828,7 +873,10 @@ impl<'a> Processor<'a> {
         self.stack
             .try_push(State::Const(guard, idx_item, last, value.clone(), expr))?;
 
-        self.stack.try_push(State::Stream(value.into_stream()))?;
+        // The initializer is walked as an expression rather than as a bare
+        // stream, so that the modifiers and attributes which the grammar
+        // permits in front of it are rejected here rather than ignored.
+        self.node(idx, value)?;
 
         mods.deny_all(idx)?;
         attrs.deny_non_docs(idx)?;
@@ -881,7 +929,8 @@ impl<'a> Processor<'a> {
         self.stack
             .try_push(State::Static(guard, idx_item, last, value.clone(), expr))?;
 
-        self.stack.try_push(State::Stream(value.into_stream()))?;
+        // See the corresponding comment in `item_const`.
+        self.node(idx, value)?;
 
         mods.deny_all(idx)?;
         attrs.deny_non_docs(idx)?;
@@ -1155,18 +1204,21 @@ fn attributes(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Attrs> {
                 let ident = p.ast::<ast::Ident>()?;
 
                 match ident.resolve(resolve_context!(idx.q))? {
+                    // Recorded over the whole attribute rather than the name
+                    // inside it, so that whatever rejects it later points at
+                    // what was written.
                     "test" => {
                         if attrs.bench.is_some() {
-                            idx.error(Error::msg(ident.span, "duplicate #[test] attribute"))?;
+                            idx.error(Error::msg(span, "duplicate #[test] attribute"))?;
                         } else {
-                            attrs.test = Some(ident.span);
+                            attrs.test = Some(span);
                         }
                     }
                     "bench" => {
                         if attrs.bench.is_some() {
-                            idx.error(Error::msg(ident.span, "duplicate #[bench] attribute"))?;
+                            idx.error(Error::msg(span, "duplicate #[bench] attribute"))?;
                         } else {
-                            attrs.bench = Some(ident.span);
+                            attrs.bench = Some(span);
                         }
                     }
                     "doc" => {
@@ -1209,8 +1261,11 @@ fn attributes(idx: &mut Indexer<'_, '_>, p: &mut Stream<'_>) -> Result<Attrs> {
                         }
                     }
                     name => {
+                        // Spanned over the whole attribute rather than the name
+                        // inside it, which is what an attribute rejected while
+                        // expanding it as a macro reports.
                         idx.error(Error::msg(
-                            ident,
+                            span,
                             try_format!("unsupported attribute `{name}`"),
                         ))?;
                     }
@@ -1473,6 +1528,10 @@ impl Mods {
 
         if let Some(span) = self.async_token {
             cx.error(Error::msg(span, "unsupported `async` modifier"))?;
+        }
+
+        if let Some(span) = self.move_token {
+            cx.error(Error::msg(span, "unsupported `move` modifier"))?;
         }
 
         Ok(())

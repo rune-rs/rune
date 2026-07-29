@@ -5,7 +5,6 @@ use crate::alloc::{self, try_format, Vec};
 use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
-use crate::parse::Parser;
 use crate::runtime::Function;
 use crate::{docstring, Any, ContextError, Module};
 
@@ -69,7 +68,7 @@ pub(crate) fn assert(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let expr = p.parse::<ast::Expr>()?;
 
     let message = if p.parse::<Option<T![,]>>()?.is_some() {
@@ -114,7 +113,7 @@ pub(crate) fn assert_eq(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;
     let right = p.parse::<ast::Expr>()?;
@@ -176,7 +175,7 @@ pub(crate) fn assert_ne(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let left = p.parse::<ast::Expr>()?;
     p.parse::<T![,]>()?;
     let right = p.parse::<ast::Expr>()?;

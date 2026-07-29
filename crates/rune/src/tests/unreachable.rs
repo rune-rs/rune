@@ -13,7 +13,7 @@ fn unreachable_iter() {
         "#,
         span,
         Unreachable { cause: span!(50, 63), .. } => {
-            assert_eq!(span, span!(64, 69));
+            assert_eq!(span, span!(66, 67));
         },
         Unreachable { cause: span!(41, 69), .. } => {
             assert_eq!(span, span!(82, 83));

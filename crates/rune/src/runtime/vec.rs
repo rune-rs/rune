@@ -14,9 +14,9 @@ use crate::shared::FixedVec;
 use crate::{Any, TypeHash};
 
 use super::{
-    EnvProtocolCaller, Formatter, FromValue, Hasher, ProtocolCaller, Range, RangeFrom, RangeFull,
-    RangeInclusive, RangeTo, RangeToInclusive, RawAnyGuard, Ref, RuntimeError, ToValue,
-    UnsafeToRef, Value, VmError, VmErrorKind,
+    Dismantle, EnvProtocolCaller, Formatter, FromValue, Handover, Hasher, ProtocolCaller, Range,
+    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, RawAnyGuard, Ref,
+    RuntimeError, ToValue, UnsafeToRef, Value, VmError, VmErrorKind, Worklist,
 };
 
 /// Struct representing a dynamic vector.
@@ -38,9 +38,22 @@ use super::{
 /// ```
 #[derive(Default, Any)]
 #[repr(transparent)]
-#[rune(item = ::std::vec)]
+#[rune(item = ::std::vec, dismantle)]
 pub struct Vec {
     inner: alloc::Vec<Value>,
+}
+
+/// A vector is made of the values put into it, and a script can nest one inside
+/// another without any bound, so it hands over what it is made of rather than
+/// being dropped in place.
+impl Dismantle for Vec {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        // Every value is handed over in one pass over the vector, and what is
+        // left of it is dropped as soon as this returns.
+        for value in self.inner.drain(..) {
+            out.push(value);
+        }
+    }
 }
 
 impl Vec {
@@ -114,14 +127,20 @@ impl Vec {
 
     /// Set by index
     pub fn set(&mut self, index: usize, value: Value) -> Result<(), VmError> {
+        let length = self.len();
+
         let Some(v) = self.inner.get_mut(index) else {
             return Err(VmError::new(VmErrorKind::OutOfRange {
                 index: index.into(),
-                length: self.len().into(),
+                length: length.into(),
             }));
         };
 
-        *v = value;
+        // The value which is replaced is taken apart rather than dropped in
+        // place. A native function has no worklist of its own to do that over,
+        // so it gets one which is empty - which costs nothing until it is
+        // handed a value made of other values.
+        Worklist::new().replace(v, value);
         Ok(())
     }
 
@@ -131,22 +150,36 @@ impl Vec {
     /// difference, with each additional slot filled with `value`. If `new_len`
     /// is less than `len`, the `Vec` is simply truncated.
     pub fn resize(&mut self, new_len: usize, value: Value) -> Result<(), VmError> {
+        let len = self.inner.len();
+
+        if new_len < len {
+            // Shrinking discards the values past the new length, which are
+            // taken apart rather than dropped where they are.
+            if let Some(values) = self.inner.get_mut(new_len..) {
+                Worklist::new().dismantle_all(values.iter_mut());
+            }
+
+            self.inner.truncate(new_len);
+            return Ok(());
+        }
+
         if value.is_inline() {
             self.inner.try_resize(new_len, value)?;
         } else {
-            let len = self.inner.len();
-
-            if new_len > len {
-                for _ in 0..new_len - len {
-                    let value = value.clone_with(&mut EnvProtocolCaller)?;
-                    self.inner.try_push(value)?;
-                }
-            } else {
-                self.inner.truncate(new_len);
+            for _ in 0..new_len - len {
+                let value = value.clone_with(&mut EnvProtocolCaller)?;
+                self.inner.try_push(value)?;
             }
         }
 
         Ok(())
+    }
+
+    /// Take every value in the vector apart rather than dropping them where
+    /// they are - see [`Worklist::dismantle`].
+    pub(crate) fn dismantle(&mut self, work: &mut Worklist) {
+        work.dismantle_all(self.inner.iter_mut());
+        self.inner.clear();
     }
 
     /// Appends an element to the back of a dynamic vector.

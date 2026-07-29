@@ -13,9 +13,9 @@ use crate::sync::Arc;
 use crate::{Any, Hash};
 
 use super::{
-    Address, AnySequence, Args, Call, ConstValue, Formatter, FromValue, FunctionHandler, Globals,
-    GuardedArgs, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack, Unit, Value, Vm,
-    VmCall, VmError, VmErrorKind, VmHalt,
+    Address, AnySequence, Args, Call, ConstValue, Dismantle, Formatter, FromValue, FunctionHandler,
+    Globals, GuardedArgs, Handover, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack,
+    Unit, Value, Vm, VmCall, VmError, VmErrorKind, VmHalt,
 };
 
 /// The type of a function in Rune.
@@ -45,7 +45,7 @@ use super::{
 /// ```
 #[derive(Any, TryClone)]
 #[repr(transparent)]
-#[rune(item = ::std::ops)]
+#[rune(item = ::std::ops, dismantle)]
 pub struct Function(FunctionImpl<Value>);
 
 impl Function {
@@ -377,7 +377,7 @@ impl Function {
     /// }
     ///
     /// println!("{function:?}");
-    /// ``
+    /// ```
     #[rune::function(keep, protocol = DEBUG_FMT)]
     fn debug_fmt(&self, f: &mut Formatter) -> alloc::Result<()> {
         write!(f, "{self:?}")
@@ -641,8 +641,7 @@ where
             }
             Inner::FnUnitStruct(empty) => {
                 check_args(args, 0)?;
-                vm.stack_mut()
-                    .store(out, || Value::empty_struct(empty.rtti.clone()))?;
+                vm.store(out, || Value::empty_struct(empty.rtti.clone()))?;
                 None
             }
             Inner::FnTupleStruct(tuple) => {
@@ -651,7 +650,7 @@ where
                 let seq = vm.stack().slice_at(addr, args)?;
                 let data = seq.iter().cloned();
                 let value = AnySequence::new(tuple.rtti.clone(), data)?;
-                vm.stack_mut().store(out, value)?;
+                vm.store(out, value)?;
                 None
             }
         };
@@ -766,6 +765,18 @@ impl FunctionImpl<Value> {
         };
 
         Ok(FunctionImpl { inner })
+    }
+}
+
+/// A closure holds the environment it captured, so a closure which captured
+/// another one nests just like a container does.
+impl Dismantle for Function {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        let Inner::FnClosureOffset(closure) = &mut self.0.inner else {
+            return;
+        };
+
+        out.consume_all(closure.environment.iter_mut());
     }
 }
 

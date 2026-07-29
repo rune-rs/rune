@@ -41,6 +41,14 @@ pub enum Pat {
 
 impl Parse for Pat {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {
+        p.nested(Self::parse_inner)
+    }
+}
+
+impl Pat {
+    /// Patterns nest independently of expressions, so how deeply they nest is
+    /// bounded here as well as in [`ast::Expr`].
+    fn parse_inner(p: &mut Parser<'_>) -> Result<Self> {
         let attributes = p.parse::<Vec<ast::Attribute>>()?;
 
         match p.nth(0)? {

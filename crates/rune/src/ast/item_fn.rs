@@ -74,22 +74,7 @@ pub struct ItemFn {
     pub(crate) id: ItemId,
 }
 
-impl ItemFn {
-    /// Get the descriptive span of this item, e.g. `pub fn foo()` instead of
-    /// the span for the whole function declaration, body included.
-    pub(crate) fn descriptive_span(&self) -> Span {
-        if let Some(async_token) = &self.async_token {
-            async_token.span().join(self.args.span())
-        } else {
-            self.fn_token.span().join(self.args.span())
-        }
-    }
-
-    /// Test if function is an instance fn.
-    pub(crate) fn is_instance(&self) -> bool {
-        matches!(self.args.first(), Some((ast::FnArg::SelfValue(..), _)))
-    }
-}
+impl ItemFn {}
 
 item_parse!(Fn, ItemFn, "function item");
 

@@ -120,7 +120,7 @@ impl ProtocolCaller for Vm {
             CallResult::Frame => CallResultOnly::Ok(VmExecution::new(&mut *self).complete()?),
         };
 
-        self.stack_mut().truncate(addr);
+        self.dismantle_to(addr);
         Ok(result)
     }
 }

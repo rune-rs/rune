@@ -10,6 +10,10 @@ pub struct RawEnv {
     pub(crate) unit: Option<NonNull<()>>,
     pub(crate) globals: Option<NonNull<()>>,
     pub(crate) diagnostics: Option<NonNull<()>>,
+    /// How deeply the walk over a value in progress has descended, which has to
+    /// be stored along with the rest of the environment since a walk which goes
+    /// through a protocol function is counted across it.
+    pub(crate) depth: usize,
 }
 
 impl RawEnv {
@@ -20,6 +24,7 @@ impl RawEnv {
             unit: None,
             globals: None,
             diagnostics: None,
+            depth: 0,
         }
     }
 }

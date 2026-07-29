@@ -147,3 +147,54 @@ fn test_flat_map() {
 
     assert_eq!(actual, expected);
 }
+
+/// An iterator over a deque reports what is left of it without consuming
+/// itself, so it can be collected and adapted like every other one.
+///
+/// `SIZE_HINT` and `LEN` took the iterator by value, which took it out of the
+/// value they were called on, so anything which asks for the size before
+/// walking - `collect`, and every adapter which collects - failed.
+#[test]
+fn deque_iter_is_not_consumed_by_its_size() {
+    let values: Vec<i64> = rune! {
+        use std::collections::VecDeque;
+
+        let deque = VecDeque::new();
+        deque.push_back(1);
+        deque.push_back(2);
+        deque.push_front(0);
+        deque.iter().collect::<Vec>()
+    };
+
+    assert_eq!(values, [0, 1, 2]);
+
+    let values: Vec<i64> = rune! {
+        use std::collections::VecDeque;
+
+        let deque = VecDeque::new();
+        deque.push_back(1);
+        deque.push_back(2);
+        deque.iter().map(|v| v * 2).rev().collect::<Vec>()
+    };
+
+    assert_eq!(values, [4, 2]);
+
+    // Asking twice hands back the same answer, since neither question takes
+    // anything away from the iterator.
+    let values: Vec<i64> = rune! {
+        use std::collections::VecDeque;
+
+        let deque = VecDeque::new();
+        deque.push_back(1);
+        deque.push_back(2);
+
+        let it = deque.iter();
+        let a = it.len();
+        let b = it.len();
+        let c = it.next().unwrap();
+        let d = it.len();
+        [a, b, c, d]
+    };
+
+    assert_eq!(values, [2, 2, 1, 1]);
+}

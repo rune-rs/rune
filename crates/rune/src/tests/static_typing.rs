@@ -6,7 +6,7 @@ use ErrorKind::*;
 fn deny_static_typing_function() {
     assert_errors! {
         "fn foo() -> Bar {}",
-        span!(0, 18), Custom { error } => {
+        span!(9, 15), Custom { error } => {
             assert_eq!(error.to_string(), "Adding a return type in functions is not supported");
         }
     }

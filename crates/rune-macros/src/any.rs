@@ -78,6 +78,7 @@ impl InternalCall {
 
             let mut any = None;
             let mut type_of = None;
+            let mut dismantle = None;
             let mut attrs = Vec::new();
 
             for attr in item.attrs {
@@ -88,6 +89,11 @@ impl InternalCall {
 
                 if attr.path().is_ident("type_of") {
                     type_of = Some(attr.path().span());
+                    continue;
+                }
+
+                if attr.path().is_ident("dismantle") {
+                    dismantle = Some(attr.path().span());
                     continue;
                 }
 
@@ -110,6 +116,21 @@ impl InternalCall {
                 (None, None) => TypeKind::Derive,
             };
 
+            // A binding has no fields to mark, so the type either hands its
+            // values over through an implementation of its own or has nothing
+            // to hand over.
+            let dismantle = match (dismantle, &kind) {
+                (Some(d), TypeKind::TypeOf) => {
+                    cx.error(syn::Error::new(
+                        d,
+                        "#[dismantle] cannot be combined with #[type_of], which implements no `Any`",
+                    ));
+                    continue;
+                }
+                (Some(..), _) => DismantleKind::Manual,
+                (None, _) => DismantleKind::Nothing,
+            };
+
             output.push(TypeBuilder {
                 ident: item.ty,
                 type_hash,
@@ -119,6 +140,7 @@ impl InternalCall {
                 generics: item.generics,
                 attrs,
                 kind,
+                dismantle,
             });
         }
 
@@ -178,6 +200,8 @@ impl Derive {
             }
         }
 
+        let dismantle = dismantle_kind(cx, &self.input, attr, tokens);
+
         Ok(TypeBuilder {
             ident: self.input.ident,
             type_hash,
@@ -187,7 +211,144 @@ impl Derive {
             generics: self.input.generics,
             attrs: Vec::new(),
             kind: TypeKind::Derive,
+            dismantle,
         })
+    }
+}
+
+/// What the derive writes as the `Dismantle` implementation of a type.
+///
+/// Every type stored in the virtual machine has to say how it is taken apart,
+/// since a type which holds values and does not hand them over costs a native
+/// frame for every level a script nests it - see the `Dismantle` trait.
+enum DismantleKind {
+    /// Nothing is handed over, so the value is dropped in place.
+    Nothing,
+    /// The type implements `Dismantle` itself, so nothing is written here.
+    Manual,
+    /// The body of a `swap_next` written from the fields which were marked.
+    Fields(TokenStream),
+}
+
+/// Work out what to write for a type from `#[rune(dismantle)]`, on the type
+/// itself or on the fields which hold values.
+fn dismantle_kind(
+    cx: &Context,
+    input: &syn::DeriveInput,
+    attr: &TypeAttr,
+    tokens: &Tokens,
+) -> DismantleKind {
+    /// Hand over each field which was marked, in the order they are declared.
+    fn chain(tokens: &Tokens, fields: Vec<TokenStream>) -> Option<TokenStream> {
+        if fields.is_empty() {
+            return None;
+        }
+
+        let handover = &tokens.handover;
+
+        Some(quote! {
+            #(#handover::consume(out, #fields);)*
+        })
+    }
+
+    /// The fields of a struct which were marked, as expressions reaching
+    /// through `self`.
+    fn struct_fields(cx: &Context, fields: &syn::Fields) -> Vec<TokenStream> {
+        let mut output = Vec::new();
+
+        for (index, field) in fields.iter().enumerate() {
+            let f = cx.field_attrs(&field.attrs);
+
+            if f.dismantle.is_none() {
+                continue;
+            }
+
+            output.push(match &field.ident {
+                Some(ident) => quote!(&mut self.#ident),
+                None => {
+                    let index = syn::Index::from(index);
+                    quote!(&mut self.#index)
+                }
+            });
+        }
+
+        output
+    }
+
+    if let Some(span) = attr.dismantle {
+        // Saying both would leave it unclear which of the two is in effect.
+        let marked = match &input.data {
+            syn::Data::Struct(st) => !struct_fields(cx, &st.fields).is_empty(),
+            syn::Data::Enum(en) => en.variants.iter().any(|v| {
+                v.fields
+                    .iter()
+                    .any(|f| cx.field_attrs(&f.attrs).dismantle.is_some())
+            }),
+            syn::Data::Union(..) => false,
+        };
+
+        if marked {
+            cx.error(syn::Error::new(
+                span,
+                "#[rune(dismantle)] on a type means it implements `Dismantle` itself, so its fields cannot be marked as well",
+            ));
+        }
+
+        return DismantleKind::Manual;
+    }
+
+    match &input.data {
+        syn::Data::Struct(st) => match chain(tokens, struct_fields(cx, &st.fields)) {
+            Some(body) => DismantleKind::Fields(body),
+            None => DismantleKind::Nothing,
+        },
+        syn::Data::Enum(en) => {
+            let mut arms = Vec::new();
+
+            for variant in &en.variants {
+                let mut bindings = Vec::new();
+                let mut fields = Vec::new();
+
+                for (index, field) in variant.fields.iter().enumerate() {
+                    let f = cx.field_attrs(&field.attrs);
+
+                    if f.dismantle.is_none() {
+                        continue;
+                    }
+
+                    let binding = syn::Ident::new(&format!("f{index}"), field.span());
+
+                    bindings.push(match &field.ident {
+                        Some(ident) => quote!(#ident: #binding),
+                        None => {
+                            let index = syn::Index::from(index);
+                            quote!(#index: #binding)
+                        }
+                    });
+
+                    fields.push(quote!(#binding));
+                }
+
+                let Some(body) = chain(tokens, fields) else {
+                    continue;
+                };
+
+                let ident = &variant.ident;
+                arms.push(quote!(Self::#ident { #(#bindings,)* .. } => { #body }));
+            }
+
+            if arms.is_empty() {
+                return DismantleKind::Nothing;
+            }
+
+            DismantleKind::Fields(quote! {
+                match self {
+                    #(#arms,)*
+                    _ => {}
+                }
+            })
+        }
+        syn::Data::Union(..) => DismantleKind::Nothing,
     }
 }
 
@@ -593,12 +754,51 @@ pub struct TypeBuilder<'a, T> {
     generics: syn::Generics,
     attrs: Vec<syn::Attribute>,
     kind: TypeKind,
+    /// What to write for the `Dismantle` implementation which `Any` requires.
+    dismantle: DismantleKind,
 }
 
 impl<T> TypeBuilder<'_, T>
 where
     T: ToTokens,
 {
+    /// Write the `Dismantle` implementation which `Any` requires, unless the
+    /// type says that it writes its own.
+    fn expand_dismantle(
+        dismantle: DismantleKind,
+        tokens: &Tokens,
+        ident: &T,
+        attrs: &[syn::Attribute],
+        generics: &syn::Generics,
+    ) -> Option<TokenStream> {
+        let body = match dismantle {
+            DismantleKind::Manual => return None,
+            // Nothing inside is made of values, so dropping this cannot descend
+            // into anything.
+            DismantleKind::Nothing => TokenStream::default(),
+            DismantleKind::Fields(body) => body,
+        };
+
+        let Tokens {
+            dismantle_t,
+            handover,
+            ..
+        } = tokens;
+
+        let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+
+        Some(quote! {
+            #[automatically_derived]
+            #(#attrs)*
+            impl #impl_generics #dismantle_t for #ident #type_generics #where_clause {
+                #[inline]
+                fn dismantle(&mut self, #[allow(unused)] out: &mut #handover<'_>) {
+                    #body
+                }
+            }
+        })
+    }
+
     /// Expand the necessary implementation details for `Any`.
     pub(super) fn expand(self) -> TokenStream {
         match self.kind {
@@ -617,8 +817,11 @@ where
             tokens,
             generics,
             attrs,
+            dismantle,
             ..
         } = self;
+
+        let impl_dismantle = Self::expand_dismantle(dismantle, tokens, &ident, &attrs, &generics);
 
         let Tokens {
             alloc,
@@ -800,6 +1003,7 @@ where
             #impl_named
             #to_value_impl
             #impl_type_of
+            #impl_dismantle
             #impl_any
             #impl_non_generic
         }
@@ -813,8 +1017,11 @@ where
             tokens,
             generics,
             attrs,
+            dismantle,
             ..
         } = self;
+
+        let impl_dismantle = Self::expand_dismantle(dismantle, tokens, &ident, &attrs, &generics);
 
         let Tokens {
             any_t,
@@ -942,6 +1149,7 @@ where
             #install_with
             #impl_named
             #to_value_impl
+            #impl_dismantle
             #impl_any
         }
     }

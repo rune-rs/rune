@@ -61,13 +61,7 @@ pub struct Attribute {
     pub close: T![']'],
 }
 
-impl Attribute {
-    pub(crate) fn input_span(&self) -> Span {
-        self.input
-            .option_span()
-            .unwrap_or_else(|| self.close.span.head())
-    }
-}
+impl Attribute {}
 
 impl Parse for Attribute {
     fn parse(p: &mut Parser<'_>) -> Result<Self> {

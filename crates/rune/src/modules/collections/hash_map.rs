@@ -3,8 +3,8 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::hashbrown::{IterRef, KeysRef, Table, ValuesRef};
 use crate::runtime::{
-    EnvProtocolCaller, Formatter, FromValue, Iterator, ProtocolCaller, Ref, Value, VmError,
-    VmErrorKind,
+    Dismantle, EnvProtocolCaller, Formatter, FromValue, Handover, Iterator, ProtocolCaller, Ref,
+    Value, VmError, VmErrorKind,
 };
 use crate::{Any, ContextError, Module};
 
@@ -134,7 +134,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(m[(0, 3)], 5);
 /// ```
 #[derive(Any)]
-#[rune(item = ::std::collections::hash_map)]
+#[rune(item = ::std::collections::hash_map, dismantle)]
 pub(crate) struct HashMap {
     table: Table<Value>,
 }
@@ -737,6 +737,7 @@ impl HashMap {
 #[derive(Any)]
 #[rune(item = ::std::collections::hash_map)]
 pub(crate) struct Iter {
+    #[rune(dismantle)]
     iter: IterRef<Value>,
 }
 
@@ -756,6 +757,7 @@ impl Iter {
 #[derive(Any)]
 #[rune(item = ::std::collections::hash_map)]
 pub(crate) struct Keys {
+    #[rune(dismantle)]
     iter: KeysRef<Value>,
 }
 
@@ -775,6 +777,7 @@ impl Keys {
 #[derive(Any)]
 #[rune(item = ::std::collections::hash_map)]
 pub(crate) struct Values {
+    #[rune(dismantle)]
     iter: ValuesRef<Value>,
 }
 
@@ -787,5 +790,19 @@ impl Values {
     #[rune::function(instance, protocol = SIZE_HINT)]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
+    }
+}
+
+/// A map is made of the keys and values put into it, and a script can nest one
+/// inside another without any bound, so it hands over what it is made of rather
+/// than being dropped in place.
+impl Dismantle for HashMap {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        // The map is emptied rather than walked in place, so that what it holds
+        // is handed over in one pass over it.
+        for (key, value) in self.table.drain() {
+            out.push(key);
+            out.push(value);
+        }
     }
 }

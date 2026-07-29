@@ -18,7 +18,7 @@ fn number_literals_oob() {
 
     assert_errors! {
         "-9223372036854775809",
-        span!(0, 20), BadSignedOutOfBounds { .. }
+        span!(1, 20), BadSignedOutOfBounds { .. }
     };
 
     assert_parse!("9223372036854775807");

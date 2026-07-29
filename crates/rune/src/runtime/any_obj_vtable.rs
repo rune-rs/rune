@@ -7,7 +7,7 @@ use crate::alloc::alloc::Global;
 use crate::alloc::{self, Box};
 use crate::{Any, Hash};
 
-use super::{AnyObj, AnyObjData, AnyTypeInfo, TypeInfo};
+use super::{AnyObj, AnyObjData, AnyTypeInfo, Dismantle, Handover, TypeInfo};
 
 /// The signature of a descriptive type name function.
 type DebugFn = fn(&mut fmt::Formatter<'_>) -> fmt::Result;
@@ -36,6 +36,12 @@ pub(super) struct AnyObjVtable {
     /// Value drop implementation. Set to `None` if the underlying value does
     /// not need to be dropped.
     pub(super) drop_value: Option<unsafe fn(NonNull<AnyObjData>)>,
+    /// Hand over the values the stored value is made of, so that a graph of
+    /// values is taken apart without recursing into it - see [`Dismantle`].
+    ///
+    /// Set to `None` if the value is only pointed at, since dropping the handle
+    /// then never drops it and there is nothing to hand over.
+    pub(super) dismantle: Option<unsafe fn(NonNull<AnyObjData>, &mut Handover<'_>)>,
     /// Only drop the box implementation.
     pub(super) drop: unsafe fn(NonNull<AnyObjData>),
     /// Clone the literal content of the shared value.
@@ -61,6 +67,7 @@ impl AnyObjVtable {
                     None
                 }
             },
+            dismantle: Some(dismantle::<T>),
             drop: drop_box::<ManuallyDrop<T>>,
             clone: clone_own::<T>,
         }
@@ -78,6 +85,7 @@ impl AnyObjVtable {
             type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
             drop_value: None,
+            dismantle: None,
             drop: drop_box::<NonNull<T>>,
             clone: clone_ref::<T>,
         }
@@ -95,6 +103,7 @@ impl AnyObjVtable {
             type_info: T::ANY_TYPE_INFO,
             type_hash: T::HASH,
             drop_value: None,
+            dismantle: None,
             drop: drop_box::<NonNull<T>>,
             clone: clone_mut::<T>,
         }
@@ -159,6 +168,20 @@ where
     T: ?Sized + Any,
 {
     write!(f, "&mut {}", T::ITEM)
+}
+
+/// Ask the type which is stored to hand over the values it is made of.
+///
+/// # Safety
+///
+/// The caller must ensure that the data stored is of type `T` and that nothing
+/// else is accessing it.
+unsafe fn dismantle<T>(this: NonNull<AnyObjData>, out: &mut Handover<'_>)
+where
+    T: Any,
+{
+    let data = addr_of_mut!((*this.cast::<AnyObjData<T>>().as_ptr()).data);
+    Dismantle::dismantle(&mut *data, out)
 }
 
 unsafe fn drop_value<T>(this: NonNull<AnyObjData>) {

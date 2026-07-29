@@ -8,27 +8,6 @@ pub use rune_macros::OptionSpanned;
 /// Helper derive to implement [`Spanned`].
 pub use rune_macros::Spanned;
 
-/// Defer building a span from a function.
-pub(crate) fn from_fn<F>(function: F) -> FromFn<F> {
-    FromFn { function }
-}
-
-/// Function used to build a [`Span`].
-#[derive(Clone, Copy)]
-pub(crate) struct FromFn<F> {
-    function: F,
-}
-
-impl<F> Spanned for FromFn<F>
-where
-    F: Fn() -> Span,
-{
-    #[inline]
-    fn span(&self) -> Span {
-        (self.function)()
-    }
-}
-
 /// Types for which we can get a span.
 pub trait Spanned {
     /// Get the span of the type.

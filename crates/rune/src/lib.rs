@@ -833,10 +833,10 @@ pub mod __priv {
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
     pub use crate::runtime::{
-        AnyTypeInfo, ConstConstruct, ConstConstructImpl, ConstValue, FromConstValue, FromValue,
-        MaybeTypeOf, Object, OwnedTuple, Protocol, RawValueGuard, RuntimeError, ToConstValue,
-        ToValue, Tuple, TypeHash, TypeOf, TypeValue, UnsafeToMut, UnsafeToRef, UnsafeToValue,
-        Value, ValueMutGuard, ValueRefGuard, VmError,
+        AnyTypeInfo, ConstConstruct, ConstConstructImpl, ConstValue, Dismantle, FromConstValue,
+        FromValue, Handover, MaybeTypeOf, Object, OwnedTuple, Protocol, RawValueGuard,
+        RuntimeError, ToConstValue, ToValue, Tuple, TypeHash, TypeOf, TypeValue, UnsafeToMut,
+        UnsafeToRef, UnsafeToValue, Value, ValueMutGuard, ValueRefGuard, VmError,
     };
     pub use core::clone::Clone;
 
@@ -918,10 +918,12 @@ rune_macros::binding! {
     impl ::std::num::ParseIntError for core::num::ParseIntError;
     impl ::std::string::Utf8Error for core::str::Utf8Error;
     #[any]
+    #[dismantle]
     impl ::std::option::Option for Option<Value>;
     #[type_of]
     impl<T> ::std::option::Option for Option<T>;
     #[any]
+    #[dismantle]
     impl ::std::result::Result for Result<Value, Value>;
     #[type_of]
     impl<T, E> ::std::result::Result for Result<T, E>;

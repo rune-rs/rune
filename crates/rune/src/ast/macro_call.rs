@@ -34,20 +34,6 @@ pub struct MacroCall {
 }
 
 impl MacroCall {
-    /// Test if macro needs semi or not.
-    pub(crate) fn needs_semi(&self) -> bool {
-        !matches!(self.close.kind, K!['}'])
-    }
-
-    /// The span of the input token stream.
-    pub(crate) fn input_span(&self) -> Span {
-        if let Some(span) = self.input.option_span() {
-            span
-        } else {
-            self.open.span.tail()
-        }
-    }
-
     /// Parse with an expression.
     pub(crate) fn parse_with_meta_path(
         parser: &mut Parser,

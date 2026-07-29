@@ -109,10 +109,10 @@ use super::{ProtocolCaller, Value, VmError};
 pub enum GeneratorState {
     /// The generator yielded.
     #[rune(constructor)]
-    Yielded(#[rune(get, set)] Value),
+    Yielded(#[rune(get, set, dismantle)] Value),
     /// The generator completed.
     #[rune(constructor)]
-    Complete(#[rune(get, set)] Value),
+    Complete(#[rune(get, set, dismantle)] Value),
 }
 
 impl GeneratorState {

@@ -111,10 +111,6 @@ mod into_lit;
 #[doc(inline)]
 pub use self::into_lit::IntoLit;
 
-mod macro_compiler;
-#[doc(inline)]
-pub(crate) use self::macro_compiler::MacroCompiler;
-
 mod macro_context;
 #[cfg(feature = "std")]
 #[doc(inline)]

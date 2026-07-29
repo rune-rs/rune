@@ -1,11 +1,12 @@
 #[cfg(test)]
 mod tests;
 
-use core::mem::replace;
+use core::mem::{replace, take};
 
 use crate::alloc;
 use crate::alloc::btree_map::{self, BTreeMap};
 use crate::alloc::prelude::*;
+use crate::alloc::Vec;
 use crate::item::{Component, ComponentRef, IntoComponent};
 
 /// A tree of names.
@@ -107,5 +108,36 @@ impl TryClone for Node {
             term: self.term,
             children: self.children.try_clone()?,
         })
+    }
+}
+
+impl Drop for Node {
+    /// Dismantle the subtree over an explicit stack.
+    ///
+    /// An item contributes one node per component, so nested items make a tree
+    /// as deep as they nest and letting drop glue recurse through it overflows
+    /// on input the compiler otherwise accepts. Nodes taken off the stack have
+    /// already had their children moved out, so dropping them is shallow.
+    ///
+    /// If the stack cannot grow the remainder is left to drop glue, which is no
+    /// worse than not having tried.
+    fn drop(&mut self) {
+        let mut stack = Vec::new();
+
+        let mut node = take(&mut self.children);
+
+        loop {
+            for (_, child) in node {
+                if stack.try_push(child).is_err() {
+                    return;
+                }
+            }
+
+            let Some(mut next) = stack.pop() else {
+                break;
+            };
+
+            node = take(&mut next.children);
+        }
     }
 }

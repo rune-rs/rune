@@ -51,10 +51,7 @@ impl VmCall {
         let value = match self.call {
             Call::Async => {
                 let vm = self.build_vm(execution)?;
-                let mut execution = vm.into_execution();
-                Value::try_from(Future::new(async move {
-                    execution.resume().await?.into_complete()
-                })?)?
+                Value::try_from(Future::from_execution(vm.into_execution())?)?
             }
             Call::Immediate => {
                 execution.push_state(VmExecutionState {
@@ -75,7 +72,7 @@ impl VmCall {
             }
         };
 
-        execution.vm_mut().stack_mut().store(out, value)?;
+        execution.vm_mut().store(out, value)?;
         Ok(())
     }
 
@@ -88,7 +85,7 @@ impl VmCall {
 
         let new_stack = vm.stack_mut().drain().try_collect::<Stack>()?;
 
-        let Some(ip) = vm.pop_call_frame_from_call() else {
+        let Some(ip) = vm.pop_call_frame_from_call()? else {
             return Err(VmError::new(VmErrorKind::MissingCallFrame));
         };
 

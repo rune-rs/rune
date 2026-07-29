@@ -77,6 +77,19 @@ macro_rules! __alloc_with {
         }
 
         #[allow(unused)]
+        macro_rules! expr {
+            ($value:expr) => {{
+                // Bound first, since building the expression typically borrows
+                // the context the store lives in.
+                let expr = $value;
+
+                $cx.exprs.insert(expr).map_err(|e| {
+                    $crate::compile::Error::new(&*$span, e)
+                })?
+            }};
+        }
+
+        #[allow(unused)]
         macro_rules! alloc_str {
             ($value:expr) => {
                 match $cx.arena.alloc_str($value) {

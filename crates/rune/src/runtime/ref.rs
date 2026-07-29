@@ -1,5 +1,6 @@
 use core::fmt;
 use core::future::Future;
+use core::mem::replace;
 use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
@@ -14,9 +15,16 @@ use super::{FromValue, RuntimeError, Value};
 
 pub(super) struct RefVtable {
     pub(super) drop: DropFn,
+    /// Hand the value which is referred to back, if the reference is one which
+    /// keeps a value alive rather than something borrowed from elsewhere.
+    ///
+    /// The reference is released by this, so it must not be released again,
+    /// which is what [`RawAnyGuard::take_value`] makes sure of.
+    pub(super) into_value: Option<IntoValueFn>,
 }
 
 type DropFn = unsafe fn(NonNull<()>);
+type IntoValueFn = unsafe fn(NonNull<()>) -> Value;
 
 /// A strong owned reference to the given type that can be safely dereferenced.
 ///
@@ -55,7 +63,13 @@ impl<T> From<Rc<T>> for Ref<T> {
         let value = Rc::into_raw(value);
         let value = unsafe { NonNull::new_unchecked(value as *mut _) };
 
-        let guard = RawAnyGuard::new(value.cast(), &RefVtable { drop: drop_fn::<T> });
+        let guard = RawAnyGuard::new(
+            value.cast(),
+            &RefVtable {
+                drop: drop_fn::<T>,
+                into_value: None,
+            },
+        );
 
         Ref::new(value, guard)
     }
@@ -83,7 +97,13 @@ impl<T> From<Arc<T>> for Ref<T> {
         let value = Arc::into_raw(value);
         let value = unsafe { NonNull::new_unchecked(value as *mut _) };
 
-        let guard = RawAnyGuard::new(value.cast(), &RefVtable { drop: drop_fn::<T> });
+        let guard = RawAnyGuard::new(
+            value.cast(),
+            &RefVtable {
+                drop: drop_fn::<T>,
+                into_value: None,
+            },
+        );
 
         Ref::new(value, guard)
     }
@@ -93,6 +113,24 @@ impl<T: ?Sized> Ref<T> {
     #[inline]
     pub(super) const fn new(value: NonNull<T>, guard: RawAnyGuard) -> Self {
         Self { value, guard }
+    }
+
+    /// Hand the value this keeps alive back, leaving the reference released.
+    ///
+    /// What is pointed to must not be used afterwards, which is why this is
+    /// only used while the thing holding the reference is being taken apart.
+    ///
+    /// See [`RawAnyGuard::take_value`].
+    #[inline]
+    pub(crate) fn take_value(this: &mut Self) -> Option<Value> {
+        this.guard.take_value()
+    }
+
+    /// The guard which keeps what is referred to alive, so that it can be
+    /// handed over while whatever holds the reference is taken apart.
+    #[inline]
+    pub(crate) fn guard_mut(&mut self) -> &mut RawAnyGuard {
+        &mut self.guard
     }
 
     /// Construct an owned reference from a static value.
@@ -108,7 +146,7 @@ impl<T: ?Sized> Ref<T> {
     #[inline]
     pub const fn from_static(value: &'static T) -> Ref<T> {
         let value = unsafe { NonNull::new_unchecked((value as *const T).cast_mut()) };
-        let guard = RawAnyGuard::new(NonNull::dangling(), &RefVtable { drop: |_| {} });
+        let guard = RawAnyGuard::new(NonNull::dangling(), &NOOP_VTABLE);
         Self::new(value, guard)
     }
 
@@ -281,7 +319,7 @@ impl<T: ?Sized> Mut<T> {
     #[inline]
     pub fn from_static(value: &'static mut T) -> Mut<T> {
         let value = unsafe { NonNull::new_unchecked((value as *const T).cast_mut()) };
-        let guard = RawAnyGuard::new(NonNull::dangling(), &RefVtable { drop: |_| {} });
+        let guard = RawAnyGuard::new(NonNull::dangling(), &NOOP_VTABLE);
         Self::new(value, guard)
     }
 
@@ -463,7 +501,33 @@ impl RawAnyGuard {
     pub(super) const fn new(data: NonNull<()>, vtable: &'static RefVtable) -> Self {
         Self { data, vtable }
     }
+
+    /// Hand the value this keeps alive back, leaving the guard released so that
+    /// dropping it does nothing.
+    ///
+    /// This is what a value which refers to another one rather than holding it
+    /// in a slot - an iterator over a collection - uses to hand the collection
+    /// over while it is being taken apart, so that dropping it does not descend
+    /// into the collection and recurse.
+    ///
+    /// Returns `None` for a reference which does not keep a value alive, which
+    /// leaves the guard alone.
+    pub(crate) fn take_value(&mut self) -> Option<Value> {
+        let into_value = self.vtable.into_value?;
+        let data = replace(&mut self.data, NonNull::dangling());
+        self.vtable = &NOOP_VTABLE;
+        // Safety: type and referential safety is guaranteed at construction
+        // time, and the guard is released here so it cannot be released again.
+        Some(unsafe { into_value(data) })
+    }
 }
+
+/// The guard of a reference which owns nothing, which is what a guard is
+/// replaced with once what it kept alive has been handed over.
+static NOOP_VTABLE: RefVtable = RefVtable {
+    drop: |_| {},
+    into_value: None,
+};
 
 impl Drop for RawAnyGuard {
     #[inline]

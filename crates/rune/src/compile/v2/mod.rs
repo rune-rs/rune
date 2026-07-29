@@ -6,7 +6,7 @@ pub(crate) use self::breaks::{Break, Breaks};
 
 mod scopes;
 pub(crate) use self::scopes::Scopes;
-use self::scopes::{ScopeHandle, ScopeId};
+use self::scopes::{DanglingScope, ScopeHandle, ScopeId};
 
 mod slots;
 use self::slots::Slots;

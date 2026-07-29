@@ -5,8 +5,8 @@ use crate::alloc;
 use crate::alloc::clone::TryClone;
 use crate::alloc::fmt::TryWrite;
 use crate::runtime::{
-    Formatter, GeneratorState, Mut, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo,
-    VmOutcome,
+    Dismantle, Formatter, GeneratorState, Handover, Mut, Value, Vm, VmError, VmErrorKind,
+    VmExecution, VmHaltInfo, VmOutcome,
 };
 use crate::Any;
 
@@ -30,7 +30,7 @@ use crate::Any;
 /// assert!(g is Stream);
 /// ```
 #[derive(Any)]
-#[rune(item = ::std::stream)]
+#[rune(item = ::std::stream, dismantle)]
 pub struct Stream {
     execution: Option<VmExecution<Vm>>,
 }
@@ -107,7 +107,7 @@ impl Stream {
     /// assert_eq!(g.next().await, Some(1));
     /// assert_eq!(g.next().await, Some(2));
     /// assert_eq!(g.next().await, None);
-    /// ``
+    /// ```
     #[rune::function(keep, instance, path = Self::next)]
     pub(crate) async fn next_shared(mut this: Mut<Stream>) -> Result<Option<Value>, VmError> {
         this.next().await
@@ -154,7 +154,7 @@ impl Stream {
     /// assert_eq!(g.resume(()).await, GeneratorState::Yielded(1));
     /// assert_eq!(g.resume(1).await, GeneratorState::Yielded(3));
     /// assert_eq!(g.resume(()).await, GeneratorState::Complete(()));
-    /// ``
+    /// ```
     #[rune::function(keep, instance, path = Self::resume)]
     pub(crate) async fn resume_shared(
         mut this: Mut<Stream>,
@@ -178,7 +178,7 @@ impl Stream {
     /// let a = generate();
     ///
     /// println!("{a:?}");
-    /// ``
+    /// ```
     #[rune::function(keep, instance, protocol = DEBUG_FMT)]
     fn debug(&self, f: &mut Formatter) -> alloc::Result<()> {
         write!(f, "{self:?}")
@@ -208,10 +208,22 @@ impl Stream {
     ///
     /// assert_eq!(a.resume(()).await, GeneratorState::Complete(()));
     /// assert_eq!(b.resume(()).await, GeneratorState::Complete(()));
-    /// ``
+    /// ```
     #[rune::function(keep, instance, protocol = CLONE)]
     fn clone(&self) -> alloc::Result<Self> {
         self.try_clone()
+    }
+}
+
+/// A suspended stream holds every value its machine was working over, so a
+/// stream which captured another one nests just like a container does.
+impl Dismantle for Stream {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        let Some(execution) = self.execution.as_mut() else {
+            return;
+        };
+
+        out.consume(execution.vm_mut().stack_mut());
     }
 }
 

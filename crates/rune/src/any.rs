@@ -1,7 +1,7 @@
 use core::any;
 
 use crate::compile::Named;
-use crate::runtime::{AnyTypeInfo, TypeHash};
+use crate::runtime::{AnyTypeInfo, Dismantle, TypeHash};
 
 /// The trait implemented for types which can be used inside of Rune.
 ///
@@ -12,8 +12,16 @@ use crate::runtime::{AnyTypeInfo, TypeHash};
 /// types which derive `Any`. Before they can be used they must be registered in
 /// [`Context::install`] through a [`Module`].
 ///
+/// Every type which can be stored in the virtual machine has to say how it is
+/// taken apart, which is why [`Dismantle`] is required here. The derive writes
+/// it: a type which does not hold any [`Value`]s hands nothing over and is
+/// dropped in place, and a type which does marks the fields which hold them
+/// with `#[rune(dismantle)]`. See [`Dismantle`] for why this matters.
+///
 /// This is typically used in combination with declarative macros to register
 /// functions and macros, such as [`rune::function`].
+///
+/// [`Value`]: crate::runtime::Value
 ///
 /// [`AnyObj`]: crate::runtime::AnyObj
 /// [`Context::install`]: crate::Context::install
@@ -58,7 +66,7 @@ use crate::runtime::{AnyTypeInfo, TypeHash};
 ///     Ok(module)
 /// }
 /// ```
-pub trait Any: TypeHash + Named + any::Any {
+pub trait Any: TypeHash + Named + any::Any + Dismantle {
     /// The compile-time type information know for the type.
     const ANY_TYPE_INFO: AnyTypeInfo = AnyTypeInfo::new(Self::full_name, Self::HASH);
 }
@@ -257,6 +265,57 @@ pub trait AnyMarker: Any {}
 /// m.ty::<Struct>()?;
 /// # Ok::<_, rune::ContextError>(())
 /// ```
+///
+/// ### `#[rune(dismantle)]`
+///
+/// Every type stored in the virtual machine has to say how it is taken apart,
+/// which the derive writes as an implementation of [`Dismantle`]. A type which
+/// does not hold any [`Value`]s hands nothing over and is dropped in place,
+/// which is what is written unless this attribute says otherwise.
+///
+/// Marking the type says that it implements [`Dismantle`] itself, which is what
+/// a collection or an iterator which holds what it walks through a guard has to
+/// do:
+///
+/// ```
+/// use rune::Any;
+/// use rune::runtime::{Dismantle, Handover, Value};
+///
+/// #[derive(Any)]
+/// #[rune(dismantle)]
+/// struct List {
+///     values: Vec<Value>,
+/// }
+///
+/// impl Dismantle for List {
+///     fn dismantle(&mut self, out: &mut Handover<'_>) {
+///         for value in self.values.drain(..) {
+///             out.push(value);
+///         }
+///     }
+/// }
+/// ```
+///
+/// Marking fields instead writes it from them, in the order they are declared.
+/// This is the common case - see [`Dismantle`] for why a type which holds
+/// values has to hand them over.
+///
+/// ```
+/// use rune::Any;
+/// use rune::Value;
+///
+/// #[derive(Any)]
+/// struct Pair {
+///     #[rune(dismantle)]
+///     first: Value,
+///     #[rune(dismantle)]
+///     second: Option<Value>,
+///     count: u32,
+/// }
+/// ```
+///
+/// [`Dismantle`]: crate::runtime::Dismantle
+/// [`Value`]: crate::runtime::Value
 ///
 /// ## Field attributes
 ///

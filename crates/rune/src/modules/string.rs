@@ -11,9 +11,9 @@ use crate::alloc::prelude::*;
 use crate::alloc::string::FromUtf8Error;
 use crate::compile::Named;
 use crate::runtime::{
-    Bytes, Formatter, FromValue, Function, Hasher, Inline, MaybeTypeOf, Range, RangeFrom,
-    RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Repr, ToValue, TypeOf, Value,
-    VmError, VmErrorKind,
+    Bytes, Dismantle, Formatter, FromValue, Function, Handover, Hasher, Inline, MaybeTypeOf, Range,
+    RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive, Ref, Repr, ToValue, TypeOf,
+    Value, VmError, VmErrorKind,
 };
 use crate::{Any, ContextError, Module, TypeHash};
 
@@ -1454,10 +1454,19 @@ impl Chars {
     }
 }
 
-trait Pattern: 'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf {
+pub(crate) trait Pattern:
+    'static + TryClone + Named + FromValue + ToValue + MaybeTypeOf + TypeOf
+{
     fn test(&self, tail: &str) -> Result<(bool, usize), VmError>;
 
     fn is_empty(&self) -> bool;
+
+    /// Hand over the values the pattern is made of, if it is made of any.
+    ///
+    /// A pattern which is a function carries what the closure captured, and a
+    /// script can nest one split inside the next by capturing it, so what a
+    /// pattern holds has to be handed over rather than dropped in place.
+    fn dismantle(&mut self, _: &mut Handover<'_>) {}
 }
 
 impl Pattern for String {
@@ -1495,6 +1504,10 @@ impl Pattern for char {
 }
 
 impl Pattern for Function {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        Dismantle::dismantle(self, out)
+    }
+
     fn test(&self, tail: &str) -> Result<(bool, usize), VmError> {
         let Some(c) = tail.chars().next() else {
             return Ok((false, 0));
@@ -1510,8 +1523,8 @@ impl Pattern for Function {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::string)]
-struct Split<T>
+#[rune(item = ::std::string, dismantle)]
+pub(crate) struct Split<T>
 where
     T: Pattern,
 {
@@ -1722,5 +1735,17 @@ mod unicode {
                 &OFFSETS,
             )
         }
+    }
+}
+
+/// A split carries the pattern it was handed, which is a value made of values
+/// when it is a function, so it hands it over rather than being dropped in
+/// place.
+impl<T> Dismantle for Split<T>
+where
+    T: Pattern,
+{
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        Pattern::dismantle(&mut self.pattern, out)
     }
 }

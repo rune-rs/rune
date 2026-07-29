@@ -185,57 +185,6 @@ pub enum Expr {
 }
 
 impl Expr {
-    /// Access the attributes of the expression.
-    pub(crate) fn attributes(&self) -> &[ast::Attribute] {
-        match self {
-            Self::Path(_) => &[],
-            Self::Break(expr) => &expr.attributes,
-            Self::Continue(expr) => &expr.attributes,
-            Self::Yield(expr) => &expr.attributes,
-            Self::Block(expr) => &expr.attributes,
-            Self::Return(expr) => &expr.attributes,
-            Self::Closure(expr) => &expr.attributes,
-            Self::Match(expr) => &expr.attributes,
-            Self::While(expr) => &expr.attributes,
-            Self::Loop(expr) => &expr.attributes,
-            Self::For(expr) => &expr.attributes,
-            Self::Let(expr) => &expr.attributes,
-            Self::If(expr) => &expr.attributes,
-            Self::Select(expr) => &expr.attributes,
-            Self::Lit(expr) => &expr.attributes,
-            Self::Assign(expr) => &expr.attributes,
-            Self::Binary(expr) => &expr.attributes,
-            Self::Call(expr) => &expr.attributes,
-            Self::FieldAccess(expr) => &expr.attributes,
-            Self::Group(expr) => &expr.attributes,
-            Self::Empty(expr) => &expr.attributes,
-            Self::Unary(expr) => &expr.attributes,
-            Self::Index(expr) => &expr.attributes,
-            Self::Await(expr) => &expr.attributes,
-            Self::Try(expr) => &expr.attributes,
-            Self::MacroCall(expr) => &expr.attributes,
-            Self::Object(expr) => &expr.attributes,
-            Self::Range(expr) => &expr.attributes,
-            Self::Tuple(expr) => &expr.attributes,
-            Self::Vec(expr) => &expr.attributes,
-        }
-    }
-
-    /// Indicates if an expression needs a semicolon or must be last in a block.
-    pub(crate) fn needs_semi(&self) -> bool {
-        match self {
-            Self::While(_) => false,
-            Self::Loop(_) => false,
-            Self::For(_) => false,
-            Self::If(_) => false,
-            Self::Match(_) => false,
-            Self::Block(_) => false,
-            Self::Select(_) => false,
-            Self::MacroCall(macro_call) => macro_call.needs_semi(),
-            _ => true,
-        }
-    }
-
     /// Indicates if an expression is callable unless it's permitted by an
     /// override.
     pub(crate) fn is_callable(&self, callable: bool) -> bool {
@@ -332,14 +281,20 @@ impl Expr {
     }
 
     /// Helper to perform a parse with the given meta.
+    ///
+    /// Every nested expression is parsed through here or through
+    /// [`Expr::parse_with`], so this is where how deep an expression is allowed
+    /// to get is bounded.
     pub(crate) fn parse_with_meta(
         p: &mut Parser<'_>,
         attributes: &mut Vec<ast::Attribute>,
         callable: Callable,
     ) -> Result<Self> {
-        let lhs = primary(p, attributes, EAGER_BRACE, callable)?;
-        let lookahead = ast::BinOp::from_peeker(p.peeker());
-        binary(p, lhs, lookahead, 0, EAGER_BRACE)
+        p.nested(|p| {
+            let lhs = primary(p, attributes, EAGER_BRACE, callable)?;
+            let lookahead = ast::BinOp::from_peeker(p.peeker());
+            binary(p, lhs, lookahead, 0, EAGER_BRACE)
+        })
     }
 
     /// ull, configurable parsing of an expression.F
@@ -349,22 +304,24 @@ impl Expr {
         eager_binary: EagerBinary,
         callable: Callable,
     ) -> Result<Self> {
-        let mut attributes = p.parse()?;
+        p.nested(|p| {
+            let mut attributes = p.parse()?;
 
-        let expr = primary(p, &mut attributes, eager_brace, callable)?;
+            let expr = primary(p, &mut attributes, eager_brace, callable)?;
 
-        let expr = if *eager_binary {
-            let lookeahead = ast::BinOp::from_peeker(p.peeker());
-            binary(p, expr, lookeahead, 0, eager_brace)?
-        } else {
-            expr
-        };
+            let expr = if *eager_binary {
+                let lookeahead = ast::BinOp::from_peeker(p.peeker());
+                binary(p, expr, lookeahead, 0, eager_brace)?
+            } else {
+                expr
+            };
 
-        if let Some(span) = attributes.option_span() {
-            return Err(compile::Error::unsupported(span, "attributes"));
-        }
+            if let Some(span) = attributes.option_span() {
+                return Err(compile::Error::unsupported(span, "attributes"));
+            }
 
-        Ok(expr)
+            Ok(expr)
+        })
     }
 
     /// Parse expressions that start with an identifier.
@@ -568,12 +525,18 @@ fn base(
 }
 
 /// Parse an expression chain.
+///
+/// A chain is flat in the source but each link wraps the expression parsed so
+/// far, so the tree gets one level deeper per link even though this loops
+/// rather than recurses. Each link is accounted for as depth.
 fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr> {
     while !p.is_eof()? {
         let is_callable = expr.is_callable(*callable);
 
         match p.nth(0)? {
             K!['['] if is_callable => {
+                p.link()?;
+
                 expr = Expr::Index(ast::ExprIndex {
                     attributes: expr.take_attributes(),
                     target: Box::try_new(expr)?,
@@ -584,6 +547,8 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
             }
             // Chained function call.
             K!['('] if is_callable => {
+                p.link()?;
+
                 expr = Expr::Call(ast::ExprCall::parse_with_meta(
                     p,
                     expr.take_attributes(),
@@ -591,6 +556,8 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                 )?);
             }
             K![?] => {
+                p.link()?;
+
                 expr = Expr::Try(ast::ExprTry {
                     attributes: expr.take_attributes(),
                     expr: Box::try_new(expr)?,
@@ -598,6 +565,8 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                 });
             }
             K![=] => {
+                p.link()?;
+
                 let eq = p.parse()?;
                 let rhs = Expr::parse_with(p, EAGER_BRACE, EAGER_BINARY, CALLABLE)?;
 
@@ -609,6 +578,8 @@ fn chain(p: &mut Parser<'_>, mut expr: Expr, callable: Callable) -> Result<Expr>
                 });
             }
             K![.] => {
+                p.link()?;
+
                 match p.nth(1)? {
                     // <expr>.await
                     K![await] => {
@@ -663,6 +634,10 @@ fn binary(
         if precedence < min_precedence {
             break;
         }
+
+        // Operands of the same precedence are parsed over this loop rather than
+        // by recursing, but each one still wraps the expression parsed so far.
+        p.link()?;
 
         op.advance(p)?;
 

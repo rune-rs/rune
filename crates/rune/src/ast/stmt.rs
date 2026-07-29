@@ -193,9 +193,4 @@ impl StmtSemi {
     pub(crate) fn new(expr: ast::Expr, semi_token: T![;]) -> Self {
         Self { expr, semi_token }
     }
-
-    /// Test if the statement requires a semi-colon or not.
-    pub(crate) fn needs_semi(&self) -> bool {
-        self.expr.needs_semi()
-    }
 }

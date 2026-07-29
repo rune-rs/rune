@@ -6,11 +6,9 @@
 mod assembly;
 pub(crate) use self::assembly::{Assembly, AssemblyInst};
 
-pub(crate) mod attrs;
-
 pub(crate) mod error;
+pub(crate) use self::error::ErrorKind;
 pub use self::error::{Error, ImportStep, MetaError};
-pub(crate) use self::error::{ErrorKind, IrErrorKind};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;
@@ -32,7 +30,8 @@ pub(crate) use self::docs::Docs;
 mod prelude;
 pub(crate) use self::prelude::Prelude;
 
-pub(crate) mod ir;
+pub(crate) mod const_eval;
+pub(crate) use self::const_eval::ConstUnit;
 
 mod source_loader;
 #[cfg(feature = "std")]
@@ -43,7 +42,7 @@ mod unit_builder;
 pub use self::unit_builder::LinkerError;
 pub(crate) use self::unit_builder::UnitBuilder;
 
-pub(crate) mod v1;
+pub(crate) mod v2;
 
 mod options;
 #[cfg(any(feature = "fmt", feature = "languageserver"))]

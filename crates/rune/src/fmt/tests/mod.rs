@@ -819,6 +819,40 @@ fn field_generics() {
     )
 }
 
+/// A generic argument which is itself generic ends on `>>`, which lexes as a
+/// shift, so the parser has to split it to close both lists.
+///
+/// Without that the lists stay open, the shift is parsed as an operator applied
+/// to an unclosed path, and formatting writes the `>` which each list is
+/// missing followed by the shift it was mistaken for.
+#[test]
+fn nested_generics() {
+    assert_format!("let a = Vec::<Vec::<i64>>::new();");
+    assert_format!("let a = A::<B::<C::<D>>>::new();");
+    assert_format!("let a = A::<B::<C>, D::<E>>::new();");
+
+    // The closing `>` of each list may also be written apart.
+    assert_format!(
+        "let a = Vec::<Vec::<i64> >::new();",
+        "let a = Vec::<Vec::<i64>>::new();"
+    );
+
+    // What is left of a split token keeps its meaning.
+    assert_format!("let a = A::<B>>= 1;", "let a = A::<B> >= 1;");
+
+    // Shifts and comparisons which are not closing a list are untouched.
+    assert_format!("let a = 8 >> 2;");
+    assert_format!("let a = 1 << 3;");
+    assert_format!(
+        r#"
+        let a = 8;
+        a >>= 2;
+        let b = a >= 2;
+        let c = a > 2;
+        "#
+    );
+}
+
 #[test]
 fn comments() {
     assert_format!(
@@ -927,6 +961,23 @@ fn test_macro_function_like() {
     assert_format!(
         r#"
         println!{};
+        "#
+    );
+
+    // The delimiter a macro was invoked through is preserved, since the three
+    // of them are interchangeable and picking one is up to the author.
+    assert_format!(
+        r#"
+        println!["Hello",42,,,100];
+        "#,
+        r#"
+        println!["Hello", 42,,, 100];
+        "#,
+    );
+
+    assert_format!(
+        r#"
+        println![];
         "#
     );
 
@@ -1411,5 +1462,90 @@ fn fmt_indent_tabs() {
         }
         "#,
         "fn main() {\n\tif true {\n\t\t1\n\t}\n}",
+    );
+}
+
+/// The token stream a macro is handed is written as it was, comments and all,
+/// so the comments in it must not be queued as well.
+///
+/// Queueing them wrote them a second time after the macro call, and did it
+/// again every time the output was formatted, so formatting a file repeatedly
+/// grew it without bound.
+#[test]
+fn macro_comments_are_not_repeated() {
+    assert_format!(r#"println!("{}", { /* a */ 1 });"#);
+    assert_format!(r#"println!("{}", 1, { /* a */ 2 });"#);
+    assert_format!(r#"println![{ /* a */ 1 }];"#);
+    assert_format!(r#"println!(a /* b */ c);"#);
+    assert_format!(r#"println!(a /* b */ /* c */ d);"#);
+    assert_format!(r#"dbg!({ /* a */ 1 });"#);
+
+    assert_format!(
+        r#"
+        println!{
+            { /* a */ 1 },
+        };
+        "#
+    );
+
+    // A comment at either end of the stream is not inside it, so it is picked
+    // up the way a comment anywhere else is, and stays where that puts it.
+    assert_format!(r#"println!(/* a */ 1);"#, r#"println!(1) /* a */;"#);
+    assert_format!(r#"println!(1 /* b */);"#, r#"println!(1) /* b */;"#);
+    assert_format!(r#"println!(1) /* b */;"#);
+}
+
+/// Whether something is laid out over several lines is decided by how much
+/// there is to fit on one, and the layout writes a comma to close what it
+/// expands. Counting that comma made the decision depend on how the source had
+/// been laid out already, so laying it out again laid it out differently.
+#[test]
+fn width_does_not_count_a_closing_comma() {
+    assert_format!(
+        r#"
+        {
+            struct S {
+                p,
+                q,
+            }
+
+            let s = S { p: (|v| v)(true), q: {
+                fn h(p) {
+                    Ok(p)
+                }
+
+                match h({ // c683
+                    false
+                }) {
+                    Ok(v) => v,
+                    Err(e) => b"by",
+                }
+            } };
+
+            (s.p, s.q)
+        }
+        "#
+    );
+
+    // What is between the elements still counts, so a call which does not fit
+    // is still laid out over several lines.
+    assert_format!(
+        r#"
+        let graph = HashMap::from_iter(
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+            abcd,
+        );
+        "#
     );
 }

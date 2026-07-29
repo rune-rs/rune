@@ -31,10 +31,10 @@ use super::{
 pub enum ControlFlow {
     /// Move on to the next phase of the operation as normal.
     #[rune(constructor)]
-    Continue(#[rune(get, set)] Value),
+    Continue(#[rune(get, set, dismantle)] Value),
     /// Exit the operation without running subsequent phases.
     #[rune(constructor)]
-    Break(#[rune(get, set)] Value),
+    Break(#[rune(get, set, dismantle)] Value),
 }
 
 impl ControlFlow {

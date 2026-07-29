@@ -33,6 +33,10 @@ pub(super) struct Parser<'a> {
     tree: syntree::Builder<Kind, Flavor>,
     eof: Token,
     include_whitespace: bool,
+    /// How deeply the parser is currently nested.
+    nesting: usize,
+    /// How deeply the parser is allowed to nest.
+    max_nesting: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -51,12 +55,43 @@ impl<'a> Parser<'a> {
             tree: syntree::Builder::new_with(),
             eof,
             include_whitespace: false,
+            nesting: 0,
+            max_nesting: usize::MAX,
         }
     }
 
     /// Configure whether whitespace should be ignored.
     pub(super) fn include_whitespace(&mut self, include_whitespace: bool) {
         self.include_whitespace = include_whitespace;
+    }
+
+    /// Configure how deeply the parser is allowed to nest.
+    pub(super) fn max_nesting(&mut self, max_nesting: usize) {
+        self.max_nesting = max_nesting;
+    }
+
+    /// Enter a nested construct.
+    ///
+    /// Nested constructs are parsed recursively, so this is what keeps deeply
+    /// nested input from overflowing the stack. It has to be paired with a call
+    /// to [`Parser::leave`].
+    pub(super) fn enter(&mut self) -> Result<()> {
+        if self.nesting >= self.max_nesting {
+            return Err(Error::new(
+                self.nth_token(0)?.span,
+                ErrorKind::MaxNesting {
+                    max: self.max_nesting,
+                },
+            ));
+        }
+
+        self.nesting += 1;
+        Ok(())
+    }
+
+    /// Leave a nested construct entered through [`Parser::enter`].
+    pub(super) fn leave(&mut self) {
+        self.nesting -= 1;
     }
 
     /// Generate an error encompassing the current token.
@@ -136,6 +171,57 @@ impl<'a> Parser<'a> {
     #[tracing::instrument(skip_all)]
     pub(super) fn bump_if(&mut self, kind: Kind) -> Result<bool> {
         self._bump_if_matches(|k| k == kind)
+    }
+
+    /// Consume the `>` which closes a list of generic arguments, splitting the
+    /// token it is part of when it opens one of the operators which start with
+    /// it.
+    ///
+    /// `>>` lexes as a shift and `>=` as a comparison, so without this a
+    /// generic argument which is itself generic - `a::<b::<c>>` - would leave
+    /// both of its lists unclosed and what follows would be parsed as a shift
+    /// of an unclosed path.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn bump_gt(&mut self) -> Result<bool> {
+        self.fill(0)?;
+
+        let Some(&(tok, _)) = self.buf.front() else {
+            return Ok(false);
+        };
+
+        // What is left of the token once its leading `>` is taken.
+        let rest = match tok.kind {
+            K![>] => return self.bump_if(K![>]),
+            K![>>] => K![>],
+            K![>=] => K![=],
+            K![>>=] => K![>=],
+            _ => return Ok(false),
+        };
+
+        // Emitted before the token is split, so that the whitespace in front of
+        // it stays attached to the `>` rather than to what is left.
+        self.flush_ws()?;
+
+        // `>` is one byte, so the token is split just after where it starts.
+        let split = tok.span.start.0.saturating_add(1);
+
+        if let Some(front) = self.buf.front_mut() {
+            *front = (
+                Token {
+                    span: Span::new(split, tok.span.end),
+                    kind: rest,
+                },
+                0,
+            );
+        }
+
+        let gt = Token {
+            span: Span::new(tok.span.start, split),
+            kind: K![>],
+        };
+
+        emit(&mut self.tree, gt)?;
+        Ok(true)
     }
 
     #[inline]
@@ -305,6 +391,15 @@ impl<'a> Parser<'a> {
             let Some(tok) = self.lexer.next()? else {
                 break;
             };
+
+            // A multiline comment which runs to the end of the source is
+            // skipped like any other comment unless it is rejected here.
+            if let Kind::MultilineComment(false) = tok.kind {
+                return Err(Error::new(
+                    tok.span,
+                    ErrorKind::ExpectedMultilineCommentTerm,
+                ));
+            }
 
             if !matches!(tok.kind, ws!()) {
                 self.buf

@@ -21,6 +21,20 @@ use super::{
     ToValue, Tuple, Type, TypeInfo, Value, VmErrorKind, VmIntegerRepr,
 };
 
+/// How deeply a [`ConstValue`] is allowed to nest.
+///
+/// A `ConstValue` is a recursive structure - it is built, walked, cloned and
+/// dropped by recursing over it - and it is built from a value which evaluation
+/// produced, so how deep it is has nothing to do with how deep the source which
+/// produced it was. A constant function which nests a value in a loop can
+/// produce one of any depth, so the bound is applied where the value is
+/// converted rather than only against the nesting written in the source.
+///
+/// This is the ceiling the `max-const-depth` option is measured against. The
+/// option can lower the effective bound but not raise it past this, since
+/// raising it would trade a diagnostic for a stack overflow.
+pub(crate) const MAX_CONST_DEPTH: usize = 128;
+
 /// Derive for the [`ToConstValue`] trait.
 ///
 /// This is principally used for associated constants in native modules, since
@@ -360,6 +374,20 @@ impl ConstValue {
 
     /// Construct a constant value from a reference to a value..
     pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
+        Self::from_value_ref_at(value, 0)
+    }
+
+    /// Construct a constant value from a reference to a value nested `depth`
+    /// levels into the value the conversion started at.
+    fn from_value_ref_at(value: &Value, depth: usize) -> Result<ConstValue, RuntimeError> {
+        if depth >= MAX_CONST_DEPTH {
+            return Err(RuntimeError::new(VmErrorKind::MaxConstDepth {
+                max: MAX_CONST_DEPTH,
+            }));
+        }
+
+        let depth = depth + 1;
+
         let kind = match value.as_ref() {
             Repr::Inline(value) => ConstValueKind::Inline(*value),
             Repr::Dynamic(value) => {
@@ -379,7 +407,7 @@ impl ConstValue {
                     let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
 
                     for value in tuple.iter() {
-                        const_tuple.try_push(Self::from_value_ref(value)?)?;
+                        const_tuple.try_push(Self::from_value_ref_at(value, depth)?)?;
                     }
 
                     return ConstValue::tuple(const_tuple.try_into_boxed_slice()?);
@@ -390,7 +418,7 @@ impl ConstValue {
 
                     for (key, value) in object.iter() {
                         let key = ConstValue::string(key.as_str())?;
-                        let value = Self::from_value_ref(value)?;
+                        let value = Self::from_value_ref_at(value, depth)?;
                         fields.try_push(ConstValue::tuple(Box::try_from([key, value])?)?)?;
                     }
 
@@ -409,7 +437,7 @@ impl ConstValue {
                     let (variant_hash, fields) = match &*option {
                         Some(some) => (
                             hash_in!(crate, ::std::option::Option::Some),
-                            Box::try_from([Self::from_value_ref(some)?])?,
+                            Box::try_from([Self::from_value_ref_at(some, depth)?])?,
                         ),
                         None => (hash_in!(crate, ::std::option::Option::None), Box::default()),
                     };
@@ -426,7 +454,7 @@ impl ConstValue {
                     let mut const_vec = Vec::try_with_capacity(vec.len())?;
 
                     for value in vec.iter() {
-                        const_vec.try_push(Self::from_value_ref(value)?)?;
+                        const_vec.try_push(Self::from_value_ref_at(value, depth)?)?;
                     }
 
                     let fields = Box::try_from(const_vec)?;

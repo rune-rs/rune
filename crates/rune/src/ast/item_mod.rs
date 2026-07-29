@@ -35,16 +35,7 @@ pub struct ItemMod {
     pub(crate) id: ItemId,
 }
 
-impl ItemMod {
-    /// Get the span of the mod name.
-    pub(crate) fn name_span(&self) -> Span {
-        if let Some(span) = self.visibility.option_span() {
-            span.join(self.name.span())
-        } else {
-            self.mod_token.span().join(self.name.span())
-        }
-    }
-}
+impl ItemMod {}
 
 item_parse!(Mod, ItemMod, "mod item");
 

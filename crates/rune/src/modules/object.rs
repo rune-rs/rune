@@ -46,7 +46,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(Object::is_empty__meta)?;
     m.function_meta(Object::insert__meta)?;
     m.function_meta(remove__meta)?;
-    m.function_meta(Object::clear__meta)?;
+    m.function_meta(Object::rune_clear__meta)?;
     m.function_meta(contains_key__meta)?;
     m.function_meta(get__meta)?;
 

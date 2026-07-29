@@ -7,7 +7,6 @@ pub(crate) use self::arena::Arena;
 mod hir;
 pub(crate) use self::hir::*;
 
-pub(crate) mod lowering;
 pub(crate) mod lowering2;
 
 pub(crate) mod scopes;

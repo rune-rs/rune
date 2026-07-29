@@ -18,23 +18,18 @@ use super::{
     budget, inst, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow,
     DynArgs, DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
     GeneratorState, Globals, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp,
-    InstRange, InstShiftOp, InstTarget, InstValue, Object, Output, OwnedTuple, Pair, Panic,
-    Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, Stream, Type,
-    TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
+    InstRange, InstShiftOp, InstTarget, InstValue, IntoOutput, Object, Output, OwnedTuple, Pair,
+    Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, StoreError,
+    Stream, Type, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
     VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome,
-    VmSendExecution,
+    VmSendExecution, Worklist,
 };
 
 /// Helper to take a value, replacing the old one with empty.
 #[inline(always)]
 fn take(value: &mut Value) -> Value {
     replace(value, Value::empty())
-}
-
-#[inline(always)]
-fn consume(value: &mut Value) {
-    *value = Value::empty();
 }
 
 /// Indicating the kind of isolation that is present for a frame.
@@ -117,6 +112,12 @@ pub struct Vm {
     call_frames: alloc::Vec<CallFrame>,
     /// Storage for static items declared by the unit.
     globals: Globals,
+    /// The values which are waiting to be taken apart.
+    ///
+    /// The machine keeps this for as long as it lives, so that the memory it
+    /// grows to hold what it is handed is grown once rather than for every
+    /// value it takes apart - see [`Work::dismantle`].
+    worklist: Worklist,
 }
 
 impl Vm {
@@ -148,7 +149,39 @@ impl Vm {
             stack,
             call_frames: alloc::Vec::new(),
             globals: Globals::empty(),
+            worklist: Worklist::new(),
         }
+    }
+
+    /// Write a value into the given output, taking the value which was there
+    /// apart over the machine's own worklist.
+    #[inline(always)]
+    pub(crate) fn store<O>(&mut self, out: Output, o: O) -> Result<(), StoreError<O::Error>>
+    where
+        O: IntoOutput,
+    {
+        self.stack.store_with(out, o, &mut self.worklist)
+    }
+
+    /// How much the machine's worklist has grown, which it keeps rather than
+    /// growing one for every value it takes apart.
+    #[cfg(test)]
+    pub(crate) fn worklist_capacity(&self) -> usize {
+        self.worklist.capacity()
+    }
+
+    /// Truncate the stack at the given address, taking the values which are
+    /// discarded apart over the machine's own worklist.
+    #[inline(always)]
+    pub(crate) fn dismantle_to(&mut self, addr: Address) {
+        self.stack.dismantle_to(addr, &mut self.worklist);
+    }
+
+    /// Clear the stack, taking the values it held apart over the machine's own
+    /// worklist.
+    #[inline(always)]
+    pub(crate) fn dismantle_clear(&mut self) {
+        self.stack.dismantle_clear(&mut self.worklist);
     }
 
     /// Configure the storage used for static items declared by the unit.
@@ -438,7 +471,7 @@ impl Vm {
     ) -> Result<VmSendExecution, VmError> {
         // Safety: make sure the stack is clear, preventing any values from
         // being sent along with the virtual machine.
-        self.stack.clear();
+        self.dismantle_clear();
 
         self.set_entrypoint(name, args.count())?;
         args.into_stack(&mut self.stack)?;
@@ -577,7 +610,7 @@ impl Vm {
         };
 
         self.ip = offset;
-        self.stack.clear();
+        self.dismantle_clear();
         self.call_frames.clear();
         Ok(())
     }
@@ -656,7 +689,7 @@ impl Vm {
             args.push_to_stack(&mut self.stack)?;
 
             let result = handler.call(&mut self.stack, addr, count, out);
-            self.stack.truncate(addr);
+            self.dismantle_to(addr);
             result?;
             return Ok(CallResult::Ok(()));
         }
@@ -679,7 +712,7 @@ impl Vm {
             let result = self.call_offset_fn(*offset, *call, addr, count, isolated, out);
 
             if result? {
-                self.stack.truncate(addr);
+                self.dismantle_to(addr);
                 return Ok(CallResult::Frame);
             } else {
                 return Ok(CallResult::Ok(()));
@@ -709,7 +742,7 @@ impl Vm {
             }
         };
 
-        self.stack.store(out, || match ordering {
+        self.store(out, || match ordering {
             Some(ordering) => match_ordering(ordering),
             None => false,
         })?;
@@ -746,32 +779,64 @@ impl Vm {
         Ok(())
     }
 
+    /// Take over an unstarted machine as a call frame of this one.
+    ///
+    /// The values it holds are the arguments of the call which produced it, so
+    /// moving them to the top of this stack and opening a frame over them is
+    /// exactly the ordinary call this machine would have made had the callee
+    /// not been async. This is what keeps awaiting an async call from needing a
+    /// nested machine, and therefore from recursing.
+    ///
+    /// The caller is responsible for having established that the machine shares
+    /// this one's unit, context and storage.
+    #[tracing::instrument(skip(self, vm), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
+    pub(crate) fn splice_call(&mut self, mut vm: Vm, out: Output) -> Result<(), VmErrorKind> {
+        tracing::trace!("splicing call frame");
+
+        let top = self.stack.push_frame_from(vm.stack_mut())?;
+        let ip = replace(&mut self.ip, vm.ip);
+
+        let frame = CallFrame {
+            ip,
+            top,
+            isolated: Isolated::None,
+            out,
+        };
+
+        self.call_frames.try_push(frame)?;
+        Ok(())
+    }
+
     /// Pop a call frame from an internal call, which needs the current stack
     /// pointer to be returned and does not check for context isolation through
     /// [`CallFrame::isolated`].
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
-    pub(crate) fn pop_call_frame_from_call(&mut self) -> Option<usize> {
+    pub(crate) fn pop_call_frame_from_call(&mut self) -> Result<Option<usize>, VmError> {
         tracing::trace!("popping call frame from call");
-        let frame = self.call_frames.pop()?;
+
+        let Some(frame) = self.call_frames.pop() else {
+            return Ok(None);
+        };
+
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.top);
-        Some(replace(&mut self.ip, frame.ip))
+        self.stack.pop_stack_top(frame.top, &mut self.worklist);
+        Ok(Some(replace(&mut self.ip, frame.ip)))
     }
 
     /// Pop a call frame and return it.
     #[tracing::instrument(skip(self), fields(call_frames = self.call_frames.len(), top = self.stack.top(), stack = self.stack.len(), self.ip))]
-    pub(crate) fn pop_call_frame(&mut self) -> (Isolated, Option<Output>) {
+    pub(crate) fn pop_call_frame(&mut self) -> Result<(Isolated, Option<Output>), VmError> {
         tracing::trace!("popping call frame");
 
         let Some(frame) = self.call_frames.pop() else {
-            self.stack.pop_stack_top(0);
-            return (Isolated::Isolated, None);
+            self.stack.pop_stack_top(0, &mut self.worklist);
+            return Ok((Isolated::Isolated, None));
         };
 
         tracing::trace!(?frame);
-        self.stack.pop_stack_top(frame.top);
+        self.stack.pop_stack_top(frame.top, &mut self.worklist);
         self.ip = frame.ip;
-        (frame.isolated, Some(frame.out))
+        Ok((frame.isolated, Some(frame.out)))
     }
 
     /// Implementation of getting a string index on an object-like type.
@@ -873,6 +938,7 @@ impl Vm {
         target: &Value,
         index: usize,
         from: &Value,
+        worklist: &mut Worklist,
     ) -> Result<bool, VmError> {
         match target.as_ref() {
             Repr::Inline(target) => match target {
@@ -881,7 +947,7 @@ impl Vm {
             },
             Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Tuple) => {
                 if let Some(target) = data.borrow_mut()?.get_mut(index) {
-                    target.clone_from(from);
+                    worklist.replace(target, from.clone());
                     return Ok(true);
                 }
 
@@ -898,7 +964,7 @@ impl Vm {
                         _ => return Ok(false),
                     };
 
-                    target.clone_from(from);
+                    worklist.replace(target, from.clone());
                     Ok(true)
                 }
                 Option::<Value>::HASH => {
@@ -909,14 +975,14 @@ impl Vm {
                         _ => return Ok(false),
                     };
 
-                    target.clone_from(from);
+                    worklist.replace(target, from.clone());
                     Ok(true)
                 }
                 runtime::Vec::HASH => {
                     let mut vec = value.borrow_mut::<runtime::Vec>()?;
 
                     if let Some(target) = vec.get_mut(index) {
-                        target.clone_from(from);
+                        worklist.replace(target, from.clone());
                         return Ok(true);
                     }
 
@@ -926,7 +992,7 @@ impl Vm {
                     let mut tuple = value.borrow_mut::<runtime::OwnedTuple>()?;
 
                     if let Some(target) = tuple.get_mut(index) {
-                        target.clone_from(from);
+                        worklist.replace(target, from.clone());
                         return Ok(true);
                     }
 
@@ -941,11 +1007,12 @@ impl Vm {
         target: &Value,
         field: &str,
         value: &Value,
+        worklist: &mut Worklist,
     ) -> Result<bool, VmErrorKind> {
         match target.as_ref() {
             Repr::Dynamic(data) if matches!(data.rtti().kind, RttiKind::Struct) => {
                 if let Some(mut v) = data.get_field_mut(field)? {
-                    v.clone_from(value);
+                    worklist.replace(&mut v, value.clone());
                     return Ok(true);
                 }
 
@@ -959,10 +1026,15 @@ impl Vm {
                     let mut target = target.borrow_mut::<Object>()?;
 
                     if let Some(target) = target.get_mut(field) {
-                        target.clone_from(value);
+                        worklist.replace(target, value.clone());
                     } else {
                         let key = field.try_to_owned()?;
-                        target.insert(key, value.clone())?;
+
+                        // Any value which was already there is taken apart
+                        // rather than dropped.
+                        if let Some(old) = target.insert(key, value.clone())? {
+                            worklist.dismantle(old);
+                        }
                     }
 
                     Ok(true)
@@ -1059,7 +1131,7 @@ impl Vm {
             }
         };
 
-        self.stack.store(out, inline)?;
+        self.store(out, inline)?;
         Ok(())
     }
 
@@ -1078,9 +1150,12 @@ impl Vm {
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack)
                 .with_globals(self.globals.clone());
             vm.ip = offset;
-            *self.stack.at_mut(at)? = Value::try_from(Generator::new(vm))?;
+            let value = Value::try_from(Generator::new(vm))?;
+            self.worklist.replace(self.stack.at_mut(at)?, value);
         } else {
-            values.iter_mut().for_each(consume);
+            for value in values.iter_mut() {
+                self.worklist.take(value);
+            }
         }
 
         Ok(())
@@ -1101,9 +1176,12 @@ impl Vm {
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack)
                 .with_globals(self.globals.clone());
             vm.ip = offset;
-            *self.stack.at_mut(at)? = Value::try_from(Stream::new(vm))?;
+            let value = Value::try_from(Stream::new(vm))?;
+            self.worklist.replace(self.stack.at_mut(at)?, value);
         } else {
-            values.iter_mut().for_each(consume);
+            for value in values.iter_mut() {
+                self.worklist.take(value);
+            }
         }
 
         Ok(())
@@ -1124,11 +1202,13 @@ impl Vm {
             let mut vm = Self::with_stack(self.context.clone(), self.unit.clone(), stack)
                 .with_globals(self.globals.clone());
             vm.ip = offset;
-            let mut execution = vm.into_execution();
-            let future = Future::new(async move { execution.resume().await?.into_complete() })?;
-            *self.stack.at_mut(at)? = Value::try_from(future)?;
+            let future = Future::from_execution(vm.into_execution())?;
+            let value = Value::try_from(future)?;
+            self.worklist.replace(self.stack.at_mut(at)?, value);
         } else {
-            values.iter_mut().for_each(consume);
+            for value in values.iter_mut() {
+                self.worklist.take(value);
+            }
         }
 
         Ok(())
@@ -1229,9 +1309,31 @@ impl Vm {
         Ok(())
     }
 
+    /// Await the value at the given address.
+    ///
+    /// Returns `None` if the future was an async call which had yet to run, in
+    /// which case it has been spliced into this machine as a call frame and
+    /// there is nothing to suspend on - see [`Vm::splice_call`].
     #[cfg_attr(feature = "bench", inline(never))]
-    fn op_await(&mut self, addr: Address) -> Result<Future, VmError> {
-        Ok(self.stack.at(addr).clone().into_future()?)
+    fn op_await(&mut self, addr: Address, out: Output) -> Result<Option<Future>, VmError> {
+        let mut future = self.stack.at(addr).clone().into_future()?;
+
+        let Some(vm) = future.take_unstarted_vm() else {
+            return Ok(Some(future));
+        };
+
+        // A machine which does not agree with this one on what it is running
+        // has to stay a machine of its own, since a call frame carries none of
+        // that with it.
+        if !Arc::ptr_eq(vm.context(), &self.context)
+            || !Arc::ptr_eq(vm.unit(), &self.unit)
+            || !vm.globals().is_same(&self.globals)
+        {
+            return Ok(Some(Future::from_execution(vm.into_execution())?));
+        }
+
+        self.splice_call(vm, out)?;
+        Ok(None)
     }
 
     #[cfg_attr(feature = "bench", inline(never))]
@@ -1252,7 +1354,7 @@ impl Vm {
         }
 
         if futures.is_empty() {
-            self.stack.store(value, ())?;
+            self.store(value, ())?;
             self.ip = self.ip.wrapping_add(len);
             return Ok(None);
         }
@@ -1262,7 +1364,7 @@ impl Vm {
 
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_store(&mut self, value: InstValue, out: Output) -> Result<(), VmError> {
-        self.stack.store(out, value.into_value())?;
+        self.store(out, value.into_value())?;
         Ok(())
     }
 
@@ -1270,7 +1372,7 @@ impl Vm {
     /// top of the stack.
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_copy(&mut self, addr: Address, out: Output) -> Result<(), VmError> {
-        self.stack.copy(addr, out)?;
+        self.stack.copy(addr, out, &mut self.worklist)?;
         Ok(())
     }
 
@@ -1280,7 +1382,7 @@ impl Vm {
     fn op_move(&mut self, addr: Address, out: Output) -> Result<(), VmError> {
         let value = self.stack.at(addr).clone();
         let value = value.move_()?;
-        self.stack.store(out, value)?;
+        self.store(out, value)?;
         Ok(())
     }
 
@@ -1291,7 +1393,10 @@ impl Vm {
         };
 
         for &addr in addresses {
-            *self.stack.at_mut(addr)? = Value::empty();
+            // Taking the value apart over the worklist the machine keeps
+            // rather than leaving it to its destructor, which would grow one of
+            // its own for it.
+            self.worklist.take(self.stack.at_mut(addr)?);
         }
 
         Ok(())
@@ -1346,7 +1451,7 @@ impl Vm {
             .iter_mut()
             .map(take)
             .try_collect::<alloc::Vec<Value>>()?;
-        self.stack.store(out, Vec::from(vec))?;
+        self.store(out, Vec::from(vec))?;
         Ok(())
     }
 
@@ -1360,7 +1465,7 @@ impl Vm {
             .map(take)
             .try_collect::<alloc::Vec<Value>>()?;
 
-        self.stack.store(out, || OwnedTuple::try_from(tuple))?;
+        self.store(out, || OwnedTuple::try_from(tuple))?;
         Ok(())
     }
 
@@ -1374,7 +1479,7 @@ impl Vm {
             tuple.try_push(value)?;
         }
 
-        self.stack.store(out, || OwnedTuple::try_from(tuple))?;
+        self.store(out, || OwnedTuple::try_from(tuple))?;
         Ok(())
     }
 
@@ -1395,7 +1500,7 @@ impl Vm {
             let out = self.stack.slice_at_mut(addr, count)?;
 
             for (value, out) in tuple.iter().zip(out.iter_mut()) {
-                out.clone_from(value);
+                self.worklist.replace(out, value.clone());
             }
         }
 
@@ -1453,7 +1558,7 @@ impl Vm {
                 }));
             };
 
-            self.stack.store(out, store)?;
+            self.store(out, store)?;
             return Ok(());
         };
 
@@ -1514,7 +1619,7 @@ impl Vm {
                     Value::partial_eq_with(&lhs, &rhs, self)?
                 };
 
-                self.stack.store(out, test)?;
+                self.store(out, test)?;
             }
             InstOp::Neq => {
                 let rhs = self.stack.at(rhs);
@@ -1528,7 +1633,7 @@ impl Vm {
                     Value::partial_eq_with(&lhs, &rhs, self)?
                 };
 
-                self.stack.store(out, !test)?;
+                self.store(out, !test)?;
             }
             InstOp::And => {
                 self.internal_bool(|a, b| a && b, "&&", lhs, rhs, out)?;
@@ -1538,15 +1643,15 @@ impl Vm {
             }
             InstOp::As => {
                 let value = self.as_op(lhs, rhs)?;
-                self.stack.store(out, value)?;
+                self.store(out, value)?;
             }
             InstOp::Is => {
                 let is_instance = self.test_is_instance(lhs, rhs)?;
-                self.stack.store(out, is_instance)?;
+                self.store(out, is_instance)?;
             }
             InstOp::IsNot => {
                 let is_instance = self.test_is_instance(lhs, rhs)?;
-                self.stack.store(out, !is_instance)?;
+                self.store(out, !is_instance)?;
             }
         }
 
@@ -1571,12 +1676,14 @@ impl Vm {
                 (Repr::Inline(lhs), Repr::Inline(rhs)) => match (lhs, rhs) {
                     (Inline::Unsigned(lhs), rhs) => {
                         let rhs = rhs.as_integer()?;
-                        let value = (ops.u64)(*lhs, rhs).ok_or_else(ops.error)?;
+                        let value =
+                            (ops.u64)(*lhs, rhs).ok_or_else(|| (ops.error)(i128::from(rhs)))?;
                         Inline::Unsigned(value)
                     }
                     (Inline::Signed(lhs), rhs) => {
                         let rhs = rhs.as_integer()?;
-                        let value = (ops.i64)(*lhs, rhs).ok_or_else(ops.error)?;
+                        let value =
+                            (ops.i64)(*lhs, rhs).ok_or_else(|| (ops.error)(i128::from(rhs)))?;
                         Inline::Signed(value)
                     }
                     (Inline::Float(lhs), Inline::Float(rhs)) => {
@@ -1603,7 +1710,7 @@ impl Vm {
                 }
             };
 
-            self.stack.store(out, inline)?;
+            self.store(out, inline)?;
             return Ok(());
         }
 
@@ -1666,7 +1773,7 @@ impl Vm {
                 }
             };
 
-            self.stack.store(out, inline)?;
+            self.store(out, inline)?;
             return Ok(());
         };
 
@@ -1746,7 +1853,7 @@ impl Vm {
                 }
             };
 
-            self.stack.store(out, inline)?;
+            self.store(out, inline)?;
             return Ok(());
         };
 
@@ -1777,12 +1884,14 @@ impl Vm {
         let fallback = match target_value(&mut self.stack, &self.unit, target, rhs)? {
             TargetValue::Same(value) => match value.as_mut() {
                 Repr::Inline(Inline::Signed(value)) => {
-                    let out = (ops.i64)(*value, *value).ok_or_else(ops.error)?;
+                    let out =
+                        (ops.i64)(*value, *value).ok_or_else(|| (ops.error)(i128::from(*value)))?;
                     *value = out;
                     return Ok(());
                 }
                 Repr::Inline(Inline::Unsigned(value)) => {
-                    let out = (ops.u64)(*value, *value).ok_or_else(ops.error)?;
+                    let out =
+                        (ops.u64)(*value, *value).ok_or_else(|| (ops.error)(i128::from(*value)))?;
                     *value = out;
                     return Ok(());
                 }
@@ -1803,13 +1912,13 @@ impl Vm {
             TargetValue::Pair(mut lhs, rhs) => match (lhs.as_mut(), rhs.as_ref()) {
                 (Repr::Inline(Inline::Signed(lhs)), Repr::Inline(rhs)) => {
                     let rhs = rhs.as_integer()?;
-                    let out = (ops.i64)(*lhs, rhs).ok_or_else(ops.error)?;
+                    let out = (ops.i64)(*lhs, rhs).ok_or_else(|| (ops.error)(i128::from(rhs)))?;
                     *lhs = out;
                     return Ok(());
                 }
                 (Repr::Inline(Inline::Unsigned(lhs)), Repr::Inline(rhs)) => {
                     let rhs = rhs.as_integer()?;
-                    let out = (ops.u64)(*lhs, rhs).ok_or_else(ops.error)?;
+                    let out = (ops.u64)(*lhs, rhs).ok_or_else(|| (ops.error)(i128::from(rhs)))?;
                     *lhs = out;
                     return Ok(());
                 }
@@ -1971,7 +2080,7 @@ impl Vm {
         let value = self.stack.at(value);
 
         if let Some(field) = index.try_borrow_ref::<String>()? {
-            if Self::try_object_slot_index_set(target, &field, value)? {
+            if Self::try_object_slot_index_set(target, &field, value, &mut self.worklist)? {
                 return Ok(());
             }
         }
@@ -2002,10 +2111,10 @@ impl Vm {
     #[inline]
     #[tracing::instrument(skip(self, return_value))]
     fn op_return_internal(&mut self, return_value: Value) -> Result<Option<Output>, VmError> {
-        let (exit, out) = self.pop_call_frame();
+        let (exit, out) = self.pop_call_frame()?;
 
         let out = if let Some(out) = out {
-            self.stack.store(out, return_value)?;
+            self.store(out, return_value)?;
             out
         } else {
             let addr = self.stack.addr();
@@ -2065,10 +2174,10 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     #[tracing::instrument(skip(self))]
     fn op_return_unit(&mut self) -> Result<Option<Output>, VmError> {
-        let (exit, out) = self.pop_call_frame();
+        let (exit, out) = self.pop_call_frame()?;
 
         let out = if let Some(out) = out {
-            self.stack.store(out, ())?;
+            self.store(out, ())?;
             out
         } else {
             let addr = self.stack.addr();
@@ -2089,7 +2198,7 @@ impl Vm {
         let instance = self.stack.at(addr);
         let ty = instance.type_hash();
         let hash = Hash::associated_function(ty, hash);
-        self.stack.store(out, || Type::new(hash))?;
+        self.store(out, || Type::new(hash))?;
         Ok(())
     }
 
@@ -2142,7 +2251,7 @@ impl Vm {
             return Ok(());
         };
 
-        self.stack.store(out, value)?;
+        self.store(out, value)?;
         Ok(())
     }
 
@@ -2157,7 +2266,7 @@ impl Vm {
         let value = self.stack.at(value);
         let target = self.stack.at(target);
 
-        if Self::try_tuple_like_index_set(target, index, value)? {
+        if Self::try_tuple_like_index_set(target, index, value, &mut self.worklist)? {
             return Ok(());
         }
 
@@ -2177,7 +2286,7 @@ impl Vm {
         let value = self.stack.at(addr);
 
         if let Some(value) = Self::try_tuple_like_index_get(value, index)? {
-            self.stack.store(out, value)?;
+            self.store(out, value)?;
             return Ok(());
         }
 
@@ -2210,7 +2319,7 @@ impl Vm {
             return Err(VmError::new(VmErrorKind::MissingStaticString { slot }));
         };
 
-        if Self::try_object_slot_index_set(target, field, value)? {
+        if Self::try_object_slot_index_set(target, field, value, &mut self.worklist)? {
             return Ok(());
         }
 
@@ -2259,7 +2368,7 @@ impl Vm {
                 };
 
                 let value = value.clone();
-                self.stack.store(out, value)?;
+                self.store(out, value)?;
                 return Ok(());
             }
             Repr::Any(value) if value.type_hash() == Object::HASH => {
@@ -2270,7 +2379,7 @@ impl Vm {
                 };
 
                 let value = value.clone();
-                self.stack.store(out, value)?;
+                self.store(out, value)?;
                 return Ok(());
             }
             Repr::Any(..) => {}
@@ -2315,7 +2424,7 @@ impl Vm {
             object.insert(key, take(value))?;
         }
 
-        self.stack.store(out, object)?;
+        self.store(out, object)?;
         Ok(())
     }
 
@@ -2348,7 +2457,7 @@ impl Vm {
             }
         };
 
-        self.stack.store(out, value)?;
+        self.store(out, value)?;
         Ok(())
     }
 
@@ -2361,7 +2470,7 @@ impl Vm {
 
         let values = self.stack.slice_at_mut(addr, rtti.fields.len())?;
         let value = AnySequence::new(rtti.clone(), values.iter_mut().map(take))?;
-        self.stack.store(out, value)?;
+        self.store(out, value)?;
         Ok(())
     }
 
@@ -2383,7 +2492,7 @@ impl Vm {
         };
 
         let value = construct.runtime_construct(values)?;
-        self.stack.store(out, value)?;
+        self.store(out, value)?;
         Ok(())
     }
 
@@ -2393,7 +2502,10 @@ impl Vm {
             return Err(VmError::new(VmErrorKind::MissingStaticString { slot }));
         };
 
-        self.stack.store(out, string.as_str())?;
+        // The string is borrowed from the unit, so the stack and the worklist
+        // are reached as the separate fields they are.
+        self.stack
+            .store_with(out, string.as_str(), &mut self.worklist)?;
         Ok(())
     }
 
@@ -2438,7 +2550,7 @@ impl Vm {
             }
         };
 
-        self.stack.store(out, value)?;
+        self.store(out, value)?;
         Ok(())
     }
 
@@ -2465,7 +2577,8 @@ impl Vm {
             return Err(VmError::new(VmErrorKind::MissingStaticBytes { slot }));
         };
 
-        self.stack.store(out, bytes)?;
+        // As above, the bytes are borrowed from the unit.
+        self.stack.store_with(out, bytes, &mut self.worklist)?;
         Ok(())
     }
 
@@ -2491,7 +2604,7 @@ impl Vm {
             Ok::<_, VmError>(())
         })?;
 
-        self.stack.store(out, s)?;
+        self.store(out, s)?;
         Ok(())
     }
 
@@ -2499,7 +2612,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_format(&mut self, addr: Address, spec: FormatSpec, out: Output) -> Result<(), VmError> {
         let value = self.stack.at(addr).clone();
-        self.stack.store(out, || Format { value, spec })?;
+        self.store(out, || Format { value, spec })?;
         Ok(())
     }
 
@@ -2539,7 +2652,7 @@ impl Vm {
 
         match result {
             ControlFlow::Continue(value) => {
-                self.stack.store(out, value)?;
+                self.store(out, value)?;
                 Ok(None)
             }
             ControlFlow::Break(error) => Ok(self.op_return_internal(error)?),
@@ -2555,7 +2668,7 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2568,7 +2681,7 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2579,7 +2692,7 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2592,7 +2705,7 @@ impl Vm {
             _ => false,
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2614,7 +2727,7 @@ impl Vm {
             actual.as_str() == string.as_str()
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2636,7 +2749,7 @@ impl Vm {
             value.as_slice() == bytes
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2695,7 +2808,7 @@ impl Vm {
             }
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2730,7 +2843,7 @@ impl Vm {
             actual >= len && (!exact || actual == len)
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2764,7 +2877,7 @@ impl Vm {
             true
         };
 
-        self.stack.store(out, is_match)?;
+        self.store(out, is_match)?;
         Ok(())
     }
 
@@ -2772,7 +2885,7 @@ impl Vm {
     #[cfg_attr(feature = "bench", inline(never))]
     fn op_load_fn(&mut self, hash: Hash, out: Output) -> Result<(), VmError> {
         let function = self.lookup_function_by_hash(hash)?;
-        self.stack.store(out, function)?;
+        self.store(out, function)?;
         Ok(())
     }
 
@@ -2820,7 +2933,7 @@ impl Vm {
             hash,
         );
 
-        self.stack.store(out, function)?;
+        self.store(out, function)?;
         Ok(())
     }
 
@@ -2859,8 +2972,12 @@ impl Vm {
                     return Err(VmError::new(VmErrorKind::MissingRtti { hash: *hash }));
                 };
 
-                self.stack
-                    .store(out, || Value::empty_struct(rtti.clone()))?;
+                // As above, the type information is borrowed from the unit.
+                self.stack.store_with(
+                    out,
+                    || Value::empty_struct(rtti.clone()),
+                    &mut self.worklist,
+                )?;
             }
             UnitFn::TupleStruct {
                 hash,
@@ -2875,7 +2992,7 @@ impl Vm {
                 let tuple = self.stack.slice_at_mut(addr, args)?;
                 let data = tuple.iter_mut().map(take);
                 let value = AnySequence::new(rtti.clone(), data)?;
-                self.stack.store(out, value)?;
+                self.store(out, value)?;
             }
         }
 
@@ -2989,7 +3106,7 @@ impl Vm {
             }
         };
 
-        self.stack.store(out, some)?;
+        self.store(out, some)?;
         Ok(())
     }
 
@@ -3160,8 +3277,9 @@ impl Vm {
                     }
                 }
                 inst::Kind::Await { addr, out } => {
-                    let future = self.op_await(addr)?;
-                    return Ok(VmHalt::Awaited(Awaited::Future(future, out)));
+                    if let Some(future) = self.op_await(addr, out)? {
+                        return Ok(VmHalt::Awaited(Awaited::Future(future, out)));
+                    }
                 }
                 inst::Kind::Select { addr, len, value } => {
                     if let Some(select) = self.op_select(addr, len, value)? {
@@ -3358,6 +3476,9 @@ impl TryClone for Vm {
             stack: self.stack.try_clone()?,
             call_frames: self.call_frames.try_clone()?,
             globals: self.globals.clone(),
+            // What is waiting to be taken apart belongs to the machine which
+            // was taking it apart, not to a copy of it.
+            worklist: Worklist::new(),
         })
     }
 }

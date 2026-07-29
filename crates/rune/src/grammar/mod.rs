@@ -54,6 +54,7 @@ pub(crate) struct Prepare<'a> {
     without_processing: bool,
     include_whitespace: bool,
     shebang: bool,
+    max_nesting: usize,
 }
 
 impl<'a> Prepare<'a> {
@@ -63,7 +64,14 @@ impl<'a> Prepare<'a> {
             without_processing: false,
             include_whitespace: false,
             shebang: true,
+            max_nesting: usize::MAX,
         }
+    }
+
+    /// Configure how deeply the parsed input is allowed to nest.
+    pub(crate) fn max_nesting(mut self, max_nesting: usize) -> Self {
+        self.max_nesting = max_nesting;
+        self
     }
 
     /// Disable input processing.
@@ -125,6 +133,7 @@ impl<'a> Prepare<'a> {
 
         let mut p = Parser::new(source);
         p.include_whitespace(self.include_whitespace);
+        p.max_nesting(self.max_nesting);
         p
     }
 }

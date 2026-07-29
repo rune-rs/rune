@@ -148,6 +148,14 @@ where
                     shared.as_ref().access.release();
                     AnyObjData::dec(shared)
                 },
+                // The reference keeps the value alive, so it can be handed
+                // back: releasing the access and handing the count over is what
+                // dropping does, minus the count being given up.
+                into_value: Some(|shared: NonNull<()>| {
+                    let shared = shared.cast::<AnyObjData>();
+                    shared.as_ref().access.release();
+                    Value::from(AnyObj::from_raw(shared))
+                }),
             };
 
             let guard = RawAnyGuard::new(this.shared.cast(), vtable);
@@ -203,6 +211,14 @@ where
                     shared.as_ref().access.release();
                     AnyObjData::dec(shared)
                 },
+                // The reference keeps the value alive, so it can be handed
+                // back: releasing the access and handing the count over is what
+                // dropping does, minus the count being given up.
+                into_value: Some(|shared: NonNull<()>| {
+                    let shared = shared.cast::<AnyObjData>();
+                    shared.as_ref().access.release();
+                    Value::from(AnyObj::from_raw(shared))
+                }),
             };
 
             let guard = RawAnyGuard::new(this.shared.cast(), vtable);

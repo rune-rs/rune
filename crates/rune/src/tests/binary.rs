@@ -6,7 +6,9 @@ use ErrorKind::*;
 fn test_binary_exprs() {
     assert_errors! {
         r#"0 < 10 >= 10"#,
-        span!(0, 6), PrecedenceGroupRequired => {
+        // Spanned over the chain up to and including the operator which needs
+        // grouping, rather than over the operand before it.
+        span!(0, 9), PrecedenceGroupRequired => {
         }
     };
 

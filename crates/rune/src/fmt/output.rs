@@ -50,15 +50,37 @@ impl Source {
 
     /// Perform a whitespace-insensitive count and check if it's more than
     /// `count`.
+    ///
+    /// A comma which closes what it is in does not count. The layout writes one
+    /// there when it lays something out over several lines and leaves it out
+    /// when it does not, so counting it would make the measurement depend on
+    /// how the source had been laid out already, and laying it out again would
+    /// then lay it out differently.
     pub(super) fn is_at_least(&self, span: Span, mut count: usize) -> Result<bool> {
         let source = self.get(span)?;
+
+        // Commas which have been seen but not counted yet, since whether they
+        // count depends on what follows them.
+        let mut pending = 0usize;
 
         for c in source.chars() {
             if c.is_whitespace() {
                 continue;
             }
 
-            let Some(c) = count.checked_sub(1) else {
+            if c == ',' {
+                pending += 1;
+                continue;
+            }
+
+            if matches!(c, ')' | ']' | '}') {
+                pending = 0;
+            }
+
+            let n = pending.wrapping_add(1);
+            pending = 0;
+
+            let Some(c) = count.checked_sub(n) else {
                 return Ok(true);
             };
 
@@ -169,10 +191,16 @@ impl<'a> Formatter<'a> {
         Ok(())
     }
 
-    /// Write the give node to output without comment or whitespace processing.
+    /// Write the given node to output as it was written.
+    ///
+    /// This is what the token stream a macro is handed is written with, and the
+    /// comments in it are part of that stream, so they are written here rather
+    /// than queued. Queueing them as well would write them a second time after
+    /// the macro call, and would do it again for every time the output was
+    /// formatted.
     pub(crate) fn write_raw(&mut self, node: Node<'a>) -> Result<()> {
         self.write_node(&node)?;
-        self.process_comments(node.walk_from())?;
+        self.process_lines(node.walk_from())?;
         Ok(())
     }
 
@@ -332,6 +360,38 @@ impl<'a> Formatter<'a> {
         for node in iter {
             if !node.has_children() && !self.write_comment(node)? {
                 break;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Count the lines in the whitespace which follows what was just written,
+    /// without queueing the comments among it.
+    ///
+    /// This is what [`Formatter::write_raw`] uses, since what it writes was
+    /// written as it was, comments and all.
+    fn process_lines<I>(&mut self, iter: I) -> Result<()>
+    where
+        I: IntoIterator<Item = Node<'a>>,
+    {
+        for node in iter {
+            if node.has_children() {
+                continue;
+            }
+
+            match node.kind() {
+                Kind::Comment | Kind::MultilineComment(..) => {}
+                Kind::Whitespace => {
+                    let span = node.span();
+                    let source = self.source.get(span)?;
+                    let count = source.chars().filter(|c| *c == NL_CHAR).count();
+
+                    if self.lines == 0 {
+                        self.lines = count;
+                    }
+                }
+                _ => break,
             }
         }
 

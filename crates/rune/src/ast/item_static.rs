@@ -35,13 +35,7 @@ pub struct ItemStatic {
     pub(crate) id: ItemId,
 }
 
-impl ItemStatic {
-    /// Get the descriptive span of this item, e.g. `static ITEM` instead of the
-    /// span for the whole expression.
-    pub(crate) fn descriptive_span(&self) -> Span {
-        self.static_token.span().join(self.name.span())
-    }
-}
+impl ItemStatic {}
 
 /// The initializer of a [`ItemStatic`].
 #[derive(Debug, TryClone, PartialEq, Eq, Parse, ToTokens, Spanned)]

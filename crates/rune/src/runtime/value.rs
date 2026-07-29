@@ -21,6 +21,10 @@ mod any_sequence;
 pub use self::any_sequence::AnySequence;
 pub(crate) use self::any_sequence::AnySequenceTakeError;
 
+mod dismantle;
+pub(crate) use self::dismantle::Worklist;
+pub use self::dismantle::{Dismantle, Handover};
+
 use core::any;
 use core::cmp::Ordering;
 use core::fmt;
@@ -31,6 +35,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
+use crate::runtime::env;
 use crate::sync::Arc;
 use crate::{Any, Hash, TypeHash};
 
@@ -385,6 +390,8 @@ impl Value {
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<(), VmError> {
+        let _guard = env::enter_value()?;
+
         'fallback: {
             match self.as_ref() {
                 Repr::Inline(value) => match value {
@@ -483,6 +490,8 @@ impl Value {
         f: &mut Formatter,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<(), VmError> {
+        let _guard = env::enter_value()?;
+
         match &self.repr {
             Repr::Inline(value) => {
                 write!(f, "{value:?}")?;
@@ -614,7 +623,7 @@ impl Value {
     /// This consumes any live references of the value and accessing them in the
     /// future will result in an error.
     pub(crate) fn drop(self) -> Result<(), VmError> {
-        match self.repr {
+        match self.take_repr() {
             Repr::Dynamic(value) => {
                 value.drop()?;
             }
@@ -629,7 +638,7 @@ impl Value {
 
     /// Move the interior value.
     pub(crate) fn move_(self) -> Result<Self, VmError> {
-        match self.repr {
+        match self.take_repr() {
             Repr::Dynamic(value) => Ok(Value {
                 repr: Repr::Dynamic(value.take()?),
             }),
@@ -852,7 +861,7 @@ impl Value {
     /// Coerce into an [`AnyObj`].
     #[inline]
     pub fn into_any_obj(self) -> Result<AnyObj, RuntimeError> {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Any(value) => Ok(value),
@@ -868,7 +877,7 @@ impl Value {
     where
         T: Any,
     {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any_obj(value.type_info())),
             Repr::Any(value) => Ok(value.into_shared()?),
@@ -892,7 +901,7 @@ impl Value {
     /// [`Vm`]: crate::Vm
     #[inline]
     pub fn into_future(self) -> Result<Future, RuntimeError> {
-        let target = match self.repr {
+        let target = match self.take_repr() {
             Repr::Any(value) => match value.type_hash() {
                 Future::HASH => {
                     return Ok(value.downcast::<Future>()?);
@@ -918,7 +927,7 @@ impl Value {
     where
         T: Any,
     {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => {
@@ -941,7 +950,7 @@ impl Value {
     where
         T: Any,
     {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => {
@@ -986,7 +995,7 @@ impl Value {
     where
         T: Any,
     {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.downcast::<T>()?),
@@ -1051,7 +1060,7 @@ impl Value {
     where
         T: Any,
     {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.into_ref()?),
@@ -1104,7 +1113,7 @@ impl Value {
     where
         T: Any,
     {
-        match self.repr {
+        match self.take_repr() {
             Repr::Inline(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Dynamic(value) => Err(RuntimeError::expected_any::<T>(value.type_info())),
             Repr::Any(value) => Ok(value.into_mut()?),
@@ -1157,6 +1166,8 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<bool, VmError> {
+        let _guard = env::enter_value()?;
+
         self.bin_op_with(
             b,
             caller,
@@ -1195,6 +1206,8 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<bool, VmError> {
+        let _guard = env::enter_value()?;
+
         self.bin_op_with(b, caller, &Protocol::EQ, Inline::eq, |lhs, rhs, caller| {
             if lhs.0.variant_hash != rhs.0.variant_hash {
                 return Ok(false);
@@ -1227,6 +1240,8 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<Option<Ordering>, VmError> {
+        let _guard = env::enter_value()?;
+
         self.bin_op_with(
             b,
             caller,
@@ -1267,6 +1282,8 @@ impl Value {
         b: &Value,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<Ordering, VmError> {
+        let _guard = env::enter_value()?;
+
         self.bin_op_with(
             b,
             caller,
@@ -1296,6 +1313,8 @@ impl Value {
         hasher: &mut Hasher,
         caller: &mut dyn ProtocolCaller,
     ) -> Result<(), VmError> {
+        let _guard = env::enter_value()?;
+
         match self.as_ref() {
             Repr::Inline(value) => {
                 value.hash(hasher)?;
@@ -1438,15 +1457,6 @@ impl Value {
         }
     }
 
-    #[inline]
-    pub(crate) fn as_inline_mut(&mut self) -> Option<&mut Inline> {
-        match &mut self.repr {
-            Repr::Inline(value) => Some(value),
-            Repr::Dynamic(..) => None,
-            Repr::Any(..) => None,
-        }
-    }
-
     /// Coerce into a checked [`AnyObj`] object.
     ///
     /// Any empty value will cause an access error.
@@ -1460,8 +1470,8 @@ impl Value {
     }
 
     #[inline(always)]
-    pub(crate) fn take_repr(self) -> Repr {
-        self.repr
+    pub(crate) fn take_repr(mut self) -> Repr {
+        replace(&mut self.repr, Repr::Inline(Inline::Empty))
     }
 
     #[inline(always)]
@@ -1498,17 +1508,26 @@ impl Value {
         }
     }
 
+    // An adapter delegates to the iterator it wraps by walking into it, and a
+    // script decides how many of them are wrapped around each other - `it =
+    // it.skip(0)` in a loop - so each of these is a level of a walk over a
+    // value and is bounded like every other one.
+
     pub(crate) fn protocol_into_iter(&self) -> Result<Value, VmError> {
+        let _guard = env::enter_value()?;
         EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_ITER, self.clone(), &mut ())
     }
 
     pub(crate) fn protocol_next(&self) -> Result<Option<Value>, VmError> {
+        let _guard = env::enter_value()?;
         let value = EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT, self.clone(), &mut ())?;
 
         Ok(FromValue::from_value(value)?)
     }
 
     pub(crate) fn protocol_next_back(&self) -> Result<Option<Value>, VmError> {
+        let _guard = env::enter_value()?;
+
         let value =
             EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT_BACK, self.clone(), &mut ())?;
 
@@ -1516,6 +1535,8 @@ impl Value {
     }
 
     pub(crate) fn protocol_nth_back(&self, n: usize) -> Result<Option<Value>, VmError> {
+        let _guard = env::enter_value()?;
+
         let value = EnvProtocolCaller.call_protocol_fn(
             &Protocol::NTH_BACK,
             self.clone(),
@@ -1526,12 +1547,15 @@ impl Value {
     }
 
     pub(crate) fn protocol_len(&self) -> Result<usize, VmError> {
+        let _guard = env::enter_value()?;
         let value = EnvProtocolCaller.call_protocol_fn(&Protocol::LEN, self.clone(), &mut ())?;
 
         Ok(FromValue::from_value(value)?)
     }
 
     pub(crate) fn protocol_size_hint(&self) -> Result<(usize, Option<usize>), VmError> {
+        let _guard = env::enter_value()?;
+
         let value =
             EnvProtocolCaller.call_protocol_fn(&Protocol::SIZE_HINT, self.clone(), &mut ())?;
 
@@ -1711,6 +1735,33 @@ impl MaybeTypeOf for Value {
     #[inline]
     fn maybe_type_of() -> alloc::Result<meta::DocType> {
         Ok(meta::DocType::empty())
+    }
+}
+
+/// A graph of values is taken apart in place rather than by recursing into it,
+/// since how deeply one nests is decided at runtime and dropping it by
+/// recursing would exhaust the call stack.
+///
+/// A destructor has nobody to report a failure to and must not spend the memory
+/// limit which is in effect, so it takes the graph apart without allocating.
+/// The machine hands the values over to a worklist instead, which is faster and
+/// reports running into the limit rather than working around it.
+///
+/// See the `dismantle` module for how the graph is walked.
+impl Drop for Value {
+    #[inline]
+    fn drop(&mut self) {
+        // Values which cannot contain other values are the common case and are
+        // dropped in place.
+        if matches!(self.repr, Repr::Inline(..)) {
+            return;
+        }
+
+        let repr = replace(&mut self.repr, Repr::Inline(Inline::Empty));
+
+        // Few enough values wait without allocating, so an ordinary value costs
+        // a destructor nothing beyond the walk itself.
+        self::dismantle::Worklist::new().dismantle_repr(repr);
     }
 }
 

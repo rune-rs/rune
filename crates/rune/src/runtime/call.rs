@@ -36,8 +36,7 @@ impl Call {
             Call::Generator => Value::try_from(Generator::new(vm))?,
             Call::Immediate => vm.complete()?,
             Call::Async => {
-                let mut execution = vm.into_execution();
-                let future = Future::new(async move { execution.resume().await?.into_complete() })?;
+                let future = Future::from_execution(vm.into_execution())?;
                 Value::try_from(future)?
             }
         })

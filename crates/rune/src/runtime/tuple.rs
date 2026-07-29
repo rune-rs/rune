@@ -13,9 +13,9 @@ use crate::alloc::{self, Box};
 use crate::Any;
 
 use super::{
-    ConstValue, EmptyConstContext, Formatter, FromConstValue, FromValue, Hasher, Mut,
-    ProtocolCaller, RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue, UnsafeToMut,
-    UnsafeToRef, Value, VmError, VmErrorKind,
+    ConstValue, Dismantle, EmptyConstContext, Formatter, FromConstValue, FromValue, Handover,
+    Hasher, Mut, ProtocolCaller, RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue,
+    UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
 /// The type of a tuple slice.
@@ -144,7 +144,7 @@ impl<'a> IntoIterator for &'a mut Tuple {
 ///
 /// To access borrowed values of a tuple in native functions, use [`Tuple`].
 #[derive(Any)]
-#[rune(item = ::std::tuple, name = Tuple)]
+#[rune(item = ::std::tuple, name = Tuple, dismantle)]
 #[repr(transparent)]
 pub struct OwnedTuple {
     inner: Box<[Value]>,
@@ -174,6 +174,15 @@ impl OwnedTuple {
     /// Convert into inner std boxed slice.
     pub fn into_inner(self) -> Box<[Value]> {
         self.inner
+    }
+}
+
+/// A tuple is made of the values put into it, and a script can nest one inside
+/// another without any bound, so it hands over what it is made of rather than
+/// being dropped in place.
+impl Dismantle for OwnedTuple {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_all(self.iter_mut());
     }
 }
 

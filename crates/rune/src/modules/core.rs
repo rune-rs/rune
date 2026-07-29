@@ -4,7 +4,6 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
-use crate::parse::Parser;
 use crate::runtime::{Value, VmError};
 use crate::{docstring, ContextError, Module};
 
@@ -119,7 +118,7 @@ pub(crate) fn panic_macro(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = Parser::from_token_stream(stream, cx.input_span());
+    let mut p = cx.parser(stream, cx.input_span());
     let args = p.parse_all::<FormatArgs>()?;
     let expanded = args.expand(cx)?;
     Ok(quote!(::std::panic(#expanded)).into_token_stream(cx)?)

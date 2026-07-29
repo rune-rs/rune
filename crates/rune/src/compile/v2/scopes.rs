@@ -322,6 +322,15 @@ impl<'hir> Scopes<'hir> {
         Any::defer(self, self.top.get(), span)
     }
 
+    /// Explicitly allocate a slot as a needs.
+    ///
+    /// This is used where deferring is unsound, such as for conditions, since a
+    /// deferred needs aliases the address of whatever is assembled into it.
+    #[tracing::instrument(skip_all)]
+    pub(super) fn alloc_any(&self, span: &'hir dyn Spanned) -> compile::Result<Any<'_, 'hir>> {
+        Ok(Any::allocated(self.alloc(span)?))
+    }
+
     /// Explicitly allocate a slot.
     #[tracing::instrument(skip_all)]
     pub(super) fn alloc(&self, span: &'hir dyn Spanned) -> compile::Result<Address<'_, 'hir>> {

@@ -14,6 +14,6 @@ fn test_let_pattern_might_panic() {
 fn test_template_without_variables() {
     assert_warnings! {
         "`Hello World`",
-        span!(0, 13), TemplateWithoutExpansions { context: Some(span!(0, 13)), .. }
+        span!(0, 12), TemplateWithoutExpansions { context: Some(span!(0, 13)), .. }
     };
 }

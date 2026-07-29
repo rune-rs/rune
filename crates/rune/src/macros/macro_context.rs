@@ -9,7 +9,7 @@ use crate::compile::{self, ErrorKind, ItemMeta};
 use crate::indexing::Indexer;
 use crate::internal_macros::resolve_context;
 use crate::macros::{IntoLit, ToTokens, TokenStream};
-use crate::parse::{Parse, Resolve};
+use crate::parse::{Parse, Parser, Resolve};
 use crate::runtime::Value;
 use crate::{Source, SourceId};
 
@@ -127,6 +127,43 @@ pub struct MacroContext<'a, 'b, 'arena> {
 }
 
 impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
+    /// Construct a parser over a token stream, bounded by the compiler options
+    /// this macro is being expanded under.
+    ///
+    /// The syntax tree this parser produces is walked by recursing over it, so
+    /// how deep it is allowed to get is bounded by the `max-ast-depth` option.
+    /// A parser built with [`Parser::from_token_stream`] instead uses that
+    /// option's default, since it has no way of seeing what the compiler was
+    /// configured with.
+    ///
+    /// `span` is the span to use if the stream is empty - typically
+    /// [`MacroContext::input_span`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rune::support::*;
+    /// use rune::ast;
+    /// use rune::macros::{self, quote};
+    ///
+    /// macros::test(|cx| {
+    ///     let stream = quote!(1 + 2).into_token_stream(cx)?;
+    ///
+    ///     let mut p = cx.parser(&stream, cx.input_span());
+    ///     let expr = p.parse_all::<ast::Expr>()?;
+    ///     let value = cx.eval(&expr)?;
+    ///
+    ///     let integer = value.as_integer::<u32>().context("Expected integer")?;
+    ///     assert_eq!(3, integer);
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn parser<'s>(&self, token_stream: &'s TokenStream, span: Span) -> Parser<'s> {
+        Parser::from_token_stream(token_stream, span)
+            .with_max_depth(self.idx.q.options.max_ast_depth)
+    }
+
     /// Evaluate the given target as a constant expression.
     ///
     /// # Panics
@@ -155,7 +192,7 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn eval(&mut self, target: &ast::Expr) -> compile::Result<Value> {
-        target.eval(self)
+        crate::compile::const_eval::eval_ast(self, target)
     }
 
     /// Construct a new literal from within a macro context.

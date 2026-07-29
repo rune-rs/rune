@@ -100,7 +100,7 @@ pub fn compile_helper(source: &str, diagnostics: &mut Diagnostics) -> Result<Uni
     let mut sources = Sources::new();
     sources.insert(Source::new("main", source)?)?;
 
-    let mut options = Options::default();
+    let mut options = Options::from_default_env().expect("parsing RUNEFLAGS");
     options.script(true);
 
     let unit = crate::prepare(&mut sources)
@@ -122,7 +122,7 @@ pub fn vm(
 ) -> Result<Vm, TestError> {
     let runtime = Arc::try_new(context.runtime()?)?;
 
-    let mut options = Options::default();
+    let mut options = Options::from_default_env().expect("parsing RUNEFLAGS");
 
     if script {
         options.script(true);

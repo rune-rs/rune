@@ -6,8 +6,8 @@ use crate::alloc::prelude::*;
 use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
-    Address, FromValue, Function, Inline, Object, Output, OwnedTuple, Protocol, Repr, TypeHash,
-    Value, Vec, VmError, VmErrorKind,
+    Address, Dismantle, FromValue, Function, Handover, Inline, Object, Output, OwnedTuple,
+    Protocol, Repr, TypeHash, Value, Vec, VmError, VmErrorKind,
 };
 use crate::shared::Caller;
 use crate::{docstring, Any, ContextError, Module, Params};
@@ -1908,7 +1908,8 @@ fn once(value: Value) -> Once {
 
 #[derive(Any)]
 #[rune(item = ::std::iter)]
-struct Once {
+pub(crate) struct Once {
+    #[rune(dismantle)]
     value: Option<Value>,
 }
 
@@ -1975,8 +1976,10 @@ macro_rules! maybe {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Chain {
+pub(crate) struct Chain {
+    #[rune(dismantle)]
     a: Option<Value>,
+    #[rune(dismantle)]
     b: Option<Value>,
 }
 
@@ -2058,7 +2061,8 @@ impl Chain {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Enumerate {
+pub(crate) struct Enumerate {
+    #[rune(dismantle)]
     iter: Value,
     count: usize,
 }
@@ -2102,8 +2106,10 @@ impl Enumerate {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Filter {
+pub(crate) struct Filter {
+    #[rune(dismantle)]
     iter: Value,
+    #[rune(dismantle)]
     f: Function,
 }
 
@@ -2142,8 +2148,10 @@ impl Filter {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Map {
+pub(crate) struct Map {
+    #[rune(dismantle)]
     iter: Option<Value>,
+    #[rune(dismantle)]
     f: Function,
 }
 
@@ -2191,8 +2199,10 @@ impl Map {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct FilterMap {
+pub(crate) struct FilterMap {
+    #[rune(dismantle)]
     iter: Option<Value>,
+    #[rune(dismantle)]
     f: Function,
 }
 
@@ -2224,9 +2234,12 @@ impl FilterMap {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct FlatMap {
+pub(crate) struct FlatMap {
+    #[rune(dismantle)]
     map: Map,
+    #[rune(dismantle)]
     frontiter: Option<Value>,
+    #[rune(dismantle)]
     backiter: Option<Value>,
 }
 
@@ -2298,8 +2311,8 @@ impl FlatMap {
 }
 
 #[derive(Any, Debug)]
-#[rune(item = ::std::iter)]
-struct Peekable {
+#[rune(item = ::std::iter, dismantle)]
+pub(crate) struct Peekable {
     iter: Value,
     peeked: Option<Option<Value>>,
 }
@@ -2408,7 +2421,8 @@ impl Peekable {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Skip {
+pub(crate) struct Skip {
+    #[rune(dismantle)]
     iter: Value,
     n: usize,
 }
@@ -2461,7 +2475,8 @@ impl Skip {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Take {
+pub(crate) struct Take {
+    #[rune(dismantle)]
     iter: Value,
     n: usize,
 }
@@ -2524,7 +2539,8 @@ impl Take {
 
 #[derive(Any, Debug)]
 #[rune(item = ::std::iter)]
-struct Rev {
+pub(crate) struct Rev {
+    #[rune(dismantle)]
     value: Value,
 }
 
@@ -2604,5 +2620,15 @@ impl CheckedOps for f64 {
     #[inline]
     fn checked_mul(self, value: Self) -> Option<Self> {
         Some(self * value)
+    }
+}
+
+/// A peeked value is held one level deeper than the derive can reach, so this
+/// one hands over what it holds by hand while the rest of the adapters mark the
+/// fields which hold values.
+impl Dismantle for Peekable {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume(&mut self.iter);
+        out.consume_all(self.peeked.iter_mut().flatten());
     }
 }

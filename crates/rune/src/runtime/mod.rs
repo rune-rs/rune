@@ -56,7 +56,7 @@ pub use self::const_value::{
     FromConstValue,
 };
 pub(crate) use self::const_value::{
-    ConstContext, ConstInstance, ConstValueKind, EmptyConstContext,
+    ConstContext, ConstInstance, ConstValueKind, EmptyConstContext, MAX_CONST_DEPTH,
 };
 
 pub mod debug;
@@ -179,10 +179,10 @@ pub use self::unit::{Unit, UnitStorage};
 
 mod value;
 pub use self::value::{
-    Accessor, EmptyStruct, Inline, RawValueGuard, Rtti, Struct, TupleStruct, TypeValue, Value,
-    ValueMutGuard, ValueRefGuard,
+    Accessor, Dismantle, EmptyStruct, Handover, Inline, RawValueGuard, Rtti, Struct, TupleStruct,
+    TypeValue, Value, ValueMutGuard, ValueRefGuard,
 };
-pub(crate) use self::value::{AnySequence, AnySequenceTakeError, Repr, RttiKind};
+pub(crate) use self::value::{AnySequence, AnySequenceTakeError, Repr, RttiKind, Worklist};
 
 pub mod slice;
 

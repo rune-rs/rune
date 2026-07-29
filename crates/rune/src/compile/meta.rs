@@ -8,15 +8,13 @@ use std::path::Path;
 use crate as rune;
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, Vec};
+use crate::alloc::{self, Box};
 use crate::ast;
 use crate::ast::{Span, Spanned};
-use crate::compile::attrs::Parser;
 #[cfg(feature = "doc")]
 use crate::compile::meta;
-use crate::compile::{self, ItemId, Location, MetaInfo, ModId, Pool, Visibility};
+use crate::compile::{ItemId, Location, MetaInfo, ModId, Pool, Visibility};
 use crate::module::{DocFunction, ModuleItemCommon};
-use crate::parse::ResolveContext;
 use crate::runtime::{Call, FieldMap, Protocol};
 use crate::{Hash, Item, ItemBuf};
 
@@ -57,26 +55,6 @@ pub(crate) struct Doc {
     pub(crate) span: Span,
     /// The string content of the doc comment.
     pub(crate) doc_string: ast::LitStr,
-}
-
-impl Doc {
-    pub(crate) fn collect_from(
-        cx: ResolveContext<'_, '_>,
-        attrs: &mut Parser,
-        attributes: &[ast::Attribute],
-    ) -> compile::Result<Vec<Doc>> {
-        let docs = attrs
-            .parse_all::<crate::compile::attrs::Doc>(cx, attributes)?
-            .map(|result| {
-                result.map(|(span, doc)| Doc {
-                    span: span.span(),
-                    doc_string: doc.doc_string,
-                })
-            })
-            .try_collect::<compile::Result<_>>()??;
-
-        Ok(docs)
-    }
 }
 
 /// Metadata about a compiled unit.

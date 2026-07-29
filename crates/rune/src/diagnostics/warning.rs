@@ -55,7 +55,6 @@ impl Spanned for WarningDiagnostic {
             WarningDiagnosticKind::LetPatternMightPanic { span, .. } => *span,
             WarningDiagnosticKind::TemplateWithoutExpansions { span, .. } => *span,
             WarningDiagnosticKind::RemoveTupleCallParams { span, .. } => *span,
-            WarningDiagnosticKind::UnnecessarySemiColon { span, .. } => *span,
             WarningDiagnosticKind::UsedDeprecated { span, .. } => *span,
         }
     }
@@ -124,11 +123,6 @@ pub(crate) enum WarningDiagnosticKind {
         #[cfg_attr(not(feature = "emit"), allow(dead_code))]
         context: Option<Span>,
     },
-    /// An unecessary semi-colon is used.
-    UnnecessarySemiColon {
-        /// Span where the semi-colon is.
-        span: Span,
-    },
     UsedDeprecated {
         /// The span which is deprecated
         span: Span,
@@ -154,9 +148,6 @@ impl fmt::Display for WarningDiagnosticKind {
             ),
             WarningDiagnosticKind::RemoveTupleCallParams { .. } => {
                 write!(f, "Call paramters are not needed here")
-            }
-            WarningDiagnosticKind::UnnecessarySemiColon { .. } => {
-                write!(f, "Unnecessary semicolon")
             }
             WarningDiagnosticKind::UsedDeprecated { message, .. } => {
                 write!(f, "Used deprecated function: {message}")

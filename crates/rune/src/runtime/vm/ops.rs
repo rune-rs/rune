@@ -4,9 +4,24 @@ use core::ops::{
 
 use crate::runtime::{InstArithmeticOp, InstBitwiseOp, InstShiftOp, Protocol, VmErrorKind};
 
+/// The error a division or a remainder which could not be performed raises.
+fn divide_error(rhs: i128) -> VmErrorKind {
+    if rhs == 0 {
+        VmErrorKind::DivideByZero
+    } else {
+        VmErrorKind::Overflow
+    }
+}
+
 pub(super) struct ArithmeticOps {
     pub(super) protocol: Protocol,
-    pub(super) error: fn() -> VmErrorKind,
+    /// The error an operation which could not be performed raises, given the
+    /// right hand side it was performed against.
+    ///
+    /// Division and remainder fail for two different reasons, so which one it
+    /// was has to be told apart from the divisor: one of zero is what usually
+    /// fails, but dividing the smallest signed number by `-1` overflows.
+    pub(super) error: fn(i128) -> VmErrorKind,
     pub(super) i64: fn(i64, i64) -> Option<i64>,
     pub(super) u64: fn(u64, u64) -> Option<u64>,
     pub(super) f64: fn(f64, f64) -> f64,
@@ -17,35 +32,35 @@ impl ArithmeticOps {
         match op {
             InstArithmeticOp::Add => &Self {
                 protocol: Protocol::ADD,
-                error: || VmErrorKind::Overflow,
+                error: |_| VmErrorKind::Overflow,
                 i64: i64::checked_add,
                 u64: u64::checked_add,
                 f64: f64::add,
             },
             InstArithmeticOp::Sub => &Self {
                 protocol: Protocol::SUB,
-                error: || VmErrorKind::Underflow,
+                error: |_| VmErrorKind::Underflow,
                 i64: i64::checked_sub,
                 u64: u64::checked_sub,
                 f64: f64::sub,
             },
             InstArithmeticOp::Mul => &Self {
                 protocol: Protocol::MUL,
-                error: || VmErrorKind::Overflow,
+                error: |_| VmErrorKind::Overflow,
                 i64: i64::checked_mul,
                 u64: u64::checked_mul,
                 f64: f64::mul,
             },
             InstArithmeticOp::Div => &Self {
                 protocol: Protocol::DIV,
-                error: || VmErrorKind::DivideByZero,
+                error: divide_error,
                 i64: i64::checked_div,
                 u64: u64::checked_div,
                 f64: f64::div,
             },
             InstArithmeticOp::Rem => &Self {
                 protocol: Protocol::REM,
-                error: || VmErrorKind::DivideByZero,
+                error: divide_error,
                 i64: i64::checked_rem,
                 u64: u64::checked_rem,
                 f64: f64::rem,
@@ -56,7 +71,8 @@ impl ArithmeticOps {
 
 pub(super) struct AssignArithmeticOps {
     pub(super) protocol: Protocol,
-    pub(super) error: fn() -> VmErrorKind,
+    /// See [`ArithmeticOps::error`].
+    pub(super) error: fn(i128) -> VmErrorKind,
     pub(super) i64: fn(i64, i64) -> Option<i64>,
     pub(super) u64: fn(u64, u64) -> Option<u64>,
     pub(super) f64: fn(f64, f64) -> f64,
@@ -67,35 +83,35 @@ impl AssignArithmeticOps {
         match op {
             InstArithmeticOp::Add => &Self {
                 protocol: Protocol::ADD_ASSIGN,
-                error: || VmErrorKind::Overflow,
+                error: |_| VmErrorKind::Overflow,
                 i64: i64::checked_add,
                 u64: u64::checked_add,
                 f64: f64::add,
             },
             InstArithmeticOp::Sub => &Self {
                 protocol: Protocol::SUB_ASSIGN,
-                error: || VmErrorKind::Underflow,
+                error: |_| VmErrorKind::Underflow,
                 i64: i64::checked_sub,
                 u64: u64::checked_sub,
                 f64: f64::sub,
             },
             InstArithmeticOp::Mul => &Self {
                 protocol: Protocol::MUL_ASSIGN,
-                error: || VmErrorKind::Overflow,
+                error: |_| VmErrorKind::Overflow,
                 i64: i64::checked_mul,
                 u64: u64::checked_mul,
                 f64: f64::mul,
             },
             InstArithmeticOp::Div => &Self {
                 protocol: Protocol::DIV_ASSIGN,
-                error: || VmErrorKind::DivideByZero,
+                error: divide_error,
                 i64: i64::checked_div,
                 u64: u64::checked_div,
                 f64: f64::div,
             },
             InstArithmeticOp::Rem => &Self {
                 protocol: Protocol::REM_ASSIGN,
-                error: || VmErrorKind::DivideByZero,
+                error: divide_error,
                 i64: i64::checked_rem,
                 u64: u64::checked_rem,
                 f64: f64::rem,

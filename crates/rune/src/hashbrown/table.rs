@@ -11,7 +11,9 @@ use rune_alloc::hashbrown::ErrorOrInsertSlot;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::runtime::{Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError};
+use crate::runtime::{
+    Dismantle, Handover, Hasher, ProtocolCaller, RawAnyGuard, Ref, Value, VmError,
+};
 
 pub(crate) struct Table<V> {
     table: RawTable<(Value, V)>,
@@ -110,6 +112,16 @@ impl<V> Table<V> {
         self.table.clear()
     }
 
+    /// Empty the table, handing back everything it held.
+    ///
+    /// This is what taking a map apart uses: the entries are handed over in one
+    /// pass over the table rather than by looking for the next one from the
+    /// start every time.
+    #[inline(always)]
+    pub(crate) fn drain(&mut self) -> impl Iterator<Item = (Value, V)> + '_ {
+        self.table.drain()
+    }
+
     pub(crate) fn iter(&self) -> Iter<'_, V> {
         // SAFETY: lifetime is held by returned iterator.
         let iter = unsafe { self.table.iter() };
@@ -201,8 +213,16 @@ impl<'a, V> iter::Iterator for Iter<'a, V> {
 
 pub(crate) struct IterRef<V> {
     iter: RawIter<(Value, V)>,
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The table is kept alive through a guard rather than through a slot, so
+/// taking whatever holds this apart releases the guard and hands the table
+/// over.
+impl<V> Dismantle for IterRef<V> {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl<V> iter::Iterator for IterRef<V>
@@ -235,8 +255,16 @@ where
 
 pub(crate) struct KeysRef<V> {
     iter: RawIter<(Value, V)>,
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The table is kept alive through a guard rather than through a slot, so
+/// taking whatever holds this apart releases the guard and hands the table
+/// over.
+impl<V> Dismantle for KeysRef<V> {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl<V> iter::Iterator for KeysRef<V> {
@@ -256,8 +284,16 @@ impl<V> iter::Iterator for KeysRef<V> {
 
 pub(crate) struct ValuesRef<V> {
     iter: RawIter<(Value, V)>,
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The table is kept alive through a guard rather than through a slot, so
+/// taking whatever holds this apart releases the guard and hands the table
+/// over.
+impl<V> Dismantle for ValuesRef<V> {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl<V> iter::Iterator for ValuesRef<V>

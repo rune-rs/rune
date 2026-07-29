@@ -221,6 +221,11 @@ fn i64() {
     error_test!(0b1 << 64 = Overflow);
     error_test!(0b1 >> 64 = Underflow);
 
+    // The one division which fails without a divisor of zero. It was reported
+    // as a division by zero, which is the only reason division usually fails.
+    error_test!(-9223372036854775808i64 / -1 = Overflow);
+    error_test!(-9223372036854775808i64 % -1 = Overflow);
+
     unary_error_test!(--9223372036854775808i64 = Overflow);
 }
 

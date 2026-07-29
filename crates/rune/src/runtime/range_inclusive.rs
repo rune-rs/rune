@@ -60,10 +60,10 @@ use super::{
 #[rune(crate, constructor, item = ::std::ops)]
 pub struct RangeInclusive {
     /// The start value of the range.
-    #[rune(get, set)]
+    #[rune(get, set, dismantle)]
     pub start: Value,
     /// The end value of the range.
-    #[rune(get, set)]
+    #[rune(get, set, dismantle)]
     pub end: Value,
 }
 

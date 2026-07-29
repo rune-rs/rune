@@ -1,7 +1,7 @@
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::ast::{Span, Spanned};
-use crate::compile::v1;
+use crate::compile::v2;
 use crate::compile::{
     self, Assembly, CompileVisitor, Context, ErrorKind, Location, Options, Pool, Prelude,
     SourceLoader, UnitBuilder,
@@ -134,24 +134,70 @@ struct CompileBuildEntry<'a, 'arena> {
 }
 
 impl<'arena> CompileBuildEntry<'_, 'arena> {
-    fn compiler1<'a, 'hir>(
+    fn compiler<'a, 'hir>(
         &'a mut self,
         location: Location,
         span: &'hir dyn Spanned,
         asm: &'a mut Assembly,
-        scopes: &'a mut v1::Scopes<'hir>,
-    ) -> alloc::Result<v1::Ctxt<'a, 'hir, 'arena>> {
-        Ok(v1::Ctxt {
+        exprs: &'hir hir::Exprs<'hir>,
+        scopes: &'a mut v2::Scopes<'hir>,
+    ) -> alloc::Result<v2::Ctxt<'a, 'hir, 'arena>> {
+        Ok(v2::Ctxt {
             source_id: location.source_id,
             q: self.q.borrow(),
             asm,
+            exprs,
             scopes,
             contexts: try_vec![span],
-            breaks: self::v1::Breaks::new(),
+            breaks: self::v2::Breaks::new(),
             options: self.options,
             select_branches: Vec::new(),
             drop: Vec::new(),
+            const_eval: false,
         })
+    }
+
+    /// Assemble a function.
+    fn assemble_fn<'hir>(
+        &mut self,
+        location: Location,
+        span: &'hir dyn Spanned,
+        asm: &mut Assembly,
+        exprs: &'hir hir::Exprs<'hir>,
+        hir: &'hir hir::ItemFn<'hir>,
+    ) -> compile::Result<usize> {
+        let mut scopes = v2::Scopes::new(location.source_id)?;
+        let mut cx = self.compiler(location, span, asm, exprs, &mut scopes)?;
+        v2::assemble::fn_from_item_fn(&mut cx, hir)?;
+        Ok(cx.scopes.size())
+    }
+
+    /// Assemble the secondary build of a closure.
+    fn assemble_closure<'hir>(
+        &mut self,
+        location: Location,
+        asm: &mut Assembly,
+        exprs: &'hir hir::Exprs<'hir>,
+        hir: &'hir hir::ExprClosure<'hir>,
+    ) -> compile::Result<usize> {
+        let mut scopes = v2::Scopes::new(location.source_id)?;
+        let mut cx = self.compiler(location, hir, asm, exprs, &mut scopes)?;
+        v2::assemble::expr_closure_secondary(&mut cx, hir)?;
+        Ok(cx.scopes.size())
+    }
+
+    /// Assemble the secondary build of an async block.
+    fn assemble_async_block<'hir>(
+        &mut self,
+        location: Location,
+        asm: &mut Assembly,
+        exprs: &'hir hir::Exprs<'hir>,
+        hir: &'hir hir::AsyncBlock<'hir>,
+    ) -> compile::Result<usize> {
+        let mut scopes = v2::Scopes::new(location.source_id)?;
+        let mut cx = self.compiler(location, &hir.block, asm, exprs, &mut scopes)?;
+        v2::assemble::async_block_secondary(&mut cx, hir)?;
+        Ok(cx.scopes.size())
     }
 
     #[tracing::instrument(skip_all)]
@@ -160,8 +206,6 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
         entry: BuildEntry,
         unit_storage: &mut dyn UnitEncoder,
     ) -> compile::Result<()> {
-        use self::v1::assemble;
-
         let BuildEntry { item_meta, build } = entry;
 
         let location = item_meta.location;
@@ -241,18 +285,15 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
 
                         node.parse(|p| hir::lowering2::item_fn(&mut cx, p, f.impl_item.is_some()))?
                     }
-                    FunctionAst::Item(ast, _) => hir::lowering::item_fn(&mut cx, ast)?,
-                    FunctionAst::Empty(ast, span) => {
-                        hir::lowering::empty_fn(&mut cx, ast, args, &span)?
-                    }
                 };
 
                 let count = hir.args.len();
 
-                let mut scopes = self::v1::Scopes::new(location.source_id)?;
-                let mut c = self.compiler1(location, span, &mut asm, &mut scopes)?;
-                assemble::fn_from_item_fn(&mut c, &hir, f.is_instance)?;
-                let size = c.scopes.size();
+                // Lowering is done, so the expressions it produced can be handed
+                // over to assembly.
+                let exprs = cx.take_exprs();
+
+                let size = self.assemble_fn(location, span, &mut asm, &exprs, &hir)?;
 
                 if !self.q.is_used(&item_meta) {
                     self.q
@@ -260,10 +301,6 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         .not_used(location.source_id, span, None)?;
                 } else {
                     let instance = match (type_hash, &f.ast) {
-                        (Some(type_hash), FunctionAst::Item(_, name)) => {
-                            let name = name.resolve(resolve_context!(self.q))?;
-                            Some((type_hash, name))
-                        }
                         (Some(type_hash), FunctionAst::Node(_, Some(name))) => {
                             let name = name.resolve(resolve_context!(self.q))?;
                             Some((type_hash, name))
@@ -299,10 +336,7 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                             let debug_args =
                                 format_hir_args(self.q.sources, location, true, c.hir.args.iter())?;
 
-                            let mut scopes = self::v1::Scopes::new(location.source_id)?;
-                            let mut cx = self.compiler1(location, c.hir, &mut asm, &mut scopes)?;
-                            assemble::expr_closure_secondary(&mut cx, c.hir)?;
-                            let size = cx.scopes.size();
+                            let size = self.assemble_closure(location, &mut asm, &exprs, c.hir)?;
 
                             if !self.q.is_used(&item_meta) {
                                 self.q.diagnostics.not_used(
@@ -337,10 +371,8 @@ impl<'arena> CompileBuildEntry<'_, 'arena> {
                         SecondaryBuild::AsyncBlock(b) => {
                             tracing::trace!("async block: {}", self.q.pool.item(item_meta.item));
 
-                            let mut scopes = self::v1::Scopes::new(location.source_id)?;
-                            let mut cx = self.compiler1(location, b.hir, &mut asm, &mut scopes)?;
-                            assemble::async_block_secondary(&mut cx, b.hir)?;
-                            let size = cx.scopes.size();
+                            let size =
+                                self.assemble_async_block(location, &mut asm, &exprs, b.hir)?;
 
                             if !self.q.is_used(&item_meta) {
                                 self.q.diagnostics.not_used(
@@ -465,9 +497,6 @@ where
 
     for arg in arguments {
         match arg {
-            hir::FnArg::SelfValue(..) => {
-                args.try_push(Box::try_from("self")?)?;
-            }
             hir::FnArg::Pat(pat) => {
                 let span = pat.span();
 

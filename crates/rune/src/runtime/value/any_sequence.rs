@@ -97,6 +97,24 @@ impl<H, T> AnySequence<H, T> {
         Ok(Self { shared })
     }
 
+    /// Test if this is the last reference to the sequence, which means that
+    /// dropping it drops the values it is made of.
+    ///
+    /// A sequence always owns the values it is made of, unlike an [`AnyObj`],
+    /// so how many references there are to it is all there is to ask.
+    ///
+    /// This is what permits them to be taken apart rather than dropped in
+    /// place, see [`Value`]'s destructor.
+    ///
+    /// [`AnyObj`]: crate::runtime::AnyObj
+    /// [`Value`]: crate::runtime::Value
+    #[inline]
+    pub(crate) fn is_last_owner(&self) -> bool {
+        // Safety: Since we have a reference to this shared, we know that the
+        // inner is available.
+        unsafe { self.shared.as_ref().count.get() == 1 }
+    }
+
     /// Test if the value is sharable.
     #[inline]
     pub(crate) fn is_readable(&self) -> bool {

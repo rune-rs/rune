@@ -71,6 +71,9 @@ pub(crate) struct FieldAttr {
     pub(crate) meta: Option<Span>,
     /// A single field marked with `#[rune(span)]`.
     pub(crate) span: Option<Span>,
+    /// `#[rune(dismantle)]`, marking a field which holds values the type has to
+    /// hand over rather than being dropped in place.
+    pub(crate) dismantle: Option<Span>,
     /// Custom parser `#[rune(parse_with)]`.
     pub(crate) parse_with: Option<syn::Path>,
     /// `#[rune(..)]` to generate a protocol function.
@@ -172,6 +175,9 @@ pub(crate) struct TypeAttr {
     pub(crate) fields: TypeFields,
     /// `#[rune(constructor)]`.
     pub(crate) constructor: TypeConstructor,
+    /// `#[rune(dismantle)]`, saying that the type implements `Dismantle`
+    /// itself rather than having the derive write it.
+    pub(crate) dismantle: Option<Span>,
     /// Parsed documentation.
     pub(crate) docs: Vec<syn::Expr>,
 }
@@ -503,6 +509,11 @@ impl Context {
                     return Ok(());
                 }
 
+                if meta.path.is_ident("dismantle") {
+                    attr.dismantle = Some(meta.path.span());
+                    return Ok(());
+                }
+
                 if meta.path.is_ident("copy") {
                     attr.clone_with = CloneWith::Copy;
                     return Ok(());
@@ -715,6 +726,11 @@ impl Context {
                     return Ok(());
                 }
 
+                if meta.path.is_ident("dismantle") {
+                    attr.dismantle = Some(meta.path.span());
+                    return Ok(());
+                }
+
                 if meta.path.is_ident("empty") {
                     attr.fields = TypeFields::Empty;
                     return Ok(());
@@ -909,6 +925,8 @@ impl Context {
             const_value: path(m, ["__priv", "ConstValue"]),
             context_error: path(m, ["compile", "ContextError"]),
             default: path(core, ["default", "Default"]),
+            dismantle_t: path(m, ["__priv", "Dismantle"]),
+            handover: path(m, ["__priv", "Handover"]),
             double_ended_iterator: path(core, ["iter", "DoubleEndedIterator"]),
             errors: path(m, ["__priv", "e"]),
             fmt: path(core, ["fmt"]),
@@ -1002,6 +1020,8 @@ pub(crate) struct Tokens {
     pub(crate) const_value: syn::Path,
     pub(crate) context_error: syn::Path,
     pub(crate) default: syn::Path,
+    pub(crate) dismantle_t: syn::Path,
+    pub(crate) handover: syn::Path,
     pub(crate) double_ended_iterator: syn::Path,
     pub(crate) errors: syn::Path,
     pub(crate) fmt: syn::Path,

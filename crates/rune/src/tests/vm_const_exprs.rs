@@ -262,3 +262,105 @@ fn test_const_block() {
 
     assert_eq!(result, "Hello World");
 }
+
+/// A constant function called from a loop inside another constant is assembled
+/// once and called repeatedly.
+#[test]
+fn test_const_fn_in_loop() {
+    let result: i64 = rune! {
+        const fn double(n) { n * 2 }
+
+        const VALUE = {
+            let n = 1;
+            let i = 0;
+
+            while i < 10 {
+                n = double(n);
+                i += 1;
+            }
+
+            n
+        };
+
+        VALUE
+    };
+
+    assert_eq!(result, 1024);
+}
+
+/// A constant function runs in a virtual machine, so it can construct and match
+/// user defined types while it computes its value, even though those types
+/// cannot be constant values themselves.
+#[test]
+fn test_const_fn_uses_user_types() {
+    let result: i64 = rune! {
+        enum Op { Add, Mul(a, b) }
+        struct Point { x, y }
+
+        const fn evaluate() {
+            let op = Op::Mul(6, 7);
+            let p = Point { x: 1, y: 2 };
+
+            let n = match op {
+                Op::Add => 0,
+                Op::Mul(a, b) => a * b,
+            };
+
+            n + p.x + p.y
+        }
+
+        const VALUE = evaluate();
+        VALUE
+    };
+
+    assert_eq!(result, 45);
+}
+
+/// A constant function is assembled once and called in a virtual machine, so it
+/// can call itself. The recursion costs virtual machine call frames rather than
+/// compiler stack frames.
+#[test]
+fn test_const_fn_recursion() {
+    let result: i64 = rune! {
+        const fn fib(n) {
+            if n < 2 {
+                n
+            } else {
+                fib(n - 1) + fib(n - 2)
+            }
+        }
+
+        const VALUE = fib(15);
+        VALUE
+    };
+
+    assert_eq!(result, 610);
+}
+
+/// Two constant functions which call each other are both assembled before
+/// either is called, so their mutual recursion resolves.
+#[test]
+fn test_const_fn_mutual_recursion() {
+    let result: bool = rune! {
+        const fn is_even(n) {
+            if n == 0 {
+                true
+            } else {
+                is_odd(n - 1)
+            }
+        }
+
+        const fn is_odd(n) {
+            if n == 0 {
+                false
+            } else {
+                is_even(n - 1)
+            }
+        }
+
+        const VALUE = is_even(10);
+        VALUE
+    };
+
+    assert_eq!(result, true);
+}

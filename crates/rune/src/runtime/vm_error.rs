@@ -538,6 +538,30 @@ pub(crate) enum VmErrorKind {
         actual: usize,
         expected: usize,
     },
+    /// A walk over a value descended more deeply than it is allowed to.
+    ///
+    /// Comparing, ordering, hashing and formatting a value all recurse into the
+    /// values it is made of, so a graph which nests too deeply is reported
+    /// rather than overflowing the stack.
+    MaxValueDepth {
+        max: usize,
+    },
+    /// A value was nested more deeply than a constant is allowed to be.
+    ///
+    /// A `ConstValue` is built, walked, cloned and dropped by recursing over
+    /// it, and the value it is built from is produced by evaluation, so how
+    /// deep it is has nothing to do with how deep the source was.
+    MaxConstDepth {
+        max: usize,
+    },
+    /// Executions were nested more deeply than they are allowed to be.
+    ///
+    /// A call which a native function performs is driven by a machine of its
+    /// own, which costs a native frame, so a script which nests them too deeply
+    /// is reported rather than overflowing the stack.
+    MaxExecutionDepth {
+        max: usize,
+    },
     BadEnvironmentCount {
         actual: usize,
         expected: usize,
@@ -775,6 +799,18 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::BadArgumentCount { actual, expected } => {
                 write!(f, "Wrong number of arguments {actual}, expected {expected}",)
             }
+            VmErrorKind::MaxValueDepth { max } => {
+                write!(f, "Value is nested too deeply to walk, limit is {max}")
+            }
+            VmErrorKind::MaxConstDepth { max } => {
+                write!(
+                    f,
+                    "Value is nested too deeply to be a constant, limit is {max}"
+                )
+            }
+            VmErrorKind::MaxExecutionDepth { max } => {
+                write!(f, "Executions are nested too deeply, limit is {max}")
+            }
             VmErrorKind::BadEnvironmentCount { actual, expected } => write!(
                 f,
                 "Wrong environment size `{actual}`, expected `{expected}`",
@@ -952,6 +988,7 @@ where
         match value.into_kind() {
             StoreErrorKind::Stack(error) => VmErrorKind::StackError { error },
             StoreErrorKind::Error(error) => VmErrorKind::from(error),
+            StoreErrorKind::Alloc(error) => VmErrorKind::AllocError { error },
         }
     }
 }

@@ -4,7 +4,8 @@ use core::iter;
 use crate as rune;
 use crate::alloc::clone::TryClone;
 use crate::runtime::{
-    GeneratorState, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo, VmOutcome,
+    Dismantle, GeneratorState, Handover, Value, Vm, VmError, VmErrorKind, VmExecution, VmHaltInfo,
+    VmOutcome,
 };
 use crate::Any;
 
@@ -27,7 +28,7 @@ use crate::Any;
 /// assert!(g is Generator);
 /// ```
 #[derive(Any)]
-#[rune(crate, item = ::std::ops::generator)]
+#[rune(crate, item = ::std::ops::generator, dismantle)]
 pub struct Generator {
     execution: Option<VmExecution<Vm>>,
 }
@@ -89,6 +90,18 @@ impl Generator {
     }
 }
 
+/// A suspended generator holds every value its machine was working over, so a
+/// generator which captured another one nests just like a container does.
+impl Dismantle for Generator {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        let Some(execution) = self.execution.as_mut() else {
+            return;
+        };
+
+        out.consume(execution.vm_mut().stack_mut());
+    }
+}
+
 impl IntoIterator for Generator {
     type Item = Result<Value, VmError>;
     type IntoIter = Iter;
@@ -99,9 +112,12 @@ impl IntoIterator for Generator {
     }
 }
 
+/// An iterator holds the generator it drives, and a script can nest one inside
+/// another, so it hands the generator over rather than being dropped in place.
 #[derive(Any)]
 #[rune(item = ::std::ops::generator)]
 pub struct Iter {
+    #[rune(dismantle)]
     generator: Generator,
 }
 

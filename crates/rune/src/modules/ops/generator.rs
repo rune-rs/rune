@@ -66,7 +66,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert_eq!(g.next(), Some(1));
 /// assert_eq!(g.next(), Some(2));
 /// assert_eq!(g.next(), None);
-/// ``
+/// ```
 #[rune::function(keep, instance, path = next)]
 fn generator_next(this: &mut Generator) -> Result<Option<Value>, VmError> {
     this.next()
@@ -113,7 +113,7 @@ fn generator_next(this: &mut Generator) -> Result<Option<Value>, VmError> {
 /// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
 /// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
 /// assert_eq!(g.resume(()), GeneratorState::Complete(()));
-/// ``
+/// ```
 #[rune::function(keep, instance, path = resume)]
 fn generator_resume(this: &mut Generator, value: Value) -> Result<GeneratorState, VmError> {
     this.resume(value)
@@ -179,7 +179,7 @@ fn generator_into_iter(this: Generator) -> Iter {
 /// let a = generate();
 ///
 /// println!("{a:?}");
-/// ``
+/// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 fn generator_debug(this: &Generator, f: &mut Formatter) -> alloc::Result<()> {
     write!(f, "{this:?}")
@@ -209,7 +209,7 @@ fn generator_debug(this: &Generator, f: &mut Formatter) -> alloc::Result<()> {
 ///
 /// assert_eq!(a.resume(()), GeneratorState::Complete(()));
 /// assert_eq!(b.resume(()), GeneratorState::Complete(()));
-/// ``
+/// ```
 #[rune::function(keep, instance, protocol = CLONE)]
 fn generator_clone(this: &Generator) -> alloc::Result<Generator> {
     this.try_clone()
@@ -232,7 +232,7 @@ fn generator_clone(this: &Generator) -> alloc::Result<Generator> {
 /// assert_eq!(g.resume(()), GeneratorState::Yielded(1));
 /// assert_eq!(g.resume(1), GeneratorState::Yielded(3));
 /// assert_eq!(g.resume(()), GeneratorState::Complete(()));
-/// ``
+/// ```
 #[rune::function(keep, instance, protocol = PARTIAL_EQ)]
 fn generator_state_partial_eq(
     this: &GeneratorState,
@@ -259,7 +259,7 @@ fn generator_state_partial_eq(
 /// assert!(eq(g.resume(()), GeneratorState::Yielded(1)));
 /// assert!(eq(g.resume(1), GeneratorState::Yielded(3)));
 /// assert!(eq(g.resume(()), GeneratorState::Complete(())));
-/// ``
+/// ```
 #[rune::function(keep, instance, protocol = EQ)]
 fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> Result<bool, VmError> {
     this.eq_with(other, &mut EnvProtocolCaller)
@@ -277,7 +277,7 @@ fn generator_state_eq(this: &GeneratorState, other: &GeneratorState) -> Result<b
 ///
 /// println!("{a:?}");
 /// println!("{b:?}");
-/// ``
+/// ```
 #[rune::function(keep, instance, protocol = DEBUG_FMT)]
 fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> Result<(), VmError> {
     match this {
@@ -307,7 +307,7 @@ fn generator_state_debug(this: &GeneratorState, f: &mut Formatter) -> Result<(),
 /// let b = a.clone();
 ///
 /// assert_eq!(a, b);
-/// ``
+/// ```
 #[rune::function(keep, instance, protocol = CLONE)]
 fn generator_state_clone(this: &GeneratorState) -> alloc::Result<GeneratorState> {
     this.try_clone()

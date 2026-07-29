@@ -33,7 +33,7 @@ fn deny_nested_use() {
         "#,
         span, NestedTest { nested_span } => {
             assert_eq!(span, span!(37, 44));
-            assert_eq!(nested_span, span!(9, 22));
+            assert_eq!(nested_span, span!(9, 134));
         }
     }
 
@@ -46,7 +46,10 @@ fn deny_nested_use() {
             }
         };
         "#,
-        span!(36, 43), NestedTest { nested_span: span!(9, 19) }
+        span, NestedTest { nested_span } => {
+            assert_eq!(span, span!(36, 43));
+            assert_eq!(nested_span, span!(22, 133));
+        }
     }
 }
 
@@ -62,7 +65,10 @@ fn deny_nested_bench() {
             }
         }
         "#,
-        span!(37, 71), NestedBench { nested_span: span!(9, 22) }
+        span, NestedBench { nested_span } => {
+            assert_eq!(span, span!(37, 45));
+            assert_eq!(nested_span, span!(9, 136));
+        }
     }
 
     assert_errors! {
@@ -74,7 +80,10 @@ fn deny_nested_bench() {
             }
         };
         "#,
-        span!(36, 70), NestedBench { nested_span: span!(9, 19) }
+        span, NestedBench { nested_span } => {
+            assert_eq!(span, span!(36, 44));
+            assert_eq!(nested_span, span!(22, 135));
+        }
     }
 }
 
@@ -83,7 +92,7 @@ fn deny_struct_attributes() {
     assert_errors! {
         "#[struct_attribute] struct Struct {}",
         span!(0, 19), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on structs are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `struct_attribute`");
         }
     }
 }
@@ -93,7 +102,7 @@ fn deny_enum_attributes() {
     assert_errors! {
         "#[enum_attribute] enum Enum {}",
         span!(0, 17), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on enums are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `enum_attribute`");
         }
     }
 }
@@ -103,7 +112,7 @@ fn deny_fn_attributes() {
     assert_errors! {
         "#[function_attribute] fn function() {}",
         span!(0, 21), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on functions are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `function_attribute`");
         }
     }
 }
@@ -113,7 +122,7 @@ fn deny_const_attributes() {
     assert_errors! {
         "#[constant_attribute] const CONSTANT = 42;",
         span!(0, 21), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on constants are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `constant_attribute`");
         }
     }
 }
@@ -123,7 +132,7 @@ fn deny_use_attributes() {
     assert_errors! {
         "#[use_attribute] use std::str;",
         span!(0, 16), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on uses are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `use_attribute`");
         }
     }
 }
@@ -133,7 +142,7 @@ fn deny_mod_attributes() {
     assert_errors! {
         "#[mod_attribute] mod inner {}",
         span!(0, 16), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on modules are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `mod_attribute`");
         }
     }
 }
@@ -153,7 +162,7 @@ fn deny_block_attributes() {
     assert_errors! {
         "#[block_attribute] {}",
         span!(0, 18), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on blocks are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `block_attribute`");
         }
     };
 }
@@ -163,14 +172,14 @@ fn deny_macro_attributes() {
     assert_errors! {
         "#[macro_attribute] macro_call!()",
         span!(0, 18), Custom { error } => {
-            assert_eq!(error.to_string(), "Unsupported macro attribute");
+            assert_eq!(error.to_string(), "unsupported attribute `macro_attribute`");
         }
     };
 
     assert_errors! {
         "fn inner() { #[macro_attribute] macro_call!() }",
         span!(13, 31), Custom { error } => {
-            assert_eq!(error.to_string(), "Unsupported macro attribute");
+            assert_eq!(error.to_string(), "unsupported attribute `macro_attribute`");
         }
     };
 }
@@ -180,7 +189,7 @@ fn deny_field_attributes() {
     assert_errors! {
         "struct Struct { #[field_attribute] field }",
         span!(16, 34), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on fields are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `field_attribute`");
         }
     };
 }
@@ -190,7 +199,7 @@ fn deny_variant_attributes() {
     assert_errors! {
         "enum Enum { #[field_attribute] Variant }",
         span!(12, 30), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on variants are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `field_attribute`");
         }
     };
 }
@@ -200,7 +209,7 @@ fn deny_variant_field_attributes() {
     assert_errors! {
         "enum Enum { Variant { #[field_attribute] field } }",
         span!(22, 40), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on variant fields are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `field_attribute`");
         }
     };
 }
@@ -210,7 +219,7 @@ fn deny_expr_attributes() {
     assert_errors! {
         "#[expr_attribute] 42",
         span!(0, 17), Custom { error } => {
-            assert_eq!(error.to_string(), "Attributes on expressions are not supported");
+            assert_eq!(error.to_string(), "unsupported attribute `expr_attribute`");
         }
     };
 }

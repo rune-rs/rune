@@ -377,6 +377,43 @@ fn expand_format_spec<'a>(
         End,
     }
 
+    /// The largest width or precision a value can be written with.
+    ///
+    /// A precision is handed to the formatter the platform provides, which
+    /// takes one that fits in a `u16` and panics on anything larger. A width is
+    /// written out here instead, but it is held to the same bound so that a
+    /// specification is not accepted under one and rejected under the other.
+    const MAX_FORMAT_ARGUMENT: usize = u16::MAX as usize;
+
+    /// Bound a width or a precision which was given as a number.
+    fn bound_format_argument(span: Span, what: &str, n: usize) -> compile::Result<usize> {
+        if n > MAX_FORMAT_ARGUMENT {
+            return Err(compile::Error::msg(
+                span,
+                format!("{what} {n} is larger than the maximum of {MAX_FORMAT_ARGUMENT}"),
+            ));
+        }
+
+        Ok(n)
+    }
+
+    /// Parse the digits a width or a precision was written as.
+    ///
+    /// A number too large to use was dropped rather than reported, so a
+    /// specification carrying one was honoured as if it had not been written.
+    fn parse_format_argument(span: Span, what: &str, digits: &str) -> compile::Result<usize> {
+        // Digits which do not parse are ones too large to hold, which is past
+        // the bound either way.
+        let Ok(n) = str::parse::<usize>(digits) else {
+            return Err(compile::Error::msg(
+                span,
+                format!("{what} {digits} is larger than the maximum of {MAX_FORMAT_ARGUMENT}"),
+            ));
+        };
+
+        bound_format_argument(span, what, n)
+    }
+
     /// Parse a single expansion group.
     fn parse_group<'a>(
         cx: &mut MacroContext<'_, '_, '_>,
@@ -571,9 +608,9 @@ fn expand_format_spec<'a>(
             let precision = value.as_usize().with_span(span)?;
 
             *count += 1;
-            Some(precision)
+            Some(bound_format_argument(span, "precision", precision)?)
         } else if !precision.is_empty() {
-            str::parse::<usize>(precision).ok()
+            Some(parse_format_argument(span, "precision", precision)?)
         } else {
             None
         };
@@ -618,7 +655,7 @@ fn expand_format_spec<'a>(
         };
 
         let width = if !width.is_empty() {
-            str::parse::<usize>(width).ok()
+            Some(parse_format_argument(span, "width", width)?)
         } else {
             None
         };

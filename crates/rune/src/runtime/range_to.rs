@@ -46,7 +46,7 @@ use super::{EnvProtocolCaller, FromValue, ProtocolCaller, RuntimeError, ToValue,
 #[rune(constructor, item = ::std::ops)]
 pub struct RangeTo {
     /// The end value of the range.
-    #[rune(get, set)]
+    #[rune(get, set, dismantle)]
     pub end: Value,
 }
 

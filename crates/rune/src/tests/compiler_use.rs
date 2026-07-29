@@ -14,7 +14,7 @@ fn test_import_cycle() {
 
         use self::a::Foo;
         "#,
-        span!(49, 69), ImportCycle { .. }
+        span!(41, 69), ImportCycle { .. }
     };
 
     assert_errors! {
@@ -33,8 +33,8 @@ fn test_import_cycle() {
         "#,
         span!(161, 167), ImportCycle { path, .. } => {
             assert_eq!(3, path.len());
-            assert_eq!(span!(99, 112), path[0].location.span);
-            assert_eq!(span!(37, 50), path[1].location.span);
+            assert_eq!(span!(91, 112), path[0].location.span);
+            assert_eq!(span!(29, 50), path[1].location.span);
         }
     };
 }

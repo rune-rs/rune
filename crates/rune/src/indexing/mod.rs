@@ -1,4 +1,3 @@
-pub(crate) mod index;
 pub(crate) mod index2;
 mod indexer;
 pub(crate) mod items;
@@ -12,7 +11,7 @@ use crate::compile::{ItemId, ItemMeta};
 use crate::grammar::NodeAt;
 use crate::runtime::Call;
 
-use self::indexer::{ast_to_visibility, validate_call};
+use self::indexer::validate_call;
 pub(crate) use self::indexer::{IndexItem, Indexer};
 use self::items::Guard;
 pub(crate) use self::items::Items;
@@ -69,10 +68,6 @@ pub(crate) enum FunctionAst {
     Bare(#[rune(span)] NodeAt),
     /// The node being processed.
     Node(#[rune(span)] NodeAt, Option<ast::Ident>),
-    /// An empty function body.
-    Empty(Box<ast::EmptyBlock>, #[rune(span)] Span),
-    /// A regular item function body.
-    Item(#[rune(span)] Box<ast::ItemFn>, ast::Ident),
 }
 
 #[derive(Debug, TryClone)]
@@ -120,8 +115,6 @@ pub(crate) struct Variant {
 
 #[derive(Debug, TryClone)]
 pub(crate) enum ConstExpr {
-    /// An ast-based constant expression.
-    Ast(Box<ast::Expr>),
     /// A node constant expression.
     Node(NodeAt),
 }
@@ -135,8 +128,6 @@ pub(crate) struct StaticItem {
 
 #[derive(Debug, TryClone)]
 pub(crate) enum ConstBlock {
-    /// An ast block.
-    Ast(Box<ast::Block>),
     /// A node block.
     Node(NodeAt),
 }
@@ -145,6 +136,4 @@ pub(crate) enum ConstBlock {
 pub(crate) enum ConstFn {
     /// The node of a constant function.
     Node(NodeAt),
-    /// The const fn ast.
-    Ast(Box<ast::ItemFn>),
 }

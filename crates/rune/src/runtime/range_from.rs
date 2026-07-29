@@ -58,7 +58,7 @@ use super::{
 #[rune(crate, constructor, item = ::std::ops)]
 pub struct RangeFrom {
     /// The start value of the range.
-    #[rune(get, set)]
+    #[rune(get, set, dismantle)]
     pub start: Value,
 }
 

@@ -8,6 +8,7 @@ use crate::alloc::prelude::*;
 use crate::runtime::slice::Iter;
 use crate::runtime::{
     EnvProtocolCaller, Formatter, Function, Hasher, Ref, TypeOf, Value, Vec, VmError, VmErrorKind,
+    Worklist,
 };
 use crate::{docstring, ContextError, Module};
 
@@ -344,7 +345,9 @@ fn sort(vec: &mut Vec) -> Result<(), VmError> {
 /// ```
 #[rune::function(instance)]
 fn clear(vec: &mut Vec) {
-    vec.clear();
+    // A native function has no worklist of its own to take the values apart
+    // over, so it gets one which is empty.
+    vec.dismantle(&mut Worklist::new());
 }
 
 /// Extend these bytes with another collection.

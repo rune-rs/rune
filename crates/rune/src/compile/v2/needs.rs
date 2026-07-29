@@ -419,6 +419,20 @@ impl<'a, 'hir> Any<'a, 'hir> {
         }
     }
 
+    /// Wrap an address which has already been allocated.
+    ///
+    /// Unlike [`Any::defer`] this never aliases the address of whatever is
+    /// assembled into it, so the slot can be written to more than once without
+    /// clobbering an unrelated variable.
+    #[track_caller]
+    pub(super) fn allocated(address: Address<'a, 'hir>) -> Self {
+        Self {
+            span: address.span,
+            kind: AnyKind::Address { address },
+            backtrace: Backtrace::capture(),
+        }
+    }
+
     /// An assigned address.
     #[track_caller]
     pub(super) fn assigned(

@@ -46,6 +46,7 @@ impl fmt::Display for AlignmentFromStrError {
 #[rune(item = ::std::fmt)]
 pub struct Format {
     /// The value being formatted.
+    #[rune(dismantle)]
     pub(crate) value: Value,
     /// The specification.
     #[try_clone(copy)]
@@ -67,10 +68,26 @@ pub struct FormatSpec {
     pub(crate) align: Alignment,
     /// Formatting width.
     pub(crate) width: Option<NonZeroUsize>,
-    /// Formatting precision.
-    pub(crate) precision: Option<NonZeroUsize>,
+    /// Formatting precision, which may be zero.
+    pub(crate) precision: Option<usize>,
     /// The type specification.
     pub(crate) format_type: Type,
+}
+
+/// How a value is padded out to the width it was written with.
+#[derive(Clone, Copy)]
+struct Padding {
+    align: Alignment,
+    fill: char,
+    /// The sign written in front of the digits, which is written apart from
+    /// them so that zero padding can go between the two.
+    sign: Option<char>,
+    /// Whether the padding is what the value is written in rather than what it
+    /// is surrounded by, which is what zero padding is.
+    ///
+    /// It is only ever asked for by a number: the flag which asks for it is
+    /// ignored for everything else, which pads the way it was told to.
+    zero: bool,
 }
 
 impl FormatSpec {
@@ -80,7 +97,7 @@ impl FormatSpec {
         fill: char,
         align: Alignment,
         width: Option<NonZeroUsize>,
-        precision: Option<NonZeroUsize>,
+        precision: Option<usize>,
         format_type: Type,
     ) -> Self {
         Self {
@@ -93,47 +110,137 @@ impl FormatSpec {
         }
     }
 
+    /// The padding a value which is not a number is written with.
+    fn padding(&self) -> Padding {
+        Padding {
+            align: self.align,
+            fill: self.fill,
+            sign: None,
+            zero: false,
+        }
+    }
+
+    /// The padding a number which is being zero padded is written with.
+    fn zero_padding(&self, sign: Option<char>) -> Padding {
+        Padding {
+            align: Alignment::Right,
+            fill: '0',
+            sign,
+            zero: true,
+        }
+    }
+
     /// get traits out of a floating point number.
-    fn float_traits(&self, n: f64) -> (f64, Alignment, char, Option<char>) {
+    fn float_traits(&self, n: f64) -> (f64, Padding) {
         if self.flags.test(Flag::SignAwareZeroPad) {
             if n.is_sign_negative() {
-                (-n, Alignment::Right, '0', Some('-'))
+                (-n, self.zero_padding(Some('-')))
             } else {
-                (n, Alignment::Right, '0', None)
+                (n, self.zero_padding(self.zero_pad_sign()))
             }
         } else if self.flags.test(Flag::SignPlus) && n.is_sign_positive() {
-            (n, self.align, self.fill, Some('+'))
+            (
+                n,
+                Padding {
+                    sign: Some('+'),
+                    ..self.padding()
+                },
+            )
         } else {
-            (n, self.align, self.fill, None)
+            (n, self.padding())
+        }
+    }
+
+    /// The sign to write in front of a number which is being zero padded.
+    ///
+    /// The padding goes between the sign and the digits, so the sign is written
+    /// separately, and one which was asked for with `+` has to be written here
+    /// as well as the one a negative number carries.
+    fn zero_pad_sign(&self) -> Option<char> {
+        if self.flags.test(Flag::SignPlus) {
+            return Some('+');
+        }
+
+        None
+    }
+
+    /// get traits out of an unsigned integer.
+    fn uint_traits(&self, n: u64) -> (u64, Padding) {
+        if self.flags.test(Flag::SignAwareZeroPad) {
+            (n, self.zero_padding(self.zero_pad_sign()))
+        } else if self.flags.test(Flag::SignPlus) {
+            (
+                n,
+                Padding {
+                    sign: Some('+'),
+                    ..self.padding()
+                },
+            )
+        } else {
+            (n, self.padding())
         }
     }
 
     /// get traits out of an integer.
-    fn int_traits(&self, n: i64) -> (i64, Alignment, char, Option<char>) {
+    ///
+    /// The sign is written separately from the digits, so the magnitude is
+    /// returned rather than the number itself. It is taken as an unsigned
+    /// number because the magnitude of the smallest signed number is not one.
+    fn int_traits(&self, n: i64) -> (u64, Padding) {
+        let magnitude = n.unsigned_abs();
+
         if self.flags.test(Flag::SignAwareZeroPad) {
             if n < 0 {
-                (-n, Alignment::Right, '0', Some('-'))
+                (magnitude, self.zero_padding(Some('-')))
             } else {
-                (n, Alignment::Right, '0', None)
+                (magnitude, self.zero_padding(self.zero_pad_sign()))
             }
-        } else if self.flags.test(Flag::SignPlus) && n >= 0 {
-            (n, self.align, self.fill, Some('+'))
+        } else if n < 0 {
+            (
+                magnitude,
+                Padding {
+                    sign: Some('-'),
+                    ..self.padding()
+                },
+            )
+        } else if self.flags.test(Flag::SignPlus) {
+            (
+                magnitude,
+                Padding {
+                    sign: Some('+'),
+                    ..self.padding()
+                },
+            )
         } else {
-            (n, self.align, self.fill, None)
+            (magnitude, self.padding())
         }
     }
 
-    /// Format the given number.
-    fn format_number(&self, buf: &mut String, n: i64) -> alloc::Result<()> {
+    /// Format the given unsigned number.
+    fn format_unsigned(&self, buf: &mut String, n: u64) -> alloc::Result<()> {
         let mut buffer = itoa::Buffer::new();
         buf.try_push_str(buffer.format(n))?;
+        Ok(())
+    }
+
+    /// Write a string, which the precision cuts short.
+    fn format_str(&self, buf: &mut String, s: &str) -> alloc::Result<()> {
+        let Some(precision) = self.precision else {
+            buf.try_push_str(s)?;
+            return Ok(());
+        };
+
+        for c in s.chars().take(precision) {
+            buf.try_push(c)?;
+        }
+
         Ok(())
     }
 
     /// Format the given float.
     fn format_float(&self, buf: &mut String, n: f64) -> alloc::Result<()> {
         if let Some(precision) = self.precision {
-            write!(buf, "{:.*}", precision.get(), n)?;
+            write!(buf, "{:.*}", precision, n)?;
         } else {
             let mut buffer = ryu::Buffer::new();
             buf.try_push_str(buffer.format(n))?;
@@ -143,31 +250,60 @@ impl FormatSpec {
     }
 
     /// Format fill.
-    fn format_fill(
+    fn format_fill(&self, f: &mut Formatter, padding: Padding) -> alloc::Result<()> {
+        self.format_fill_with(f, padding, "")
+    }
+
+    /// Format fill, writing `prefix` between the sign and the digits.
+    ///
+    /// A sign and a radix prefix belong to the digits rather than to the
+    /// padding, so they are written next to them and count towards the width
+    /// the same way. Zero padding is the exception: it is what a number is
+    /// written in rather than what it is surrounded by, so it goes between the
+    /// sign and the digits.
+    fn format_fill_with(
         &self,
         f: &mut Formatter,
-        align: Alignment,
-        fill: char,
-        sign: Option<char>,
+        padding: Padding,
+        prefix: &str,
     ) -> alloc::Result<()> {
-        let (f, buf) = f.parts_mut();
+        let Padding {
+            align,
+            fill,
+            sign,
+            zero,
+        } = padding;
 
-        if let Some(sign) = sign {
-            f.try_write_char(sign)?;
-        }
+        let (f, buf) = f.parts_mut();
 
         let mut w = self.width.map(|n| n.get()).unwrap_or_default();
 
+        w = w
+            .saturating_sub(buf.chars().count())
+            .saturating_sub(prefix.chars().count())
+            .saturating_sub(sign.map(|_| 1).unwrap_or_default());
+
+        let head = |f: &mut dyn TryWrite| {
+            if let Some(sign) = sign {
+                f.try_write_char(sign)?;
+            }
+
+            f.try_write_str(prefix)
+        };
+
         if w == 0 {
+            head(f)?;
             f.try_write_str(buf)?;
             return Ok(());
         }
 
-        w = w
-            .saturating_sub(buf.chars().count())
-            .saturating_sub(sign.map(|_| 1).unwrap_or_default());
+        if zero {
+            head(f)?;
 
-        if w == 0 {
+            for c in iter::repeat_n(fill, w) {
+                f.try_write_char(c)?;
+            }
+
             f.try_write_str(buf)?;
             return Ok(());
         }
@@ -176,6 +312,7 @@ impl FormatSpec {
 
         match align {
             Alignment::Left => {
+                head(f)?;
                 f.try_write_str(buf)?;
 
                 for c in filler {
@@ -187,6 +324,7 @@ impl FormatSpec {
                     f.try_write_char(c)?;
                 }
 
+                head(f)?;
                 f.try_write_str(buf)?;
 
                 for c in filler {
@@ -198,6 +336,7 @@ impl FormatSpec {
                     f.try_write_char(c)?;
                 }
 
+                head(f)?;
                 f.try_write_str(buf)?;
             }
         }
@@ -216,17 +355,27 @@ impl FormatSpec {
                 Repr::Inline(value) => match value {
                     Inline::Char(c) => {
                         f.buf_mut().try_push(*c)?;
-                        self.format_fill(f, self.align, self.fill, None)?;
+                        self.format_fill(f, self.padding())?;
                     }
                     Inline::Signed(n) => {
-                        let (n, align, fill, sign) = self.int_traits(*n);
-                        self.format_number(f.buf_mut(), n)?;
-                        self.format_fill(f, align, fill, sign)?;
+                        let (n, padding) = self.int_traits(*n);
+                        self.format_unsigned(f.buf_mut(), n)?;
+                        self.format_fill(f, padding)?;
+                    }
+                    Inline::Unsigned(n) => {
+                        let (n, padding) = self.uint_traits(*n);
+                        self.format_unsigned(f.buf_mut(), n)?;
+                        self.format_fill(f, padding)?;
+                    }
+                    Inline::Bool(b) => {
+                        f.buf_mut()
+                            .try_push_str(if *b { "true" } else { "false" })?;
+                        self.format_fill(f, self.padding())?;
                     }
                     Inline::Float(n) => {
-                        let (n, align, fill, sign) = self.float_traits(*n);
+                        let (n, padding) = self.float_traits(*n);
                         self.format_float(f.buf_mut(), n)?;
-                        self.format_fill(f, align, fill, sign)?;
+                        self.format_fill(f, padding)?;
                     }
                     _ => {
                         break 'fallback;
@@ -238,8 +387,8 @@ impl FormatSpec {
                 Repr::Any(value) => match value.type_hash() {
                     String::HASH => {
                         let s = value.borrow_ref::<String>()?;
-                        f.buf_mut().try_push_str(&s)?;
-                        self.format_fill(f, self.align, self.fill, None)?;
+                        self.format_str(f.buf_mut(), &s)?;
+                        self.format_fill(f, self.padding())?;
                     }
                     _ => {
                         break 'fallback;
@@ -263,14 +412,24 @@ impl FormatSpec {
             match value.as_ref() {
                 Repr::Inline(value) => match value {
                     Inline::Signed(n) => {
-                        let (n, align, fill, sign) = self.int_traits(*n);
-                        self.format_number(f.buf_mut(), n)?;
-                        self.format_fill(f, align, fill, sign)?;
+                        let (n, padding) = self.int_traits(*n);
+                        self.format_unsigned(f.buf_mut(), n)?;
+                        self.format_fill(f, padding)?;
+                    }
+                    Inline::Unsigned(n) => {
+                        let (n, padding) = self.uint_traits(*n);
+                        self.format_unsigned(f.buf_mut(), n)?;
+                        self.format_fill(f, padding)?;
+                    }
+                    Inline::Bool(b) => {
+                        f.buf_mut()
+                            .try_push_str(if *b { "true" } else { "false" })?;
+                        self.format_fill(f, self.padding())?;
                     }
                     Inline::Float(n) => {
-                        let (n, align, fill, sign) = self.float_traits(*n);
+                        let (n, padding) = self.float_traits(*n);
                         self.format_float(f.buf_mut(), n)?;
-                        self.format_fill(f, align, fill, sign)?;
+                        self.format_fill(f, padding)?;
                     }
                     _ => {
                         break 'fallback;
@@ -296,12 +455,27 @@ impl FormatSpec {
         value.debug_fmt_with(f, caller)
     }
 
+    /// The prefix a number written in a radix carries when one was asked for
+    /// with `#`.
+    fn radix_prefix(&self, prefix: &'static str) -> &'static str {
+        if self.flags.test(Flag::Alternate) {
+            prefix
+        } else {
+            ""
+        }
+    }
+
     fn format_upper_hex(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+                let (n, padding) = self.uint_traits(*n as u64);
                 write!(f.buf_mut(), "{n:X}")?;
-                self.format_fill(f, align, fill, sign)?;
+                self.format_fill_with(f, padding, self.radix_prefix("0x"))?;
+            }
+            Some(Inline::Unsigned(n)) => {
+                let (n, padding) = self.uint_traits(*n);
+                write!(f.buf_mut(), "{n:X}")?;
+                self.format_fill_with(f, padding, self.radix_prefix("0x"))?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -314,9 +488,14 @@ impl FormatSpec {
     fn format_lower_hex(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+                let (n, padding) = self.uint_traits(*n as u64);
                 write!(f.buf_mut(), "{n:x}")?;
-                self.format_fill(f, align, fill, sign)?;
+                self.format_fill_with(f, padding, self.radix_prefix("0x"))?;
+            }
+            Some(Inline::Unsigned(n)) => {
+                let (n, padding) = self.uint_traits(*n);
+                write!(f.buf_mut(), "{n:x}")?;
+                self.format_fill_with(f, padding, self.radix_prefix("0x"))?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -329,9 +508,14 @@ impl FormatSpec {
     fn format_binary(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+                let (n, padding) = self.uint_traits(*n as u64);
                 write!(f.buf_mut(), "{n:b}")?;
-                self.format_fill(f, align, fill, sign)?;
+                self.format_fill_with(f, padding, self.radix_prefix("0b"))?;
+            }
+            Some(Inline::Unsigned(n)) => {
+                let (n, padding) = self.uint_traits(*n);
+                write!(f.buf_mut(), "{n:b}")?;
+                self.format_fill_with(f, padding, self.radix_prefix("0b"))?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));
@@ -344,9 +528,9 @@ impl FormatSpec {
     fn format_pointer(&self, value: &Value, f: &mut Formatter) -> Result<(), VmError> {
         match value.as_inline() {
             Some(Inline::Signed(n)) => {
-                let (n, align, fill, sign) = self.int_traits(*n);
+                let (n, padding) = self.uint_traits(*n as u64);
                 write!(f.buf_mut(), "{:p}", n as *const ())?;
-                self.format_fill(f, align, fill, sign)?;
+                self.format_fill(f, padding)?;
             }
             _ => {
                 return Err(VmError::new(VmErrorKind::IllegalFormat));

@@ -11,7 +11,8 @@ use crate::alloc::hash_map;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::runtime::{
-    FieldMap, FromValue, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value, VmError,
+    Dismantle, FieldMap, FromValue, Handover, ProtocolCaller, RawAnyGuard, Ref, ToValue, Value,
+    VmError, Worklist,
 };
 use crate::Any;
 
@@ -81,9 +82,22 @@ pub type Values<'a> = hash_map::Values<'a, String, Value>;
 /// ```
 #[derive(Any, Default)]
 #[repr(transparent)]
-#[rune(item = ::std::object)]
+#[rune(item = ::std::object, dismantle)]
 pub struct Object {
     inner: FieldMap<String, Value>,
+}
+
+/// An object is made of the values put into it, and a script can nest one
+/// inside another without any bound, so it hands over what it is made of rather
+/// than being dropped in place.
+impl Dismantle for Object {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        // The map is emptied rather than walked in place, so that what it holds
+        // is handed over in one pass over it.
+        for (_, value) in core::mem::take(&mut self.inner) {
+            out.push(value);
+        }
+    }
 }
 
 impl Object {
@@ -213,7 +227,14 @@ impl Object {
     where
         T: ToValue,
     {
-        self.inner.try_insert(k, v.to_value()?)?;
+        // Any value which was already there is taken apart rather than dropped
+        // in place. A native function has no worklist of its own to do that
+        // over, so it gets one which is empty - which costs nothing until it is
+        // handed a value made of other values.
+        if let Some(old) = self.inner.try_insert(k, v.to_value()?)? {
+            Worklist::new().dismantle(old);
+        }
+
         Ok(())
     }
 
@@ -238,12 +259,29 @@ impl Object {
         self.inner.try_insert(k, v)
     }
 
+    /// Take every value in the object apart rather than dropping them where
+    /// they are - see [`Worklist::dismantle`].
+    pub(crate) fn dismantle(&mut self, work: &mut Worklist) {
+        work.dismantle_all(self.inner.iter_mut().map(|(_, value)| value));
+        self.inner.clear();
+    }
+
     /// Clears the object, removing all key-value pairs. Keeps the allocated
     /// memory for reuse.
     #[inline]
-    #[rune::function(keep)]
     pub fn clear(&mut self) {
         self.inner.clear();
+    }
+
+    /// Clears the object, removing all key-value pairs. Keeps the allocated
+    /// memory for reuse.
+    ///
+    /// The values are taken apart rather than dropped where they are - see
+    /// [`Object::dismantle`].
+    #[inline]
+    #[rune::function(keep, path = Self::clear)]
+    pub(crate) fn rune_clear(&mut self) {
+        self.dismantle(&mut Worklist::new());
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.
@@ -436,11 +474,18 @@ impl fmt::Debug for Object {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::object, name = Iter)]
+#[rune(item = ::std::object, name = Iter, dismantle)]
 pub struct RuneIter {
     iter: RawIter<(String, Value)>,
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The object is kept alive through a guard rather than through a slot, so
+/// taking the iterator apart releases the guard and hands the object over.
+impl Dismantle for RuneIter {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl RuneIter {
@@ -482,11 +527,18 @@ impl iter::Iterator for RuneIter {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::object, name = Keys)]
+#[rune(item = ::std::object, name = Keys, dismantle)]
 pub struct RuneIterKeys {
     iter: RawIter<(String, Value)>,
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The object is kept alive through a guard rather than through a slot, so
+/// taking the iterator apart releases the guard and hands the object over.
+impl Dismantle for RuneIterKeys {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl RuneIterKeys {
@@ -528,11 +580,18 @@ impl iter::Iterator for RuneIterKeys {
 }
 
 #[derive(Any)]
-#[rune(item = ::std::object, name = Values)]
+#[rune(item = ::std::object, name = Values, dismantle)]
 pub struct RuneValues {
     iter: RawIter<(String, Value)>,
-    #[allow(unused)]
     guard: RawAnyGuard,
+}
+
+/// The object is kept alive through a guard rather than through a slot, so
+/// taking the iterator apart releases the guard and hands the object over.
+impl Dismantle for RuneValues {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        out.consume_ref(&mut self.guard);
+    }
 }
 
 impl RuneValues {

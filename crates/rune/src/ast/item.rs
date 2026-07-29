@@ -2,8 +2,6 @@ use core::mem::take;
 
 use crate::ast::prelude::*;
 
-use super::Attribute;
-
 /// A declaration.
 #[derive(Debug, TryClone, PartialEq, Eq, ToTokens, Spanned)]
 #[non_exhaustive]
@@ -30,35 +28,6 @@ pub enum Item {
 }
 
 impl Item {
-    /// Get the item's attributes
-    pub(crate) fn attributes(&self) -> &[ast::Attribute] {
-        match self {
-            Self::Use(item) => &item.attributes,
-            Self::Fn(item) => &item.attributes,
-            Self::Enum(item) => &item.attributes,
-            Self::Struct(item) => &item.attributes,
-            Self::Impl(item) => &item.attributes,
-            Self::Mod(item) => &item.attributes,
-            Self::Const(item) => &item.attributes,
-            Self::Static(item) => &item.attributes,
-            Self::MacroCall(item) => &item.attributes,
-        }
-    }
-    /// Get the item's attributes mutably
-    pub(crate) fn attributes_mut(&mut self) -> &mut Vec<ast::Attribute> {
-        match self {
-            Self::Use(item) => &mut item.attributes,
-            Self::Fn(item) => &mut item.attributes,
-            Self::Enum(item) => &mut item.attributes,
-            Self::Struct(item) => &mut item.attributes,
-            Self::Impl(item) => &mut item.attributes,
-            Self::Mod(item) => &mut item.attributes,
-            Self::Const(item) => &mut item.attributes,
-            Self::Static(item) => &mut item.attributes,
-            Self::MacroCall(item) => &mut item.attributes,
-        }
-    }
-
     /// Indicates if the declaration needs a semi-colon or not.
     pub(crate) fn needs_semi_colon(&self) -> bool {
         match self {
@@ -87,7 +56,21 @@ impl Item {
     }
 
     /// Parse an Item attaching the given meta and optional path.
+    ///
+    /// Items nest through `mod`, which does not go through expression parsing,
+    /// so how deeply they nest is bounded here as well. Every nested item is
+    /// parsed through here rather than through [`Parse::parse`], since the
+    /// bodies of a file and of a `mod` parse their meta before the item itself.
     pub(crate) fn parse_with_meta_path(
+        p: &mut Parser<'_>,
+        attributes: Vec<ast::Attribute>,
+        visibility: ast::Visibility,
+        path: Option<ast::Path>,
+    ) -> Result<Self> {
+        p.nested(|p| Self::parse_with_meta_path_inner(p, attributes, visibility, path))
+    }
+
+    fn parse_with_meta_path_inner(
         p: &mut Parser<'_>,
         mut attributes: Vec<ast::Attribute>,
         mut visibility: ast::Visibility,
@@ -187,17 +170,6 @@ impl Item {
         }
 
         Ok(item)
-    }
-
-    /// Removes the first attribute in the item list and returns it if present.
-    pub(crate) fn remove_first_attribute(&mut self) -> Option<Attribute> {
-        let attributes = self.attributes_mut();
-
-        if !attributes.is_empty() {
-            return Some(attributes.remove(0));
-        }
-
-        None
     }
 }
 

@@ -31,12 +31,6 @@ pub struct ItemConst {
     pub(crate) id: ItemId,
 }
 
-impl ItemConst {
-    /// Get the descriptive span of this item, e.g. `const ITEM` instead of the
-    /// span for the whole expression.
-    pub(crate) fn descriptive_span(&self) -> Span {
-        self.const_token.span().join(self.name.span())
-    }
-}
+impl ItemConst {}
 
 item_parse!(Const, ItemConst, "constant item");

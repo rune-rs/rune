@@ -153,10 +153,46 @@ pub struct Options {
     pub(crate) lowering: u8,
     /// Print source tree.
     pub(crate) print_tree: bool,
-    /// Use the v2 compiler.
-    pub(crate) v2: bool,
-    /// Maximum macro depth.
+    /// Maximum depth expansions - macros, template literals and format
+    /// specifications - are allowed to nest to.
+    ///
+    /// An expansion produces a tree of its own, which lowering walks by
+    /// recursing since it cannot park a foreign tree in its frames, so this has
+    /// to stay well under what the native stack can take. Nesting of around 25
+    /// exhausted an 8 MiB stack in an unoptimised build when this was measured.
     pub(crate) max_macro_depth: usize,
+    /// Maximum depth of the work stacks used by the compiler.
+    ///
+    /// The compiler performs its tree walks over explicit heap allocated work
+    /// stacks rather than the call stack. This bounds how large those are
+    /// allowed to grow, so that pathological input is reported as a diagnostic
+    /// instead of exhausting memory.
+    pub(crate) max_depth: usize,
+    /// Maximum depth of the syntax tree a macro parses its input into.
+    ///
+    /// The syntax tree parser recurses, and so does everything which walks what
+    /// it produced, so this is much smaller than [`Options::max_depth`] and
+    /// chains count towards it as well as nesting.
+    pub(crate) max_ast_depth: usize,
+    /// Maximum nesting of a constant.
+    ///
+    /// A constant is evaluated into a `ConstValue`, which is a recursive
+    /// structure - it is built, walked and dropped by recursing over it - so how
+    /// deeply a constant nests is bounded separately from everything else.
+    /// [`Options::max_depth`] can lower this bound but not raise it, since
+    /// raising it would trade a diagnostic for a stack overflow.
+    pub(crate) max_const_depth: usize,
+    /// Maximum number of imports which may be traversed while resolving a path.
+    ///
+    /// Imports are followed by recursing, since an import may point at another
+    /// import.
+    pub(crate) max_import_depth: usize,
+    /// The number of instructions a single constant evaluation is allowed to
+    /// execute before it is aborted.
+    ///
+    /// Constants are compiled and run in a virtual machine, so this is what
+    /// stops one which does not terminate.
+    pub(crate) const_budget: usize,
     /// Rune format options.
     pub(crate) fmt: FmtOptions,
 }
@@ -173,8 +209,12 @@ impl Options {
         test_std: false,
         lowering: 0,
         print_tree: false,
-        v2: false,
-        max_macro_depth: 64,
+        max_macro_depth: 16,
+        max_depth: 65536,
+        max_ast_depth: 64,
+        max_const_depth: 128,
+        max_import_depth: 128,
+        const_budget: 1_000_000,
         fmt: FmtOptions::DEFAULT,
     };
 
@@ -278,14 +318,14 @@ impl Options {
                 doc: &docstring! {
                     /// Enable lowering optimizations.
                     ///
-                    /// Supports a value of 0-3 with increasingly higher
+                    /// Supports a value of 0-1 with increasingly higher
                     /// levels of optimizations applied.
                     ///
                     /// Enabling a higher level results in better code
                     /// generation, but contributes to compilation times.
                 },
                 default: "0",
-                options: "0-3",
+                options: "0-1",
             },
             OptionMeta {
                 key: "print-tree",
@@ -300,21 +340,92 @@ impl Options {
                 options: BOOL,
             },
             OptionMeta {
-                key: "v2",
-                unstable: true,
-                doc: &docstring! {
-                    /// Use the v2 compiler.
-                },
-                default: "false",
-                options: BOOL,
-            },
-            OptionMeta {
                 key: "max-macro-depth",
                 unstable: true,
                 doc: &docstring! {
-                    /// Maximum supported macro depth.
+                    /// Maximum depth expansions - macros, template
+                    /// literals and format specifications - may nest
+                    /// to.
+                    ///
+                    /// An expansion produces a tree of its own, which
+                    /// lowering walks by recursing, so this stays well
+                    /// under what the native stack can take.
+                },
+                default: "16",
+                options: "<number>",
+            },
+            OptionMeta {
+                key: "max-depth",
+                unstable: true,
+                doc: &docstring! {
+                    /// Maximum depth of the work stacks used by the
+                    /// compiler.
+                    ///
+                    /// The compiler walks trees over explicit heap
+                    /// allocated work stacks rather than the call stack,
+                    /// both for chained expressions and for lexical
+                    /// nesting. This bounds how large those are allowed
+                    /// to grow, so pathological input is reported as a
+                    /// diagnostic instead of exhausting memory.
+                },
+                default: "65536",
+                options: "<number>",
+            },
+            OptionMeta {
+                key: "max-ast-depth",
+                unstable: true,
+                doc: &docstring! {
+                    /// Maximum depth of the syntax tree a macro parses
+                    /// its input into.
+                    ///
+                    /// Unlike the rest of the compiler, this parser
+                    /// recurses, and so does everything which walks
+                    /// what it produced. So this is much smaller than
+                    /// `max-depth`, and chains count towards it as well
+                    /// as nesting.
                 },
                 default: "64",
+                options: "<number>",
+            },
+            OptionMeta {
+                key: "max-const-depth",
+                unstable: true,
+                doc: &docstring! {
+                    /// Maximum nesting of a constant.
+                    ///
+                    /// A constant is evaluated into a value which is
+                    /// built, walked and dropped by recursing over it,
+                    /// so how deeply one nests is bounded separately
+                    /// from everything else. `max-depth` can lower this
+                    /// bound but not raise it, since raising it would
+                    /// trade a diagnostic for a stack overflow.
+                },
+                default: "128",
+                options: "<number>",
+            },
+            OptionMeta {
+                key: "max-import-depth",
+                unstable: true,
+                doc: &docstring! {
+                    /// Maximum number of imports which may be traversed
+                    /// while resolving a path, since an import may
+                    /// point at another import.
+                },
+                default: "128",
+                options: "<number>",
+            },
+            OptionMeta {
+                key: "const-budget",
+                unstable: true,
+                doc: &docstring! {
+                    /// The number of instructions a single constant
+                    /// evaluation may execute before it is aborted.
+                    ///
+                    /// Constants are compiled and run in a virtual
+                    /// machine, so this is what stops one which does
+                    /// not terminate.
+                },
+                default: "1000000",
                 options: "<number>",
             },
             OptionMeta {
@@ -414,9 +525,6 @@ impl Options {
                 "print-tree" if cfg!(feature = "std") => {
                     self.print_tree = tail.is_none_or(|s| s == "true");
                 }
-                "v2" => {
-                    self.v2 = tail.is_none_or(|s| s == "true");
-                }
                 "max-macro-depth" => {
                     let Some(Ok(number)) = tail.map(str::parse) else {
                         return Err(ParseOptionError {
@@ -426,6 +534,56 @@ impl Options {
                     };
 
                     self.max_macro_depth = number;
+                }
+                "max-depth" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    self.max_depth = number;
+                }
+                "max-ast-depth" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    self.max_ast_depth = number;
+                }
+                "max-const-depth" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    self.max_const_depth = number;
+                }
+                "max-import-depth" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    self.max_import_depth = number;
+                }
+                "const-budget" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    self.const_budget = number;
                 }
                 other => {
                     let Some((head, sub)) = other.split_once('.') else {
@@ -521,5 +679,49 @@ mod tests {
         assert!(!options.fmt.force_newline);
         options.parse_option("fmt.force-newline=true").unwrap();
         assert!(options.fmt.force_newline);
+    }
+
+    /// Every value an option says it takes has to be one it takes.
+    ///
+    /// The values are what `--list-options` prints, so one which is listed and
+    /// then rejected sends whoever reads the listing to an error.
+    #[test]
+    fn every_listed_option_value_parses() {
+        for meta in Options::available() {
+            let mut values = rust_alloc::vec::Vec::new();
+
+            for value in meta.options.split(',').map(str::trim) {
+                match value {
+                    // A placeholder for anything of that shape rather than a
+                    // value in its own right.
+                    "<number>" => values.push(rust_alloc::string::ToString::to_string(&"1")),
+                    // An inclusive range of numbers.
+                    value if value.contains('-') => {
+                        let (start, end) = value.split_once('-').unwrap();
+                        let start: u32 = start.parse().expect("range start should be a number");
+                        let end: u32 = end.parse().expect("range end should be a number");
+
+                        for n in start..=end {
+                            values.push(rust_alloc::format!("{n}"));
+                        }
+                    }
+                    value => values.push(rust_alloc::string::ToString::to_string(&value)),
+                }
+            }
+
+            // The default is a value like any other.
+            values.push(rust_alloc::string::ToString::to_string(&meta.default));
+
+            for value in values {
+                let option = rust_alloc::format!("{}={value}", meta.key);
+                let mut options = Options::DEFAULT;
+
+                assert!(
+                    options.parse_option(&option).is_ok(),
+                    "`{option}` is listed for `{}` but is not accepted",
+                    meta.key
+                );
+            }
+        }
     }
 }

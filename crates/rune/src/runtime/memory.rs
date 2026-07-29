@@ -10,7 +10,7 @@ use crate::alloc::alloc::Global;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
 
-use super::{Address, IntoOutput, Output, Value, VmErrorKind};
+use super::{Address, Dismantle, Handover, IntoOutput, Output, Value, VmErrorKind, Worklist};
 
 // This is a bit tricky. We know that `Value::empty()` is `Sync` but we can't
 // convince Rust that is the case.
@@ -88,6 +88,8 @@ impl<E> StoreError<E> {
 pub(crate) enum StoreErrorKind<E> {
     Stack(StackError),
     Error(E),
+    /// Taking the value which was replaced apart ran out of memory.
+    Alloc(alloc::Error),
 }
 
 impl<E> From<StackError> for StoreError<E> {
@@ -95,6 +97,15 @@ impl<E> From<StackError> for StoreError<E> {
     fn from(error: StackError) -> Self {
         Self {
             kind: StoreErrorKind::Stack(error),
+        }
+    }
+}
+
+impl<E> From<alloc::Error> for StoreError<E> {
+    #[inline]
+    fn from(error: alloc::Error) -> Self {
+        Self {
+            kind: StoreErrorKind::Alloc(error),
         }
     }
 }
@@ -200,13 +211,23 @@ impl dyn Memory + '_ {
     ///     memory.store(out, number)?;
     ///     Ok(())
     /// }
+    /// ```
     #[inline(always)]
     pub fn store<O>(&mut self, out: Output, o: O) -> Result<(), StoreError<O::Error>>
     where
         O: IntoOutput,
     {
         if let Some(addr) = out.as_addr() {
-            *self.at_mut(addr)? = o.into_output().map_err(StoreError::error)?;
+            let value = o.into_output().map_err(StoreError::error)?;
+
+            // A native function has no worklist of its own to take the value
+            // which is replaced apart over, so it gets one which is empty. It
+            // costs nothing until it is handed a value made of other values.
+            let mut worklist = Worklist::new();
+
+            // The value which is replaced is taken apart rather than left to
+            // its destructor, so that the walk does not descend into it.
+            worklist.replace(self.at_mut(addr)?, value);
         }
 
         Ok(())
@@ -433,13 +454,41 @@ impl Stack {
     ///     memory.store(out, number)?;
     ///     Ok(())
     /// }
+    /// ```
     #[inline(always)]
     pub fn store<O>(&mut self, out: Output, o: O) -> Result<(), StoreError<O::Error>>
     where
         O: IntoOutput,
     {
+        // Whoever writes to a stack without a machine behind them has no
+        // worklist to take the value which is replaced apart over, so they get
+        // one which is empty. It costs nothing until it is handed a value made
+        // of other values.
+        self.store_with(out, o, &mut Worklist::new())
+    }
+
+    /// Write output using the provided [`IntoOutput`] implementation onto the
+    /// stack, taking the value which was there apart over the given worklist.
+    ///
+    /// The worklist is handed in by the machine, which keeps one for as long as
+    /// it lives, so that whatever memory taking values apart needs is grown
+    /// once rather than for every value which is written over.
+    #[inline(always)]
+    pub(crate) fn store_with<O>(
+        &mut self,
+        out: Output,
+        o: O,
+        work: &mut Worklist,
+    ) -> Result<(), StoreError<O::Error>>
+    where
+        O: IntoOutput,
+    {
         if let Some(addr) = out.as_addr() {
-            *self.at_mut(addr)? = o.into_output().map_err(StoreError::error)?;
+            let value = o.into_output().map_err(StoreError::error)?;
+
+            // The value which is replaced is taken apart rather than left to
+            // its destructor, so that the machine does not descend into it.
+            work.replace(self.at_mut(addr)?, value);
         }
 
         Ok(())
@@ -496,12 +545,44 @@ impl Stack {
         Ok(())
     }
 
-    /// Truncate the stack at the given address.
+    /// Truncate the stack at the given address, taking the values which are
+    /// discarded apart rather than leaving them to their destructors.
+    ///
+    /// This is what the machine uses, so that the values share the worklist it
+    /// keeps - see [`Worklist::dismantle`].
     #[inline]
-    pub(crate) fn truncate(&mut self, addr: Address) {
-        if let Some(len) = self.top.checked_add(addr.offset()) {
-            self.stack.truncate(len);
+    pub(crate) fn dismantle_to(&mut self, addr: Address, work: &mut Worklist) {
+        let Some(len) = self.top.checked_add(addr.offset()) else {
+            return;
+        };
+
+        if let Some(values) = self.stack.get_mut(len..) {
+            work.dismantle_all(values.iter_mut());
         }
+
+        self.stack.truncate(len);
+    }
+
+    /// Open a new call frame at the top of the stack holding the values which
+    /// `other` was working over.
+    ///
+    /// This is what splicing an unstarted execution into the machine which
+    /// awaits it uses - the values the awaited machine holds become the
+    /// arguments of an ordinary call frame here. Returns the old stack top, for
+    /// the [`CallFrame`] the caller pushes.
+    ///
+    /// [`CallFrame`]: crate::runtime::CallFrame
+    #[inline]
+    pub(crate) fn push_frame_from(&mut self, other: &mut Stack) -> alloc::Result<usize> {
+        let old_len = self.stack.len();
+        self.stack.try_reserve(other.stack.len())?;
+
+        for value in other.stack.drain(..) {
+            self.stack.try_push(value)?;
+        }
+
+        other.top = 0;
+        Ok(replace(&mut self.top, old_len))
     }
 
     /// Drain the current stack down to the current stack bottom.
@@ -513,6 +594,17 @@ impl Stack {
     /// Clear the current stack.
     #[inline]
     pub(crate) fn clear(&mut self) {
+        self.stack.clear();
+        self.top = 0;
+    }
+
+    /// Clear the current stack, taking the values it held apart rather than
+    /// leaving them to their destructors.
+    ///
+    /// This is what the machine uses - see [`Worklist::dismantle`].
+    #[inline]
+    pub(crate) fn dismantle_clear(&mut self, work: &mut Worklist) {
+        work.dismantle_all(self.stack.iter_mut());
         self.stack.clear();
         self.top = 0;
     }
@@ -608,16 +700,34 @@ impl Stack {
     }
 
     /// Pop the current stack top and modify it to a different one.
+    ///
+    /// The values which the call frame being left was working over are taken
+    /// apart rather than left to their destructors, since this is the machine
+    /// working - see [`Worklist::dismantle`].
     #[inline]
     #[tracing::instrument(skip_all)]
-    pub(crate) fn pop_stack_top(&mut self, top: usize) {
+    pub(crate) fn pop_stack_top(&mut self, top: usize, work: &mut Worklist) {
         tracing::trace!(stack = self.stack.len(), self.top);
+
+        if let Some(values) = self.stack.get_mut(self.top..) {
+            work.dismantle_all(values.iter_mut());
+        }
+
         self.stack.truncate(self.top);
         self.top = top;
     }
 
     /// Copy the value at the given address to the output.
-    pub(crate) fn copy(&mut self, from: Address, out: Output) -> Result<(), StackError> {
+    ///
+    /// The value which is written over is taken apart rather than left to its
+    /// destructor, since this is the machine working - see
+    /// [`Worklist::dismantle`].
+    pub(crate) fn copy(
+        &mut self,
+        from: Address,
+        out: Output,
+        work: &mut Worklist,
+    ) -> Result<(), StoreError<Infallible>> {
         let Some(to) = out.as_addr() else {
             return Ok(());
         };
@@ -632,16 +742,19 @@ impl Stack {
         if from.max(to) >= self.stack.len() {
             return Err(StackError {
                 addr: Address::new(from.max(to).wrapping_sub(self.top)),
-            });
+            }
+            .into());
         }
 
         // SAFETY: We've checked that both addresses are in-bound and different
         // just above.
-        unsafe {
+        let old = unsafe {
             let ptr = self.stack.as_mut_ptr();
-            (*ptr.add(to)).clone_from(&*ptr.add(from).cast_const());
-        }
+            let value = (*ptr.add(from).cast_const()).clone();
+            replace(&mut *ptr.add(to), value)
+        };
 
+        work.dismantle(old);
         Ok(())
     }
 
@@ -669,6 +782,22 @@ impl Stack {
         };
 
         Ok(pair)
+    }
+}
+
+/// A stack holds the values a machine is working over, so a machine which is
+/// suspended - a generator or a stream - holds a graph of values through it.
+impl Dismantle for Stack {
+    fn dismantle(&mut self, out: &mut Handover<'_>) {
+        // The values are being taken out of the machine, so which of them made
+        // up its current call frame no longer means anything.
+        self.top = 0;
+
+        // Every value is handed over in one pass over the stack, and what is
+        // left of it is dropped as soon as this returns.
+        for value in self.stack.drain(..) {
+            out.push(value);
+        }
     }
 }
 

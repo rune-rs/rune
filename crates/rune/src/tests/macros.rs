@@ -35,6 +35,35 @@ fn test_concat_idents() -> rune::support::Result<()> {
     Ok(())
 }
 
+/// A user macro is invoked through any of the three delimiters, the same as a
+/// built-in one.
+#[test]
+fn test_macro_call_delimiters() -> rune::support::Result<()> {
+    let sources = rune::sources! {
+        entry => {
+            use ::test::macros::concat_idents;
+
+            fn function() {
+                42
+            }
+
+            pub fn main() {
+                let a = concat_idents!(fu, nction)();
+                let b = concat_idents![fu, nction]();
+                let c = concat_idents!{fu, nction}();
+                a + b + c
+            }
+        }
+    };
+
+    let mut vm = compile(sources)?;
+    let value = vm.call(["main"], ())?;
+    let value: u32 = rune::from_value(value)?;
+
+    assert_eq!(value, 126);
+    Ok(())
+}
+
 #[test]
 fn test_rename() -> rune::support::Result<()> {
     let mut vm = compile(rune::sources! {

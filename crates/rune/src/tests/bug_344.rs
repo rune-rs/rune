@@ -13,7 +13,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::compile::meta;
-use crate::runtime::{AnyTypeInfo, RuntimeError};
+use crate::runtime::{AnyTypeInfo, Dismantle, Handover, RuntimeError};
 
 #[test]
 fn bug_344_function() -> Result<()> {
@@ -155,6 +155,12 @@ impl GuardCheck {
             "value has was previously dropped: {what}",
         );
     }
+}
+
+/// Nothing inside is made of values, so there is nothing to hand over and the
+/// value is dropped in place - which is what the `Any` derive writes.
+impl Dismantle for GuardCheck {
+    fn dismantle(&mut self, _: &mut Handover<'_>) {}
 }
 
 impl Any for GuardCheck {}

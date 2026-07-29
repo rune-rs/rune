@@ -20,15 +20,6 @@ impl Fields {
     pub(crate) fn needs_semi_colon(&self) -> bool {
         matches!(self, Self::Empty | Self::Unnamed(..))
     }
-
-    /// Iterate over the fields of the body.
-    pub(crate) fn fields(&self) -> impl Iterator<Item = &'_ (ast::Field, Option<T![,]>)> {
-        match self {
-            Fields::Empty => IntoIterator::into_iter(&[]),
-            Fields::Unnamed(body) => body.iter(),
-            Fields::Named(body) => body.iter(),
-        }
-    }
 }
 
 impl Parse for Fields {

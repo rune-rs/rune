@@ -162,6 +162,7 @@ pub(crate) fn layout_source_with(
     let tree = crate::grammar::text(source_id, source)
         .without_processing()
         .include_whitespace()
+        .max_nesting(options.max_depth)
         .root()?;
 
     #[cfg(feature = "std")]

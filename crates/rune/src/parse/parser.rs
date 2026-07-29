@@ -5,7 +5,7 @@ use crate::alloc::VecDeque;
 use crate::ast::Spanned;
 use crate::ast::{Kind, OptionSpanned, Span, Token};
 use crate::compile::WithSpan;
-use crate::compile::{self, ErrorKind};
+use crate::compile::{self, ErrorKind, Options};
 use crate::macros::{TokenStream, TokenStreamIter};
 use crate::parse::{Advance, Lexer, Parse, Peek};
 use crate::shared::FixedVec;
@@ -27,6 +27,10 @@ use crate::SourceId;
 #[derive(Debug)]
 pub struct Parser<'a> {
     peeker: Peeker<'a>,
+    /// How deep the tree built so far is along the path being parsed.
+    nesting: usize,
+    /// How deep a tree this parser is allowed to produce.
+    max_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -59,6 +63,66 @@ impl<'a> Parser<'a> {
         T: Parse,
     {
         T::parse(self)
+    }
+
+    /// Configure how deep a tree this parser is allowed to produce.
+    ///
+    /// Defaults to the `max-ast-depth` option's default. A macro which is
+    /// handed the compiler's options through its [`MacroContext`] should
+    /// configure the parser it builds from them, which
+    /// [`MacroContext::parser`] does.
+    ///
+    /// [`MacroContext`]: crate::macros::MacroContext
+    /// [`MacroContext::parser`]: crate::macros::MacroContext::parser
+    pub fn with_max_depth(mut self, max_depth: usize) -> Self {
+        self.max_depth = max_depth;
+        self
+    }
+
+    /// Parse one level deeper, ensuring that the tree being built does not get
+    /// deeper than the parser allows.
+    ///
+    /// Every recursive path through the syntax tree descends through here, so
+    /// that input which is too deep is reported as a diagnostic rather than
+    /// overflowing the stack, either while it is being parsed or later while it
+    /// is being walked.
+    ///
+    /// The level is *restored* rather than decremented on the way out, so that
+    /// the links [`Parser::link`] accounts for are released along with the
+    /// expression they belong to.
+    pub(crate) fn nested<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> compile::Result<T>,
+    ) -> compile::Result<T> {
+        let nesting = self.nesting;
+        self.deepen()?;
+        let result = parse(self);
+        self.nesting = nesting;
+        result
+    }
+
+    /// Account for one more link of a chain.
+    ///
+    /// A chain is parsed over a loop rather than by recursing, so it costs no
+    /// parser frames, but each link is another level of the tree which is left
+    /// behind. The level is released by the enclosing [`Parser::nested`], which
+    /// is the expression the chain belongs to.
+    pub(crate) fn link(&mut self) -> compile::Result<()> {
+        self.deepen()
+    }
+
+    fn deepen(&mut self) -> compile::Result<()> {
+        if self.nesting >= self.max_depth {
+            return Err(compile::Error::new(
+                self.span_at(0),
+                ErrorKind::MaxAstDepth {
+                    max: self.max_depth,
+                },
+            ));
+        }
+
+        self.nesting += 1;
+        Ok(())
     }
 
     /// Parse a specific item from the parser and then expect end of input.
@@ -119,6 +183,8 @@ impl<'a> Parser<'a> {
                 last: None,
                 default_span,
             },
+            nesting: 0,
+            max_depth: Options::DEFAULT.max_ast_depth,
         }
     }
 
