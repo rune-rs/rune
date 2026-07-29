@@ -51,6 +51,7 @@ mod benchmarks {
     pub mod aoc_2020_19b;
     pub mod aoc_2020_1a;
     pub mod aoc_2020_1b;
+    pub mod await_call;
     pub mod brainfuck;
     pub mod external_functions;
     pub mod fib;
@@ -61,6 +62,7 @@ criterion::criterion_main! {
     benchmarks::aoc_2020_1b::benches,
     benchmarks::aoc_2020_11a::benches,
     benchmarks::aoc_2020_19b::benches,
+    benchmarks::await_call::benches,
     benchmarks::brainfuck::benches,
     benchmarks::fib::benches,
     benchmarks::external_functions::benches,
