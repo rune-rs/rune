@@ -486,10 +486,14 @@ pub(crate) fn expr<'hir>(
                 drop: iter!(layer.into_drop_order()),
             }))
         }
-        ast::Expr::Let(ast) => hir::ExprKind::Let(alloc!(hir::ExprLet {
-            pat: pat_binding(cx, &ast.pat)?,
-            expr: expr(cx, &ast.expr)?,
-        })),
+        ast::Expr::Let(ast) => {
+            // Note: expression needs to be assembled before pattern, otherwise
+            // the expression will see declarations in the pattern.
+            let expr = expr(cx, &ast.expr)?;
+            let pat = pat_binding(cx, &ast.pat)?;
+
+            hir::ExprKind::Let(alloc!(hir::ExprLet { pat, expr }))
+        }
         ast::Expr::If(ast) => hir::ExprKind::If(alloc!(expr_if(cx, ast)?)),
         ast::Expr::Match(ast) => hir::ExprKind::Match(alloc!(hir::ExprMatch {
             expr: alloc!(expr(cx, &ast.expr)?),
@@ -1651,10 +1655,14 @@ fn condition<'hir>(
 
     Ok(match ast {
         ast::Condition::Expr(ast) => hir::Condition::Expr(alloc!(expr(cx, ast)?)),
-        ast::Condition::ExprLet(ast) => hir::Condition::ExprLet(alloc!(hir::ExprLet {
-            pat: pat_binding(cx, &ast.pat)?,
-            expr: expr(cx, &ast.expr)?,
-        })),
+        ast::Condition::ExprLet(ast) => {
+            // Note: expression needs to be assembled before pattern, otherwise
+            // the expression will see declarations in the pattern.
+            let expr = expr(cx, &ast.expr)?;
+            let pat = pat_binding(cx, &ast.pat)?;
+
+            hir::Condition::ExprLet(alloc!(hir::ExprLet { pat, expr }))
+        }
     })
 }
 

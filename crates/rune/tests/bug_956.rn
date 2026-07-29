@@ -1,0 +1,67 @@
+// This ensures that a pattern can shadow the variable which is being matched.
+// https://github.com/rune-rs/rune/issues/956
+
+#[test]
+fn if_let_shadowing() {
+    let x = Some(1);
+
+    if let Some(x) = x {
+        assert_eq!(x, 1);
+    } else {
+        panic!("expected Some");
+    }
+
+    if let Some(y) = x {
+        assert_eq!(y, 1);
+    } else {
+        panic!("expected Some");
+    }
+}
+
+#[test]
+fn if_let_shadowing_nested() {
+    let x = Some(Some(2));
+
+    if let Some(x) = x {
+        if let Some(x) = x {
+            assert_eq!(x, 2);
+        } else {
+            panic!("expected Some");
+        }
+    } else {
+        panic!("expected Some");
+    }
+}
+
+#[test]
+fn if_let_tuple_shadowing() {
+    let a = (1, 2);
+
+    if let (b, a) = a {
+        assert_eq!(b, 1);
+        assert_eq!(a, 2);
+    } else {
+        panic!("expected tuple");
+    }
+}
+
+#[test]
+fn while_let_shadowing() {
+    let x = Some(1);
+    let n = 0;
+
+    while let Some(x) = x {
+        assert_eq!(x, 1);
+        n += 1;
+        break;
+    }
+
+    assert_eq!(n, 1);
+}
+
+#[test]
+fn let_expr_shadowing() {
+    let y = 10;
+    let y = y + 5;
+    assert_eq!(y, 15);
+}
