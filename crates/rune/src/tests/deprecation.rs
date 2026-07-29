@@ -36,6 +36,9 @@ fn create_context() -> Result<Context> {
         .associated_function("test", |_this: &TestStruct| 1)?
         .deprecated("Deprecated associated fn")?;
 
+    // Not deprecated, and must not produce any diagnostics.
+    module.associated_function("ok", |_this: &TestStruct| 1)?;
+
     let mut context = Context::with_default_modules()?;
     context.install(module)?;
     Ok(context)
@@ -50,9 +53,70 @@ fn create_sources() -> Result<Sources> {
                 let ts = abc::TestStruct::new();
                 x += ts.test();
                 x += ts.hello;
+                x += ts.ok();
             }
         }
     })
+}
+
+/// Number of times the looping sources below call the same deprecated function.
+const CALLS: usize = 3;
+
+/// Calls a single deprecated associated function in a loop, so that the number
+/// of diagnostics produced can be compared against the number of calls made.
+fn create_looping_sources() -> Result<Sources> {
+    Ok(sources! {
+        entry => {
+            #[test]
+            pub fn main() {
+                let ts = abc::TestStruct::new();
+                let x = 0;
+
+                for _ in 0..3 {
+                    x += ts.test();
+                }
+            }
+        }
+    })
+}
+
+/// Extract the hash from a runtime deprecation diagnostic, asserting that it is
+/// a runtime diagnostic rather than a compile-time one.
+fn runtime_deprecation_hash(diagnostic: &Diagnostic) -> Hash {
+    match diagnostic {
+        Diagnostic::Runtime(w) => match w.kind() {
+            RuntimeDiagnosticKind::UsedDeprecated { hash, .. } => *hash,
+        },
+        kind => panic!("Expected a runtime diagnostic, got: {kind:?}"),
+    }
+}
+
+/// Assert that looping over a deprecated function reports it once per call.
+///
+/// Runtime deprecations are *not* deduplicated: [`Diagnostics::runtime_warning`]
+/// pushes unconditionally, so a deprecated function invoked in a hot loop
+/// produces one diagnostic per iteration rather than one per function or one
+/// per call site. This test pins that behaviour down; if deduplication is ever
+/// introduced, it is expected to fail and be updated deliberately.
+fn assert_reported_once_per_call(context: &Context, diagnostics: &Diagnostics) {
+    let mut iter = diagnostics.diagnostics().iter();
+
+    let mut hashes = Vec::new();
+
+    for _ in 0..CALLS {
+        let diagnostic = iter
+            .next()
+            .expect("expected one diagnostic per call to the deprecated function");
+
+        check_diagnostic(context, diagnostic, "Deprecated associated fn");
+        hashes.push(runtime_deprecation_hash(diagnostic));
+    }
+
+    // Every diagnostic refers to the same deprecated function.
+    assert!(hashes.windows(2).all(|w| w[0] == w[1]));
+
+    // And nothing beyond one diagnostic per call is reported.
+    assert!(iter.next().is_none());
 }
 
 fn check_diagnostic(context: &Context, diagnostic: &Diagnostic, msg: &str) {
@@ -105,6 +169,50 @@ fn test_deprecation_warnings() -> Result<()> {
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated function");
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated associated fn");
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated get field fn");
+    assert!(iter.next().is_none());
+    Ok(())
+}
+
+#[test]
+fn test_deprecation_reported_once_per_call() -> Result<()> {
+    let context = create_context()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+    let mut sources = create_looping_sources()?;
+    let mut diagnostics = Diagnostics::new();
+
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()?;
+
+    let unit = Arc::try_new(unit)?;
+    let mut vm = Vm::new(runtime, unit);
+
+    vm.call_with_diagnostics(["main"], (), &mut diagnostics)?;
+
+    assert_reported_once_per_call(&context, &diagnostics);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_deprecation_reported_once_per_call_async() -> Result<()> {
+    let context = create_context()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+    let mut sources = create_looping_sources()?;
+    let mut diagnostics = Diagnostics::new();
+
+    let unit = rune::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .build()?;
+
+    let unit = Arc::try_new(unit)?;
+    let vm = Vm::new(runtime, unit);
+
+    let future = vm.send_execute(["main"], ())?;
+    future.complete_with_diagnostics(&mut diagnostics).await?;
+
+    assert_reported_once_per_call(&context, &diagnostics);
     Ok(())
 }
 
@@ -137,6 +245,6 @@ async fn test_deprecation_warnings_async() -> Result<()> {
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated function");
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated associated fn");
     check_diagnostic(&context, iter.next().unwrap(), "Deprecated get field fn");
-
+    assert!(iter.next().is_none());
     Ok(())
 }

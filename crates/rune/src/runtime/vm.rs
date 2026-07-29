@@ -629,9 +629,9 @@ impl Vm {
     }
 
     fn called_function_hook(&self, hash: Hash) -> Result<(), VmError> {
-        runtime::env::exclusive(|_, _, _, diagnostics| {
+        runtime::env::exclusive(|context, _, _, diagnostics| {
             if let Some(diagnostics) = diagnostics {
-                diagnostics.function_used(hash, self.ip())?;
+                diagnostics.function_used(context, hash, self.ip())?;
             }
 
             Ok(())
