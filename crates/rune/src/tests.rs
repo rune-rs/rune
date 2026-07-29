@@ -424,6 +424,8 @@ mod attribute;
 #[cfg(not(miri))]
 mod binary;
 #[cfg(not(miri))]
+mod block_modifiers;
+#[cfg(not(miri))]
 mod bounded_recursion;
 #[cfg(not(miri))]
 mod bug_1021;
@@ -463,6 +465,8 @@ mod compiler_general;
 mod compiler_paths;
 #[cfg(not(miri))]
 mod compiler_patterns;
+#[cfg(not(miri))]
+mod compiler_semantics;
 #[cfg(not(miri))]
 mod compiler_use;
 #[cfg(not(miri))]
