@@ -499,9 +499,12 @@ mod external_match;
 mod external_ops;
 #[cfg(not(miri))]
 mod f64;
+mod format_spec;
 mod function_guardedargs;
 #[cfg(not(miri))]
 mod getter_setter;
+#[cfg(not(miri))]
+mod grammar_rejects;
 #[cfg(not(miri))]
 mod iterator;
 #[cfg(not(miri))]
