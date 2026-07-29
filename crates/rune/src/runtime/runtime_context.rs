@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate as rune;
 use crate::alloc::prelude::*;
+use crate::alloc::String;
 use crate::hash;
 use crate::runtime::{ConstConstructImpl, ConstContext, ConstValue};
 use crate::Hash;
@@ -22,6 +23,8 @@ pub struct RuntimeContext {
     constants: hash::Map<ConstValue>,
     /// Constant constructors.
     construct: hash::Map<ConstConstructImpl>,
+    /// Registered deprecation messages for native functions.
+    deprecations: hash::Map<String>,
 }
 
 assert_impl!(RuntimeContext: Send + Sync);
@@ -31,11 +34,13 @@ impl RuntimeContext {
         functions: hash::Map<FunctionHandler>,
         constants: hash::Map<ConstValue>,
         construct: hash::Map<ConstConstructImpl>,
+        deprecations: hash::Map<String>,
     ) -> Self {
         Self {
             functions,
             constants,
             construct,
+            deprecations,
         }
     }
 
@@ -55,6 +60,13 @@ impl RuntimeContext {
     #[inline]
     pub(crate) fn construct(&self, hash: &Hash) -> Option<&ConstConstructImpl> {
         self.construct.get(hash)
+    }
+
+    /// Look up the deprecation message associated with a native function, if
+    /// the function has been marked as deprecated.
+    #[inline]
+    pub fn deprecation(&self, hash: &Hash) -> Option<&str> {
+        self.deprecations.get(hash).map(String::as_str)
     }
 }
 

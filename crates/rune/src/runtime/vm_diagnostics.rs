@@ -1,13 +1,23 @@
 use core::ptr::NonNull;
 
 use crate::hash::Hash;
-use crate::runtime::VmError;
+use crate::runtime::{RuntimeContext, VmError};
 use crate::Diagnostics;
 
 /// A trait for runtime diagnostics in the virtual machine.
 pub trait VmDiagnostics {
     /// Mark that a function has been used.
-    fn function_used(&mut self, hash: Hash, at: usize) -> Result<(), VmError>;
+    ///
+    /// This is called for every native function which is being called, so any
+    /// filtering of interesting hashes has to be performed here. The `context`
+    /// in which the function was called is provided for that purpose, see for
+    /// example [`RuntimeContext::deprecation`].
+    fn function_used(
+        &mut self,
+        context: &RuntimeContext,
+        hash: Hash,
+        at: usize,
+    ) -> Result<(), VmError>;
 
     /// Returns the vtable for this diagnostics object.
     #[doc(hidden)]
@@ -16,18 +26,34 @@ pub trait VmDiagnostics {
 
 impl VmDiagnostics for Diagnostics {
     #[inline]
-    fn function_used(&mut self, hash: Hash, at: usize) -> Result<(), VmError> {
-        self.runtime_used_deprecated(at, hash)?;
+    fn function_used(
+        &mut self,
+        context: &RuntimeContext,
+        hash: Hash,
+        at: usize,
+    ) -> Result<(), VmError> {
+        // Only functions which have actually been marked as deprecated are of
+        // interest, since recording every function call would be prohibitively
+        // expensive.
+        if context.deprecation(&hash).is_some() {
+            self.runtime_used_deprecated(at, hash)?;
+        }
+
         Ok(())
     }
 
     #[inline]
     fn vtable(&self) -> &'static VmDiagnosticsObjVtable {
-        fn function_used_impl<T>(ptr: NonNull<()>, hash: Hash, at: usize) -> Result<(), VmError>
+        fn function_used_impl<T>(
+            ptr: NonNull<()>,
+            context: &RuntimeContext,
+            hash: Hash,
+            at: usize,
+        ) -> Result<(), VmError>
         where
             T: VmDiagnostics,
         {
-            unsafe { VmDiagnostics::function_used(ptr.cast::<T>().as_mut(), hash, at) }
+            unsafe { VmDiagnostics::function_used(ptr.cast::<T>().as_mut(), context, hash, at) }
         }
 
         &VmDiagnosticsObjVtable {
@@ -38,7 +64,12 @@ impl VmDiagnostics for Diagnostics {
 
 #[derive(Debug)]
 pub struct VmDiagnosticsObjVtable {
-    function_used: unsafe fn(NonNull<()>, hash: Hash, at: usize) -> Result<(), VmError>,
+    function_used: unsafe fn(
+        NonNull<()>,
+        context: &RuntimeContext,
+        hash: Hash,
+        at: usize,
+    ) -> Result<(), VmError>,
 }
 
 #[repr(C)]
@@ -60,7 +91,12 @@ impl VmDiagnosticsObj {
     }
 
     #[inline]
-    pub(crate) fn function_used(&mut self, hash: Hash, at: usize) -> Result<(), VmError> {
-        unsafe { (self.vtable.function_used)(self.ptr, hash, at) }
+    pub(crate) fn function_used(
+        &mut self,
+        context: &RuntimeContext,
+        hash: Hash,
+        at: usize,
+    ) -> Result<(), VmError> {
+        unsafe { (self.vtable.function_used)(self.ptr, context, hash, at) }
     }
 }

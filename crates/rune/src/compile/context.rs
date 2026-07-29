@@ -415,6 +415,7 @@ impl Context {
             self.functions.try_clone()?,
             self.constants.try_clone()?,
             self.construct.try_clone()?,
+            self.deprecations.try_clone()?,
         ))
     }
 
