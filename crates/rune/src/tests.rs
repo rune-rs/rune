@@ -424,6 +424,8 @@ mod attribute;
 #[cfg(not(miri))]
 mod binary;
 #[cfg(not(miri))]
+mod bounded_recursion;
+#[cfg(not(miri))]
 mod bug_1021;
 #[cfg(not(miri))]
 mod bug_326;
@@ -538,6 +540,8 @@ mod vm_arithmetic;
 mod vm_assign_exprs;
 #[cfg(not(miri))]
 mod vm_async_block;
+#[cfg(not(miri))]
+mod vm_await;
 #[cfg(not(miri))]
 mod vm_blocks;
 #[cfg(not(miri))]
