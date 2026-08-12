@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785377777264,
+  "lastUpdate": 1786499547765,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -35213,6 +35213,118 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 395,
             "range": "± 5",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "David R. MacIver",
+            "username": "DRMacIver",
+            "email": "david@drmaciver.com"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "johnjohn.tedro@gmail.com"
+          },
+          "id": "1a423577a9813406043bea15da25714eccadf37d",
+          "message": "Add hegel property tests as a soft CI dependency\n\nAdds an isolated hegel_tests crate (its own workspace, path dependency on rune)\nwith a property-based test suite driven by hegel. Covers: arithmetic against\nRust checked i64 semantics, shift operators, integer/float/string/char literal\nround-trips, template integer formatting, const-vs-runtime evaluation,\ninstruction-budget termination of infinite loops, Value round-trips, and\nparser/compiler no-panic properties over arbitrary text, token soup and nested\nexpressions.\n\nThree known bugs (rune-rs/rune#1030, #1039, #1040) are excluded inline where a\nproperty would otherwise hit them, each with a comment pointing at the issue.\n\nRun in CI as a non-blocking job (continue-on-error).",
+          "timestamp": "2026-07-27T15:22:37Z",
+          "url": "https://github.com/rune-rs/rune/commit/1a423577a9813406043bea15da25714eccadf37d"
+        },
+        "date": 1786499546365,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11999858,
+            "range": "± 268596",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 4633851,
+            "range": "± 51909",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1555,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1384,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 182734,
+            "range": "± 4030",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1098294,
+            "range": "± 53377",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 270299398,
+            "range": "± 1212219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 224488991,
+            "range": "± 1595641",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 576547,
+            "range": "± 5596",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 6256039,
+            "range": "± 42230",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 32383888,
+            "range": "± 281708",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 5279198,
+            "range": "± 105733",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 254832,
+            "range": "± 1408",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2847828,
+            "range": "± 44436",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 356,
+            "range": "± 2",
             "unit": "ns/iter"
           }
         ]
