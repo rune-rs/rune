@@ -306,12 +306,16 @@ impl<'a> Lexer<'a> {
                     self.iter.next();
                     count += 1;
                 }
+                // A label ends at the first thing which is not part of one,
+                // and a newline is one of those. It was tested for as a control
+                // character first, so `break 'label` at the end of a line was
+                // read as a character literal which had not been closed.
+                _ if is_label && count > 0 => {
+                    break;
+                }
                 c if c.is_control() => {
                     let span = self.iter.span_to_pos(start);
                     return Err(compile::Error::new(span, ErrorKind::UnterminatedCharLit));
-                }
-                _ if is_label && count > 0 => {
-                    break;
                 }
                 _ => {
                     is_label = false;

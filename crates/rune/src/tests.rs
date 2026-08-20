@@ -512,6 +512,8 @@ mod grammar_rejects;
 #[cfg(not(miri))]
 mod iterator;
 #[cfg(not(miri))]
+mod labels;
+#[cfg(not(miri))]
 mod literals;
 #[cfg(not(miri))]
 mod macros;
