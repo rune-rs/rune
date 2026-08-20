@@ -426,6 +426,8 @@ mod binary;
 #[cfg(not(miri))]
 mod block_modifiers;
 #[cfg(not(miri))]
+mod bounded_natives;
+#[cfg(not(miri))]
 mod bounded_recursion;
 #[cfg(not(miri))]
 mod bug_1021;

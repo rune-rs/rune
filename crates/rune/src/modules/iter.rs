@@ -4,6 +4,7 @@ use crate as rune;
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::modules::collections::{HashMap, HashSet, VecDeque};
+use crate::runtime::budget;
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
     Address, Dismantle, FromValue, Function, Handover, Inline, Object, Output, OwnedTuple,
@@ -212,6 +213,8 @@ pub fn module() -> Result<Module, ContextError> {
                 let next = next.clone();
 
                 move |iter: Value, mut n: usize| loop {
+                    budget::permit()?;
+
                     let Some(value) = next.call((iter.clone(),))? else {
                         break Ok(None);
                     };
@@ -235,6 +238,8 @@ pub fn module() -> Result<Module, ContextError> {
                     let mut n = 0usize;
 
                     loop {
+                        budget::permit()?;
+
                         if next.call((iter.clone(),))?.is_none() {
                             break Ok::<_, VmError>(n);
                         };
@@ -249,6 +254,8 @@ pub fn module() -> Result<Module, ContextError> {
 
                 cx.function("fold", move |iter: Value, mut acc: Value, f: Function| {
                     loop {
+                        budget::permit()?;
+
                         let Some(value) = next.call((iter.clone(),))? else {
                             break Ok::<_, VmError>(acc);
                         };
@@ -267,6 +274,8 @@ pub fn module() -> Result<Module, ContextError> {
                     };
 
                     while let Some(value) = next.call((iter.clone(),))? {
+                        budget::permit()?;
+
                         acc = f.call((acc, value))?;
                     }
 
@@ -281,6 +290,8 @@ pub fn module() -> Result<Module, ContextError> {
                     "find",
                     move |iter: Value, f: Function| -> Result<Option<Value>, VmError> {
                         loop {
+                            budget::permit()?;
+
                             let Some(value) = next.call((iter.clone(),))? else {
                                 break Ok(None);
                             };
@@ -300,6 +311,8 @@ pub fn module() -> Result<Module, ContextError> {
                     "any",
                     move |iter: Value, f: Function| -> Result<bool, VmError> {
                         loop {
+                            budget::permit()?;
+
                             let Some(value) = next.call((iter.clone(),))? else {
                                 break Ok(false);
                             };
@@ -319,6 +332,8 @@ pub fn module() -> Result<Module, ContextError> {
                     "all",
                     move |iter: Value, f: Function| -> Result<bool, VmError> {
                         loop {
+                            budget::permit()?;
+
                             let Some(value) = next.call((iter.clone(),))? else {
                                 break Ok(true);
                             };
@@ -377,6 +392,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut vec = Vec::with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
+                            budget::permit()?;
                             vec.push(value)?;
                         }
 
@@ -396,6 +412,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut vec = Vec::with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
+                            budget::permit()?;
                             vec.push(value)?;
                         }
 
@@ -415,6 +432,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut set = HashSet::with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
+                            budget::permit()?;
                             set.insert(value)?;
                         }
 
@@ -434,6 +452,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut map = HashMap::with_capacity(cap)?;
 
                         while let Some((key, value)) = next.call((iter.clone(),))? {
+                            budget::permit()?;
                             map.insert(key, value)?;
                         }
 
@@ -453,6 +472,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut map = Object::with_capacity(cap)?;
 
                         while let Some((key, value)) = next.call((iter.clone(),))? {
+                            budget::permit()?;
                             map.insert(key, value)?;
                         }
 
@@ -472,6 +492,7 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut vec = alloc::Vec::try_with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
+                            budget::permit()?;
                             vec.try_push(value)?;
                         }
 
@@ -489,6 +510,8 @@ pub fn module() -> Result<Module, ContextError> {
                         let mut string = String::new();
 
                         while let Some(value) = next.call((iter.clone(),))? {
+                            budget::permit()?;
+
                             match value.as_ref() {
                                 Repr::Inline(Inline::Char(c)) => {
                                     string.try_push(*c)?;
@@ -1691,6 +1714,8 @@ pub fn module() -> Result<Module, ContextError> {
 
                 move |iterator: Value, mut n: usize| -> Result<Option<Value>, VmError> {
                     loop {
+                        budget::permit()?;
+
                         let mut memory = [iterator.clone()];
                         next_back.call(&mut memory, Address::ZERO, 1, Output::keep(0))?;
                         let [value] = memory;

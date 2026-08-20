@@ -147,6 +147,29 @@ pub fn take() -> bool {
     true
 }
 
+/// Take a permit from the ambient budget on behalf of a natively driven loop.
+///
+/// The machine only takes a permit for the instructions it executes itself, so
+/// a native loop which walks a value has to take one per step or a host which
+/// set a budget has no way to interrupt it. Without this, a script can spend an
+/// unbounded amount of time inside a single call such as
+/// `(0..).iter().count()`.
+///
+/// The error raised is the same one the machine's own callers raise when the
+/// budget runs out, so a host sees one shape either way.
+#[inline]
+pub(crate) fn permit() -> Result<(), crate::runtime::VmError> {
+    use crate::runtime::{VmError, VmErrorKind, VmHaltInfo};
+
+    if !take() {
+        return Err(VmError::new(VmErrorKind::Halted {
+            halt: VmHaltInfo::Limited,
+        }));
+    }
+
+    Ok(())
+}
+
 /// A locally acquired budget.
 ///
 /// This guard is acquired by calling [`take`] and can be used to take permits.
