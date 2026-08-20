@@ -80,7 +80,10 @@ fn is_runefmt_skip<'a>(fmt: &Formatter<'a>, node: Node<'a>) -> bool {
 fn expr_labels<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     while matches!(p.peek(), K!['label]) {
         p.pump()?.fmt(fmt)?;
-        p.remaining(fmt, K![:])?.fmt(fmt)?;
+        // Only what is there. Writing a `:` which was not there changes what
+        // the source says, and it changed it into something which is laid out
+        // differently again - so `return 'label break` was not a fixed point.
+        p.remaining(fmt, K![:])?.write_if(fmt, false)?;
         fmt.ws()?;
     }
 

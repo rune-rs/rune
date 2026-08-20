@@ -1705,3 +1705,66 @@ fn an_operator_is_spaced_the_way_the_layout_says() {
         "#
     );
 }
+
+/// How the source it was given was spaced is not something the layout carries
+/// over anywhere, not just across an operator.
+///
+/// A construct which was not understood is written back out as it was found, and
+/// so is the token stream of a macro, so this is over shapes which do parse.
+#[test]
+fn spacing_is_decided_by_the_layout() {
+    assert_format!(
+        r#"
+        fn  f ( a ,  b )  {
+            let  x  =  a  +  b ;
+            let  y  =  [ 1 ,  2 ] ;
+            let  z  =  #{ k :  1 } ;
+            let  w  =  ( 1 ,  2 ) ;
+            let  v  =  y [ 0 ] ;
+            let  u  =  z . k ;
+            let  t  =  f ( 1 ,  2 ) ;
+            if  a  ==  b  {
+                x  +=  1 ;
+            }  else  {
+                x  -=  1 ;
+            }
+            for  i  in  0 .. 3  {
+                x  *=  i ;
+            }
+            while  a  <  b  {
+                break ;
+            }
+            match  x  {
+                1  =>  2 ,
+                _  =>  3 ,
+            }
+        }
+        "#,
+        r#"
+        fn f(a, b) {
+            let x = a + b;
+            let y = [1, 2];
+            let z = #{ k: 1 };
+            let w = (1, 2);
+            let v = y[0];
+            let u = z.k;
+            let t = f(1, 2);
+            if a == b {
+                x += 1;
+            } else {
+                x -= 1;
+            }
+            for i in 0..3 {
+                x *= i;
+            }
+            while a < b {
+                break;
+            }
+            match x {
+                1 => 2,
+                _ => 3,
+            }
+        }
+        "#,
+    );
+}
