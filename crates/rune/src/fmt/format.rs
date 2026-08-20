@@ -2274,7 +2274,13 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                 fmt.ws()?;
 
                 let MaybeNode::Some(open) = p.eat(K!['{']) else {
-                    fmt.lit("{}")?;
+                    // A body which is there but empty is written over two
+                    // lines, so one which is missing is written the same way -
+                    // otherwise formatting what this produced would move it,
+                    // and the file would change every time it was formatted.
+                    fmt.lit("{")?;
+                    fmt.nl(1)?;
+                    fmt.lit("}")?;
                     return buf.end();
                 };
 
