@@ -158,3 +158,44 @@ fn breaking_out_of_a_block_which_always_breaks() {
     let out: i64 = eval(r#"let a = 'a: { 'b: { break 'a 1; } 2 }; a"#);
     assert_eq!(out, 1);
 }
+
+/// A modifier can start an operand.
+///
+/// An operand is parsed as a bare expression, without the half of the grammar
+/// which reads attributes, modifiers and labels - so `const`, `async` and
+/// `move`, which lead an expression like any other keyword does, could not
+/// start one. `f(const { 2 })` and `let a = const { 2 }` parsed while
+/// `1 + const { 2 }` and `-const { 2 }` were an error.
+#[test]
+fn a_modifier_can_start_an_operand() {
+    let out: i64 = eval(r#"1 + const { 2 }"#);
+    assert_eq!(out, 3);
+
+    let out: i64 = eval(r#"-const { 2 }"#);
+    assert_eq!(out, -2);
+
+    let out: bool = eval(r#"!const { true }"#);
+    assert!(!out);
+
+    // Precedence is what it would be for any other operand.
+    let out: i64 = eval(r#"1 + const { 2 } * 3"#);
+    assert_eq!(out, 7);
+
+    // The two range operands.
+    let out: bool = eval(r#"let r = 0..const { 3 }; r.iter().count() == 3"#);
+    assert!(out);
+
+    let out: bool = eval(r#"let r = 0..=const { 3 }; r.iter().count() == 4"#);
+    assert!(out);
+
+    // A closure which takes what it captures.
+    let out: i64 = eval(r#"let v = 1; let f = move || v; f() + 1"#);
+    assert_eq!(out, 2);
+}
+
+/// An `async` block is an operand like any other.
+#[test]
+fn an_async_block_can_start_an_operand() {
+    let out: i64 = eval(r#"1 + async { 2 }.await"#);
+    assert_eq!(out, 3);
+}

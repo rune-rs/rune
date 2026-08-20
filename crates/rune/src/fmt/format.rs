@@ -1634,6 +1634,14 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
             let kind = buf.stream().kind();
 
             match kind {
+                // An operand which starts with a modifier - `1 + const { 2 }` -
+                // is wrapped, since reading modifiers is what the wrapping half
+                // of the grammar is for.
+                Expr => cx.push(Step::Expr {
+                    buf,
+                    kind: Eof,
+                    at: 0,
+                }),
                 Path => {
                     path(fmt, buf.stream())?;
                     buf.end()

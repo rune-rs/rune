@@ -752,6 +752,23 @@ fn is_expr_with(p: &mut Parser<'_>, brace: Brace, range: Range) -> Result<bool> 
     })
 }
 
+/// The task which parses an operand.
+///
+/// An operand is parsed as a bare expression, without the half of the grammar
+/// which reads attributes, modifiers and labels - so `const`, `async` and
+/// `move`, which lead an expression like any other keyword does, could not
+/// start one. `1 + const { 2 }` and `-const { 2 }` were a parse error while
+/// `f(const { 2 })` and `let a = const { 2 }` were not.
+///
+/// Only an operand which starts with one is wrapped, so the tree for everything
+/// else is unchanged.
+fn operand(p: &mut Parser<'_>, cfg: Cfg) -> Result<Task> {
+    Ok(match p.peek()? {
+        K![const] | K![async] | K![move] => Task::Expr(cfg),
+        _ => Task::Outer(cfg),
+    })
+}
+
 fn is_range(kind: Kind) -> bool {
     match kind {
         ExprRangeTo => true,
@@ -1418,7 +1435,7 @@ fn tail_range(
                 if is_expr_with(p, cfg.brace, Range::No)? {
                     push(stack, span, Step::Close { c, kind: ExprRange })?;
 
-                    return Ok(Some(Task::Outer(operand)));
+                    return Ok(Some(self::operand(p, operand)?));
                 }
 
                 p.close_at(&c, ExprRangeFrom)?;
@@ -1437,7 +1454,7 @@ fn tail_range(
                         },
                     )?;
 
-                    return Ok(Some(Task::Outer(operand)));
+                    return Ok(Some(self::operand(p, operand)?));
                 }
 
                 return Err(p.error(c.span(), ErrorKind::msg(UNSUPPORTED_RANGE))?);
@@ -1649,13 +1666,16 @@ fn primary(
             p.bump()?;
             push(stack, span, Step::Close { c, kind: ExprUnary })?;
 
-            return Ok(Some(Task::Outer(Cfg {
-                brace: cfg.brace,
-                range: cfg.range,
-                binary: Binary::No,
-                callable: Callable::Yes,
-                cx: cfg.cx,
-            })));
+            return Ok(Some(self::operand(
+                p,
+                Cfg {
+                    brace: cfg.brace,
+                    range: cfg.range,
+                    binary: Binary::No,
+                    callable: Callable::Yes,
+                    cx: cfg.cx,
+                },
+            )?));
         }
         K![if] => {
             p.bump()?;
@@ -2187,13 +2207,16 @@ impl BinaryState {
 
         let range = if op.is_assoc() { Range::No } else { Range::Yes };
 
-        Ok(Task::Outer(Cfg {
-            brace: self.cfg.brace,
-            range,
-            binary: Binary::No,
-            callable: Callable::Yes,
-            cx: self.cfg.cx,
-        }))
+        operand(
+            p,
+            Cfg {
+                brace: self.cfg.brace,
+                range,
+                binary: Binary::No,
+                callable: Callable::Yes,
+                cx: self.cfg.cx,
+            },
+        )
     }
 }
 

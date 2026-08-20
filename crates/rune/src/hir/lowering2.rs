@@ -3375,6 +3375,10 @@ fn expr_inner<'hir, 'a>(
     let kind = match p.kind() {
         IndexedPath(..) => return expr_path(cx, p),
         Path => return Err(p.expected("an expanded path")),
+        // An operand which starts with a modifier - `1 + const { 2 }` - is
+        // parsed wrapped, since reading modifiers is what the wrapping half of
+        // the grammar is for. Everything else arrives here unwrapped.
+        Expr => expr(cx, p)?.kind,
         Block => expr_block(cx, p)?,
         Lit => expr_lit(cx, p)?,
         ConstBlock(item) => expr_const_block(cx, p, item)?,
