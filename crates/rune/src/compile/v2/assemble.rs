@@ -1756,6 +1756,8 @@ enum DefersTail<'hir> {
     },
     /// `<target>[<index>] = <value>`.
     AssignIndex,
+    /// `<target>[<index>] <op>= <value>`.
+    AssignIndexBinop { hir: &'hir hir::ExprBinary },
 }
 
 /// What to do with a sequence once all of its elements are assembled.
@@ -2524,6 +2526,37 @@ where
                                     pending: cx.scopes.defer(access_expr),
                                 },
                                 access_expr
+                            );
+                        }
+                        // An index is not an address, so there is nothing to
+                        // apply the operator to in place. What is there is read
+                        // out, the operator is applied to that, and the result
+                        // is put back - over the same target and index, which
+                        // are assembled once, so `a[f()] += 1` calls `f` once.
+                        hir::ExprKind::Index(index_get) => {
+                            let index_target = cx.exprs.get(index_get.target);
+                            let index_index = cx.exprs.get(index_get.index);
+                            let rhs = cx.exprs.get(hir.rhs);
+
+                            let mut ids = Vec::try_with_capacity(3)?;
+                            ids.try_push(index_get.target)?;
+                            ids.try_push(index_get.index)?;
+                            ids.try_push(hir.rhs)?;
+
+                            let mut addrs = Vec::try_with_capacity(3)?;
+                            addrs.try_push(cx.scopes.defer(index_target))?;
+                            addrs.try_push(cx.scopes.defer(index_index))?;
+                            addrs.try_push(cx.scopes.defer(rhs))?;
+
+                            descend!(
+                                Step::Defers {
+                                    span,
+                                    ids,
+                                    at: 0,
+                                    addrs,
+                                    tail: DefersTail::AssignIndexBinop { hir },
+                                },
+                                index_target
                             );
                         }
                         _ => {
@@ -4594,6 +4627,53 @@ where
                 resolved.try_push(addr.addr()?.addr())?;
             }
 
+            // Unlike everything else here this is not one instruction: what
+            // is at the index is read out, the operator is applied to it, and
+            // the result is put back.
+            if let DefersTail::AssignIndexBinop { hir } = tail {
+                let mut value = cx.scopes.defer(span);
+                let out = value.alloc_output()?;
+
+                cx.asm.push(
+                    inst::Kind::IndexGet {
+                        target: resolved[0],
+                        index: resolved[1],
+                        out,
+                    },
+                    span,
+                )?;
+
+                let value = value.into_addr()?;
+
+                cx.asm.push(
+                    assign_binop_inst(
+                        &hir.op,
+                        InstTarget::Address(value.addr()),
+                        resolved[2],
+                        span,
+                    )?,
+                    span,
+                )?;
+
+                cx.asm.push(
+                    inst::Kind::IndexSet {
+                        target: resolved[0],
+                        index: resolved[1],
+                        value: value.addr(),
+                    },
+                    span,
+                )?;
+
+                value.free()?;
+
+                for addr in addrs.into_iter().rev() {
+                    addr.free()?;
+                }
+
+                assign_unit(cx, span, needs)?;
+                return Ok(Completed::Done(Asm::new(span, ())));
+            }
+
             let kind = match tail {
                 DefersTail::AssignField { hir } => match hir.expr_field {
                     hir::ExprField::Ident(ident) => {
@@ -4623,6 +4703,8 @@ where
                     index: resolved[1],
                     value: resolved[2],
                 },
+                // Handled above, since it is more than one instruction.
+                DefersTail::AssignIndexBinop { .. } => unreachable!(),
                 DefersTail::Tuple => {
                     let out = needs.alloc_output()?;
 
