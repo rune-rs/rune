@@ -715,6 +715,14 @@ fn is_expr_with(p: &mut Parser<'_>, brace: Brace, range: Range) -> Result<bool> 
     Ok(match p.peek()? {
         path_component!() => true,
         K![async] => true,
+        // `move` and `const` start one just as `async` does - a closure which
+        // takes what it captures, and a block which is evaluated while
+        // compiling. Leaving them out meant that wherever this decides whether
+        // another expression follows - the arguments of a call, the elements of
+        // a vector or a tuple, the operand of `return`, `yield`, `break` or a
+        // range - neither could be written at all, while `async move` could.
+        K![move] => true,
+        K![const] => true,
         K![break] => true,
         K![continue] => true,
         K![for] => true,
