@@ -489,6 +489,8 @@ mod deprecation;
 mod derive_constructor;
 #[cfg(not(miri))]
 mod destructuring;
+#[cfg(all(not(miri), feature = "doc"))]
+mod doc_visitor;
 #[cfg(not(miri))]
 mod esoteric_impls;
 #[cfg(not(miri))]

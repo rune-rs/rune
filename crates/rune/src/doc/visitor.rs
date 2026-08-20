@@ -119,7 +119,18 @@ impl CompileVisitor for Visitor {
 
         match self.data.entry(hash) {
             hash_map::Entry::Occupied(e) => {
-                e.into_mut().kind = Some(meta.kind.try_clone()?);
+                let data = e.into_mut();
+
+                // The top level of a script is compiled as a function of its
+                // own which has no item, so it lands on the item of the module
+                // which holds it. That module is what the documentation is
+                // built out of, so it keeps the kind it was constructed with
+                // rather than being turned into a function - otherwise nothing
+                // documents a script at all, and the build fails looking for a
+                // module which is no longer one.
+                if !matches!(data.kind, Some(meta::Kind::Module)) {
+                    data.kind = Some(meta.kind.try_clone()?);
+                }
             }
             hash_map::Entry::Vacant(e) => {
                 e.try_insert(VisitorData::new(item, hash, Some(meta.kind.try_clone()?)))?;
