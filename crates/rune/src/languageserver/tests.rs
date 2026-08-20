@@ -120,3 +120,28 @@ fn a_position_sent_back_is_counted_the_same_way() {
     let (line, character) = source.find_utf8_line_column(at);
     assert_eq!((line, character), (0, 24));
 }
+
+/// Looking back from where the cursor is, to find what is being completed.
+///
+/// Where it looks is a byte index and where the cursor is is a character index.
+/// Taking one for the other reads the wrong part of the line as soon as the
+/// document holds a character wider than a byte, and lands inside one as soon
+/// as the cursor is past it - which is not a mistake a `&str` slice survives.
+#[test]
+fn looking_back_is_counted_in_characters() {
+    use ropey::Rope;
+
+    let content = Rope::from_str("let a = \"\u{1F600}\"; let b = a.\n");
+    let at = content.len_chars() - 1;
+
+    let (symbol, _) = super::state::looking_back(&content, at)
+        .expect("Should not fail")
+        .expect("Should find something");
+
+    assert_eq!(symbol, ".");
+
+    // Every position in the document, including the ones inside a character.
+    for at in 0..content.len_chars() + 4 {
+        super::state::looking_back(&content, at).expect("Should not fail");
+    }
+}

@@ -958,24 +958,8 @@ impl ServerSource {
     }
 
     /// Returns the best match wordwise when looking back. Note that this will also include the *previous* terminal token.
-    pub(crate) fn looking_back(&self, offset: usize) -> alloc::Result<Option<(String, usize)>> {
-        let (chunk, start_byte, _, _) = self.content.chunk_at_byte(offset);
-
-        // The set of tokens that delimit symbols.
-        let x: &[_] = &[
-            ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')',
-        ];
-
-        let end_search = (offset - start_byte + 1).min(chunk.len());
-
-        let Some(looking_back) = chunk[..end_search].rfind(x) else {
-            return Ok(None);
-        };
-
-        Ok(Some((
-            chunk[looking_back..end_search].trim().try_to_owned()?,
-            start_byte + looking_back,
-        )))
+    pub(crate) fn looking_back(&self, at: usize) -> alloc::Result<Option<(String, usize)>> {
+        looking_back(&self.content, at)
     }
 
     pub(super) fn get_docs_by_hash(&self, hash: crate::Hash) -> Option<&VisitorData> {
@@ -987,6 +971,38 @@ impl fmt::Display for ServerSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.content)
     }
+}
+
+/// The best match wordwise when looking back from `at`.
+///
+/// `at` is a character index, which is what a position resolves to. What is
+/// searched is bytes, and a byte index taken from a character index lands inside
+/// a character as soon as the document has one which is wider than a byte -
+/// which reads the wrong part of the line, and slicing there is not a mistake
+/// which can be recovered from.
+pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(String, usize)>> {
+    let len = content.len_chars();
+    let offset = content.char_to_byte(at.min(len));
+    let (chunk, start_byte, _, _) = content.chunk_at_byte(offset);
+
+    // The set of tokens that delimit symbols.
+    let x: &[_] = &[
+        ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')',
+    ];
+
+    // Up to and including the character being looked back from, which is where
+    // it ends rather than one byte past where it starts.
+    let end = content.char_to_byte(at.saturating_add(1).min(len));
+    let end_search = end.saturating_sub(start_byte).min(chunk.len());
+
+    let Some(found) = chunk[..end_search].rfind(x) else {
+        return Ok(None);
+    };
+
+    Ok(Some((
+        chunk[found..end_search].trim().try_to_owned()?,
+        start_byte + found,
+    )))
 }
 
 /// Convert formatting options from a client request into an indentation style.
