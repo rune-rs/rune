@@ -39,9 +39,10 @@ pub(super) fn read_tag(content: &[u8]) -> (Tag, usize) {
 
 /// Helper function to write an identifier.
 ///
-/// # Panics
-///
-/// Panics if the provided size cannot fit withing an identifier.
+/// A component longer than [`MAX_DATA`] does not fit in the tag, which is an
+/// error rather than an assertion: the size is a name out of a source file, so
+/// asserting on it turns any script carrying a long enough identifier into an
+/// abort - in a debug build only, which is where a host runs its tests.
 pub(super) fn write_tag<A>(output: &mut Vec<u8, A>, Tag(tag): Tag, n: usize) -> alloc::Result<()>
 where
     A: Allocator,
@@ -49,11 +50,6 @@ where
     let tag = usize::from(tag);
 
     debug_assert!(tag <= TYPE_MASK);
-
-    debug_assert!(
-        n < MAX_DATA,
-        "item data overflow, index or string size larger than MAX_DATA"
-    );
 
     if n >= MAX_DATA {
         return Err(alloc::Error::CapacityOverflow);

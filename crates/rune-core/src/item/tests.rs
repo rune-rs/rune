@@ -116,18 +116,33 @@ fn store_max_string() -> alloc::Result<()> {
     Ok(())
 }
 
+/// A component which does not fit is an error rather than a panic.
+///
+/// The size is a name out of a source file, so asserting on it turned any
+/// script carrying a long enough identifier into an abort. It only did so in a
+/// debug build, which is where a host runs its tests, and these two tests only
+/// passed there for the same reason.
 #[test]
-#[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
 fn store_max_data_overflow() {
     let mut item = ItemBuf::new();
-    item.push(ComponentRef::Id(MAX_DATA)).unwrap();
-    assert_eq!(item.last(), Some(ComponentRef::Id(MAX_DATA)));
+
+    assert!(matches!(
+        item.push(ComponentRef::Id(MAX_DATA)),
+        Err(alloc::Error::CapacityOverflow)
+    ));
+
+    assert_eq!(item.last(), None);
 }
 
 #[test]
-#[should_panic(expected = "item data overflow, index or string size larger than MAX_DATA")]
 fn store_max_string_overflow() {
     let mut item = ItemBuf::new();
     let s = "x".repeat(MAX_DATA);
-    item.push(ComponentRef::Str(&s)).unwrap();
+
+    assert!(matches!(
+        item.push(ComponentRef::Str(&s)),
+        Err(alloc::Error::CapacityOverflow)
+    ));
+
+    assert_eq!(item.last(), None);
 }

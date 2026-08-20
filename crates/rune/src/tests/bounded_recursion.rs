@@ -1614,3 +1614,44 @@ fn probe_format_specs() {
 
     std::eprintln!("FORMAT-SPECS: {bad} bad out of {ran}");
 }
+
+/// A name too long to be an item component is an error rather than an abort.
+///
+/// An item component carries its length in fourteen bits, and the size handed
+/// to that encoding is a name out of a source file. It was asserted on, so a
+/// script with a long enough identifier anywhere a path is read - a `let`
+/// binding is enough - took the process down instead. Only in a debug build,
+/// which is where a host runs its tests.
+#[test]
+fn a_name_too_long_to_be_an_item_is_an_error() {
+    // Past the fourteen bits an item component's length is written in.
+    let name = "a".repeat(1 << 14);
+
+    for source in [
+        rust_alloc::format!("let {name} = 1; {name}"),
+        rust_alloc::format!("fn {name}() {{ 1 }} {name}()"),
+        rust_alloc::format!("mod {name} {{ pub fn f() {{ 1 }} }} {name}::f()"),
+        rust_alloc::format!("struct {name}; {name}"),
+    ] {
+        let context = Context::with_default_modules().expect("Failed to build context");
+
+        let mut sources = Sources::new();
+        sources
+            .insert(Source::memory(&source).expect("Failed to build source"))
+            .expect("Failed to insert source");
+
+        let mut diagnostics = Diagnostics::new();
+
+        let result = crate::prepare(&mut sources)
+            .with_context(&context)
+            .with_diagnostics(&mut diagnostics)
+            .with_options(&options(usize::MAX))
+            .build();
+
+        assert!(
+            result.is_err(),
+            "A name of {} should not compile",
+            name.len()
+        );
+    }
+}
