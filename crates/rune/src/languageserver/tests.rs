@@ -145,3 +145,21 @@ fn looking_back_is_counted_in_characters() {
         super::state::looking_back(&content, at).expect("Should not fail");
     }
 }
+
+/// How wide a piece of text is in the units a position is counted in.
+///
+/// The edit a completion offers covers the symbol being completed, and where
+/// that starts used to be worked out by taking the length of the symbol in
+/// bytes off a position counted in something else.
+#[test]
+fn a_width_is_counted_in_the_units_the_encoding_names() {
+    for (text, utf16, utf8) in [
+        ("foo", 3, 3),
+        ("\u{30c6}\u{30b9}\u{30c8}", 3, 9),
+        ("\u{1F600}", 2, 4),
+        ("", 0, 0),
+    ] {
+        assert_eq!(StateEncoding::Utf16.width(text), utf16, "{text:?}");
+        assert_eq!(StateEncoding::Utf8.width(text), utf8, "{text:?}");
+    }
+}

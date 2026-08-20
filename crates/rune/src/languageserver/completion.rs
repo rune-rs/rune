@@ -24,6 +24,7 @@ pub(super) fn complete_for_unit(
     workspace_source: &ServerSource,
     unit: &Unit,
     symbol: &str,
+    start: lsp::Position,
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
 ) -> Result<()> {
@@ -81,10 +82,7 @@ pub(super) fn complete_for_unit(
             }),
             text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                 range: lsp::Range {
-                    start: lsp::Position {
-                        line: position.line,
-                        character: position.character - symbol.len() as u32,
-                    },
+                    start,
                     end: position,
                 },
                 new_text: format!("{}", function.path),
@@ -104,6 +102,7 @@ pub(super) fn complete_for_unit(
 pub(super) fn complete_native_instance_data(
     context: &Context,
     symbol: &str,
+    start: lsp::Position,
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
 ) -> Result<()> {
@@ -146,10 +145,7 @@ pub(super) fn complete_native_instance_data(
                 })),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                     range: lsp::Range {
-                        start: lsp::Position {
-                            line: position.line,
-                            character: position.character - symbol.len() as u32,
-                        },
+                        start,
                         end: position,
                     },
                     new_text: n.try_to_string()?.into_std(),
@@ -170,6 +166,7 @@ pub(super) fn complete_native_instance_data(
 pub(super) fn complete_native_loose_data(
     context: &Context,
     symbol: &str,
+    start: lsp::Position,
     position: lsp::Position,
     results: &mut Vec<CompletionItem>,
 ) -> Result<()> {
@@ -211,10 +208,7 @@ pub(super) fn complete_native_loose_data(
                 })),
                 text_edit: Some(lsp::CompletionTextEdit::Edit(TextEdit {
                     range: lsp::Range {
-                        start: lsp::Position {
-                            line: position.line,
-                            character: position.character - symbol.len() as u32,
-                        },
+                        start,
                         end: position,
                     },
                     new_text: func_name.into_std(),

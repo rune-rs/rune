@@ -138,6 +138,14 @@ impl StateEncoding {
         })
     }
 
+    /// How wide `text` is in the units a position is counted in.
+    pub(super) fn width(&self, text: &str) -> usize {
+        match self {
+            StateEncoding::Utf16 => text.chars().map(char::len_utf16).sum(),
+            StateEncoding::Utf8 => text.len(),
+        }
+    }
+
     pub(super) fn rope_position(&self, rope: &Rope, pos: lsp::Position) -> Result<usize> {
         /// How much of the line the character counts, not counting whatever
         /// ends it.
@@ -343,11 +351,25 @@ impl<'a> State<'a> {
         let first_char = symbol.remove(0);
         let symbol = symbol.trim();
 
+        // Where the symbol starts, which is what an edit replacing it covers.
+        // Working it out by taking the length of the symbol off the position
+        // subtracts a count of bytes from a count of whatever the client counts
+        // in, and goes negative when the symbol reaches back past the start of
+        // the line - which it does when the nearest thing which delimits one is
+        // on an earlier line.
+        let start = lsp::Position {
+            line: position.line,
+            character: position
+                .character
+                .saturating_sub(u32::try_from(self.encoding.width(symbol))?),
+        };
+
         if let Some(unit) = workspace_source.unit.as_ref() {
             super::completion::complete_for_unit(
                 workspace_source,
                 unit,
                 symbol,
+                start,
                 position,
                 &mut results,
             )?;
@@ -357,6 +379,7 @@ impl<'a> State<'a> {
             super::completion::complete_native_instance_data(
                 &self.context,
                 symbol,
+                start,
                 position,
                 &mut results,
             )?;
@@ -364,6 +387,7 @@ impl<'a> State<'a> {
             super::completion::complete_native_loose_data(
                 &self.context,
                 symbol,
+                start,
                 position,
                 &mut results,
             )?;
