@@ -128,10 +128,23 @@ impl Buffer {
         self.0.try_push_str(s)
     }
 
+    /// Drop whatever whitespace is at the end of the last line.
+    ///
+    /// Nothing is ever written for the sake of what is at the end of a line, so
+    /// anything there is left over from laying out something which then turned
+    /// out not to be written - which happens where a construct is incomplete.
+    fn trim_line_end(&mut self) {
+        while matches!(self.0.as_str().as_bytes().last(), Some(b' ' | b'\t')) {
+            self.0.pop();
+        }
+    }
+
     fn lines(&mut self, style: IndentStyle, indent: usize, lines: usize) -> alloc::Result<()> {
         if lines == 0 {
             return Ok(());
         }
+
+        self.trim_line_end();
 
         for _ in 0..lines {
             self.0.try_push_str(NL)?;
@@ -270,6 +283,11 @@ impl<'a> Formatter<'a> {
         self.flush_whitespace(true)?;
         self.o.str(s).with_span(self.span)?;
         Ok(())
+    }
+
+    /// Drop whatever whitespace is at the end of what has been written.
+    pub(super) fn trim_line_end(&mut self) {
+        self.o.trim_line_end();
     }
 
     /// Flush any remaining whitespace.

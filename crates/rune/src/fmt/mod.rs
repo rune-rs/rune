@@ -189,6 +189,7 @@ pub(crate) fn layout_source_with(
         o.flush_prefix_comments(&tree)?;
         format::root(&mut o, &tree)?;
         o.comments(Comments::Line)?;
+        o.trim_line_end();
     }
 
     if options.fmt.force_newline && !o.ends_with(NL) {
