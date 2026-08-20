@@ -188,3 +188,54 @@ fn collect_does_not_reserve_from_the_size_hint() {
         "expected to be halted by the budget, got {error:?}"
     );
 }
+
+/// What a halt says it was.
+///
+/// All three read as "Halted for unexpected reason `limited`", which describes
+/// the ordinary end of a budget - the thing the host asked for - as something
+/// unexpected, and says nothing at all about what to do differently for the
+/// other two.
+#[test]
+fn a_halt_says_what_happened() {
+    // The budget running out, which is what a host who set one is waiting for.
+    let error = limited("pub fn main() { let n = 0; while true { n += 1; } n }");
+    let message = rust_alloc::format!("{error}");
+
+    assert!(message.contains("budget"), "{message}");
+    assert!(!message.contains("unexpected"), "{message}");
+
+    // A generator called as if it were a plain function, which is what an entry
+    // point containing `yield` is - the calling convention is ignored for one.
+    let context = Context::with_default_modules().expect("Failed to build context");
+
+    let mut sources = crate::tests::sources("pub fn main() { yield 1; }");
+    let mut diagnostics = Diagnostics::new();
+
+    let mut vm = crate::tests::vm(&context, &mut sources, &mut diagnostics, false)
+        .expect("Source should compile");
+
+    let error = vm
+        .call(["main"], ())
+        .expect_err("A generator cannot be called for a value");
+
+    let message = rust_alloc::format!("{error}");
+
+    assert!(message.contains("generator"), "{message}");
+    assert!(!message.contains("unexpected"), "{message}");
+
+    // An asynchronous entry point is driven rather than halted, which is what
+    // "the calling convention is ignored" is there for - so the message above
+    // is about a generator specifically.
+    let mut sources = crate::tests::sources("pub async fn main() { 1 }");
+    let mut diagnostics = Diagnostics::new();
+
+    let mut vm = crate::tests::vm(&context, &mut sources, &mut diagnostics, false)
+        .expect("Source should compile");
+
+    let value = vm
+        .call(["main"], ())
+        .expect("An asynchronous entry point is driven to its value");
+
+    let value: i64 = crate::from_value(value).expect("The value is a number");
+    assert_eq!(value, 1);
+}

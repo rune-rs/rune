@@ -737,7 +737,23 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::DynArgsUsed { error } => error.fmt(f),
             VmErrorKind::Panic { reason } => write!(f, "Panicked: {reason}"),
             VmErrorKind::NoRunningVm => write!(f, "No running virtual machines"),
-            VmErrorKind::Halted { halt } => write!(f, "Halted for unexpected reason `{halt}`"),
+            // A halt says what the machine did, and each of the three is a
+            // different thing to have happened: one is the host's own limit
+            // doing what it was set to do, and the other two are a function
+            // being called as if it were something it is not.
+            VmErrorKind::Halted { halt } => match halt {
+                VmHaltInfo::Limited => write!(f, "Exhausted the budget it was given"),
+                VmHaltInfo::Yielded => write!(
+                    f,
+                    "Yielded, but was called as if it could not - a generator has to be \
+                     driven through an execution"
+                ),
+                VmHaltInfo::Awaited => write!(
+                    f,
+                    "Awaited, but was called as if it could not - an asynchronous function \
+                     has to be called asynchronously"
+                ),
+            },
             VmErrorKind::Overflow => write!(f, "Numerical overflow"),
             VmErrorKind::Underflow => write!(f, "Numerical underflow"),
             VmErrorKind::DivideByZero => write!(f, "Division by zero"),

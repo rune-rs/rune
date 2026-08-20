@@ -79,7 +79,7 @@ fn allocating_past_the_limit_is_an_error() {
 
         // Which limit stopped it is not the point - that one of them did is.
         assert!(
-            error.contains("allocate") || error.contains("limited") || error.contains("capacity"),
+            error.contains("allocate") || error.contains("budget") || error.contains("capacity"),
             "{source}: {error}"
         );
     }
