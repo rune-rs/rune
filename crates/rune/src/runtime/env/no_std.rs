@@ -35,6 +35,7 @@ unsafe fn from_env(env: Env) -> RawEnv {
         globals: env.globals.map(|ptr| ptr.cast()),
         diagnostics: env.diagnostics.map(|ptr| ptr.cast()),
         depth: env.depth,
+        executions: env.executions,
     }
 }
 
@@ -45,5 +46,6 @@ unsafe fn from_raw_env(env: RawEnv) -> Env {
         globals: env.globals.map(|ptr| ptr.cast()),
         diagnostics: env.diagnostics.map(|ptr| ptr.cast()),
         depth: env.depth,
+        executions: env.executions,
     }
 }

@@ -14,6 +14,10 @@ pub struct RawEnv {
     /// be stored along with the rest of the environment since a walk which goes
     /// through a protocol function is counted across it.
     pub(crate) depth: usize,
+    /// How deeply the executions in progress are nested, which is stored here
+    /// for the same reason: an execution entered through a native frame is
+    /// counted across it.
+    pub(crate) executions: usize,
 }
 
 impl RawEnv {
@@ -25,6 +29,7 @@ impl RawEnv {
             globals: None,
             diagnostics: None,
             depth: 0,
+            executions: 0,
         }
     }
 }
