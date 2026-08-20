@@ -494,6 +494,8 @@ mod destructuring;
 #[cfg(all(not(miri), feature = "doc"))]
 mod doc_visitor;
 #[cfg(not(miri))]
+mod dynamic_hash;
+#[cfg(not(miri))]
 mod esoteric_impls;
 #[cfg(not(miri))]
 mod external_constructor;

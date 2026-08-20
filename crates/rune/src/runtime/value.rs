@@ -1320,6 +1320,24 @@ impl Value {
                 value.hash(hasher)?;
                 return Ok(());
             }
+            Repr::Dynamic(value) => {
+                // Equality on a value of a type declared in a script is
+                // structural - the same type, the same variant, and fields
+                // which are equal in turn - so hashing has to be, or a type
+                // which can be compared cannot be a key.
+                let rtti = value.rtti();
+
+                core::hash::Hash::hash(&rtti.hash, hasher);
+                core::hash::Hash::hash(&rtti.variant_hash, hasher);
+
+                let values = value.borrow_ref()?;
+
+                for value in values.iter() {
+                    value.hash_with(hasher, caller)?;
+                }
+
+                return Ok(());
+            }
             Repr::Any(value) => match value.type_hash() {
                 Vec::HASH => {
                     let vec = value.borrow_ref::<Vec>()?;
@@ -1331,7 +1349,6 @@ impl Value {
                 }
                 _ => {}
             },
-            _ => {}
         }
 
         let mut args = DynGuardedArgs::new((hasher,));
