@@ -1039,10 +1039,21 @@ where
                     visitor::Attribute::None,
                 )?;
 
+                let main = Hash::type_hash(["main"]);
+
                 let entry = if e.is_argument() {
-                    Hash::EMPTY
+                    // A path given as an argument is compiled as a script, so
+                    // what runs is its top level. A file which only declares
+                    // `main` has nothing at its top level, so running it did
+                    // nothing at all and reported success - and that is what
+                    // every example the book says to run this way looks like.
+                    if load.unit.function(&main).is_some() {
+                        main
+                    } else {
+                        Hash::EMPTY
+                    }
                 } else {
-                    Hash::type_hash(["main"])
+                    main
                 };
 
                 match run::run(io, c, &f.command, &context, load.unit, &load.sources, entry).await?
