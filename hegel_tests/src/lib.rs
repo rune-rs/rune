@@ -67,6 +67,27 @@ pub fn try_compile(context: &Context, source: &str, script: bool) {
     );
 }
 
+/// Format `source`, returning the output if it could be formatted.
+///
+/// A source which cannot be laid out is not interesting here - the properties
+/// below are about what the formatter does when it does produce something.
+pub fn try_format(source: &str) -> Option<String> {
+    let source = Source::new("main", source).ok()?;
+
+    let mut sources = Sources::new();
+    sources.insert(source).expect("insert source");
+
+    let mut diagnostics = Diagnostics::new();
+
+    let files = rune::fmt::prepare(&sources)
+        .with_diagnostics(&mut diagnostics)
+        .format()
+        .ok()?;
+
+    let (_, output) = files.into_iter().next()?;
+    Some(output.into_std())
+}
+
 use hegel::generators;
 
 #[derive(Debug, Clone, Copy)]

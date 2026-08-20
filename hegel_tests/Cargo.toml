@@ -7,5 +7,5 @@ publish = false
 [workspace]
 
 [dependencies]
-rune = { path = "../crates/rune" }
+rune = { path = "../crates/rune", features = ["fmt"] }
 hegeltest = "0.28.2"
