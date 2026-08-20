@@ -35,18 +35,9 @@ impl fmt::Display for AccessError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            AccessErrorKind::NotAccessibleRef(s) => write!(
-                f,
-                "Cannot read, value has snapshot {s} and is not available for reading"
-            ),
-            AccessErrorKind::NotAccessibleMut(s) => write!(
-                f,
-                "Cannot write, value has snapshot {s} and is not available for writing"
-            ),
-            AccessErrorKind::NotAccessibleTake(s) => write!(
-                f,
-                "Cannot take, value has snapshot {s} and is not available for taking"
-            ),
+            AccessErrorKind::NotAccessibleRef(s) => write!(f, "Cannot read, {}", s.what()),
+            AccessErrorKind::NotAccessibleMut(s) => write!(f, "Cannot write, {}", s.what()),
+            AccessErrorKind::NotAccessibleTake(s) => write!(f, "Cannot take, {}", s.what()),
         }
     }
 }
@@ -86,6 +77,24 @@ impl Snapshot {
     /// The number of times a value is shared.
     pub(crate) fn shared(&self) -> usize {
         self.0 & !MASK
+    }
+
+    /// What is being done with the value which stops it being available.
+    ///
+    /// The flags themselves are what the error carries, since that is all this
+    /// knows at the point one is raised, and `M-000000` written into a message
+    /// tells whoever reads it nothing. What is being done with the value is the
+    /// half worth saying.
+    fn what(&self) -> &'static str {
+        if self.0 & MOVED != 0 {
+            "the value has been moved"
+        } else if self.0 & EXCLUSIVE != 0 {
+            "the value is being written to"
+        } else if self.shared() > 0 {
+            "the value is being read from"
+        } else {
+            "the value is not available"
+        }
     }
 }
 

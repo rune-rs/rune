@@ -82,3 +82,37 @@ fn an_unsupported_cast_says_what_as_converts() {
 
     assert!(!out.contains("0x"), "the hash should not be in it: {out}");
 }
+
+/// Being unable to reach a value says what is being done with it.
+///
+/// The error carries the access flags, since that is all it has where it is
+/// raised, and `M-000000` written into a message tells whoever reads it
+/// nothing. Which of the three things is happening is the half worth saying,
+/// and it is the most common thing to run into in a language where everything
+/// is shared.
+#[test]
+fn an_unavailable_value_says_what_is_being_done_with_it() {
+    let cases = [
+        (
+            "let a = #{f: 1}; let b = a; drop(b); a.f",
+            "Cannot read, the value has been moved",
+        ),
+        (
+            "let v = [1, 2, 3]; for x in v { v.push(1); } v",
+            "Cannot write, the value is being read from",
+        ),
+        (
+            "let v = [3, 1, 2, 5, 4]; v.sort_by(|a, b| { v.push(1); a.cmp(b) }); v",
+            "Cannot write, the value is being written to",
+        ),
+        (
+            "let v = [1, 2, 3]; for x in v { drop(v); } v",
+            "Cannot take, the value is being read from",
+        ),
+    ];
+
+    for (source, expected) in cases {
+        let out = emitted(source);
+        assert!(out.contains(expected), "{source}: {out}");
+    }
+}
