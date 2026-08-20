@@ -401,11 +401,11 @@ impl fmt::Display for ContextError {
             } => {
                 let expected = item.parent().unwrap_or_default();
 
-                write! {
+                write!(
                     f,
                     "Type hash mismatch for `{type_info}`, from module is `{hash}` while from item `{item}` is `{item_hash}`.\n\
                     You might not have the #[rune(item = {expected})] attribute set."
-                }?;
+                )?;
             }
             ContextError::StaticTypeHashMismatch {
                 type_info,

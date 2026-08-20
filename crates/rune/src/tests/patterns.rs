@@ -18,7 +18,7 @@ fn test_bad_pattern() {
 fn test_const_in_pattern() {
     macro_rules! test_case_s {
         ($pat1:expr, $pat2:expr) => {
-            let string = format! {
+            let string = format!(
                 r#"
                 const PAT1 = {pat1};
                 const PAT2 = {pat2};
@@ -39,7 +39,7 @@ fn test_const_in_pattern() {
                 "#,
                 pat1 = $pat1,
                 pat2 = $pat2,
-            };
+            );
 
             let tuple: (i64, i64, i64, i64) = eval(string);
             assert_eq!(tuple, (1, 6, 7, 4));

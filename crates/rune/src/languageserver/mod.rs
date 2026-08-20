@@ -309,14 +309,12 @@ fn initialize(s: &mut State<'_>, params: lsp::InitializeParams) -> Result<lsp::I
     s.out
         .log(lsp::MessageType::INFO, "Starting language server")?;
 
-    let position_encoding;
-
-    if is_utf8(&params) {
+    let position_encoding = if is_utf8(&params) {
         s.encoding = StateEncoding::Utf8;
-        position_encoding = Some(lsp::PositionEncodingKind::UTF8);
+        Some(lsp::PositionEncodingKind::UTF8)
     } else {
-        position_encoding = None;
-    }
+        None
+    };
 
     s.out.log(
         lsp::MessageType::INFO,
