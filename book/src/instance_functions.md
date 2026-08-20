@@ -14,11 +14,18 @@ instance functions must be looked up at runtime.
 
 ```text
 $> cargo run -- run scripts/book/instance_functions/missing_instance_fn.rn
-error: virtual machine error
-   ┌─ scripts/book/instance_functions/missing_instance_fn.rn:11:5
+error: Missing instance function `0x8cec23d38bca81a9` for `Foo`
+   ┌─ scripts/book/instance_functions/missing_instance_fn.rn:10:1
    │
-11 │     foo.bar();
-   │     ^^^^^^^^^ missing instance function `0xfb67fa086988a22d` for `type(0xc153807c3ddc98d7)``
+10 │ foo.bar();
+   │ ^^^^^^^^^
+   │ │
+   │ Missing instance function `0x8cec23d38bca81a9` for `Foo`
+   │ This corresponds to the `Foo::bar` instance function
+
+Backtrace:
+scripts/book/instance_functions/missing_instance_fn.rn:10:1:
+foo.bar();
 ```
 
 > Note: The error is currently a bit nondescript. But in the future we will be

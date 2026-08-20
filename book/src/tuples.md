@@ -11,7 +11,7 @@ tuple.
 ```text
 $> cargo run -- run scripts/book/tuples/tuple_masquerade.rn
 ("Now", "You", "See", "Me")
-("Now", "You", "Don\'t", "!")
+("Now", "You", "Don't", "!")
 ```
 
 The following is a simple example of a function returning a tuple:

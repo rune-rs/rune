@@ -108,9 +108,13 @@ Generator { completed: false }
 Yielded(1)
 Complete("John")
 Generator { completed: true }
-error: virtual machine error
-   ┌─ scripts/book/generators/error.rn:11:9
+error: Cannot resume a generator that has completed
+   ┌─ scripts/book/generators/error.rn:10:6
    │
-11 │     dbg!(printer.resume(()));
-   │          ^^^^^^^^^^^^^^^^^^ cannot resume a generator that has completed
+10 │ dbg!(printer.resume(()));
+   │      ^^^^^^^^^^^^^^^^^^ Cannot resume a generator that has completed
+
+Backtrace:
+scripts/book/generators/error.rn:10:6:
+dbg!(printer.resume(()));
 ```

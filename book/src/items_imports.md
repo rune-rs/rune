@@ -7,14 +7,14 @@ compile time checks to make sure that every item we try to use actually exists.
 The following are examples of items in Rune:
 
 * `std::result::Result` (a type)
-* `std::iter::range` (a function)
+* `std::iter::once` (a function)
 
-The first refers to the `Result` enum, and the second is the `range` function.
+The first refers to the `Result` enum, and the second is the `once` function.
 They both live within their corresponding `std` module. `Result` is a bit
 special even, since it's part of the *prelude*, allowing us to use it without
-importing it. But what about `range`?
+importing it. But what about `once`?
 
-If we wanted to use `range` we would have to import it first with a `use`
+If we wanted to use `once` we would have to import it first with a `use`
 statement:
 
 ```rune
@@ -23,7 +23,8 @@ statement:
 
 ```text
 $> cargo run -- run scripts/book/items_imports/example_import.rn
-std::iter::Range
+Some(0)
+None
 ```
 
 Trying to use an item which doesn't exist results in a compile error:
@@ -34,11 +35,13 @@ Trying to use an item which doesn't exist results in a compile error:
 
 ```text
 $> cargo run -- run scripts/book/items_imports/missing_item.rn.fail
-error: compile error
+error: Missing item Foo::new
   ┌─ scripts/book/items_imports/missing_item.rn.fail:2:15
   │
 2 │     let foo = Foo::new();
-  │               ^^^^^^^^ missing item `Foo::new`
+  │               ^^^^^^^^ Missing item Foo::new
+
+Error: Failed to build rune sources (see diagnostics for details)
 ```
 
 Every item used in a Rune program must be known at compile time. This is one of

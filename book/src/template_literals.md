@@ -62,10 +62,12 @@ types which do not implement this protocol will fail to run.
 
 ```text
 $> cargo run -- run scripts/book/template_literals/not_a_template.rn
-== ! (`Vec` does not implement the `display_fmt` protocol (at 5)) (77.7µs)
-error: virtual machine error
-  ┌─ scripts/book/template_literals/not_a_template.rn:3:9
-  │
-3 │     dbg!(`${vec}`);
-  │          ^^^^^^^^ `Vec` does not implement the `display_fmt` protocol
+error: Missing protocol function `DISPLAY_FMT` for `::std::vec::Vec`
+  ┌─ scripts/book/template_literals/not_a_template.rn:1:1
+  │  
+1 │ ╭ let vec = [1, 2, 3];
+2 │ │ dbg!(`${vec}`);
+  │ ╰───────────^ Missing protocol function `DISPLAY_FMT` for `::std::vec::Vec`
+
+Backtrace:
 ```

@@ -34,7 +34,7 @@ If the condition is `true`, the provided block of code will run.
 
 ```text
 $> cargo run -- run scripts/book/control_flow/conditional.rn
-The number *is* smaller than 5
+The number is smaller than 5
 ```
 
 Optionally, we can add another branch under `else`, which will execute in case

@@ -13,8 +13,8 @@ struct.
 
 ```text
 $> cargo run -- run scripts/book/structs/user_database.rn
-setbac is inactive
-setbac is active
+setbac is inactive.
+setbac is active.
 ```
 
 Structs can also be pattern matched, like most types.

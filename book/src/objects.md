@@ -12,8 +12,8 @@ $> cargo run -- run scripts/book/objects/objects.rn
 "bar"
 42
 key did not exist
-("second", 42)
 ("first", "bar")
+("second", 42)
 ```
 
 These are useful because they allow their data to be specified dynamically,

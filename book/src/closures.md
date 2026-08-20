@@ -77,13 +77,15 @@ cause a compile error.
 
 ```text
 $> cargo run -- run scripts/book/closures/closure_move.rn.fail
-error: compile error
-  ┌─ scripts/book/closures/closure_move.rn.fail:7:33
+error: Variable moved
+  ┌─ scripts/book/closures/closure_move.rn.fail:8:26
   │
 7 │     println!("Result: {}", work(move |a, b| n + a + b));
-  │                                 --------------------- moved here
+  │                                 --------------------- Moved here
 8 │     assert!(!is_readable(n));
-  │                          ^ variable moved
+  │                          ^ Variable moved
+
+Error: Failed to build rune sources (see diagnostics for details)
 ```
 
 > Moving indiscriminately applies to types which in principle could be copied

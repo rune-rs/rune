@@ -54,6 +54,10 @@ error: Reading uninitialized static `CONFIG` (slot 0)
   │
 3 │ println!("{CONFIG}");
   │          ^^^^^^^^^^ Reading uninitialized static `CONFIG` (slot 0)
+
+Backtrace:
+scripts/book/statics/uninitialized.rn:3:10:
+println!("{CONFIG}");
 ```
 
 > Note that the static is named in the diagnostic. This relies on debug

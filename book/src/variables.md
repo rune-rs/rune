@@ -55,12 +55,15 @@ raised in the virtual machine.
 ```text
 $> cargo run -- run scripts/book/variables/take_argument.rn
 field: 1
-== ! (cannot read, value is moved (at 14)) (469µs)
-error: virtual machine error
+error: Cannot read, the value has been moved
   ┌─ scripts/book/variables/take_argument.rn:6:27
   │
 6 │     println!("field: {}", object.field);
-  │                           ^^^^^^^^^^^^ cannot read, value is moved
+  │                           ^^^^^^^^^^^^ Cannot read, the value has been moved
+
+Backtrace:
+scripts/book/variables/take_argument.rn:6:27:
+    println!("field: {}", object.field);
 ```
 
 If you need to, you can test if a variable is still accessible for reading with
