@@ -175,3 +175,73 @@ fn assign_binop_over_every_target_and_operator() {
         }
     }
 }
+
+/// Every way of reaching a value up to three accessors deep, checked against
+/// writing the same thing out in full.
+///
+/// The shapes enumerated by hand above are the ones somebody thought to write
+/// down. This covers the combinations nobody would: a tuple field of an object
+/// in a vector, and so on. What it compares against is what a script would have
+/// to write if the operator did not exist, which has to leave the same value
+/// behind.
+#[test]
+fn assign_binop_agrees_with_writing_it_out() {
+    /// How a value is wrapped, and how it is reached again.
+    const ACCESSORS: [(&str, &str, &str); 4] = [
+        ("#{v: ", "}", ".v"),
+        ("(", ", 0)", ".0"),
+        ("[", "]", "[0]"),
+        ("#{k: ", "}", "[\"k\"]"),
+    ];
+
+    fn shape(path: &[usize]) -> (String, String) {
+        let mut ctor = rust_alloc::string::String::from("12");
+        let mut access = rust_alloc::string::String::new();
+
+        // Built from the inside out, so the path reads outermost first.
+        for &step in path.iter().rev() {
+            let (open, close, _) = ACCESSORS[step];
+            ctor = rust_alloc::format!("{open}{ctor}{close}");
+        }
+
+        for &step in path {
+            let (_, _, get) = ACCESSORS[step];
+            access.push_str(get);
+        }
+
+        (ctor, access)
+    }
+
+    let mut paths = Vec::new();
+
+    for a in 0..ACCESSORS.len() {
+        paths.push(rust_alloc::vec![a]);
+
+        for b in 0..ACCESSORS.len() {
+            paths.push(rust_alloc::vec![a, b]);
+
+            for c in 0..ACCESSORS.len() {
+                paths.push(rust_alloc::vec![a, b, c]);
+            }
+        }
+    }
+
+    for path in paths {
+        let (ctor, access) = shape(&path);
+
+        let compound: i64 = eval(rust_alloc::format!(
+            "let t = {ctor}; t{access} += 5; t{access}"
+        ));
+
+        let written_out: i64 = eval(rust_alloc::format!(
+            "let t = {ctor}; t{access} = t{access} + 5; t{access}"
+        ));
+
+        assert_eq!(
+            compound, written_out,
+            "`t{access} += 5` and `t{access} = t{access} + 5` disagree over {ctor}"
+        );
+
+        assert_eq!(compound, 17, "t{access} over {ctor}");
+    }
+}

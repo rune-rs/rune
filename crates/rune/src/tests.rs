@@ -544,6 +544,8 @@ mod statics;
 #[cfg(not(miri))]
 mod tuple;
 #[cfg(not(miri))]
+mod tuple_index;
+#[cfg(not(miri))]
 mod type_name_native;
 #[cfg(not(miri))]
 mod unit_constants;

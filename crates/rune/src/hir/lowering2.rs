@@ -4935,10 +4935,31 @@ fn expr_field<'hir>(
             let index = number.resolve(resolve_context!(cx.q))?;
 
             let Some(index) = index.as_tuple_index() else {
-                return Err(Error::new(
-                    number,
-                    ErrorKind::UnsupportedTupleIndex { number: index },
-                ));
+                // `a.0.1` lexes its two indices as the one number `0.1`, since
+                // nothing about a number says what it is written next to. Two
+                // indices separated by a point is what it can be here and
+                // nothing else, so it is taken apart again.
+                let Some((first, second)) = tuple_index_pair(cx, &number) else {
+                    return Err(Error::new(
+                        number,
+                        ErrorKind::UnsupportedTupleIndex { number: index },
+                    ));
+                };
+
+                let span = inner.span;
+                let kind = inner.into_kind(cx)?;
+
+                let kind = hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
+                    expr: expr!(hir::Expr { span, kind }),
+                    expr_field: hir::ExprField::Index(first),
+                }));
+
+                let kind = hir::ExprKind::FieldAccess(alloc!(hir::ExprFieldAccess {
+                    expr: expr!(hir::Expr { span, kind }),
+                    expr_field: hir::ExprField::Index(second),
+                }));
+
+                return Ok(kind);
             };
 
             hir::ExprField::Index(index)
@@ -4980,6 +5001,42 @@ fn expr_field<'hir>(
     }));
 
     Ok(kind)
+}
+
+/// Take a number written where a field is expected apart into the two tuple
+/// indices it is.
+///
+/// Only a plain decimal number with a point in it and nothing else can be two
+/// indices: a base prefix, a suffix, an exponent or a digit separator all mean
+/// it was written as a number and is simply not one which can index a tuple.
+fn tuple_index_pair(cx: &Ctxt<'_, '_, '_>, number: &ast::LitNumber) -> Option<(usize, usize)> {
+    let ast::NumberSource::Text(text) = number.source else {
+        return None;
+    };
+
+    if !text.is_fractional
+        || !matches!(text.base, ast::NumberBase::Decimal)
+        || !text.suffix.range().is_empty()
+    {
+        return None;
+    }
+
+    let source = cx.q.sources.source(text.source_id, text.number)?;
+    let (first, second) = source.split_once('.')?;
+
+    if first.is_empty() || second.is_empty() {
+        return None;
+    }
+
+    if !first
+        .bytes()
+        .chain(second.bytes())
+        .all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+
+    Some((first.parse().ok()?, second.parse().ok()?))
 }
 
 #[instrument_ast(span = p)]
