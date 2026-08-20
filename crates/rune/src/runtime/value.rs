@@ -35,7 +35,7 @@ use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, String};
 use crate::compile::meta;
-use crate::runtime::env;
+use crate::runtime::{budget, env};
 use crate::sync::Arc;
 use crate::{Any, Hash, TypeHash};
 
@@ -1518,7 +1518,14 @@ impl Value {
         EnvProtocolCaller.call_protocol_fn(&Protocol::INTO_ITER, self.clone(), &mut ())
     }
 
+    // Stepping an iterator from native code is a loop the machine cannot see -
+    // it does not execute an instruction per element the way a script's own
+    // loop does - so a permit is taken here rather than at each of the several
+    // dozen native loops which step one. `Vm::op_iter_next` does not come
+    // through here; a script's `for` pays for the instructions it runs.
+
     pub(crate) fn protocol_next(&self) -> Result<Option<Value>, VmError> {
+        budget::permit()?;
         let _guard = env::enter_value()?;
         let value = EnvProtocolCaller.call_protocol_fn(&Protocol::NEXT, self.clone(), &mut ())?;
 
@@ -1526,6 +1533,7 @@ impl Value {
     }
 
     pub(crate) fn protocol_next_back(&self) -> Result<Option<Value>, VmError> {
+        budget::permit()?;
         let _guard = env::enter_value()?;
 
         let value =

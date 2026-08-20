@@ -132,6 +132,26 @@ fn native_adapter_loops_are_budgeted() {
     }
 }
 
+/// Stepping an iterator natively is budgeted wherever it is done from, not only
+/// in this module, so a container which is extended from an endless iterator is
+/// stopped as well.
+#[test]
+fn native_extend_loops_are_budgeted() {
+    let cases = [
+        "pub fn main() { let v = []; v.extend(0..); v }",
+        "use std::collections::VecDeque; \
+         pub fn main() { let v = VecDeque::new(); v.extend(0..); v }",
+        "use std::collections::HashSet; \
+         pub fn main() { let v = HashSet::new(); v.extend(0..); v }",
+        "use std::collections::HashMap; \
+         pub fn main() { let v = HashMap::new(); v.extend((0..).iter().map(|v| (v, v))); v }",
+    ];
+
+    for source in cases {
+        assert_limited(source);
+    }
+}
+
 /// `collect` asks the iterator for a size hint and reserves space for it. The
 /// hint is written by whoever implemented the iterator, and this module's own
 /// documentation says code must not rely on it being correct, so honouring it
