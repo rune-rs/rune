@@ -544,6 +544,8 @@ mod unit_constants;
 #[cfg(not(miri))]
 mod unreachable;
 #[cfg(not(miri))]
+mod vec_sort;
+#[cfg(not(miri))]
 mod vm_arithmetic;
 #[cfg(not(miri))]
 mod vm_assign_exprs;

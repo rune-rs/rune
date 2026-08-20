@@ -259,7 +259,7 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> Result<(), VmError> {
 
             Ordering::Equal
         }
-    });
+    })?;
 
     if let Some(e) = error {
         Err(e)
@@ -321,7 +321,7 @@ fn sort(vec: &mut Vec) -> Result<(), VmError> {
                 (a as *const _ as usize).cmp(&(b as *const _ as usize))
             }
         }
-    });
+    })?;
 
     if let Some(err) = err {
         return Err(err);

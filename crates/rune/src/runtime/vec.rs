@@ -1,6 +1,7 @@
 use core::cmp;
 use core::cmp::Ordering;
 use core::fmt;
+use core::mem;
 use core::ops;
 use core::slice;
 use core::slice::SliceIndex;
@@ -75,11 +76,55 @@ impl Vec {
     }
 
     /// Sort the vector with the given comparison function.
-    pub fn sort_by<F>(&mut self, compare: F)
+    ///
+    /// The comparison is made by whoever called this, which for a script is
+    /// whoever wrote the script, so it is under no obligation to implement a
+    /// total order. It can be inconsistent by accident, on purpose, or because
+    /// it failed and the caller substituted a placeholder ordering for the call
+    /// which failed.
+    ///
+    /// The standard library's sort notices such a comparison and panics, which
+    /// would take the host process with it, so this is a merge sort which
+    /// neither notices nor cares - an inconsistent comparison simply leaves the
+    /// elements in an order which is not worth describing. It is stable, and it
+    /// allocates its scratch space through the same allocator as everything
+    /// else, so a memory limit accounts for it.
+    pub fn sort_by<F>(&mut self, mut compare: F) -> alloc::Result<()>
     where
         F: FnMut(&Value, &Value) -> cmp::Ordering,
     {
-        self.inner.sort_by(compare)
+        let len = self.inner.len();
+
+        if len < 2 {
+            return Ok(());
+        }
+
+        // Bottom-up merge sort, writing each pass into the other buffer.
+        let mut buf = self.inner.try_clone()?;
+        let mut width = 1usize;
+
+        while width < len {
+            let mut start = 0;
+
+            while start < len {
+                let mid = start.saturating_add(width).min(len);
+                let end = start.saturating_add(width * 2).min(len);
+
+                merge(
+                    &self.inner[start..mid],
+                    &self.inner[mid..end],
+                    &mut buf[start..end],
+                    &mut compare,
+                );
+
+                start = end;
+            }
+
+            mem::swap(&mut self.inner, &mut buf);
+            width *= 2;
+        }
+
+        Ok(())
     }
 
     /// Construct a new dynamic vector guaranteed to have at least the given
@@ -676,5 +721,37 @@ where
         }
 
         Ok(Value::try_from(Vec { inner })?)
+    }
+}
+
+/// Merge two runs which are already in order into `out`.
+///
+/// The comparison is only ever asked whether the left hand side should come
+/// after the right, and anything other than that keeps the left hand side
+/// first, which is what makes the sort stable and what keeps it from caring
+/// whether the comparison is consistent.
+fn merge<F>(a: &[Value], b: &[Value], out: &mut [Value], compare: &mut F)
+where
+    F: FnMut(&Value, &Value) -> Ordering,
+{
+    let mut i = 0;
+    let mut j = 0;
+
+    for slot in out.iter_mut() {
+        let take_a = if i >= a.len() {
+            false
+        } else if j >= b.len() {
+            true
+        } else {
+            !matches!(compare(&a[i], &b[j]), Ordering::Greater)
+        };
+
+        if take_a {
+            *slot = a[i].clone();
+            i += 1;
+        } else {
+            *slot = b[j].clone();
+            j += 1;
+        }
     }
 }
