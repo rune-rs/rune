@@ -36,6 +36,10 @@ fn options(max_depth: usize) -> Options {
     let mut options = Options::default();
     options.script(true);
     options.max_depth = max_depth;
+    // What is under test here is that the compiler walks nesting without
+    // recursing, which is a separate question from how deeply items are allowed
+    // to nest, so the bound on that is lifted rather than worked around.
+    options.max_item_depth = usize::MAX;
     options
 }
 
@@ -400,6 +404,76 @@ fn deep_nesting_compiles() {
             panic!("Deeply nested source should compile: {error:?}");
         }
     }
+}
+
+/// Every level of lexical nesting pushes a component onto the path of the item
+/// being built, and allocating an item hashes its whole path and stores a copy
+/// of it, so nesting `n` deep costs `O(n^2)` in both time and memory.
+///
+/// Nothing else bounds how long a path may get - `max-depth` bounds the work
+/// stacks, and `MAX_ITEM_RECURSION` in `query` bounds how deeply items depend on
+/// each other, which is a different thing - so `max-item-depth` does.
+#[test]
+fn item_depth_is_bounded() {
+    let mut options = options(usize::MAX);
+    options.max_item_depth = 64;
+
+    // A block, and so everything which is written with one, costs a level.
+    for source in [
+        format!("{}1{}", "{".repeat(128), "}".repeat(128)),
+        format!("let a = {}1{}; a", "if true {".repeat(128), "}".repeat(128)),
+        format!(
+            "let a = {}1{}; a",
+            "loop { break ".repeat(128),
+            "}".repeat(128)
+        ),
+        format!("{}{}", "for _ in 0..1 {".repeat(128), "}".repeat(128)),
+        format!(
+            "{} fn f() {{ 1 }} {}",
+            "mod m {".repeat(128),
+            "}".repeat(128)
+        ),
+    ] {
+        let error = build(&source, &options).expect_err("Should exceed the limit");
+
+        assert!(
+            matches!(error, ErrorKind::MaxItemDepth { max: 64 }),
+            "{error:?}"
+        );
+    }
+
+    // A closure costs two levels, one for itself and one for its body.
+    let source = format!("let a = {}1{}; a", "|| {".repeat(64), "}".repeat(64));
+    let error = build(&source, &options).expect_err("Should exceed the limit");
+    assert!(
+        matches!(error, ErrorKind::MaxItemDepth { max: 64 }),
+        "{error:?}"
+    );
+
+    // Well within the bound, so it compiles.
+    let source = format!("{}1{}", "{".repeat(32), "}".repeat(32));
+    build(&source, &options).expect("Source should compile");
+
+    // Width is not depth. A chain of siblings pushes and pops one level at a
+    // time, so any number of them is fine.
+    let source = "{ 1 } ".repeat(4096);
+    build(&source, &options).expect("Source should compile");
+}
+
+/// The default bounds it too, so a host which never looked at the options is
+/// not the one paying for the quadratic.
+#[test]
+fn item_depth_is_bounded_by_default() {
+    let mut options = Options::default();
+    options.script(true);
+
+    let source = format!("{}1{}", "{".repeat(4096), "}".repeat(4096));
+    let error = build(&source, &options).expect_err("Should exceed the limit");
+
+    assert!(
+        matches!(error, ErrorKind::MaxItemDepth { max: 128 }),
+        "{error:?}"
+    );
 }
 
 /// Items nest through `mod`, which does not go through expression parsing.

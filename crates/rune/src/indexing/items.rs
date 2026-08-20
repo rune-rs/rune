@@ -45,6 +45,13 @@ pub(crate) struct Guard(usize);
 #[derive(Debug)]
 pub(crate) struct Items {
     item: ItemBuf,
+    /// How many components `item` has.
+    ///
+    /// Every component of every item allocated is hashed and copied whole, so
+    /// what this counts is what a bound on item nesting is imposed over. It is
+    /// tracked rather than counted on demand since it is consulted once per
+    /// push.
+    depth: usize,
 }
 
 impl Items {
@@ -52,6 +59,7 @@ impl Items {
     pub(crate) fn new(item: &Item) -> alloc::Result<Self> {
         Ok(Self {
             item: item.try_to_owned()?,
+            depth: item.iter().count(),
         })
     }
 
@@ -60,15 +68,22 @@ impl Items {
         &self.item
     }
 
+    /// How many components the current path has.
+    pub(crate) fn depth(&self) -> usize {
+        self.depth
+    }
+
     /// Push a component and return a guard to it.
     pub(super) fn push_id(&mut self, id: usize) -> alloc::Result<Guard> {
         self.item.push(ComponentRef::Id(id))?;
+        self.depth += 1;
         Ok(Guard(self.item.as_bytes().len()))
     }
 
     /// Push a component and return a guard to it.
     pub(super) fn push_name(&mut self, name: &str) -> alloc::Result<Guard> {
         self.item.push(name)?;
+        self.depth += 1;
         Ok(Guard(self.item.as_bytes().len()))
     }
 
@@ -82,6 +97,7 @@ impl Items {
         }
 
         self.item.pop();
+        self.depth -= 1;
         Ok(())
     }
 }

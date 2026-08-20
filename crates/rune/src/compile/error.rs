@@ -474,6 +474,9 @@ pub(crate) enum ErrorKind {
     MaxNesting {
         max: usize,
     },
+    MaxItemDepth {
+        max: usize,
+    },
     MaxConstDepth {
         max: usize,
     },
@@ -1037,6 +1040,12 @@ impl fmt::Display for ErrorKind {
                 write!(
                     f,
                     "Expression is nested too deeply, limit is {max} (see the `max-depth` option)",
+                )?;
+            }
+            ErrorKind::MaxItemDepth { max } => {
+                write!(
+                    f,
+                    "Item is nested too deeply, limit is {max} (see the `max-item-depth` option)",
                 )?;
             }
             ErrorKind::MaxConstDepth { max } => {

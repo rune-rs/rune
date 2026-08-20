@@ -367,7 +367,7 @@ impl<'a> Processor<'a> {
                     None => (None, None),
                 };
 
-                let guard = idx.push_id()?;
+                let guard = idx.push_id(&self.span)?;
                 idx.scopes.push()?;
                 let item_meta = idx.insert_new_item(&self.span, Visibility::Inherited, &[])?;
                 let item = idx.item.replace(item_meta.item);
@@ -397,7 +397,7 @@ impl<'a> Processor<'a> {
                     None => (None, None, None),
                 };
 
-                let guard = idx.push_id()?;
+                let guard = idx.push_id(&self.span)?;
                 let item_meta = idx.insert_new_item(&self.span, Visibility::Inherited, &[])?;
                 let item = idx.item.replace(item_meta.item);
 
@@ -1178,14 +1178,14 @@ fn push_name(
     what: &'static str,
 ) -> Result<(Guard, Option<ast::Ident>)> {
     let (guard, ident) = if let Some(ident) = p.try_ast::<ast::Ident>()? {
+        idx.check_item_depth(&ident)?;
         let name = ident.resolve(resolve_context!(idx.q))?;
         (idx.items.push_name(name.as_ref())?, Some(ident))
     } else {
-        idx.error(Error::msg(
-            p.peek_span().head(),
-            try_format!("expected {what} name"),
-        ))?;
-        (idx.push_id()?, None)
+        let span = p.peek_span().head();
+
+        idx.error(Error::msg(span, try_format!("expected {what} name")))?;
+        (idx.push_id(&span)?, None)
     };
 
     Ok((guard, ident))

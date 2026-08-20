@@ -63,10 +63,28 @@ impl<'a> Ignore<'a> for Indexer<'_, '_> {
 }
 
 impl Indexer<'_, '_> {
-    /// Push an identifier item.
-    pub(super) fn push_id(&mut self) -> alloc::Result<Guard> {
+    /// Bound how many components an item path is allowed to have.
+    ///
+    /// Every level of lexical nesting pushes a component, and allocating an
+    /// item hashes and stores its whole path, so nesting `n` deep costs
+    /// `O(n^2)` in both time and memory. Nothing else bounds this -
+    /// `MAX_ITEM_RECURSION` in `query` bounds how deeply items *depend* on each
+    /// other, not how deeply the source nested.
+    pub(super) fn check_item_depth(&self, span: &dyn Spanned) -> compile::Result<()> {
+        let max = self.q.options.max_item_depth;
+
+        if self.items.depth() >= max {
+            return Err(compile::Error::new(span, ErrorKind::MaxItemDepth { max }));
+        }
+
+        Ok(())
+    }
+
+    /// Push an anonymous item.
+    pub(super) fn push_id(&mut self, span: &dyn Spanned) -> compile::Result<Guard> {
+        self.check_item_depth(span)?;
         let id = self.q.pool.next_id(self.item.id);
-        self.items.push_id(id)
+        Ok(self.items.push_id(id)?)
     }
 
     /// Insert a new item at the current indexed location.

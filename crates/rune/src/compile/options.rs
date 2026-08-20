@@ -182,6 +182,14 @@ pub struct Options {
     /// [`Options::max_depth`] can lower this bound but not raise it, since
     /// raising it would trade a diagnostic for a stack overflow.
     pub(crate) max_const_depth: usize,
+    /// Maximum number of components an item path may have.
+    ///
+    /// Every level of lexical nesting - a block, a closure, a nested item -
+    /// pushes a component onto the path of the item being built, and allocating
+    /// an item hashes and stores its whole path. So a file which nests `n` deep
+    /// costs `O(n^2)` in both time and memory even though nothing about it is
+    /// otherwise unusual. Bounding the path bounds that.
+    pub(crate) max_item_depth: usize,
     /// Maximum number of imports which may be traversed while resolving a path.
     ///
     /// Imports are followed by recursing, since an import may point at another
@@ -213,6 +221,7 @@ impl Options {
         max_depth: 65536,
         max_ast_depth: 64,
         max_const_depth: 128,
+        max_item_depth: 128,
         max_import_depth: 128,
         const_budget: 1_000_000,
         fmt: FmtOptions::DEFAULT,
@@ -388,6 +397,24 @@ impl Options {
                 options: "<number>",
             },
             OptionMeta {
+                key: "max-item-depth",
+                unstable: true,
+                doc: &docstring! {
+                    /// Maximum number of components an item path may
+                    /// have.
+                    ///
+                    /// Every level of lexical nesting pushes a
+                    /// component onto the path of the item being
+                    /// built, and allocating an item hashes and stores
+                    /// its whole path, so nesting `n` deep costs
+                    /// `O(n^2)`. This bounds the path so that a file
+                    /// which nests pathologically is reported as a
+                    /// diagnostic instead.
+                },
+                default: "128",
+                options: "<number>",
+            },
+            OptionMeta {
                 key: "max-const-depth",
                 unstable: true,
                 doc: &docstring! {
@@ -554,6 +581,16 @@ impl Options {
                     };
 
                     self.max_ast_depth = number;
+                }
+                "max-item-depth" => {
+                    let Some(Ok(number)) = tail.map(str::parse) else {
+                        return Err(ParseOptionError {
+                            env,
+                            option: option.into(),
+                        });
+                    };
+
+                    self.max_item_depth = number;
                 }
                 "max-const-depth" => {
                     let Some(Ok(number)) = tail.map(str::parse) else {
