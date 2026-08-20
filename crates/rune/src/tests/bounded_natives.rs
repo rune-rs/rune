@@ -122,6 +122,9 @@ fn native_adapter_loops_are_budgeted() {
         "pub fn main() { (0..).iter().filter(|v| false).next() }",
         "pub fn main() { (0..).iter().filter_map(|v| None).next() }",
         "pub fn main() { (0..).iter().flat_map(|v| []).next() }",
+        // `skip` walks and discards up front rather than lazily, so the walk is
+        // a driver loop of its own over a count the script chose.
+        "pub fn main() { (0..).iter().skip(9223372036854775807).next() }",
     ];
 
     for source in cases {
