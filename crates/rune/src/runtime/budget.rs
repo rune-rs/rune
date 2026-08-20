@@ -87,20 +87,64 @@ pub fn with<T>(budget: usize, value: T) -> Budget<T> {
     Budget { budget, value }
 }
 
-/// Replace the current budget returning a guard that will release it.
-///
-/// Use [`BudgetGuard::take`] to take permites from the returned budget.
+/// Replace the current budget returning a guard that will restore the one which
+/// was in effect when it is dropped.
 #[inline(never)]
 pub fn replace(budget: usize) -> BudgetGuard {
     BudgetGuard(self::no_std::rune_budget_replace(budget))
 }
 
-/// Acquire the current budget.
+/// Acquire the current budget, leaving no budget in effect for the duration of
+/// the returned guard.
 ///
-/// Use [`BudgetGuard::take`] to take permites from the returned budget.
+/// Use [`BudgetGuard::take`] to take permits from the returned budget.
+///
+/// Note that while the guard is alive nothing else can see the budget, so
+/// anything called in the meantime - including a nested execution of the
+/// virtual machine - runs unbudgeted. Prefer [`take`] unless that is what is
+/// wanted.
 #[inline(never)]
 pub fn acquire() -> BudgetGuard {
     BudgetGuard(self::no_std::rune_budget_replace(usize::MAX))
+}
+
+/// Take a single permit from the ambient budget, if one is set.
+///
+/// Returns `false` if the budget has been exhausted.
+///
+/// This is the primitive every budgeted loop uses, the machine's own included.
+/// The permit is taken out of the budget where it lives rather than out of a
+/// local copy of it, so anything which is called while a loop is running - a
+/// native function, or a nested execution of the machine - draws from the same
+/// budget and cannot escape it.
+///
+/// # Examples
+///
+/// ```
+/// use rune::runtime::budget;
+///
+/// budget::with(2, || {
+///     assert!(budget::take());
+///     assert!(budget::take());
+///     assert!(!budget::take());
+/// })
+/// .call();
+/// ```
+#[inline]
+pub fn take() -> bool {
+    let budget = self::no_std::rune_budget_get();
+
+    // No budget is in effect.
+    if budget == usize::MAX {
+        return true;
+    }
+
+    if budget == 0 {
+        return false;
+    }
+
+    self::no_std::rune_budget_replace(budget - 1);
+    true
 }
 
 /// A locally acquired budget.
