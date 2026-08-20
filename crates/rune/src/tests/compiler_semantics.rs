@@ -235,6 +235,32 @@ fn conditional_operand_is_not_clobbered() {
     assert!(value);
 }
 
+/// A value shares what it is made of and a `ConstValue` owns it outright, so
+/// converting one expands a graph into a tree. A constant function which uses
+/// the same value twice per level doubles the size of what is built without
+/// making it any deeper or costing more than a handful of instructions, so
+/// neither `max-const-depth` nor `const-budget` bounds it.
+#[test]
+fn large_constants_are_bounded() {
+    // Linear to evaluate, exponential to convert. This is `2^24` values, which
+    // took several gigabytes and about half a minute before it was bounded.
+    let source = "const fn f(n) { if n == 0 { [1] } else { let v = f(n - 1); [v, v] } } \
+                  const A = f(24); A";
+
+    let error = build(source, &options()).expect_err("Should exceed the limit");
+
+    assert!(
+        error.to_string().contains("too large to be a constant"),
+        "{error:?}"
+    );
+
+    // The same shape without the doubling stays linear, so it still compiles.
+    let source = "const fn f(n) { if n == 0 { [1] } else { let v = f(n - 1); [v] } } \
+                  const A = f(24); A";
+
+    build(source, &options()).expect("Source should compile");
+}
+
 /// A constant is evaluated into a `ConstValue`, which is a recursive
 /// structure, so how deeply a constant nests is still bounded rather than being
 /// allowed to overflow the native stack.

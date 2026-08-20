@@ -554,6 +554,10 @@ pub(crate) enum VmErrorKind {
     MaxConstDepth {
         max: usize,
     },
+    /// A constant is made of more values than it is allowed to be.
+    MaxConstSize {
+        max: usize,
+    },
     /// Executions were nested more deeply than they are allowed to be.
     ///
     /// A call which a native function performs is driven by a machine of its
@@ -801,6 +805,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MaxValueDepth { max } => {
                 write!(f, "Value is nested too deeply to walk, limit is {max}")
+            }
+            VmErrorKind::MaxConstSize { max } => {
+                write!(f, "Value is too large to be a constant, limit is {max}")
             }
             VmErrorKind::MaxConstDepth { max } => {
                 write!(

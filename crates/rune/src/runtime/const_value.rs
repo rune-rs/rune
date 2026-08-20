@@ -35,6 +35,19 @@ use super::{
 /// raising it would trade a diagnostic for a stack overflow.
 pub(crate) const MAX_CONST_DEPTH: usize = 128;
 
+/// How many values a [`ConstValue`] is allowed to be made of.
+///
+/// The value a constant is converted from shares what it is made of - a value
+/// used twice is one allocation pointed at twice - while a `ConstValue` is a
+/// tree which owns each of its parts outright. So converting one expands a graph
+/// into a tree, and a constant function which does nothing more suspicious than
+/// `let v = f(n - 1); [v, v]` produces a value which is linear to evaluate and
+/// exponential to convert. Depth does not catch it: that shape is only `n` deep.
+///
+/// Nothing else bounds it. `const-budget` bounds the instructions evaluation is
+/// allowed to run, and the doubling above needs a handful per level.
+pub(crate) const MAX_CONST_SIZE: usize = 1 << 16;
+
 /// Derive for the [`ToConstValue`] trait.
 ///
 /// This is principally used for associated constants in native modules, since
@@ -374,15 +387,30 @@ impl ConstValue {
 
     /// Construct a constant value from a reference to a value..
     pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
-        Self::from_value_ref_at(value, 0)
+        Self::from_value_ref_at(value, 0, &mut 0)
     }
 
     /// Construct a constant value from a reference to a value nested `depth`
-    /// levels into the value the conversion started at.
-    fn from_value_ref_at(value: &Value, depth: usize) -> Result<ConstValue, RuntimeError> {
+    /// levels into the value the conversion started at, having already
+    /// converted `size` values.
+    fn from_value_ref_at(
+        value: &Value,
+        depth: usize,
+        size: &mut usize,
+    ) -> Result<ConstValue, RuntimeError> {
         if depth >= MAX_CONST_DEPTH {
             return Err(RuntimeError::new(VmErrorKind::MaxConstDepth {
                 max: MAX_CONST_DEPTH,
+            }));
+        }
+
+        // Counted here rather than per container so that what is bounded is
+        // what is actually built, whatever shape it is in.
+        *size += 1;
+
+        if *size > MAX_CONST_SIZE {
+            return Err(RuntimeError::new(VmErrorKind::MaxConstSize {
+                max: MAX_CONST_SIZE,
             }));
         }
 
@@ -407,7 +435,7 @@ impl ConstValue {
                     let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
 
                     for value in tuple.iter() {
-                        const_tuple.try_push(Self::from_value_ref_at(value, depth)?)?;
+                        const_tuple.try_push(Self::from_value_ref_at(value, depth, size)?)?;
                     }
 
                     return ConstValue::tuple(const_tuple.try_into_boxed_slice()?);
@@ -418,7 +446,7 @@ impl ConstValue {
 
                     for (key, value) in object.iter() {
                         let key = ConstValue::string(key.as_str())?;
-                        let value = Self::from_value_ref_at(value, depth)?;
+                        let value = Self::from_value_ref_at(value, depth, size)?;
                         fields.try_push(ConstValue::tuple(Box::try_from([key, value])?)?)?;
                     }
 
@@ -437,7 +465,7 @@ impl ConstValue {
                     let (variant_hash, fields) = match &*option {
                         Some(some) => (
                             hash_in!(crate, ::std::option::Option::Some),
-                            Box::try_from([Self::from_value_ref_at(some, depth)?])?,
+                            Box::try_from([Self::from_value_ref_at(some, depth, size)?])?,
                         ),
                         None => (hash_in!(crate, ::std::option::Option::None), Box::default()),
                     };
@@ -454,7 +482,7 @@ impl ConstValue {
                     let mut const_vec = Vec::try_with_capacity(vec.len())?;
 
                     for value in vec.iter() {
-                        const_vec.try_push(Self::from_value_ref_at(value, depth)?)?;
+                        const_vec.try_push(Self::from_value_ref_at(value, depth, size)?)?;
                     }
 
                     let fields = Box::try_from(const_vec)?;
