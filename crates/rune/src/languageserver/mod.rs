@@ -468,14 +468,25 @@ fn did_change_text_document(
     params: lsp::DidChangeTextDocumentParams,
 ) -> Result<()> {
     let mut interest = false;
+    let mut rejected = crate::alloc::Vec::new();
 
     if let Some(source) = s.workspace.get_mut(&params.text_document.uri) {
         for change in params.content_changes {
-            if let Some(range) = change.range {
-                source.modify_lsp_range(&s.encoding, range, &change.text)?;
+            let result = if let Some(range) = change.range {
+                source.modify_lsp_range(&s.encoding, range, &change.text)
             } else {
-                source.modify_lsp_full_range(&change.text)?;
+                source.modify_lsp_full_range(&change.text)
+            };
+
+            // A range which the document does not have is a client which is
+            // out of step with us. Stopping over it loses the whole session -
+            // every open file, every diagnostic - for one edit which did not
+            // land, so it is reported and the rest are applied.
+            if let Err(error) = result {
+                rejected.try_push(error)?;
+                continue;
             }
+
             interest = true;
         }
     } else {
@@ -483,6 +494,16 @@ fn did_change_text_document(
             "tried to modify `{}`, but it was not open!",
             params.text_document.uri
         );
+    }
+
+    for error in rejected {
+        s.out.log(
+            lsp::MessageType::WARNING,
+            format_args!(
+                "{}: a change could not be applied: {error}",
+                params.text_document.uri
+            ),
+        )?;
     }
 
     if interest {
