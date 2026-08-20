@@ -4,6 +4,7 @@ use core::cmp::Ordering;
 use core::num::ParseFloatError;
 
 use crate as rune;
+use crate::alloc::prelude::*;
 use crate::runtime::{VmError, VmErrorKind};
 use crate::{docstring, ContextError, Module};
 
@@ -140,6 +141,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.function_meta(is_normal)?;
     m.function_meta(max__meta)?;
     m.function_meta(min__meta)?;
+    m.function_meta(to_string)?;
 
     #[cfg(feature = "std")]
     {
@@ -1090,4 +1092,20 @@ fn sin(this: f64) -> f64 {
 #[cfg(feature = "std")]
 fn tan(this: f64) -> f64 {
     this.tan()
+}
+
+/// Returns the number as a string.
+///
+/// # Examples
+///
+/// Basic usage:
+///
+/// ```rune
+/// assert_eq!(1.5.to_string(), "1.5");
+/// assert_eq!((-0.0).to_string(), "-0");
+/// ```
+#[rune::function(instance)]
+#[inline]
+fn to_string(this: f64) -> crate::alloc::Result<crate::alloc::String> {
+    this.try_to_string()
 }

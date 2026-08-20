@@ -184,3 +184,35 @@ fn looking_back_stops_at_the_line() {
 
     assert_eq!(symbol.trim_start_matches('\n'), "bar");
 }
+
+/// A path with something awkward in it survives the trip to a URL and back.
+///
+/// This is how a file the editor names is found on disk, so a path which does
+/// not come back is a file the server cannot open.
+#[test]
+fn a_path_survives_being_made_into_a_url() {
+    use std::path::{Path, PathBuf};
+
+    for path in [
+        "/tmp/plain.rn",
+        "/tmp/with a space.rn",
+        "/tmp/with#hash.rn",
+        "/tmp/with%percent.rn",
+        "/tmp/with?question.rn",
+        "/tmp/with'quote.rn",
+        "/tmp/with\"quote.rn",
+        "/tmp/\u{e5}\u{e4}\u{f6}.rn",
+        "/tmp/\u{1F600}.rn",
+        "/tmp/with{brace}.rn",
+        "/tmp/with backtick`.rn",
+        "/tmp/a/b/c.rn",
+    ] {
+        let url = super::url::from_file_path(path).expect("Should become a url");
+
+        let back: PathBuf = url
+            .to_file_path()
+            .unwrap_or_else(|()| panic!("{path}: {url} should become a path"));
+
+        assert_eq!(back, Path::new(path), "{url}");
+    }
+}
