@@ -50,7 +50,13 @@ fn is_stmt_recovering(p: &mut Parser<'_>) -> Result<bool> {
         K![pub] => false,
         K![const] => false,
         K![async] => false,
-        K![#] => !matches!(p.nth(1)?, K!['['] | K![!]),
+        // Glued, because that is what `attributes` and `inner_attributes`
+        // require in order to consume the `#`. Looking past whitespace here
+        // made this stop for a `#` which neither of them would then take, and
+        // recovery which stops without consuming anything does not recover -
+        // it spins. The two only differ when whitespace is part of the input,
+        // which is how the formatter parses and the compiler does not.
+        K![#] => !matches!(p.glued(1)?, K!['['] | K![!]),
         _ => true,
     };
 

@@ -1640,3 +1640,36 @@ fn tokens_are_not_run_together() {
         "#
     );
 }
+
+/// A `#` which is not the start of an attribute is skipped by statement
+/// recovery.
+///
+/// Whether it is the start of one was decided by looking at the next token past
+/// any whitespace, but what actually consumes it requires the two to be glued.
+/// The two only differ when whitespace is part of the input, which is how the
+/// formatter parses and the compiler does not - so for `# !` recovery stopped
+/// without consuming anything, and recovery which does not consume anything
+/// does not recover, it spins. `rune fmt` never returned.
+///
+/// A regression here shows up as this test never finishing.
+#[test]
+fn a_stray_hash_does_not_spin() {
+    for source in [
+        "# !\n",
+        "# [\n",
+        "#\n!\n",
+        "#\n[\n",
+        "# ![]\n",
+        "mod\n# !\n",
+    ] {
+        let options =
+            crate::compile::Options::from_default_env().expect("constructing options from env");
+
+        let mut diagnostics = crate::Diagnostics::new();
+
+        // What it makes of these is not the point; that it makes anything of
+        // them at all is.
+        let _ =
+            super::layout_source_with(source, crate::SourceId::EMPTY, &options, &mut diagnostics);
+    }
+}
