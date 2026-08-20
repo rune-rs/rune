@@ -488,8 +488,11 @@ where
         );
     }
 
+    // What the warning is, rather than that there is one. An error says what it
+    // is on this line and a warning said "Warning", leaving the reader to find
+    // the text on the label below it.
     let diagnostic = d::Diagnostic::warning()
-        .with_message("Warning")
+        .with_message(this.try_to_string()?)
         .with_labels(labels)
         .with_notes(notes);
 
