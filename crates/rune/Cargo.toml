@@ -47,7 +47,7 @@ itoa = "1.0.6"
 pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, optional = true, features = ["derive", "rc"] }
-musli = { version = "0.0.149", default-features = false, optional = true, features = ["alloc"] }
+musli = { version = "0.1.0", default-features = false, optional = true, features = ["alloc"] }
 musli-core = { version = "0.1.0", default-features = false, optional = true, features = ["alloc"] }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
