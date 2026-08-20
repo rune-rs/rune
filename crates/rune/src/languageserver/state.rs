@@ -1009,9 +1009,12 @@ pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(S
     let offset = content.char_to_byte(at.min(len));
     let (chunk, start_byte, _, _) = content.chunk_at_byte(offset);
 
-    // The set of tokens that delimit symbols.
+    // The set of tokens that delimit symbols. A line ending is one of them:
+    // what is being completed is on the line the cursor is on, and without it
+    // a line whose text reaches back to a delimiter on an earlier line was
+    // taken to be part of the symbol.
     let x: &[_] = &[
-        ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')',
+        ',', ';', '(', '.', '=', '+', '-', '*', '/', '}', '{', ']', '[', ')', '\n',
     ];
 
     // Up to and including the character being looked back from, which is where

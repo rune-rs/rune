@@ -132,7 +132,8 @@ fn looking_back_is_counted_in_characters() {
     use ropey::Rope;
 
     let content = Rope::from_str("let a = \"\u{1F600}\"; let b = a.\n");
-    let at = content.len_chars() - 1;
+    // The `.`, which is the last thing on the line.
+    let at = content.len_chars() - 2;
 
     let (symbol, _) = super::state::looking_back(&content, at)
         .expect("Should not fail")
@@ -162,4 +163,24 @@ fn a_width_is_counted_in_the_units_the_encoding_names() {
         assert_eq!(StateEncoding::Utf16.width(text), utf16, "{text:?}");
         assert_eq!(StateEncoding::Utf8.width(text), utf8, "{text:?}");
     }
+}
+
+/// What is being completed is on the line the cursor is on.
+///
+/// A line ending delimits a symbol like anything else does. Without that, a
+/// line whose text reaches back to a delimiter on an earlier line was taken to
+/// be part of the symbol, and the symbol then matched nothing.
+#[test]
+fn looking_back_stops_at_the_line() {
+    use ropey::Rope;
+
+    let content = Rope::from_str("let a = 1\nbar\n");
+    // The last `r`, which is the last thing on the line.
+    let at = content.len_chars() - 2;
+
+    let (symbol, _) = super::state::looking_back(&content, at)
+        .expect("Should not fail")
+        .expect("Should find something");
+
+    assert_eq!(symbol.trim_start_matches('\n'), "bar");
 }
