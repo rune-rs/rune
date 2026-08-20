@@ -603,53 +603,58 @@ fn a_block_expression_ends_the_statement_it_is_written_as() {
     assert_eq!(value, -1);
 
     // The same for every other expression written as a block.
-    let value: i64 = rune!(
+    let value: i64 = rune! {
         fn f() {
             match 1 {
                 _ => (),
             }
             -1
-        },
+        }
+
         f()
-    );
+    };
     assert_eq!(value, -1);
 
-    let value: i64 = rune!(
+    let value: i64 = rune! {
         fn f() {
             loop {
                 break;
             }
             -1
-        },
+        }
+
         f()
-    );
+    };
     assert_eq!(value, -1);
 
-    let value: i64 = rune!(
+    let value: i64 = rune! {
         fn f() {
             while false {}
             -1
-        },
+        }
+
         f()
-    );
+    };
     assert_eq!(value, -1);
 
-    let value: i64 = rune!(
+    let value: i64 = rune! {
         fn f() {
             for _ in 0..1 {}
             -1
-        },
+        }
+
         f()
-    );
+    };
     assert_eq!(value, -1);
 
-    let value: i64 = rune!(
+    let value: i64 = rune! {
         fn f() {
             {}
             -1
-        },
+        }
+
         f()
-    );
+    };
     assert_eq!(value, -1);
 
     // Where an expression is expected the operator still binds, since there is
