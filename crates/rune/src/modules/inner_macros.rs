@@ -10,6 +10,8 @@ macro_rules! unsigned {
         $m.function_meta(max__meta)?;
         $m.function_meta(min__meta)?;
         $m.function_meta(pow)?;
+        $m.function_meta(checked_pow)?;
+        $m.function_meta(wrapping_pow)?;
 
         $m.function_meta(checked_add)?;
         $m.function_meta(checked_sub)?;
@@ -186,7 +188,9 @@ macro_rules! unsigned_fns {
         ///
         /// # Overflow behavior
         ///
-        /// This function will wrap on overflow.
+        /// This function errors on overflow, the same way `*` does. Use
+        /// `wrapping_pow`, `checked_pow` or `saturating_pow` to pick something
+        /// else.
         ///
         /// # Examples
         ///
@@ -199,7 +203,45 @@ macro_rules! unsigned_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn pow(this: $ty, pow: u32) -> $ty {
+        fn pow(this: $ty, pow: u32) -> Result<$ty, $crate::runtime::VmError> {
+            let Some(value) = <$ty>::checked_pow(this, pow) else {
+                return Err($crate::runtime::VmError::new($crate::runtime::VmErrorKind::Overflow));
+            };
+
+            Ok(value)
+        }
+
+        /// Raises self to the power of `exp`, using exponentiation by squaring,
+        /// returning `None` if it does not fit.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        #[doc = concat!(" assert_eq!(2", $n, ".checked_pow(5), Some(32", $n, "));")]
+        #[doc = concat!(" assert_eq!(2", $n, ".checked_pow(4294967295), None);")]
+        /// ```
+        #[rune::function(instance)]
+        #[inline]
+        fn checked_pow(this: $ty, pow: u32) -> Option<$ty> {
+            <$ty>::checked_pow(this, pow)
+        }
+
+        /// Raises self to the power of `exp`, using exponentiation by squaring,
+        /// wrapping around at the boundary of the type.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        #[doc = concat!(" assert_eq!(2", $n, ".wrapping_pow(5), 32", $n, ");")]
+        #[doc = concat!(" assert_eq!(2", $n, ".wrapping_pow(4294967295), 0", $n, ");")]
+        /// ```
+        #[rune::function(instance)]
+        #[inline]
+        fn wrapping_pow(this: $ty, pow: u32) -> $ty {
             <$ty>::wrapping_pow(this, pow)
         }
 
@@ -572,6 +614,8 @@ macro_rules! signed {
         unsigned!($m, $ty, stringify!($ty));
 
         $m.function_meta(abs)?;
+        $m.function_meta(checked_abs)?;
+        $m.function_meta(wrapping_abs)?;
         $m.function_meta(saturating_abs)?;
         $m.function_meta(signum)?;
         $m.function_meta(is_positive)?;
@@ -626,9 +670,10 @@ macro_rules! signed_fns {
         ///
         /// # Overflow behavior
         ///
-        #[doc = concat!(" The absolute value of `", $n, "::MIN` cannot be represented as an `int`,")]
-        /// and attempting to calculate it will cause an overflow. This means
-        #[doc = concat!(" that such code will wrap to `", $n, "::MIN` without a panic.")]
+        #[doc = concat!(" The absolute value of `", $n, "::MIN` cannot be represented as an `", $n, "`,")]
+        /// so asking for it is an error, the same way negating it is. Use
+        /// `wrapping_abs`, `checked_abs` or `saturating_abs` to pick something
+        /// else.
         ///
         /// # Examples
         ///
@@ -640,7 +685,45 @@ macro_rules! signed_fns {
         /// ```
         #[rune::function(instance)]
         #[inline]
-        fn abs(this: $ty) -> $ty {
+        fn abs(this: $ty) -> Result<$ty, $crate::runtime::VmError> {
+            let Some(value) = <$ty>::checked_abs(this) else {
+                return Err($crate::runtime::VmError::new($crate::runtime::VmErrorKind::Overflow));
+            };
+
+            Ok(value)
+        }
+
+        /// Computes the absolute value of `self`, returning `None` if it does
+        /// not fit.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        /// assert_eq!(10.checked_abs(), Some(10));
+        #[doc = concat!(" assert_eq!(", $n, "::MIN.checked_abs(), None);")]
+        /// ```
+        #[rune::function(instance)]
+        #[inline]
+        fn checked_abs(this: $ty) -> Option<$ty> {
+            <$ty>::checked_abs(this)
+        }
+
+        /// Computes the absolute value of `self`, wrapping around at the
+        /// boundary of the type.
+        ///
+        /// # Examples
+        ///
+        /// Basic usage:
+        ///
+        /// ```rune
+        /// assert_eq!(10.wrapping_abs(), 10);
+        #[doc = concat!(" assert_eq!(", $n, "::MIN.wrapping_abs(), ", $n, "::MIN);")]
+        /// ```
+        #[rune::function(instance)]
+        #[inline]
+        fn wrapping_abs(this: $ty) -> $ty {
             <$ty>::wrapping_abs(this)
         }
 

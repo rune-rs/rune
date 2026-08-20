@@ -261,3 +261,37 @@ fn i8() {
     op_tests!(i8, 0b1100i8 >> 2 = 0b1100i8 >> 2);
     op_tests!(i64, !0b10100i8 = !0b10100i64);
 }
+
+/// Overflowing `pow` and `abs` is an error, the way overflowing any other
+/// arithmetic is.
+///
+/// They were the two which wrapped instead, silently: `2.pow(64)` was `0` and
+/// `i64::MIN.abs()` was `i64::MIN`, while `*` and unary `-` next to them
+/// reported an overflow for the same numbers. Wrapping is still reachable, by
+/// asking for it.
+#[test]
+fn pow_and_abs_report_an_overflow() {
+    assert_vm_error!("let a = 2; a.pow(64);", Overflow => {});
+    assert_vm_error!("let a = 2u64; a.pow(64);", Overflow => {});
+    assert_vm_error!("let a = -9223372036854775808i64; a.abs();", Overflow => {});
+
+    // What still holds.
+    let out: i64 = eval("2.pow(10)");
+    assert_eq!(out, 1024);
+
+    let out: i64 = eval("(-10).abs()");
+    assert_eq!(out, 10);
+
+    // And what the wrapping and checked forms answer instead.
+    let out: i64 = eval("2.wrapping_pow(64)");
+    assert_eq!(out, 0);
+
+    let out: i64 = eval("(-9223372036854775808i64).wrapping_abs()");
+    assert_eq!(out, i64::MIN);
+
+    let out: Option<i64> = eval("2.checked_pow(64)");
+    assert_eq!(out, None);
+
+    let out: Option<i64> = eval("(-9223372036854775808i64).checked_abs()");
+    assert_eq!(out, None);
+}
