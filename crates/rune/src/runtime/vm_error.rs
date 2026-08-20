@@ -603,7 +603,9 @@ pub(crate) enum VmErrorKind {
     },
     UnsupportedAs {
         value: TypeInfo,
-        type_hash: Hash,
+    },
+    UnsupportedAsTarget {
+        value: TypeInfo,
     },
     UnsupportedCallFn {
         actual: TypeInfo,
@@ -852,9 +854,18 @@ impl fmt::Display for VmErrorKind {
             VmErrorKind::UnsupportedIs { value, test_type } => {
                 write!(f, "Operation `{value} is {test_type}` is not supported")
             }
-            VmErrorKind::UnsupportedAs { value, type_hash } => {
-                write!(f, "Operation `{value} as {type_hash}` is not supported")
-            }
+            VmErrorKind::UnsupportedAs { value } => write!(
+                f,
+                "Type `{value}` cannot be converted with `as`, which only converts between `i64`, `u64` and `f64`"
+            ),
+            // The type being converted to is not something the machine can name
+            // - all it has is a hash, which tells whoever wrote it nothing the
+            // source in front of them does not already say. What `as` can
+            // convert to is the half which is worth saying.
+            VmErrorKind::UnsupportedAsTarget { value } => write!(
+                f,
+                "Type `{value}` cannot be converted with `as` to that type, which only converts to `i64`, `u64` or `f64`"
+            ),
             VmErrorKind::UnsupportedCallFn { actual } => write!(
                 f,
                 "Type `{actual}` cannot be called since it's not a function",

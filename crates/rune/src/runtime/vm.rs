@@ -1066,10 +1066,9 @@ impl Vm {
                     f64::HASH => Value::from($value as f64),
                     u64::HASH => Value::from($value as u64),
                     i64::HASH => Value::from($value as i64),
-                    ty => {
-                        return Err(VmError::new(VmErrorKind::UnsupportedAs {
+                    _ => {
+                        return Err(VmError::new(VmErrorKind::UnsupportedAsTarget {
                             value: TypeInfo::from(<$from as TypeOf>::STATIC_TYPE_INFO),
-                            type_hash: ty,
                         }));
                     }
                 }
@@ -1083,7 +1082,6 @@ impl Vm {
             value => {
                 return Err(VmError::new(VmErrorKind::UnsupportedAs {
                     value: value.type_info(),
-                    type_hash: ty.into_hash(),
                 }));
             }
         };

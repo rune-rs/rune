@@ -56,3 +56,29 @@ fn a_missing_instance_function_is_named() {
         "{out}"
     );
 }
+
+/// What `as` cannot do says what it can, rather than naming a hash.
+///
+/// The type being converted to is not something the machine can name - all it
+/// has is a hash - and a hash tells whoever wrote it nothing which the source in
+/// front of them does not already say.
+#[test]
+fn an_unsupported_cast_says_what_as_converts() {
+    // The value is not something `as` converts.
+    let out = emitted(r#"let a = "x" as i64; a"#);
+
+    assert!(
+        out.contains("cannot be converted with `as`, which only converts between"),
+        "{out}"
+    );
+
+    // The value is, but what it was asked to convert to is not.
+    let out = emitted("let a = 1 as String; a");
+
+    assert!(
+        out.contains("to that type, which only converts to"),
+        "{out}"
+    );
+
+    assert!(!out.contains("0x"), "the hash should not be in it: {out}");
+}
