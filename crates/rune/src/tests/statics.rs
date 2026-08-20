@@ -6,6 +6,18 @@ use crate::runtime::Globals;
 use crate::support::Error;
 use crate::{termcolor, to_value, Statics, Unit};
 
+/// The options these tests build under.
+///
+/// What a static is called is debug information, and the diagnostics below name
+/// the static they are about, so this pins it on rather than taking whatever
+/// `RUNEFLAGS` happens to say. Building with `debug-info=false` is a supported
+/// thing to do; what these tests are about is what is said when it is not.
+fn options() -> Options {
+    let mut options = Options::from_default_env().expect("parsing RUNEFLAGS");
+    options.debug_info(true);
+    options
+}
+
 fn build(source: &str) -> Result<(Arc<Unit>, Arc<runtime::RuntimeContext>)> {
     let context = Context::with_default_modules()?;
     let runtime = Arc::try_new(context.runtime()?)?;
@@ -18,6 +30,7 @@ fn build(source: &str) -> Result<(Arc<Unit>, Arc<runtime::RuntimeContext>)> {
     let result = prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
+        .with_options(&options())
         .build();
 
     if !diagnostics.is_empty() {
@@ -49,6 +62,7 @@ fn build_declared(
     let result = prepare(&mut sources)
         .with_context(&context)
         .with_diagnostics(&mut diagnostics)
+        .with_options(&options())
         .with_statics(statics)
         .build();
 
