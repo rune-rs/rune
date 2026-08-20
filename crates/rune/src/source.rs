@@ -240,6 +240,16 @@ impl Source {
         (line, col)
     }
 
+    /// Convert the given position to a line and the number of bytes into that
+    /// line.
+    ///
+    /// This is what the language server protocol counts when it has been told
+    /// to use `utf-8` positions: a character there is a byte, not a character.
+    pub fn find_utf8_line_column(&self, position: usize) -> (usize, usize) {
+        let (line, offset, _) = self.position(position);
+        (line, offset)
+    }
+
     /// Convert the given position to a utf-16 code units line and character.
     ///
     /// A position is a character offset into the source in utf-16 characters.

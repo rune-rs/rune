@@ -87,3 +87,36 @@ fn a_line_past_the_end_is_an_error() {
         }
     }
 }
+
+/// What a client sends to ask for `utf-8` positions.
+#[test]
+fn a_client_can_ask_for_utf8_positions() {
+    let params: lsp::InitializeParams = serde_json::from_str(
+        r#"{"capabilities": {"general": {"positionEncodings": ["utf-8"]}}, "processId": null}"#,
+    )
+    .expect("Should deserialize");
+
+    assert!(super::is_utf8(&params));
+
+    let params: lsp::InitializeParams =
+        serde_json::from_str(r#"{"capabilities": {}, "processId": null}"#)
+            .expect("Should deserialize");
+
+    assert!(!super::is_utf8(&params));
+}
+
+/// A position sent back to the client is counted in the units the encoding
+/// names, the same way round as when one arrives.
+#[test]
+fn a_position_sent_back_is_counted_the_same_way() {
+    let source = crate::Source::memory("let a = \"\u{1F600}\"; let b = 2;\n").expect("source");
+
+    // The `2`, which is at byte 24 and at code unit 22 of the line.
+    let at = source.as_str().find('2').expect("The source has a `2`");
+
+    let (line, character) = source.find_utf16cu_line_column(at);
+    assert_eq!((line, character), (0, 22));
+
+    let (line, character) = source.find_utf8_line_column(at);
+    assert_eq!((line, character), (0, 24));
+}

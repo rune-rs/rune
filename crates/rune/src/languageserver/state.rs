@@ -123,9 +123,13 @@ impl StateEncoding {
 
     /// Get line column out of source.
     pub(super) fn source_position(&self, source: &Source, at: usize) -> Result<lsp::Position> {
+        // A character is counted in the units the encoding names, the same way
+        // round as when one arrives - under `utf-8` that is bytes, and
+        // `find_line_column` counts characters, which is what a diagnostic
+        // printed for a person wants and not what is sent over the wire.
         let (l, c) = match self {
             StateEncoding::Utf16 => source.find_utf16cu_line_column(at),
-            StateEncoding::Utf8 => source.find_line_column(at),
+            StateEncoding::Utf8 => source.find_utf8_line_column(at),
         };
 
         Ok(lsp::Position {
