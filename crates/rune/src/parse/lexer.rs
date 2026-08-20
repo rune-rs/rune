@@ -886,21 +886,52 @@ impl<'a> Lexer<'a> {
                             continue 'outer;
                         }
 
+                        // Scan the literal without processing it, which is
+                        // what the formatter wants - it writes the text back
+                        // out exactly as it found it, so all that is needed is
+                        // where the literal ends.
+                        //
+                        // Only `${` opens an expression, so a brace which is
+                        // just part of the text is text. Counting every brace
+                        // meant that `` `a{b` `` never terminated and swallowed
+                        // whatever followed it instead.
                         let mut level = 0u32;
+                        let mut terminated = false;
 
                         while let Some(c) = self.iter.next() {
-                            let n = match c {
-                                '{' => 1i32,
-                                '}' => -1i32,
+                            match c {
+                                // Whatever follows is escaped, so it is text
+                                // however it would otherwise read. This used to
+                                // lex a whole token and throw it away, which
+                                // left the scan somewhere else entirely.
                                 '\\' => {
-                                    _ = self.next();
-                                    continue;
+                                    if self.iter.next().is_none() {
+                                        break;
+                                    }
                                 }
-                                '`' if level == 0 => break,
-                                _ => 0,
-                            };
+                                '$' if level == 0 => {
+                                    if matches!(self.iter.peek(), Some('{')) {
+                                        self.iter.next();
+                                        level += 1;
+                                    }
+                                }
+                                '{' if level > 0 => level += 1,
+                                '}' if level > 0 => level -= 1,
+                                '`' if level == 0 => {
+                                    terminated = true;
+                                    break;
+                                }
+                                _ => (),
+                            }
+                        }
 
-                            level = level.wrapping_add_signed(n);
+                        if !terminated {
+                            let span = self.iter.span_to_pos(start);
+
+                            return Err(compile::Error::new(
+                                span,
+                                ErrorKind::UnterminatedTemplateLit,
+                            ));
                         }
 
                         ast::Kind::TemplateString

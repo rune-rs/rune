@@ -502,6 +502,7 @@ pub(crate) enum ErrorKind {
     },
     ExpectedEscape,
     UnterminatedStrLit,
+    UnterminatedTemplateLit,
     UnterminatedByteStrLit,
     UnterminatedCharLit,
     UnterminatedByteLit,
@@ -1080,6 +1081,9 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::ExpectedEscape => {
                 write!(f, "Expected escape sequence")?;
+            }
+            ErrorKind::UnterminatedTemplateLit => {
+                write!(f, "Unterminated template literal")?;
             }
             ErrorKind::UnterminatedStrLit => {
                 write!(f, "Unterminated string literal")?;

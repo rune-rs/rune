@@ -1549,3 +1549,51 @@ fn width_does_not_count_a_closing_comma() {
         "#
     );
 }
+
+/// A template literal is scanned rather than parsed when formatting, since its
+/// text is written back out exactly as it was found and all that is needed is
+/// where it ends.
+///
+/// Getting that wrong took whatever followed the literal with it, and the
+/// formatter then wrote out the part it thought was missing - so formatting a
+/// valid file appended a stray `;` to it, and formatting it again appended
+/// another. A brace which is only text used to open an expression, and an
+/// escape used to lex a whole token and throw it away, which left the scan
+/// somewhere else entirely.
+#[test]
+fn a_template_literal_ends_where_it_ends() {
+    assert_format!(
+        r#"
+        let a = `a{b`;
+        let b = `a}b`;
+        let c = `x\`y`;
+        let d = `a${b}c`;
+        let e = `a${`b`}c`;
+        let f = `a\\`;
+        "#
+    );
+}
+
+/// A literal which is never closed is reported, the way the other literals
+/// which are never closed are, rather than being taken to run to the end of the
+/// file.
+#[test]
+fn an_unterminated_template_literal_is_reported() {
+    for source in ["let a = `x;\n", "let a = `a${b;\n", "let a = `x\\`;\n", "`"] {
+        let options =
+            crate::compile::Options::from_default_env().expect("constructing options from env");
+
+        let mut diagnostics = crate::Diagnostics::new();
+
+        let error =
+            super::layout_source_with(source, crate::SourceId::EMPTY, &options, &mut diagnostics)
+                .expect_err("Should not format");
+
+        let message = rust_alloc::format!("{error}");
+
+        assert!(
+            message.contains("Unterminated template literal"),
+            "{source:?}: {message}"
+        );
+    }
+}
