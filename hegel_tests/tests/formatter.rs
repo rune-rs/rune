@@ -79,3 +79,32 @@ fn formatting_is_idempotent() {
     .settings(hegel::Settings::new().test_cases(5000))
     .run();
 }
+
+/// The shapes which have been found not to be a fixed point, kept as cases of
+/// their own so that a regression is reported the same way every time rather
+/// than whenever the generator happens to draw it again.
+#[test]
+fn known_shapes_are_a_fixed_point() {
+    for source in [
+        "select\n",
+        "static X = select\n",
+        "a\nb\n",
+        "let a = `x\\`y`;\n",
+        "let a = `a{b`;\n",
+        "let a = `a}b`;\n",
+        "f//c\nn\n",
+        "return 'label break \n",
+        "mod {   \n",
+    ] {
+        let Some(once) = try_format(source) else {
+            continue;
+        };
+
+        let twice = try_format(&once).expect("Formatted output should format again");
+
+        assert_eq!(
+            once, twice,
+            "Formatting is not a fixed point.\nSource:\n{source}\nOnce:\n{once}\nTwice:\n{twice}"
+        );
+    }
+}
