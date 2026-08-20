@@ -1353,6 +1353,12 @@ enum Step<'a, 'hir> {
         span: &'hir dyn Spanned,
         /// The target, once it is known.
         inst_target: Option<InstTarget>,
+        /// The address `inst_target` names, held for as long as it does.
+        ///
+        /// The right-hand side is assembled after the target is, so the target
+        /// has to stay allocated across that or the right-hand side is handed
+        /// the same address and overwrites it.
+        target: Option<Address<'a, 'hir>>,
         /// A global slot the target has to be written back to.
         writeback: Option<(usize, Address<'a, 'hir>)>,
         pending: Any<'a, 'hir>,
@@ -1635,11 +1641,18 @@ impl<'a, 'hir> Step<'a, 'hir> {
             Step::Return { addr, .. } => addr.free(),
             Step::Break { needs, .. } => needs.free(),
             Step::AssignBinop {
-                writeback, pending, ..
+                target,
+                writeback,
+                pending,
+                ..
             } => {
                 pending.free()?;
 
                 if let Some((_, target)) = writeback {
+                    target.free()?;
+                }
+
+                if let Some(target) = target {
                     target.free()?;
                 }
 
@@ -2484,6 +2497,7 @@ where
                                     hir,
                                     span,
                                     inst_target: Some(InstTarget::Address(var.addr)),
+                                    target: None,
                                     writeback: None,
                                     pending: cx.scopes.defer(cx.exprs.get(hir.rhs)),
                                 },
@@ -2508,6 +2522,7 @@ where
                                     hir,
                                     span,
                                     inst_target: Some(inst_target),
+                                    target: None,
                                     writeback: Some((slot, target)),
                                     pending: cx.scopes.defer(cx.exprs.get(hir.rhs)),
                                 },
@@ -2522,6 +2537,7 @@ where
                                     hir,
                                     span,
                                     inst_target: None,
+                                    target: None,
                                     writeback: None,
                                     pending: cx.scopes.defer(access_expr),
                                 },
@@ -4356,6 +4372,7 @@ where
             hir,
             span,
             inst_target,
+            target,
             writeback,
             pending,
         } => {
@@ -4363,6 +4380,10 @@ where
                 pending.free()?;
 
                 if let Some((_, target)) = writeback {
+                    target.free()?;
+                }
+
+                if let Some(target) = target {
                     target.free()?;
                 }
 
@@ -4394,13 +4415,18 @@ where
                     }
                 };
 
-                target.free()?;
-
+                // The target is kept rather than freed here: the instruction
+                // which names it has not been written yet, and the right-hand
+                // side is assembled in between. Freeing it first let the
+                // right-hand side be given the same address, which overwrote
+                // the target - so `o.a.b += 1` applied the operation to a field
+                // of whatever the right-hand side turned out to be.
                 return Ok(Completed::Next(
                     Step::AssignBinop {
                         hir,
                         span,
                         inst_target: Some(inst_target),
+                        target: Some(target),
                         writeback: None,
                         pending: cx.scopes.defer(cx.exprs.get(hir.rhs)),
                     },
@@ -4429,6 +4455,11 @@ where
             }
 
             value.free()?;
+
+            if let Some(target) = target {
+                target.free()?;
+            }
+
             Asm::new(span, ())
         }
         Step::Break {
