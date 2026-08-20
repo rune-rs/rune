@@ -216,3 +216,114 @@ fn a_path_survives_being_made_into_a_url() {
         assert_eq!(back, Path::new(path), "{url}");
     }
 }
+
+/// A request the server cannot serve is answered with an error.
+///
+/// Ending the loop over it instead took the whole session down - every open
+/// file, every diagnostic - and a position the document does not have is just
+/// a client which is a keystroke ahead of us.
+#[tokio::test]
+async fn a_request_which_fails_does_not_stop_the_server() {
+    /// Frame a message the way the protocol does.
+    fn frame(out: &mut rust_alloc::vec::Vec<u8>, message: &str) {
+        use std::io::Write;
+        write!(out, "Content-Length: {}\r\n\r\n{message}", message.len()).expect("Should write");
+    }
+
+    /// Every response the server wrote, by the id it carries.
+    fn responses(mut data: &[u8]) -> rust_alloc::vec::Vec<serde_json::Value> {
+        let mut out = rust_alloc::vec::Vec::new();
+
+        while let Some(at) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+            let header = std::str::from_utf8(&data[..at]).expect("Header should be utf-8");
+
+            let len: usize = header
+                .split_once(':')
+                .expect("Header should have a length")
+                .1
+                .trim()
+                .parse()
+                .expect("Length should be a number");
+
+            let body = &data[at + 4..at + 4 + len];
+            out.push(serde_json::from_slice(body).expect("Body should be json"));
+            data = &data[at + 4 + len..];
+        }
+
+        out
+    }
+
+    let uri = "file:///tmp/does-not-stop.rn";
+
+    let mut input = rust_alloc::vec::Vec::new();
+
+    frame(
+        &mut input,
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"processId":null}}"#,
+    );
+    frame(
+        &mut input,
+        r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#,
+    );
+    frame(
+        &mut input,
+        &rust_alloc::format!(
+            r#"{{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{{"textDocument":{{"uri":"{uri}","languageId":"rune","version":1,"text":"let a = 1;\n"}}}}}}"#
+        ),
+    );
+
+    // A line the document does not have.
+    for (id, method) in [
+        (2, "textDocument/completion"),
+        (3, "textDocument/definition"),
+    ] {
+        frame(
+            &mut input,
+            &rust_alloc::format!(
+                r#"{{"jsonrpc":"2.0","id":{id},"method":"{method}","params":{{"textDocument":{{"uri":"{uri}"}},"position":{{"line":99,"character":0}}}}}}"#
+            ),
+        );
+    }
+
+    // Params which are not what the method takes.
+    frame(
+        &mut input,
+        r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"nonsense":true}}"#,
+    );
+
+    // And something which should still be served afterwards.
+    frame(
+        &mut input,
+        &rust_alloc::format!(
+            r#"{{"jsonrpc":"2.0","id":5,"method":"textDocument/formatting","params":{{"textDocument":{{"uri":"{uri}"}},"options":{{"tabSize":4,"insertSpaces":true}}}}}}"#
+        ),
+    );
+
+    let mut output = rust_alloc::vec::Vec::new();
+
+    super::builder()
+        .with_input(&input[..])
+        .with_output(&mut output)
+        .build()
+        .expect("Should build")
+        .run()
+        .await
+        .expect("The server should not stop over a request it cannot serve");
+
+    let responses = responses(&output);
+
+    let find = |id: i64| {
+        responses
+            .iter()
+            .find(|m| m.get("id").and_then(serde_json::Value::as_i64) == Some(id))
+            .unwrap_or_else(|| panic!("Should have answered {id}: {responses:?}"))
+    };
+
+    for id in [2, 3, 4] {
+        let response = find(id);
+        assert!(response.get("error").is_some(), "{id}: {response}");
+    }
+
+    let response = find(5);
+    assert!(response.get("error").is_none(), "5: {response}");
+}

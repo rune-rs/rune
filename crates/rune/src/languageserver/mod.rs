@@ -21,7 +21,7 @@ use tokio::io::{self, Stdin, Stdout};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt as _};
 use tokio::sync::Notify;
 
-use crate::alloc::String;
+use crate::alloc::{try_format, String};
 use crate::languageserver::envelope::Code;
 use crate::languageserver::state::State;
 use crate::support::Result;
@@ -237,13 +237,52 @@ where
                         ($(req($req_ty:ty, $req_handle:ident)),* $(, notif($notif_ty:ty, $notif_handle:ident))* $(,)?) => {
                             match incoming.method {
                                 $(<$req_ty>::METHOD => {
-                                    let params = <$req_ty as Request>::Params::deserialize(incoming.params)?;
-                                    let result = $req_handle(&mut state, params)?;
-                                    state.out.response(incoming.id, result)?;
+                                    // A request which cannot be served is
+                                    // answered with an error. Leaving it to
+                                    // end the loop instead takes the whole
+                                    // session down - every open file, every
+                                    // diagnostic - over one request, and a
+                                    // position the document does not have is
+                                    // just a client which is a keystroke
+                                    // ahead of us.
+                                    match <$req_ty as Request>::Params::deserialize(incoming.params) {
+                                        Ok(params) => match $req_handle(&mut state, params) {
+                                            Ok(result) => {
+                                                state.out.response(incoming.id, result)?;
+                                            }
+                                            Err(error) => {
+                                                state.out.error(
+                                                    incoming.id,
+                                                    Code::InternalError,
+                                                    try_format!("{}: {error}", <$req_ty>::METHOD),
+                                                    None::<()>,
+                                                )?;
+                                            }
+                                        },
+                                        Err(error) => {
+                                            state.out.error(
+                                                incoming.id,
+                                                Code::InvalidParams,
+                                                try_format!("{}: {error}", <$req_ty>::METHOD),
+                                                None::<()>,
+                                            )?;
+                                        }
+                                    }
                                 })*
                                 $(<$notif_ty>::METHOD => {
-                                    let params = <$notif_ty as Notification>::Params::deserialize(incoming.params)?;
-                                    let () = $notif_handle(&mut state, params)?;
+                                    // A notification has no reply to put an
+                                    // error in, so it is logged.
+                                    let result = match <$notif_ty as Notification>::Params::deserialize(incoming.params) {
+                                        Ok(params) => $notif_handle(&mut state, params),
+                                        Err(error) => Err(error.into()),
+                                    };
+
+                                    if let Err(error) = result {
+                                        state.out.log(
+                                            lsp::MessageType::WARNING,
+                                            format_args!("{}: {error}", <$notif_ty>::METHOD),
+                                        )?;
+                                    }
                                 })*
                                 _ => {
                                     state.out.log(
