@@ -1,5 +1,7 @@
 use core::mem::take;
 
+use unicode_ident::is_xid_continue;
+
 use crate::alloc::prelude::*;
 use crate::alloc::{self, VecDeque};
 use crate::ast::{Kind, Span};
@@ -106,8 +108,23 @@ impl Buffer {
         self.0.is_empty()
     }
 
+    /// Write `s`, keeping it from running into whatever was written before it.
+    ///
+    /// Two tokens written with nothing between them are one token when the
+    /// output is read back: `a` and `b` next to each other are the identifier
+    /// `ab`, and `.` next to `.` is a range. The layout puts whitespace where
+    /// the language calls for it, but a construct it did not understand is
+    /// written out as it was found, and there it can end up next to whatever
+    /// was written last. Silently changing what the source says is worse than
+    /// any amount of ugly, so a separator goes in wherever one is needed.
     #[inline]
     fn str(&mut self, s: &str) -> alloc::Result<()> {
+        if let (Some(last), Some(first)) = (self.0.chars().next_back(), s.chars().next()) {
+            if joins(last, first) {
+                self.0.try_push_str(WS)?;
+            }
+        }
+
         self.0.try_push_str(s)
     }
 
@@ -135,6 +152,48 @@ impl Buffer {
 
         Ok(())
     }
+}
+
+/// Whether `a` written immediately before `b` would read as one token rather
+/// than as two.
+fn joins(a: char, b: char) -> bool {
+    // A word runs into a word: identifiers, keywords and numbers are all made
+    // of the same characters, so any two of them next to each other are one.
+    if (a == '_' || is_xid_continue(a)) && (b == '_' || is_xid_continue(b)) {
+        return true;
+    }
+
+    // Every pair of punctuation characters which the lexer reads as one token
+    // and the grammar does not take apart again. Longer operators are built out
+    // of these, so guarding the pairs guards them too.
+    //
+    // `>>` and `||` are left out: the grammar splits them where it has to, for
+    // the closing of nested generics and for a closure which takes nothing, and
+    // both of those are written without a space.
+    matches!(
+        (a, b),
+        ('.', '.')
+            | (':', ':')
+            | ('-', '>')
+            | ('=', '>')
+            | ('=', '=')
+            | ('!', '=')
+            | ('<', '=')
+            | ('>', '=')
+            | ('&', '&')
+            | ('<', '<')
+            | ('+', '=')
+            | ('-', '=')
+            | ('*', '=')
+            | ('/', '=')
+            | ('%', '=')
+            | ('&', '=')
+            | ('|', '=')
+            | ('^', '=')
+            | ('/', '/')
+            | ('/', '*')
+            | ('*', '/')
+    )
 }
 
 /// A constructed syntax tree.

@@ -1597,3 +1597,46 @@ fn an_unterminated_template_literal_is_reported() {
         );
     }
 }
+
+/// The layout puts whitespace where the language calls for it, but a construct
+/// it did not understand is written out as it was found, and there it can end up
+/// next to whatever was written last.
+///
+/// Two tokens written with nothing between them are one token when the output is
+/// read back, so this used to turn `a` and `b` on separate lines into the single
+/// identifier `ab` - silently, and reporting success. Formatting something which
+/// does not parse is allowed to lay it out oddly; it is not allowed to change
+/// what it says.
+#[test]
+fn tokens_are_not_run_together() {
+    assert_format!(
+        r#"
+        a
+        b
+        "#,
+        r#"
+        a b
+        "#,
+    );
+
+    assert_format!(
+        r#"
+        let x = a
+        // c
+        b;
+        "#,
+        r#"
+        let x = a b;
+        // c
+        "#,
+    );
+
+    // The pairs which the grammar takes apart again are still written the way
+    // they are meant to be written.
+    assert_format!(
+        r#"
+        let a = Vec::<Vec::<i64>>::new();
+        let b = || 42;
+        "#
+    );
+}
