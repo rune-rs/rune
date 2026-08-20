@@ -12,6 +12,7 @@
 
 prelude!();
 
+use crate::alloc::limit;
 use crate::runtime::{budget, VmError, VmHaltInfo};
 
 /// How many permits each case is given. Large enough for the setup the script
@@ -126,4 +127,41 @@ fn native_adapter_loops_are_budgeted() {
     for source in cases {
         assert_limited(source);
     }
+}
+
+/// `collect` asks the iterator for a size hint and reserves space for it. The
+/// hint is written by whoever implemented the iterator, and this module's own
+/// documentation says code must not rely on it being correct, so honouring it
+/// exactly turns a hint into an allocation request of any size a script likes.
+///
+/// An endless range hints at more elements than could ever be held, so before
+/// this was clamped the reservation failed outright - and a hint just under
+/// what fits would have succeeded, which is worse.
+#[test]
+fn collect_does_not_reserve_from_the_size_hint() {
+    let source = "pub fn main() { (0..).iter().collect::<Vec>() }";
+
+    let context = Context::with_default_modules().expect("Failed to build context");
+
+    let mut sources = crate::tests::sources(source);
+    let mut diagnostics = Diagnostics::new();
+
+    let mut vm = crate::tests::vm(&context, &mut sources, &mut diagnostics, false)
+        .expect("Source should compile");
+
+    // Room for what is reserved up front and then some, but nowhere near what
+    // the hint asks for.
+    let result = budget::with(BUDGET, limit::with(1 << 20, || vm.call(["main"], ()))).call();
+
+    let error = result.expect_err("Expected the budget to be exceeded");
+
+    assert!(
+        matches!(
+            error.error().kind(),
+            VmErrorKind::Halted {
+                halt: VmHaltInfo::Limited
+            }
+        ),
+        "expected to be halted by the budget, got {error:?}"
+    );
 }

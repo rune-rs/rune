@@ -13,6 +13,23 @@ use crate::runtime::{
 use crate::shared::Caller;
 use crate::{docstring, Any, ContextError, Module, Params};
 
+/// The most elements which are reserved for up front on the strength of an
+/// iterator's size hint.
+///
+/// [`Protocol::SIZE_HINT`] is implemented by whoever wrote the iterator, and
+/// the documentation for it in this module says that code must not rely on it
+/// being correct. So a hint is only ever an optimisation, and reserving exactly
+/// what it asks for hands a script a way to request an arbitrarily large
+/// allocation from a single call. Anything past this is grown into as elements
+/// actually arrive, which is amortised anyway.
+const MAX_HINT_CAPACITY: usize = 1024;
+
+/// Clamp a size hint down to what is worth reserving up front.
+#[inline]
+fn hint_capacity(hint: usize) -> usize {
+    hint.min(MAX_HINT_CAPACITY)
+}
+
 /// Rune support for iterators.
 ///
 /// This module contains types and methods for working with iterators in Rune.
@@ -389,6 +406,7 @@ pub fn module() -> Result<Module, ContextError> {
                     Params::new("collect", [Vec::HASH]),
                     move |iter: Value| -> Result<Vec, VmError> {
                         let (cap, _) = size_hint.call((&iter,))?;
+                        let cap = hint_capacity(cap);
                         let mut vec = Vec::with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
@@ -409,6 +427,7 @@ pub fn module() -> Result<Module, ContextError> {
                     Params::new("collect", [VecDeque::HASH]),
                     move |iter: Value| -> Result<VecDeque, VmError> {
                         let (cap, _) = size_hint.call((&iter,))?;
+                        let cap = hint_capacity(cap);
                         let mut vec = Vec::with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
@@ -429,6 +448,7 @@ pub fn module() -> Result<Module, ContextError> {
                     Params::new("collect", [HashSet::HASH]),
                     move |iter: Value| -> Result<HashSet, VmError> {
                         let (cap, _) = size_hint.call((&iter,))?;
+                        let cap = hint_capacity(cap);
                         let mut set = HashSet::with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
@@ -449,6 +469,7 @@ pub fn module() -> Result<Module, ContextError> {
                     Params::new("collect", [HashMap::HASH]),
                     move |iter: Value| -> Result<HashMap, VmError> {
                         let (cap, _) = size_hint.call((&iter,))?;
+                        let cap = hint_capacity(cap);
                         let mut map = HashMap::with_capacity(cap)?;
 
                         while let Some((key, value)) = next.call((iter.clone(),))? {
@@ -469,6 +490,7 @@ pub fn module() -> Result<Module, ContextError> {
                     Params::new("collect", [Object::HASH]),
                     move |iter: Value| -> Result<Object, VmError> {
                         let (cap, _) = size_hint.call((&iter,))?;
+                        let cap = hint_capacity(cap);
                         let mut map = Object::with_capacity(cap)?;
 
                         while let Some((key, value)) = next.call((iter.clone(),))? {
@@ -489,6 +511,7 @@ pub fn module() -> Result<Module, ContextError> {
                     Params::new("collect", [OwnedTuple::HASH]),
                     move |iter: Value| -> Result<OwnedTuple, VmError> {
                         let (cap, _) = size_hint.call((&iter,))?;
+                        let cap = hint_capacity(cap);
                         let mut vec = alloc::Vec::try_with_capacity(cap)?;
 
                         while let Some(value) = next.call((iter.clone(),))? {
