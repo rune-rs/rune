@@ -278,6 +278,27 @@ impl VmError {
                     }
                 }
             };
+
+            // What is missing is a field, and which field it was is in the
+            // unit next to the instruction which asked for it - the error
+            // itself only carries the slot it was in.
+            if let VmErrorKind::ObjectIndexMissing { slot } = at.kind() {
+                if let Some(&DebugInst {
+                    source_id, span, ..
+                }) = get(at)
+                {
+                    if let Some(string) = self
+                        .stacktrace()
+                        .get(at.index())
+                        .and_then(|l| l.unit.lookup_string(*slot))
+                    {
+                        labels.push(
+                            d::Label::secondary(source_id, span.range())
+                                .with_message(format!("This corresponds to the field `{string}`")),
+                        );
+                    }
+                }
+            }
         }
 
         let diagnostic = d::Diagnostic::error()

@@ -568,6 +568,8 @@ mod vm_closures;
 #[cfg(not(miri))]
 mod vm_const_exprs;
 #[cfg(not(miri))]
+mod vm_diagnostics;
+#[cfg(not(miri))]
 mod vm_early_termination;
 #[cfg(not(miri))]
 mod vm_function;
