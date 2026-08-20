@@ -13,6 +13,39 @@ struct Attrs {
     skip: bool,
 }
 
+/// Write a binary operator.
+///
+/// `is not` is the one operator written as two words, and it carries whatever
+/// was written between them. Written as a single span that came out unchanged,
+/// so `a is  not b` stayed as it was and `a is\nnot b` put the two halves of the
+/// operator on different lines.
+fn operator<'a>(fmt: &mut Formatter<'a>, op: Node<'a>) -> Result<()> {
+    let mut written = false;
+
+    for child in op.children() {
+        // A comment between the two halves is queued by writing the half in
+        // front of it and placed by whoever flushes the queue, so writing it
+        // here as well would write it twice.
+        if matches!(child.kind(), Whitespace | Comment | MultilineComment(..)) {
+            continue;
+        }
+
+        if written {
+            fmt.ws()?;
+        }
+
+        written = true;
+        child.fmt(fmt)?;
+    }
+
+    // An operator which is one token has no children of its own.
+    if !written {
+        op.fmt(fmt)?;
+    }
+
+    Ok(())
+}
+
 /// Test if a node is the `#[runefmt::skip]` attribute.
 fn is_runefmt_skip<'a>(fmt: &Formatter<'a>, node: Node<'a>) -> bool {
     let mut skip = None;
@@ -2039,7 +2072,7 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                     Some(p.pump()?)
                 } else if let MaybeNode::Some(op) = p.eat(ExprOperator) {
                     fmt.ws()?;
-                    op.fmt(fmt)?;
+                    operator(fmt, op)?;
                     fmt.ws()?;
                     Some(p.pump()?)
                 } else {

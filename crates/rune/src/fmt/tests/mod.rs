@@ -1673,3 +1673,35 @@ fn a_stray_hash_does_not_spin() {
             super::layout_source_with(source, crate::SourceId::EMPTY, &options, &mut diagnostics);
     }
 }
+
+/// How much whitespace was written between two tokens is not something the
+/// layout carries over - it decides that itself.
+///
+/// `is not` is the one operator written as two words, and it was written out as
+/// a single span, which carried whatever had been written between them. So
+/// `a is  not b` came back with the two spaces, and `a is` followed by `not b`
+/// on the next line came back with the operator split over two lines.
+#[test]
+fn an_operator_is_spaced_the_way_the_layout_says() {
+    assert_format!(
+        r#"
+        let a = b  is  not  c;
+        let d = e is	not f;
+        let g = 1  +  2;
+        "#,
+        r#"
+        let a = b is not c;
+        let d = e is not f;
+        let g = 1 + 2;
+        "#,
+    );
+
+    // A comment between the two halves is written once and stays where it was.
+    assert_format!(
+        r#"
+        let a = b is /* x */ not c;
+        let d = e /* y */ is not f;
+        let g = h is not /* z */ i;
+        "#
+    );
+}
