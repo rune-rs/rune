@@ -5,6 +5,7 @@ use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::modules::collections::{HashMap, HashSet, VecDeque};
 use crate::runtime::budget;
+use crate::runtime::hint_capacity;
 use crate::runtime::range::RangeIter;
 use crate::runtime::{
     Address, Dismantle, FromValue, Function, Handover, Inline, Object, Output, OwnedTuple,
@@ -12,23 +13,6 @@ use crate::runtime::{
 };
 use crate::shared::Caller;
 use crate::{docstring, Any, ContextError, Module, Params};
-
-/// The most elements which are reserved for up front on the strength of an
-/// iterator's size hint.
-///
-/// [`Protocol::SIZE_HINT`] is implemented by whoever wrote the iterator, and
-/// the documentation for it in this module says that code must not rely on it
-/// being correct. So a hint is only ever an optimisation, and reserving exactly
-/// what it asks for hands a script a way to request an arbitrarily large
-/// allocation from a single call. Anything past this is grown into as elements
-/// actually arrive, which is amortised anyway.
-const MAX_HINT_CAPACITY: usize = 1024;
-
-/// Clamp a size hint down to what is worth reserving up front.
-#[inline]
-fn hint_capacity(hint: usize) -> usize {
-    hint.min(MAX_HINT_CAPACITY)
-}
 
 /// Rune support for iterators.
 ///

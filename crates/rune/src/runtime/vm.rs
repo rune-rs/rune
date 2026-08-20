@@ -15,15 +15,15 @@ mod ops;
 use self::ops::*;
 
 use super::{
-    budget, inst, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call, ControlFlow,
-    DynArgs, DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function, Future, Generator,
-    GeneratorState, Globals, GuardedArgs, Inline, InstArithmeticOp, InstBitwiseOp, InstOp,
-    InstRange, InstShiftOp, InstTarget, InstValue, IntoOutput, Object, Output, OwnedTuple, Pair,
-    Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive, Repr, RttiKind, RuntimeContext, Select, SelectFuture, Stack, StoreError,
-    Stream, Type, TypeHash, TypeInfo, TypeOf, Unit, UnitFn, UnitStorage, Value, Vec, VmDiagnostics,
-    VmDiagnosticsObj, VmError, VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome,
-    VmSendExecution, Worklist,
+    budget, hint_capacity, inst, Address, AnySequence, Args, Awaited, BorrowMut, Bytes, Call,
+    ControlFlow, DynArgs, DynGuardedArgs, Format, FormatSpec, Formatter, FromValue, Function,
+    Future, Generator, GeneratorState, Globals, GuardedArgs, Inline, InstArithmeticOp,
+    InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget, InstValue, IntoOutput, Object,
+    Output, OwnedTuple, Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull,
+    RangeInclusive, RangeTo, RangeToInclusive, Repr, RttiKind, RuntimeContext, Select,
+    SelectFuture, Stack, StoreError, Stream, Type, TypeHash, TypeInfo, TypeOf, Unit, UnitFn,
+    UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError, VmErrorKind, VmExecution,
+    VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution, Worklist,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -2592,7 +2592,9 @@ impl Vm {
         let values = self.stack.slice_at(addr, len)?;
         let values = values.iter().cloned().try_collect::<alloc::Vec<_>>()?;
 
-        let mut s = String::try_with_capacity(size_hint)?;
+        // The hint is read from the unit, which is not always this
+        // compiler's own estimate - a `.rnc` is loaded from disk.
+        let mut s = String::try_with_capacity(hint_capacity(size_hint))?;
 
         Formatter::format_with(&mut s, |f| {
             for value in values {

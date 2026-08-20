@@ -165,3 +165,95 @@ fn compiling_past_the_limit_is_an_error() {
 
     result.expect("Source should compile");
 }
+
+/// A size hint carried by a unit does not decide how much is reserved.
+///
+/// `StringConcat` says how long the result is expected to be and the machine
+/// reserved exactly that, up front, before writing any of it. That number is
+/// this compiler's estimate only while the unit was compiled here: with
+/// `-O bytecode=true` the CLI writes a `.rnc` beside a script and reads it back
+/// on the next run, so it is whatever that file says - and reserving what a
+/// file asks for is how one loaded from somewhere else takes the host with it.
+///
+/// The unit is built by hand because that is the only way to write a hint the
+/// compiler would never emit; the same clamp covers `SIZE_HINT` coming back
+/// from a script's own iterator, which `bounded_natives.rs` exercises.
+#[test]
+fn a_size_hint_carried_by_a_unit_does_not_decide_what_is_reserved() {
+    use crate::runtime::inst::Kind;
+    use crate::runtime::unit::{DefaultStorage, UnitEncoder, UnitFn};
+    use crate::runtime::{Address, Call, Inst, Output, StaticString, Unit};
+
+    let mut storage = DefaultStorage::default();
+
+    for kind in [
+        Kind::Allocate { size: 2 },
+        Kind::String {
+            slot: 0,
+            out: Output::keep(0),
+        },
+        // A hint no machine could honour, which is the point.
+        Kind::StringConcat {
+            addr: Address::new(0),
+            len: 1,
+            size_hint: usize::MAX / 2,
+            out: Output::keep(1),
+        },
+        Kind::Return {
+            addr: Address::new(1),
+        },
+    ] {
+        storage
+            .encode(Inst::new(kind))
+            .expect("Instruction should encode");
+    }
+
+    let mut functions = crate::hash::Map::default();
+
+    functions
+        .try_insert(
+            Hash::EMPTY,
+            UnitFn::Offset {
+                offset: 0,
+                call: Call::Immediate,
+                args: 0,
+                captures: None,
+            },
+        )
+        .expect("Allocating the function table");
+
+    let mut static_strings = crate::alloc::Vec::new();
+
+    static_strings
+        .try_push(
+            Arc::try_new(StaticString::new("aaaabbbb").expect("Allocating the string"))
+                .expect("Allocating the string"),
+        )
+        .expect("Allocating the string table");
+
+    let unit = Unit::new(
+        storage,
+        functions,
+        static_strings,
+        crate::alloc::Vec::new(),
+        crate::alloc::Vec::new(),
+        crate::alloc::Vec::new(),
+        crate::hash::Map::default(),
+        None,
+        crate::hash::Map::default(),
+        crate::alloc::Vec::new(),
+        crate::hash::Map::default(),
+    );
+
+    let context = Context::with_default_modules().expect("Failed to build context");
+    let runtime = Arc::try_new(context.runtime().expect("Runtime")).expect("Allocating runtime");
+    let unit = Arc::try_new(unit).expect("Allocating unit");
+    let mut vm = Vm::new(runtime, unit);
+
+    let value = budget::with(BUDGET, limit::with(LIMIT, || vm.call(Hash::EMPTY, ())))
+        .call()
+        .expect("A hint is not a reason to allocate");
+
+    let string: String = crate::from_value(value).expect("The result is a string");
+    assert_eq!(string, "aaaabbbb");
+}

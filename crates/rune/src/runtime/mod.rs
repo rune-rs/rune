@@ -9,6 +9,9 @@ mod macros;
 mod steps_between;
 use self::steps_between::StepsBetween;
 
+mod hint;
+pub(crate) use self::hint::hint_capacity;
+
 mod dynamic;
 pub use self::dynamic::{DynamicEmpty, DynamicStruct, DynamicTuple};
 
