@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use lsp::Url;
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use tokio::sync::Notify;
 
 use crate::alloc::prelude::*;
@@ -135,6 +135,27 @@ impl StateEncoding {
     }
 
     pub(super) fn rope_position(&self, rope: &Rope, pos: lsp::Position) -> Result<usize> {
+        /// How much of the line the character counts, not counting whatever
+        /// ends it.
+        ///
+        /// "If the character value is greater than the line length it defaults
+        /// back to the line length", which is what the protocol says and what
+        /// an editor relies on - without it a column past the end of a line
+        /// addresses the next one.
+        fn line_extent(line: RopeSlice<'_>, measure: fn(RopeSlice<'_>) -> usize) -> usize {
+            let mut end = line.len_chars();
+
+            if line.get_char(end.wrapping_sub(1)) == Some('\n') {
+                end -= 1;
+
+                if line.get_char(end.wrapping_sub(1)) == Some('\r') {
+                    end -= 1;
+                }
+            }
+
+            measure(line.slice(..end))
+        }
+
         /// Translate the given lsp::Position, which is in UTF-16 because Microsoft.
         ///
         /// Please go complain here:
@@ -142,14 +163,30 @@ impl StateEncoding {
         fn rope_position_utf16(rope: &Rope, pos: lsp::Position) -> Result<usize> {
             let line = usize::try_from(pos.line)?;
             let character = usize::try_from(pos.character)?;
-            let line = rope.try_line_to_char(line)?;
-            Ok(rope.try_utf16_cu_to_char(line + character)?)
+
+            let start = rope.try_line_to_char(line)?;
+            let slice = rope.get_line(line).context("Line is out of bounds")?;
+            let character = character.min(line_extent(slice, |s| s.len_utf16_cu()));
+
+            // The line has to be measured in the units the character is
+            // counted in. Adding a count of UTF-16 code units to a count of
+            // characters is only the same thing while everything before it is
+            // one code unit, so an emoji anywhere earlier in the document moved
+            // every edit after it along by one.
+            let start = rope.char_to_utf16_cu(start);
+            Ok(rope.try_utf16_cu_to_char(start + character)?)
         }
 
         fn rope_position_utf8(rope: &Rope, pos: lsp::Position) -> Result<usize> {
             let line = usize::try_from(pos.line)?;
             let character = usize::try_from(pos.character)?;
-            Ok(rope.try_line_to_char(line)? + character)
+
+            let start = rope.try_line_to_byte(line)?;
+            let slice = rope.get_line(line).context("Line is out of bounds")?;
+            let character = character.min(line_extent(slice, |s| s.len_bytes()));
+
+            // A character is a byte here, not a character.
+            Ok(rope.try_byte_to_char(start + character)?)
         }
 
         match self {
