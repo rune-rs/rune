@@ -59,3 +59,40 @@ fn test_without_debug_fmt() {
         "Expected '<::native_crate::NativeStructWithoutProtocol object at 0x', got: {result:?}",
     );
 }
+
+/// What a failed `parse` prints.
+///
+/// The three parse errors were registered as types and nothing else, so they
+/// fell back to the form above: `{:?}` on one wrote a heap address, which is
+/// different on every run and says nothing about why the text did not parse.
+#[test]
+fn a_parse_error_says_what_went_wrong() {
+    for (source, display, debug) in [
+        (
+            r#"if let Err(e) = i64::parse("x") { (format!("{e}"), format!("{e:?}")) } else { ("", "") }"#,
+            "invalid digit found in string",
+            "ParseIntError",
+        ),
+        (
+            r#"if let Err(e) = u64::parse("-1") { (format!("{e}"), format!("{e:?}")) } else { ("", "") }"#,
+            "invalid digit found in string",
+            "ParseIntError",
+        ),
+        (
+            r#"if let Err(e) = f64::parse("x") { (format!("{e}"), format!("{e:?}")) } else { ("", "") }"#,
+            "invalid float literal",
+            "ParseFloatError",
+        ),
+        (
+            r#"if let Err(e) = "ab".parse::<char>() { (format!("{e}"), format!("{e:?}")) } else { ("", "") }"#,
+            "too many characters in string",
+            "ParseCharError",
+        ),
+    ] {
+        let (actual_display, actual_debug): (String, String) = eval(source);
+
+        assert_eq!(actual_display, display, "{source}");
+        assert!(actual_debug.starts_with(debug), "{source}: {actual_debug}");
+        assert!(!actual_debug.contains("0x"), "{source}: {actual_debug}");
+    }
+}

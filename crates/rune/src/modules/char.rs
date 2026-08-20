@@ -2,7 +2,9 @@
 
 use core::char::ParseCharError;
 
-use crate::runtime::{Value, VmError, VmErrorKind};
+use crate::alloc;
+use crate::alloc::fmt::TryWrite;
+use crate::runtime::{Formatter, Value, VmError, VmErrorKind};
 use crate::{ContextError, Module};
 
 use crate as rune;
@@ -13,6 +15,8 @@ pub fn module() -> Result<Module, ContextError> {
     let mut module = Module::from_meta(self::module__meta)?;
 
     module.ty::<ParseCharError>()?;
+    module.function_meta(parse_char_error_display_fmt)?;
+    module.function_meta(parse_char_error_debug_fmt)?;
     module.function_meta(from_i64)?;
     module.function_meta(to_i64)?;
     module.function_meta(is_alphabetic)?;
@@ -24,6 +28,42 @@ pub fn module() -> Result<Module, ContextError> {
     module.function_meta(is_whitespace)?;
     module.function_meta(to_digit)?;
     Ok(module)
+}
+
+/// Write why a character could not be parsed.
+///
+/// # Examples
+///
+/// ```rune
+/// let text = if let Err(error) = "ab".parse::<char>() {
+///     format!("{error}")
+/// } else {
+///     ""
+/// };
+///
+/// assert_eq!(text, "too many characters in string");
+/// ```
+#[rune::function(instance, protocol = DISPLAY_FMT)]
+fn parse_char_error_display_fmt(error: &ParseCharError, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{error}")
+}
+
+/// Write a debug representation of why a character could not be parsed.
+///
+/// # Examples
+///
+/// ```rune
+/// let text = if let Err(error) = "ab".parse::<char>() {
+///     format!("{error:?}")
+/// } else {
+///     ""
+/// };
+///
+/// assert!(text.starts_with("ParseCharError"));
+/// ```
+#[rune::function(instance, protocol = DEBUG_FMT)]
+fn parse_char_error_debug_fmt(error: &ParseCharError, f: &mut Formatter) -> alloc::Result<()> {
+    write!(f, "{error:?}")
 }
 
 /// Try to convert a number into a character.
