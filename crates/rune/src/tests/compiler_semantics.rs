@@ -401,6 +401,35 @@ fn non_terminating_constants_are_bounded() {
     );
 }
 
+/// A constant is evaluated in a machine which only has the constant functions
+/// in it, so calling anything else fails to find it.
+///
+/// What the machine can say about that is that a hash is missing, which names
+/// neither the function nor what is wrong with calling it. The one thing the
+/// person who wrote it needs to know is which function it was.
+#[test]
+fn calling_a_function_which_is_not_const_names_it() {
+    for source in [
+        "fn f() { 1 } const A = f(); A",
+        "fn f() { 1 } static A = f(); A",
+        "mod m { pub fn f() { 1 } } const A = m::f(); A",
+    ] {
+        let error = build(source, &options()).expect_err("Should not compile");
+
+        assert!(
+            error.to_string().contains("is not a `const fn`"),
+            "{source}: {error}"
+        );
+    }
+
+    // A function which is a constant function is still called.
+    build("const fn f() { 1 } const A = f(); A", &options()).expect("Source should compile");
+
+    // And a function which is not there at all still says so.
+    let error = build("const A = g(); A", &options()).expect_err("Should not compile");
+    assert!(error.to_string().contains("Missing item"), "{error}");
+}
+
 /// A cycle between constants is reported rather than being followed.
 #[test]
 fn constant_cycles_are_detected() {

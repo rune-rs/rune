@@ -344,6 +344,9 @@ pub(crate) enum ErrorKind {
     UnsupportedAssignExpr,
     UnsupportedBinaryExpr,
     UnsupportedRef,
+    NotConstFn {
+        item: ItemBuf,
+    },
     StaticInConstContext {
         item: ItemBuf,
     },
@@ -826,6 +829,12 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::UnsupportedRef => {
                 write!(f, "Cannot take reference of expression")?;
+            }
+            ErrorKind::NotConstFn { item } => {
+                write!(
+                    f,
+                    "The function `{item}` cannot be called in a constant context, since it is not a `const fn`"
+                )?;
             }
             ErrorKind::StaticInConstContext { item } => {
                 write!(

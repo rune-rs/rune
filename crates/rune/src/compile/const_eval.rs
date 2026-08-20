@@ -361,6 +361,19 @@ fn run(
                 span,
                 ErrorKind::ConstBudgetExceeded { budget },
             )),
+            // A function which is not a constant function is not in the
+            // interior unit at all, so all the machine can say is that a hash
+            // is missing. Which function it was is what is actually useful.
+            VmErrorKind::MissingFunction { hash } => {
+                let kind = match q.pool.item_for_hash(hash) {
+                    Some(item) => ErrorKind::NotConstFn {
+                        item: item.try_to_owned().with_span(span)?,
+                    },
+                    None => ErrorKind::from(VmError::new(VmErrorKind::MissingFunction { hash })),
+                };
+
+                Err(compile::Error::new(span, kind))
+            }
             kind => Err(compile::Error::new(
                 span,
                 ErrorKind::from(VmError::new(kind)),
