@@ -2231,16 +2231,16 @@ async fn get(url: Ref<str>) -> Result<Response, Error> {
 }
 
 mod const_version {
-    use rune::runtime::{ConstValue, RuntimeError, Value};
+    use rune::runtime::{ConstValue, ConstValueBuf, RuntimeError, Value};
 
     #[inline]
-    pub(super) fn to_const_value(version: reqwest::Version) -> Result<ConstValue, RuntimeError> {
+    pub(super) fn to_const_value(version: reqwest::Version) -> Result<ConstValueBuf, RuntimeError> {
         match version {
-            reqwest::Version::HTTP_09 => Ok(ConstValue::from(1i64)),
-            reqwest::Version::HTTP_10 => Ok(ConstValue::from(2i64)),
-            reqwest::Version::HTTP_11 => Ok(ConstValue::from(3i64)),
-            reqwest::Version::HTTP_2 => Ok(ConstValue::from(4i64)),
-            reqwest::Version::HTTP_3 => Ok(ConstValue::from(5i64)),
+            reqwest::Version::HTTP_09 => Ok(ConstValueBuf::from(1i64)),
+            reqwest::Version::HTTP_10 => Ok(ConstValueBuf::from(2i64)),
+            reqwest::Version::HTTP_11 => Ok(ConstValueBuf::from(3i64)),
+            reqwest::Version::HTTP_2 => Ok(ConstValueBuf::from(4i64)),
+            reqwest::Version::HTTP_3 => Ok(ConstValueBuf::from(5i64)),
             version => Err(RuntimeError::panic(format!(
                 "Unsupported reqwest version {version:?}"
             ))),
@@ -2273,11 +2273,13 @@ mod const_version {
 }
 
 mod const_status_code {
-    use rune::runtime::{ConstValue, RuntimeError, Value};
+    use rune::runtime::{ConstValue, ConstValueBuf, RuntimeError, Value};
 
     #[inline]
-    pub(super) fn to_const_value(status: reqwest::StatusCode) -> Result<ConstValue, RuntimeError> {
-        Ok(ConstValue::from(status.as_u16()))
+    pub(super) fn to_const_value(
+        status: reqwest::StatusCode,
+    ) -> Result<ConstValueBuf, RuntimeError> {
+        Ok(ConstValueBuf::from(status.as_u16()))
     }
 
     #[inline]

@@ -17,7 +17,7 @@ use crate::runtime::debug::{DebugArgs, DebugGlobal, DebugSignature};
 use crate::runtime::inst;
 use crate::runtime::unit::UnitEncoder;
 use crate::runtime::{
-    Address, Call, ConstValue, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, RttiKind,
+    Address, Call, ConstValueBuf, DebugInfo, DebugInst, Inst, Label, Protocol, Rtti, RttiKind,
     StaticString, Unit, UnitFn,
 };
 use crate::sync::Arc;
@@ -85,12 +85,12 @@ pub(crate) struct UnitBuilder {
     /// Debug info if available for unit.
     debug: Option<Box<DebugInfo>>,
     /// Constant values
-    constants: hash::Map<ConstValue>,
+    constants: hash::Map<ConstValueBuf>,
     /// Hash to identifiers.
     hash_to_ident: HashMap<Hash, Box<str>>,
     /// Initializers for static items, indexed by the slot they've been
     /// assigned.
-    globals: Vec<Option<ConstValue>>,
+    globals: Vec<Option<ConstValueBuf>>,
     /// Reverse lookup from the type hash of a static item to its slot.
     globals_rev: hash::Map<usize>,
 }
@@ -224,7 +224,7 @@ impl UnitBuilder {
         &mut self,
         hash: Hash,
         path: &Item,
-        init: Option<ConstValue>,
+        init: Option<ConstValueBuf>,
         debug_info: bool,
     ) -> alloc::Result<usize> {
         let slot = self.global_slot(hash)?;
@@ -413,7 +413,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::try_from(rtti.item.try_to_string()?)?,
+                        ConstValueBuf::try_from(rtti.item.try_to_string()?)?,
                     )
                     .with_span(span)?;
 
@@ -478,7 +478,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::try_from(signature.path.try_to_string()?)?,
+                        ConstValueBuf::try_from(signature.path.try_to_string()?)?,
                     )
                     .with_span(span)?;
 
@@ -588,7 +588,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::try_from(signature.path.try_to_string()?)?,
+                        ConstValueBuf::try_from(signature.path.try_to_string()?)?,
                     )
                     .with_span(span)?;
 
@@ -665,7 +665,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::try_from(rtti.item.try_to_string()?)?,
+                        ConstValueBuf::try_from(rtti.item.try_to_string()?)?,
                     )
                     .with_span(span)?;
 
@@ -715,7 +715,7 @@ impl UnitBuilder {
                 self.constants
                     .try_insert(
                         Hash::associated_function(meta.hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::try_from(name)?,
+                        ConstValueBuf::try_from(name)?,
                     )
                     .with_span(span)?;
             }
@@ -727,7 +727,7 @@ impl UnitBuilder {
                     ));
                 };
 
-                let value = const_value.try_clone().with_span(span)?;
+                let value = const_value.try_to_owned().with_span(span)?;
 
                 self.constants
                     .try_insert(meta.hash, value)
@@ -735,7 +735,7 @@ impl UnitBuilder {
             }
             meta::Kind::Static => {
                 let init = match query.get_static_init(meta.hash) {
-                    Some(init) => Some(init.try_clone().with_span(span)?),
+                    Some(init) => Some(init.try_to_owned().with_span(span)?),
                     None => None,
                 };
 
@@ -849,7 +849,7 @@ impl UnitBuilder {
         self.constants
             .try_insert(
                 Hash::associated_function(hash, &Protocol::INTO_TYPE_NAME),
-                ConstValue::try_from(signature.path.try_to_string().with_span(location.span)?)?,
+                ConstValueBuf::try_from(signature.path.try_to_string().with_span(location.span)?)?,
             )
             .with_span(location.span)?;
 

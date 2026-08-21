@@ -4,7 +4,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::String;
 use crate::hash;
-use crate::runtime::{ConstConstructImpl, ConstContext, ConstValue};
+use crate::runtime::{ConstConstructImpl, ConstContext, ConstValue, ConstValueBuf};
 use crate::Hash;
 
 use super::FunctionHandler;
@@ -20,7 +20,7 @@ pub struct RuntimeContext {
     /// Registered native function handlers.
     functions: hash::Map<FunctionHandler>,
     /// Named constant values
-    constants: hash::Map<ConstValue>,
+    constants: hash::Map<ConstValueBuf>,
     /// Constant constructors.
     construct: hash::Map<ConstConstructImpl>,
     /// Registered deprecation messages for native functions.
@@ -32,7 +32,7 @@ assert_impl!(RuntimeContext: Send + Sync);
 impl RuntimeContext {
     pub(crate) fn new(
         functions: hash::Map<FunctionHandler>,
-        constants: hash::Map<ConstValue>,
+        constants: hash::Map<ConstValueBuf>,
         construct: hash::Map<ConstConstructImpl>,
         deprecations: hash::Map<String>,
     ) -> Self {
@@ -53,7 +53,7 @@ impl RuntimeContext {
     /// Read a constant value.
     #[inline]
     pub fn constant(&self, hash: &Hash) -> Option<&ConstValue> {
-        self.constants.get(hash)
+        Some(self.constants.get(hash)?)
     }
 
     /// Read a constant constructor.

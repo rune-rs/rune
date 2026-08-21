@@ -18,8 +18,8 @@ use crate::module::{
     TypeSpecification,
 };
 use crate::runtime::{
-    Address, AnyTypeInfo, ConstConstructImpl, ConstContext, ConstValue, FunctionHandler, Memory,
-    Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeInfo, VmError,
+    Address, AnyTypeInfo, ConstConstructImpl, ConstContext, ConstValue, ConstValueBuf,
+    FunctionHandler, Memory, Output, Protocol, Rtti, RttiKind, RuntimeContext, TypeInfo, VmError,
 };
 use crate::sync::Arc;
 use crate::{Hash, Item, ItemBuf};
@@ -316,7 +316,7 @@ pub struct Context {
     /// Registered crates.
     crates: HashSet<Box<str>>,
     /// Constants visible in this context
-    constants: hash::Map<ConstValue>,
+    constants: hash::Map<ConstValueBuf>,
     /// Constant constructor.
     construct: hash::Map<ConstConstructImpl>,
 }
@@ -1031,7 +1031,7 @@ impl Context {
 
         self.constants.try_insert(
             Hash::associated_function(ty.hash, &Protocol::INTO_TYPE_NAME),
-            ConstValue::try_from(ty.item.try_to_string()?)?,
+            ConstValueBuf::try_from(ty.item.try_to_string()?)?,
         )?;
 
         if let Some(old) = self.types.try_insert(ty.hash, ty)? {
@@ -1057,7 +1057,7 @@ impl Context {
             rune::module::ModuleItemKind::Function(f) => {
                 self.constants.try_insert(
                     Hash::associated_function(m.hash, &Protocol::INTO_TYPE_NAME),
-                    ConstValue::try_from(m.item.try_to_string()?)?,
+                    ConstValueBuf::try_from(m.item.try_to_string()?)?,
                 )?;
 
                 let signature = meta::Signature::from_context(&f.doc, &m.common)?;
@@ -1147,7 +1147,7 @@ impl Context {
                 if let Some((hash, item)) = &item {
                     self.constants.try_insert(
                         Hash::associated_function(*hash, &Protocol::INTO_TYPE_NAME),
-                        ConstValue::try_from(item.try_to_string()?)?,
+                        ConstValueBuf::try_from(item.try_to_string()?)?,
                     )?;
 
                     self.insert_native_fn(
@@ -1220,7 +1220,7 @@ impl Context {
 
     /// Get a constant value.
     pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
-        self.constants.get(&hash)
+        Some(self.constants.get(&hash)?)
     }
 }
 

@@ -6,7 +6,7 @@ use crate::alloc::prelude::*;
 use crate::compile::context::{AttributeMacroHandler, MacroHandler, TraitHandler};
 use crate::compile::{meta, Docs};
 use crate::function_meta::AssociatedName;
-use crate::runtime::{ConstValue, FieldMap, FunctionHandler, TypeInfo};
+use crate::runtime::{ConstValueBuf, FieldMap, FunctionHandler, TypeInfo};
 use crate::{Hash, Item, ItemBuf};
 
 /// Static module metadata.
@@ -194,7 +194,7 @@ pub(crate) struct AssociatedKey {
 }
 
 pub(crate) enum ModuleItemKind {
-    Constant(ConstValue),
+    Constant(ConstValueBuf),
     Function(ModuleFunction),
     Macro(ModuleMacro),
     AttributeMacro(ModuleAttributeMacro),
@@ -233,7 +233,7 @@ pub(crate) struct ModuleFunction {
 
 #[derive(TryClone)]
 pub(crate) enum ModuleAssociatedKind {
-    Constant(ConstValue),
+    Constant(ConstValueBuf),
     Function(ModuleFunction),
 }
 

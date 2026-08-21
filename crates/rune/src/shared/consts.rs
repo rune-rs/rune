@@ -5,13 +5,13 @@
 
 use crate::alloc::{self, HashMap, HashSet};
 use crate::compile::ItemId;
-use crate::runtime::ConstValue;
+use crate::runtime::{ConstValue, ConstValueBuf};
 
 /// State for constants processing.
 #[derive(Default)]
 pub(crate) struct Consts {
     /// Const expression that have been resolved.
-    resolved: HashMap<ItemId, ConstValue>,
+    resolved: HashMap<ItemId, ConstValueBuf>,
     /// Constant expressions being processed.
     processing: HashSet<ItemId>,
 }
@@ -27,14 +27,14 @@ impl Consts {
 
     /// Get the value for the constant at the given item, if present.
     pub(crate) fn get(&self, item: ItemId) -> Option<&ConstValue> {
-        self.resolved.get(&item)
+        Some(self.resolved.get(&item)?)
     }
 
     /// Remove the value for the constant at the given item.
     ///
     /// This is used for static items, which are const-evaluated to get their
     /// initializer but must not become visible as constants.
-    pub(crate) fn remove(&mut self, item: ItemId) -> Option<ConstValue> {
+    pub(crate) fn remove(&mut self, item: ItemId) -> Option<ConstValueBuf> {
         self.resolved.remove(&item)
     }
 
@@ -42,8 +42,8 @@ impl Consts {
     pub(crate) fn insert(
         &mut self,
         item: ItemId,
-        value: ConstValue,
-    ) -> alloc::Result<Option<ConstValue>> {
+        value: ConstValueBuf,
+    ) -> alloc::Result<Option<ConstValueBuf>> {
         self.resolved.try_insert(item, value)
     }
 }

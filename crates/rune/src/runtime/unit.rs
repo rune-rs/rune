@@ -22,7 +22,9 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Box, String, Vec};
 use crate::hash;
-use crate::runtime::{Address, Call, ConstValue, DebugInfo, Inst, Rtti, StaticString};
+use crate::runtime::{
+    Address, Call, ConstValue, ConstValueBuf, DebugInfo, Inst, Rtti, StaticString,
+};
 use crate::sync::Arc;
 use crate::Hash;
 
@@ -88,11 +90,11 @@ pub struct Logic<S = DefaultStorage> {
     /// Runtime information for types.
     rtti: hash::Map<Arc<Rtti>>,
     /// Named constants
-    constants: hash::Map<ConstValue>,
+    constants: hash::Map<ConstValueBuf>,
     /// Initializers for statics declared in this unit, indexed by slot.
     ///
     /// A slot without an initializer has to be assigned before it can be read.
-    globals: Vec<Option<ConstValue>>,
+    globals: Vec<Option<ConstValueBuf>>,
     /// Maps the type hash of a static item to the slot it has been assigned.
     globals_rev: hash::Map<usize>,
 }
@@ -119,8 +121,8 @@ impl<S> Unit<S> {
         drop_sets: Vec<Arc<[Address]>>,
         rtti: hash::Map<Arc<Rtti>>,
         debug: Option<Box<DebugInfo>>,
-        constants: hash::Map<ConstValue>,
-        globals: Vec<Option<ConstValue>>,
+        constants: hash::Map<ConstValueBuf>,
+        globals: Vec<Option<ConstValueBuf>>,
         globals_rev: hash::Map<usize>,
     ) -> Self {
         Self {
@@ -183,7 +185,10 @@ impl<S> Unit<S> {
     #[cfg(feature = "cli")]
     #[inline]
     pub(crate) fn iter_constants(&self) -> impl Iterator<Item = (&Hash, &ConstValue)> + '_ {
-        self.logic.constants.iter()
+        self.logic
+            .constants
+            .iter()
+            .map(|(hash, value)| (hash, &**value))
     }
 
     /// Iterate over all static object keys in the unit.
@@ -245,7 +250,7 @@ impl<S> Unit<S> {
     /// Lookup a constant from the unit.
     #[inline]
     pub(crate) fn constant(&self, hash: &Hash) -> Option<&ConstValue> {
-        self.logic.constants.get(hash)
+        Some(self.logic.constants.get(hash)?)
     }
 
     /// The number of static slots declared in this unit.
@@ -271,7 +276,7 @@ impl<S> Unit<S> {
     /// Lookup the initializer for the given static slot, if it has one.
     #[inline]
     pub(crate) fn global_init(&self, slot: usize) -> Option<&ConstValue> {
-        self.logic.globals.get(slot)?.as_ref()
+        Some(self.logic.globals.get(slot)?.as_ref()?)
     }
 
     /// Iterate over all static slots in the unit.
@@ -282,7 +287,7 @@ impl<S> Unit<S> {
             .globals
             .iter()
             .enumerate()
-            .map(|(slot, init)| (slot, init.as_ref()))
+            .map(|(slot, init)| (slot, init.as_deref()))
     }
 }
 

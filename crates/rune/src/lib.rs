@@ -833,10 +833,10 @@ pub mod __priv {
     pub use crate::module::{InstallWith, Module, ModuleMetaData};
     pub use crate::params::Params;
     pub use crate::runtime::{
-        AnyTypeInfo, ConstConstruct, ConstConstructImpl, ConstValue, Dismantle, FromConstValue,
-        FromValue, Handover, MaybeTypeOf, Object, OwnedTuple, Protocol, RawValueGuard,
-        RuntimeError, ToConstValue, ToValue, Tuple, TypeHash, TypeOf, TypeValue, UnsafeToMut,
-        UnsafeToRef, UnsafeToValue, Value, ValueMutGuard, ValueRefGuard, VmError,
+        AnyTypeInfo, ConstConstruct, ConstConstructImpl, ConstValue, ConstValueBuf, Dismantle,
+        FromConstValue, FromValue, Handover, MaybeTypeOf, Object, OwnedTuple, Protocol,
+        RawValueGuard, RuntimeError, ToConstValue, ToValue, Tuple, TypeHash, TypeOf, TypeValue,
+        UnsafeToMut, UnsafeToRef, UnsafeToValue, Value, ValueMutGuard, ValueRefGuard, VmError,
     };
     pub use core::clone::Clone;
 

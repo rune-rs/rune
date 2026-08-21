@@ -1,38 +1,35 @@
 #[macro_use]
 mod macros;
 
+mod node;
+
+pub(crate) use self::node::{ConstBuilder, ConstNodeKind, ConstNodesError};
+pub use self::node::{ConstFields, ConstFieldsIter, ConstValue, ConstValueBuf};
+
 use core::any;
 use core::cmp::Ordering;
-use core::fmt;
-
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 use crate::alloc;
 use crate::alloc::prelude::*;
 use crate::runtime;
-use crate::{self as rune};
 use crate::{declare_dyn_trait, hash_in, Hash, TypeHash};
 
 use super::{
-    AnyTypeInfo, Bytes, ExpectedType, FromValue, Inline, Object, OwnedTuple, Repr, RuntimeError,
-    ToValue, Tuple, Type, TypeInfo, Value, VmErrorKind, VmIntegerRepr,
+    Bytes, ExpectedType, FromValue, Inline, Object, OwnedTuple, Repr, RuntimeError, ToValue, Tuple,
+    Type, Value, VmErrorKind, VmIntegerRepr,
 };
 
 /// How deeply a [`ConstValue`] is allowed to nest.
 ///
-/// A `ConstValue` is a recursive structure - it is built, walked, cloned and
-/// dropped by recursing over it - and it is built from a value which evaluation
-/// produced, so how deep it is has nothing to do with how deep the source which
-/// produced it was. A constant function which nests a value in a loop can
-/// produce one of any depth, so the bound is applied where the value is
-/// converted rather than only against the nesting written in the source.
+/// A constant is stored as one array rather than as a tree, so nesting no
+/// longer costs a native frame to build or to take apart. What it still costs
+/// is everything which has to *understand* the nesting - lowering a constant
+/// into instructions, turning one into a pattern - so how deep one may be is
+/// still bounded, and the bound is checked once, where the array is built or
+/// read back.
 ///
 /// This is the ceiling the `max-const-depth` option is measured against. The
-/// option can lower the effective bound but not raise it past this, since
-/// raising it would trade a diagnostic for a stack overflow.
+/// option can lower the effective bound but not raise it past this.
 pub(crate) const MAX_CONST_DEPTH: usize = 128;
 
 /// How many values a [`ConstValue`] is allowed to be made of.
@@ -47,7 +44,6 @@ pub(crate) const MAX_CONST_DEPTH: usize = 128;
 /// Nothing else bounds it. `const-budget` bounds the instructions evaluation is
 /// allowed to run, and the doubling above needs a handful per level.
 pub(crate) const MAX_CONST_SIZE: usize = 1 << 16;
-
 /// Derive for the [`ToConstValue`] trait.
 ///
 /// This is principally used for associated constants in native modules, since
@@ -68,11 +64,11 @@ pub(crate) const MAX_CONST_SIZE: usize = 1 << 16;
 /// }
 ///
 /// mod const_duration {
-///     use rune::runtime::{ConstValue, RuntimeError, Value};
+///     use rune::runtime::{ConstValue, ConstValueBuf, RuntimeError, Value};
 ///     use std::time::Duration;
 ///
 ///     #[inline]
-///     pub(super) fn to_const_value(duration: Duration) -> Result<ConstValue, RuntimeError> {
+///     pub(super) fn to_const_value(duration: Duration) -> Result<ConstValueBuf, RuntimeError> {
 ///         let secs = duration.as_secs();
 ///         let nanos = duration.subsec_nanos();
 ///         rune::to_const_value((secs, nanos))
@@ -121,66 +117,65 @@ pub(crate) const MAX_CONST_SIZE: usize = 1 << 16;
 /// ```
 pub use rune_macros::ToConstValue;
 
-/// Cheap conversion trait to convert something infallibly into a [`ConstValue`].
-pub trait IntoConstValue {
-    /// Convert into a dynamic [`ConstValue`].
-    #[doc(hidden)]
-    fn into_const_value(self) -> alloc::Result<ConstValue>;
-}
-
-impl IntoConstValue for ConstValue {
-    #[inline]
-    fn into_const_value(self) -> alloc::Result<ConstValue> {
-        Ok(self)
+/// An array which does not describe a constant within the limits is reported
+/// the way anything else the machine turns away is.
+impl From<ConstNodesError> for RuntimeError {
+    fn from(error: ConstNodesError) -> Self {
+        match error {
+            #[cfg(any(feature = "serde", feature = "musli"))]
+            ConstNodesError::Empty | ConstNodesError::Malformed => {
+                RuntimeError::new(VmErrorKind::MalformedConstValue)
+            }
+            ConstNodesError::TooDeep { max } => {
+                RuntimeError::new(VmErrorKind::MaxConstDepth { max })
+            }
+            ConstNodesError::TooLarge { max } => {
+                RuntimeError::new(VmErrorKind::MaxConstSize { max })
+            }
+            ConstNodesError::Alloc(error) => RuntimeError::from(error),
+        }
     }
 }
 
-impl IntoConstValue for &ConstValue {
-    #[inline]
-    fn into_const_value(self) -> alloc::Result<ConstValue> {
-        self.try_clone()
-    }
-}
-
-/// Convert something into a [`ConstValue`].
+/// Convert something into a [`ConstValueBuf`].
 ///
 /// # Examples
 ///
 /// ```
 /// let value = rune::to_const_value((i32::MIN, u64::MAX))?;
-/// let (a, b) = rune::from_const_value::<(i32, u64)>(value)?;
+/// let (a, b) = rune::from_const_value::<(i32, u64)>(&value)?;
 ///
 /// assert_eq!(a, i32::MIN);
 /// assert_eq!(b, u64::MAX);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-pub fn from_const_value<T>(value: impl IntoConstValue) -> Result<T, RuntimeError>
+pub fn from_const_value<T>(value: impl AsRef<ConstValue>) -> Result<T, RuntimeError>
 where
     T: FromConstValue,
 {
-    T::from_const_value(value.into_const_value()?)
+    T::from_const_value(value.as_ref())
 }
 
-/// Convert something into a [`ConstValue`].
+/// Convert something into a [`ConstValueBuf`].
 ///
 /// # Examples
 ///
 /// ```
 /// let value = rune::to_const_value((i32::MIN, u64::MAX))?;
-/// let (a, b) = rune::from_const_value::<(i32, u64)>(value)?;
+/// let (a, b) = rune::from_const_value::<(i32, u64)>(&value)?;
 ///
 /// assert_eq!(a, i32::MIN);
 /// assert_eq!(b, u64::MAX);
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-pub fn to_const_value(value: impl ToConstValue) -> Result<ConstValue, RuntimeError> {
+pub fn to_const_value(value: impl ToConstValue) -> Result<ConstValueBuf, RuntimeError> {
     value.to_const_value()
 }
 
-/// Trait to perform a conversion to a [`ConstValue`].
+/// Trait to perform a conversion to a [`ConstValueBuf`].
 pub trait ToConstValue: Sized {
     /// Convert into a constant value.
-    fn to_const_value(self) -> Result<ConstValue, RuntimeError>;
+    fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError>;
 
     /// Return the constant constructor for the given type.
     #[inline]
@@ -190,137 +185,236 @@ pub trait ToConstValue: Sized {
     }
 }
 
-impl ToConstValue for ConstValue {
+impl ToConstValue for ConstValueBuf {
     #[inline]
-    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+    fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError> {
         Ok(self)
+    }
+}
+
+impl ToConstValue for &ConstValue {
+    #[inline]
+    fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError> {
+        Ok(self.try_to_owned()?)
     }
 }
 
 impl ToConstValue for Value {
     #[inline]
-    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
-        ConstValue::from_value_ref(&self)
+    fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError> {
+        ConstValueBuf::from_value_ref(&self)
     }
 }
 
-/// A dynamic constant value.
-#[derive(Debug, TryClone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
-pub(crate) struct ConstInstance {
-    /// The type hash of the value.
-    ///
-    /// If the value is a variant, this is the type hash of the enum.
-    #[try_clone(copy)]
-    pub(crate) hash: Hash,
-    /// The type hash of the variant.
-    ///
-    /// If this is not an enum, this is `Hash::EMPTY`.
-    #[try_clone(copy)]
-    pub(crate) variant_hash: Hash,
-    /// The fields the value is constituted of.
-    pub(crate) fields: Box<[ConstValue]>,
-}
-
-impl ConstInstance {
-    fn type_info(&self) -> TypeInfo {
-        fn struct_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "unknown constant struct")
-        }
-
-        fn variant_name(f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "unknown constant variant")
-        }
-
-        match self.hash {
-            Option::<Value>::HASH => TypeInfo::any::<Option<Value>>(),
-            runtime::Vec::HASH => TypeInfo::any::<runtime::Vec>(),
-            OwnedTuple::HASH => TypeInfo::any::<OwnedTuple>(),
-            Object::HASH => TypeInfo::any::<Object>(),
-            hash if self.variant_hash == Hash::EMPTY => {
-                TypeInfo::any_type_info(AnyTypeInfo::new(struct_name, hash))
-            }
-            hash => TypeInfo::any_type_info(AnyTypeInfo::new(variant_name, hash)),
-        }
-    }
-}
-
-#[derive(Debug, TryClone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
-pub(crate) enum ConstValueKind {
-    /// An inline constant value.
-    Inline(#[try_clone(copy)] Inline),
-    /// A string constant designated by its slot.
-    String(Box<str>),
-    /// A byte string.
-    Bytes(Box<[u8]>),
-    /// An instance of some type of value.
-    Instance(Box<ConstInstance>),
-}
-
-impl ConstValueKind {
-    #[inline]
-    fn type_info(&self) -> TypeInfo {
-        match self {
-            ConstValueKind::Inline(value) => value.type_info(),
-            ConstValueKind::String(..) => TypeInfo::any::<String>(),
-            ConstValueKind::Bytes(..) => TypeInfo::any::<Bytes>(),
-            ConstValueKind::Instance(instance) => instance.type_info(),
-        }
-    }
-}
-
-/// A constant value.
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
-pub struct ConstValue {
-    kind: ConstValueKind,
-}
-
-impl ConstValue {
+impl ConstValueBuf {
     /// Construct a constant value that is a string.
-    pub fn string(value: impl AsRef<str>) -> Result<ConstValue, RuntimeError> {
-        let value = Box::try_from(value.as_ref())?;
-        Ok(Self::from(ConstValueKind::String(value)))
+    pub fn string(value: impl AsRef<str>) -> Result<ConstValueBuf, RuntimeError> {
+        let value = alloc::Box::try_from(value.as_ref())?;
+        Ok(Self::from_kind(ConstNodeKind::String(value)))
     }
 
     /// Construct a constant value that is bytes.
-    pub fn bytes(value: impl AsRef<[u8]>) -> Result<ConstValue, RuntimeError> {
-        let value = Box::try_from(value.as_ref())?;
-        Ok(Self::from(ConstValueKind::Bytes(value)))
+    pub fn bytes(value: impl AsRef<[u8]>) -> Result<ConstValueBuf, RuntimeError> {
+        let value = alloc::Box::try_from(value.as_ref())?;
+        Ok(Self::from_kind(ConstNodeKind::Bytes(value)))
     }
 
     /// Construct a new tuple constant value.
-    pub fn tuple(fields: Box<[ConstValue]>) -> Result<ConstValue, RuntimeError> {
-        let instance = ConstInstance {
-            hash: OwnedTuple::HASH,
-            variant_hash: Hash::EMPTY,
-            fields,
-        };
-
-        let instance = Box::try_new(instance)?;
-        Ok(Self::from(ConstValueKind::Instance(instance)))
+    pub fn tuple<I>(fields: I) -> Result<ConstValueBuf, RuntimeError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<ConstValue>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        Self::instance(OwnedTuple::HASH, Hash::EMPTY, fields)
     }
 
     /// Construct a constant value for a struct.
     pub fn for_struct<const N: usize>(
         hash: Hash,
-        fields: [ConstValue; N],
-    ) -> Result<ConstValue, RuntimeError> {
-        let fields = Box::<[ConstValue]>::try_from(fields)?;
-
-        let instance = ConstInstance {
-            hash,
-            variant_hash: Hash::EMPTY,
-            fields,
-        };
-
-        let instance = Box::try_new(instance)?;
-        Ok(Self::from(ConstValueKind::Instance(instance)))
+        fields: [ConstValueBuf; N],
+    ) -> Result<ConstValueBuf, RuntimeError> {
+        Self::instance(hash, Hash::EMPTY, fields)
     }
 
+    /// Construct an instance of `hash` out of the constants it is made of,
+    /// which are laid down after it in the order they are given.
+    pub(crate) fn instance<I>(
+        hash: Hash,
+        variant_hash: Hash,
+        fields: I,
+    ) -> Result<ConstValueBuf, RuntimeError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<ConstValue>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let fields = fields.into_iter();
+
+        let mut builder = ConstBuilder::new();
+
+        let at = builder.open(ConstNodeKind::Instance {
+            hash,
+            variant_hash,
+            fields: fields.len() as u32,
+        })?;
+
+        for field in fields {
+            builder.extend(field.as_ref())?;
+        }
+
+        builder.close(at);
+        Ok(builder.build()?)
+    }
+
+    /// Construct a constant value from a reference to a value.
+    ///
+    /// The walk is bounded before it descends, which is what keeps a value
+    /// whose depth a script decided from costing a native frame per level.
+    pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValueBuf, RuntimeError> {
+        let mut builder = ConstBuilder::new();
+        from_value_ref_at(value, 0, &mut builder)?;
+        Ok(builder.build()?)
+    }
+}
+
+/// Append the constant `value` describes to `builder`, having already descended
+/// `depth` levels into the value the conversion started at.
+fn from_value_ref_at(
+    value: &Value,
+    depth: usize,
+    builder: &mut ConstBuilder,
+) -> Result<(), RuntimeError> {
+    if depth >= MAX_CONST_DEPTH {
+        return Err(RuntimeError::new(VmErrorKind::MaxConstDepth {
+            max: MAX_CONST_DEPTH,
+        }));
+    }
+
+    // Counted here rather than per container so that what is bounded is
+    // what is actually built, whatever shape it is in.
+    if builder.len() >= MAX_CONST_SIZE {
+        return Err(RuntimeError::new(VmErrorKind::MaxConstSize {
+            max: MAX_CONST_SIZE,
+        }));
+    }
+
+    let depth = depth + 1;
+
+    match value.as_ref() {
+        Repr::Inline(value) => {
+            builder.leaf(ConstNodeKind::Inline(*value))?;
+        }
+        Repr::Dynamic(value) => {
+            return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
+                actual: value.type_info(),
+            }));
+        }
+        Repr::Any(value) => match value.type_hash() {
+            alloc::String::HASH => {
+                let string = value.borrow_ref::<alloc::String>()?;
+                builder.leaf(ConstNodeKind::String(alloc::Box::try_from(
+                    string.as_str(),
+                )?))?;
+            }
+            Bytes::HASH => {
+                let bytes = value.borrow_ref::<Bytes>()?;
+                builder.leaf(ConstNodeKind::Bytes(alloc::Box::try_from(
+                    bytes.as_slice(),
+                )?))?;
+            }
+            OwnedTuple::HASH => {
+                let tuple = value.borrow_ref::<OwnedTuple>()?;
+
+                let at = builder.open(ConstNodeKind::Instance {
+                    hash: OwnedTuple::HASH,
+                    variant_hash: Hash::EMPTY,
+                    fields: tuple.len() as u32,
+                })?;
+
+                for value in tuple.iter() {
+                    from_value_ref_at(value, depth, builder)?;
+                }
+
+                builder.close(at);
+            }
+            Object::HASH => {
+                let object = value.borrow_ref::<Object>()?;
+
+                let mut keys = alloc::Vec::try_with_capacity(object.len())?;
+
+                for key in object.keys() {
+                    keys.try_push(alloc::Box::try_from(key.as_str())?)?;
+                }
+
+                // The keys are stored in the order they are read back in, so
+                // that nothing which walks a constant has to sort them again.
+                keys.sort();
+
+                let at = builder.open(ConstNodeKind::Object {
+                    keys: keys.try_clone()?.try_into_boxed_slice()?,
+                })?;
+
+                for key in keys.iter() {
+                    let Some(value) = object.get(key.as_ref()) else {
+                        return Err(RuntimeError::new(VmErrorKind::MalformedConstValue));
+                    };
+
+                    from_value_ref_at(value, depth, builder)?;
+                }
+
+                builder.close(at);
+            }
+            Option::<Value>::HASH => {
+                let option = value.borrow_ref::<Option<Value>>()?;
+
+                match &*option {
+                    Some(some) => {
+                        let at = builder.open(ConstNodeKind::Instance {
+                            hash: Option::<Value>::HASH,
+                            variant_hash: hash_in!(crate, ::std::option::Option::Some),
+                            fields: 1,
+                        })?;
+
+                        from_value_ref_at(some, depth, builder)?;
+                        builder.close(at);
+                    }
+                    None => {
+                        builder.leaf(ConstNodeKind::Instance {
+                            hash: Option::<Value>::HASH,
+                            variant_hash: hash_in!(crate, ::std::option::Option::None),
+                            fields: 0,
+                        })?;
+                    }
+                }
+            }
+            runtime::Vec::HASH => {
+                let vec = value.borrow_ref::<runtime::Vec>()?;
+
+                let at = builder.open(ConstNodeKind::Instance {
+                    hash: runtime::Vec::HASH,
+                    variant_hash: Hash::EMPTY,
+                    fields: vec.len() as u32,
+                })?;
+
+                for value in vec.iter() {
+                    from_value_ref_at(value, depth, builder)?;
+                }
+
+                builder.close(at);
+            }
+            _ => {
+                return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
+                    actual: value.type_info(),
+                }));
+            }
+        },
+    }
+
+    Ok(())
+}
+
+impl ConstValue {
     /// Try to coerce the current value as the specified integer `T`.
     ///
     /// # Examples
@@ -337,26 +431,26 @@ impl ConstValue {
     where
         T: TryFrom<i64> + TryFrom<u64>,
     {
-        match self.kind {
-            ConstValueKind::Inline(Inline::Signed(value)) => match value.try_into() {
+        match self.kind() {
+            ConstNodeKind::Inline(Inline::Signed(value)) => match (*value).try_into() {
                 Ok(number) => Ok(number),
                 Err(..) => Err(RuntimeError::new(
                     VmErrorKind::ValueToIntegerCoercionError {
-                        from: VmIntegerRepr::from(value),
+                        from: VmIntegerRepr::from(*value),
                         to: any::type_name::<T>(),
                     },
                 )),
             },
-            ConstValueKind::Inline(Inline::Unsigned(value)) => match value.try_into() {
+            ConstNodeKind::Inline(Inline::Unsigned(value)) => match (*value).try_into() {
                 Ok(number) => Ok(number),
                 Err(..) => Err(RuntimeError::new(
                     VmErrorKind::ValueToIntegerCoercionError {
-                        from: VmIntegerRepr::from(value),
+                        from: VmIntegerRepr::from(*value),
                         to: any::type_name::<T>(),
                     },
                 )),
             },
-            ref kind => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
+            kind => Err(RuntimeError::new(VmErrorKind::ExpectedNumber {
                 actual: kind.type_info(),
             })),
         }
@@ -364,177 +458,27 @@ impl ConstValue {
 
     inline_macros!(inline_into);
 
-    /// Coerce into tuple.
-    #[inline]
-    pub fn into_tuple(self) -> Result<Box<[ConstValue]>, ExpectedType> {
-        match self.kind {
-            ConstValueKind::Instance(instance) => {
-                let instance = Box::into_inner(instance);
-
-                match instance.hash {
-                    OwnedTuple::HASH => Ok(instance.fields),
-                    _ => Err(ExpectedType::new::<Tuple>(instance.type_info())),
-                }
-            }
-            kind => Err(ExpectedType::new::<Tuple>(kind.type_info())),
-        }
-    }
-
-    /// Access the interior value.
-    pub(crate) fn as_kind(&self) -> &ConstValueKind {
-        &self.kind
-    }
-
-    /// Construct a constant value from a reference to a value..
-    pub(crate) fn from_value_ref(value: &Value) -> Result<ConstValue, RuntimeError> {
-        Self::from_value_ref_at(value, 0, &mut 0)
-    }
-
-    /// Construct a constant value from a reference to a value nested `depth`
-    /// levels into the value the conversion started at, having already
-    /// converted `size` values.
-    fn from_value_ref_at(
-        value: &Value,
-        depth: usize,
-        size: &mut usize,
-    ) -> Result<ConstValue, RuntimeError> {
-        if depth >= MAX_CONST_DEPTH {
-            return Err(RuntimeError::new(VmErrorKind::MaxConstDepth {
-                max: MAX_CONST_DEPTH,
-            }));
-        }
-
-        // Counted here rather than per container so that what is bounded is
-        // what is actually built, whatever shape it is in.
-        *size += 1;
-
-        if *size > MAX_CONST_SIZE {
-            return Err(RuntimeError::new(VmErrorKind::MaxConstSize {
-                max: MAX_CONST_SIZE,
-            }));
-        }
-
-        let depth = depth + 1;
-
-        let kind = match value.as_ref() {
-            Repr::Inline(value) => ConstValueKind::Inline(*value),
-            Repr::Dynamic(value) => {
-                return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
-                    actual: value.type_info(),
-                }));
-            }
-            Repr::Any(value) => match value.type_hash() {
-                String::HASH => {
-                    return ConstValue::string(value.borrow_ref::<String>()?.as_str());
-                }
-                Bytes::HASH => {
-                    return ConstValue::bytes(value.borrow_ref::<Bytes>()?.as_slice());
-                }
-                runtime::OwnedTuple::HASH => {
-                    let tuple = value.borrow_ref::<runtime::OwnedTuple>()?;
-                    let mut const_tuple = Vec::try_with_capacity(tuple.len())?;
-
-                    for value in tuple.iter() {
-                        const_tuple.try_push(Self::from_value_ref_at(value, depth, size)?)?;
-                    }
-
-                    return ConstValue::tuple(const_tuple.try_into_boxed_slice()?);
-                }
-                Object::HASH => {
-                    let object = value.borrow_ref::<Object>()?;
-                    let mut fields = Vec::try_with_capacity(object.len())?;
-
-                    for (key, value) in object.iter() {
-                        let key = ConstValue::string(key.as_str())?;
-                        let value = Self::from_value_ref_at(value, depth, size)?;
-                        fields.try_push(ConstValue::tuple(Box::try_from([key, value])?)?)?;
-                    }
-
-                    let instance = ConstInstance {
-                        hash: Object::HASH,
-                        variant_hash: Hash::EMPTY,
-                        fields: fields.try_into_boxed_slice()?,
-                    };
-
-                    let instance = Box::try_new(instance)?;
-                    ConstValueKind::Instance(instance)
-                }
-                Option::<Value>::HASH => {
-                    let option = value.borrow_ref::<Option<Value>>()?;
-
-                    let (variant_hash, fields) = match &*option {
-                        Some(some) => (
-                            hash_in!(crate, ::std::option::Option::Some),
-                            Box::try_from([Self::from_value_ref_at(some, depth, size)?])?,
-                        ),
-                        None => (hash_in!(crate, ::std::option::Option::None), Box::default()),
-                    };
-
-                    let instance = ConstInstance {
-                        hash: Option::<Value>::HASH,
-                        variant_hash,
-                        fields,
-                    };
-                    ConstValueKind::Instance(Box::try_new(instance)?)
-                }
-                runtime::Vec::HASH => {
-                    let vec = value.borrow_ref::<runtime::Vec>()?;
-                    let mut const_vec = Vec::try_with_capacity(vec.len())?;
-
-                    for value in vec.iter() {
-                        const_vec.try_push(Self::from_value_ref_at(value, depth, size)?)?;
-                    }
-
-                    let fields = Box::try_from(const_vec)?;
-
-                    let instance = ConstInstance {
-                        hash: runtime::Vec::HASH,
-                        variant_hash: Hash::EMPTY,
-                        fields,
-                    };
-                    ConstValueKind::Instance(Box::try_new(instance)?)
-                }
-                _ => {
-                    return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
-                        actual: value.type_info(),
-                    }));
-                }
-            },
-        };
-
-        Ok(Self { kind })
-    }
-
-    #[inline]
-    #[cfg(test)]
-    pub(crate) fn to_value(&self) -> Result<Value, RuntimeError> {
-        self.to_value_with(&EmptyConstContext)
-    }
-
-    /// Convert into a pair of tuples.
-    pub(crate) fn as_string(&self) -> Result<&str, ExpectedType> {
-        let ConstValueKind::String(value) = &self.kind else {
-            return Err(ExpectedType::new::<String>(self.kind.type_info()));
+    /// Coerce into the string this is, if it is one.
+    pub fn as_string(&self) -> Result<&str, ExpectedType> {
+        let ConstNodeKind::String(value) = self.kind() else {
+            return Err(ExpectedType::new::<alloc::String>(self.type_info()));
         };
 
         Ok(value)
     }
 
-    /// Convert into a pair of tuples.
-    pub(crate) fn as_pair(&self) -> Result<(&ConstValue, &ConstValue), ExpectedType> {
-        let ConstValueKind::Instance(instance) = &self.kind else {
-            return Err(ExpectedType::new::<Tuple>(self.kind.type_info()));
+    /// Coerce into the fields of the tuple this is, if it is one.
+    pub fn as_tuple(&self) -> Result<ConstFields<'_>, ExpectedType> {
+        let ConstNodeKind::Instance {
+            hash: OwnedTuple::HASH,
+            variant_hash: Hash::EMPTY,
+            ..
+        } = self.kind()
+        else {
+            return Err(ExpectedType::new::<Tuple>(self.type_info()));
         };
 
-        if !matches!(instance.hash, OwnedTuple::HASH) {
-            return Err(ExpectedType::new::<Tuple>(instance.type_info()));
-        }
-
-        let [a, b] = instance.fields.as_ref() else {
-            return Err(ExpectedType::new::<Tuple>(instance.type_info()));
-        };
-
-        Ok((a, b))
+        Ok(self.fields())
     }
 
     /// Convert into virtual machine value.
@@ -542,135 +486,226 @@ impl ConstValue {
     /// We provide this associated method since a constant value can be
     /// converted into a value infallibly, which is not captured by the trait
     /// otherwise.
+    ///
+    /// The walk is a single pass over the array the constant is stored as, with
+    /// the containers which are part way through kept on a work stack, so a
+    /// constant which nests deeply costs memory rather than native frames.
     pub(crate) fn to_value_with(&self, cx: &dyn ConstContext) -> Result<Value, RuntimeError> {
-        match &self.kind {
-            ConstValueKind::Inline(value) => Ok(Value::from(*value)),
-            ConstValueKind::String(string) => Ok(Value::try_from(string.as_ref())?),
-            ConstValueKind::Bytes(b) => Ok(Value::try_from(b.as_ref())?),
-            ConstValueKind::Instance(instance) => match &**instance {
-                ConstInstance {
-                    hash,
-                    variant_hash: Hash::EMPTY,
-                    fields,
-                } => match *hash {
-                    runtime::OwnedTuple::HASH => {
-                        let mut t = Vec::try_with_capacity(fields.len())?;
+        /// A container whose values are still being built.
+        struct Frame<'a> {
+            kind: FrameKind<'a>,
+            remaining: usize,
+            values: alloc::Vec<Value>,
+        }
 
-                        for value in fields.iter() {
-                            t.try_push(Self::to_value_with(value, cx)?)?;
-                        }
+        enum FrameKind<'a> {
+            Tuple,
+            Vec,
+            Object(&'a [alloc::Box<str>]),
+            Some,
+        }
 
-                        Ok(Value::try_from(OwnedTuple::try_from(t)?)?)
+        fn close(frame: Frame<'_>) -> Result<Value, RuntimeError> {
+            match frame.kind {
+                FrameKind::Tuple => Ok(Value::try_from(OwnedTuple::try_from(frame.values)?)?),
+                FrameKind::Vec => Ok(Value::try_from(runtime::Vec::from(frame.values))?),
+                FrameKind::Object(keys) => {
+                    let mut object = Object::with_capacity(keys.len())?;
+
+                    for (key, value) in keys.iter().zip(frame.values) {
+                        object.insert(alloc::String::try_from(key.as_ref())?, value)?;
                     }
-                    runtime::Vec::HASH => {
-                        let mut v = runtime::Vec::with_capacity(fields.len())?;
 
-                        for value in fields.iter() {
-                            v.push(Self::to_value_with(value, cx)?)?;
-                        }
+                    Ok(Value::try_from(object)?)
+                }
+                FrameKind::Some => {
+                    let mut values = frame.values.into_iter();
 
-                        Ok(Value::try_from(v)?)
-                    }
-                    runtime::Object::HASH => {
-                        let mut o = Object::with_capacity(fields.len())?;
+                    let Some(value) = values.next() else {
+                        return Err(RuntimeError::new(VmErrorKind::MalformedConstValue));
+                    };
 
-                        for value in fields.iter() {
-                            let (key, value) = value.as_pair()?;
-                            let key = key.as_string()?.try_to_string()?;
-                            let value = Self::to_value_with(value, cx)?;
-                            o.insert(key, value)?;
-                        }
+                    Ok(Value::try_from(Some(value))?)
+                }
+            }
+        }
 
-                        Ok(Value::try_from(o)?)
-                    }
-                    _ => {
-                        let Some(constructor) = cx.get(*hash) else {
-                            return Err(RuntimeError::missing_constant_constructor(*hash));
-                        };
+        fn open<'a>(kind: FrameKind<'a>, len: usize) -> Result<Frame<'a>, RuntimeError> {
+            Ok(Frame {
+                kind,
+                remaining: len,
+                values: alloc::Vec::try_with_capacity(len)?,
+            })
+        }
 
-                        constructor.const_construct(fields)
-                    }
-                },
-                ConstInstance {
+        let nodes = self.as_nodes();
+        let mut frames = alloc::Vec::<Frame<'_>>::new();
+        let mut index = 0;
+
+        loop {
+            let Some(node) = nodes.get(index) else {
+                return Err(RuntimeError::new(VmErrorKind::MalformedConstValue));
+            };
+
+            // What the node produces outright, if anything - a node which opens
+            // a container produces nothing until the container is closed.
+            let mut produced = None;
+
+            match &node.kind {
+                ConstNodeKind::Inline(value) => {
+                    produced = Some(Value::from(*value));
+                    index += 1;
+                }
+                ConstNodeKind::String(string) => {
+                    produced = Some(Value::try_from(string.as_ref())?);
+                    index += 1;
+                }
+                ConstNodeKind::Bytes(bytes) => {
+                    produced = Some(Value::try_from(bytes.as_ref())?);
+                    index += 1;
+                }
+                ConstNodeKind::Object { keys } => {
+                    frames.try_push(open(FrameKind::Object(keys), keys.len())?)?;
+                    index += 1;
+                }
+                ConstNodeKind::Instance {
                     hash,
                     variant_hash,
                     fields,
                 } => {
-                    match (*variant_hash, &fields[..]) {
-                        // If the hash is `Option`, we can return a value directly.
-                        (hash_in!(crate, ::std::option::Option::Some), [value]) => {
-                            let value = Self::to_value_with(value, cx)?;
-                            Ok(Value::try_from(Some(value))?)
+                    let fields = *fields as usize;
+
+                    match (*hash, *variant_hash) {
+                        (OwnedTuple::HASH, Hash::EMPTY) => {
+                            frames.try_push(open(FrameKind::Tuple, fields)?)?;
+                            index += 1;
                         }
-                        (hash_in!(crate, ::std::option::Option::None), []) => {
-                            Ok(Value::try_from(None)?)
+                        (runtime::Vec::HASH, Hash::EMPTY) => {
+                            frames.try_push(open(FrameKind::Vec, fields)?)?;
+                            index += 1;
                         }
-                        _ => Err(RuntimeError::missing_constant_constructor(*hash)),
+                        (Option::<Value>::HASH, variant_hash) => {
+                            match (variant_hash, fields) {
+                                (hash_in!(crate, ::std::option::Option::Some), 1) => {
+                                    frames.try_push(open(FrameKind::Some, 1)?)?;
+                                }
+                                (hash_in!(crate, ::std::option::Option::None), 0) => {
+                                    produced = Some(Value::try_from(None)?);
+                                }
+                                _ => {
+                                    return Err(RuntimeError::missing_constant_constructor(*hash));
+                                }
+                            }
+
+                            index += 1;
+                        }
+                        (hash, _) => {
+                            // A type which is only known to whoever declared it
+                            // builds itself out of the constants it is made of,
+                            // so its subtree is handed over whole rather than
+                            // walked into here.
+                            let Some(constructor) = cx.get(hash) else {
+                                return Err(RuntimeError::missing_constant_constructor(hash));
+                            };
+
+                            let size = node.size as usize;
+
+                            let Some(subtree) = nodes.get(index..index + size) else {
+                                return Err(RuntimeError::new(VmErrorKind::MalformedConstValue));
+                            };
+
+                            produced =
+                                Some(constructor.const_construct(ConstValue::from_nodes(subtree))?);
+
+                            index += size;
+                        }
                     }
                 }
-            },
+            }
+
+            // Hand what was produced to the container which was waiting for it,
+            // and close every container which that completed.
+            loop {
+                if let Some(value) = produced.take() {
+                    let Some(frame) = frames.last_mut() else {
+                        return Ok(value);
+                    };
+
+                    frame.values.try_push(value)?;
+                    frame.remaining -= 1;
+                }
+
+                if !frames.last().is_some_and(|frame| frame.remaining == 0) {
+                    break;
+                }
+
+                let Some(frame) = frames.pop() else {
+                    break;
+                };
+
+                produced = Some(close(frame)?);
+            }
         }
     }
-
-    /// Get the type information of the value.
-    pub(crate) fn type_info(&self) -> TypeInfo {
-        self.kind.type_info()
-    }
 }
 
-impl TryClone for ConstValue {
-    fn try_clone(&self) -> alloc::Result<Self> {
-        Ok(Self {
-            kind: self.kind.try_clone()?,
-        })
-    }
-}
-
-impl FromValue for ConstValue {
+impl FromValue for ConstValueBuf {
     #[inline]
     fn from_value(value: Value) -> Result<Self, RuntimeError> {
-        ConstValue::from_value_ref(&value)
+        ConstValueBuf::from_value_ref(&value)
     }
 }
 
-impl ToValue for ConstValue {
+impl ToValue for ConstValueBuf {
     #[inline]
     fn to_value(self) -> Result<Value, RuntimeError> {
         ConstValue::to_value_with(&self, &EmptyConstContext)
     }
 }
 
-impl From<ConstValueKind> for ConstValue {
+impl ConstValue {
     #[inline]
-    fn from(kind: ConstValueKind) -> Self {
-        Self { kind }
+    #[cfg(test)]
+    pub(crate) fn to_value(&self) -> Result<Value, RuntimeError> {
+        self.to_value_with(&EmptyConstContext)
     }
 }
 
-impl From<Inline> for ConstValue {
+impl AsRef<ConstValue> for ConstValue {
+    #[inline]
+    fn as_ref(&self) -> &ConstValue {
+        self
+    }
+}
+
+impl From<Inline> for ConstValueBuf {
     #[inline]
     fn from(value: Inline) -> Self {
-        Self::from(ConstValueKind::Inline(value))
+        ConstValueBuf::from_kind(ConstNodeKind::Inline(value))
     }
 }
 
-impl TryFrom<String> for ConstValue {
+impl TryFrom<alloc::String> for ConstValueBuf {
     type Error = alloc::Error;
 
     #[inline]
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(Self::from(Box::<str>::try_from(value)?))
+    fn try_from(value: alloc::String) -> Result<Self, Self::Error> {
+        Ok(Self::from_kind(ConstNodeKind::String(
+            alloc::Box::try_from(value)?,
+        )))
     }
 }
 
-impl From<Box<str>> for ConstValue {
+impl TryFrom<alloc::Box<str>> for ConstValueBuf {
+    type Error = alloc::Error;
+
     #[inline]
-    fn from(value: Box<str>) -> Self {
-        Self::from(ConstValueKind::String(value))
+    fn try_from(value: alloc::Box<str>) -> Result<Self, Self::Error> {
+        Ok(Self::from_kind(ConstNodeKind::String(value)))
     }
 }
 
-impl TryFrom<Bytes> for ConstValue {
+impl TryFrom<Bytes> for ConstValueBuf {
     type Error = alloc::Error;
 
     #[inline]
@@ -679,75 +714,74 @@ impl TryFrom<Bytes> for ConstValue {
     }
 }
 
-impl TryFrom<&str> for ConstValue {
+impl TryFrom<&str> for ConstValueBuf {
     type Error = alloc::Error;
 
     #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(ConstValue::from(Box::<str>::try_from(value)?))
+        Ok(Self::from_kind(ConstNodeKind::String(
+            alloc::Box::try_from(value)?,
+        )))
     }
 }
 
 impl ToConstValue for &str {
     #[inline]
-    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
-        Ok(ConstValue::try_from(self)?)
+    fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError> {
+        Ok(ConstValueBuf::try_from(self)?)
     }
 }
 
-impl From<Box<[u8]>> for ConstValue {
+impl TryFrom<alloc::Box<[u8]>> for ConstValueBuf {
+    type Error = alloc::Error;
+
     #[inline]
-    fn from(value: Box<[u8]>) -> Self {
-        Self::from(ConstValueKind::Bytes(value))
+    fn try_from(value: alloc::Box<[u8]>) -> Result<Self, Self::Error> {
+        Ok(Self::from_kind(ConstNodeKind::Bytes(value)))
     }
 }
 
-impl TryFrom<&[u8]> for ConstValue {
+impl TryFrom<&[u8]> for ConstValueBuf {
     type Error = alloc::Error;
 
     #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Self::from(Box::<[u8]>::try_from(value)?))
+        Ok(Self::from_kind(ConstNodeKind::Bytes(alloc::Box::try_from(
+            value,
+        )?)))
     }
 }
 
 impl ToConstValue for &[u8] {
     #[inline]
-    fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
-        Ok(ConstValue::try_from(self)?)
-    }
-}
-
-impl fmt::Debug for ConstValue {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
+    fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError> {
+        Ok(ConstValueBuf::try_from(self)?)
     }
 }
 
 /// Trait to perform a conversion from a [`ConstValue`].
 pub trait FromConstValue: Sized {
     /// Convert from a constant value.
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError>;
+    fn from_const_value(value: &ConstValue) -> Result<Self, RuntimeError>;
 }
 
-impl FromConstValue for ConstValue {
+impl FromConstValue for ConstValueBuf {
     #[inline]
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
-        Ok(value)
+    fn from_const_value(value: &ConstValue) -> Result<Self, RuntimeError> {
+        Ok(value.try_to_owned()?)
     }
 }
 
 impl FromConstValue for bool {
     #[inline]
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+    fn from_const_value(value: &ConstValue) -> Result<Self, RuntimeError> {
         value.as_bool()
     }
 }
 
 impl FromConstValue for char {
     #[inline]
-    fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+    fn from_const_value(value: &ConstValue) -> Result<Self, RuntimeError> {
         value.as_char()
     }
 }
@@ -757,7 +791,7 @@ macro_rules! impl_integer {
         $(
             impl FromConstValue for $ty {
                 #[inline]
-                fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
+                fn from_const_value(value: &ConstValue) -> Result<Self, RuntimeError> {
                     value.as_integer()
                 }
             }
@@ -780,9 +814,10 @@ declare_dyn_trait! {
     ///
     /// [`ToConstValue`]: derive@ToConstValue
     pub trait ConstConstruct {
-        /// Construct from values.
+        /// Construct from the constant which describes the instance, whose
+        /// fields are the subtrees it is made of.
         #[doc(hidden)]
-        fn const_construct(&self, fields: &[ConstValue]) -> Result<Value, RuntimeError>;
+        fn const_construct(&self, value: &ConstValue) -> Result<Value, RuntimeError>;
 
         /// Construct from values.
         #[doc(hidden)]

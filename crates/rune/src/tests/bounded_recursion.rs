@@ -24,6 +24,7 @@ prelude!();
 use rust_alloc::string::String;
 
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use crate::runtime::{ConstValueBuf, MAX_CONST_DEPTH};
 use crate::{SourceId, Unit, VmError};
 
 /// How deep the chains built below are.
@@ -313,8 +314,8 @@ fn deep_const_chain() {
     assert_eq!(value, 20001);
 }
 
-/// A constant is stored as a `ConstValue`, which is built, walked, cloned and
-/// dropped by recursing over it.
+/// A constant is stored as a `ConstValue`, which is one array of nodes rather
+/// than a tree, so how deeply it nests is a property of the array.
 ///
 /// The value a constant evaluates to is produced by running it, so a constant
 /// function which nests a value in a loop can produce one of any depth, which
@@ -346,6 +347,170 @@ fn deep_const_value_is_bounded() {
             .contains("nested too deeply to be a constant"),
         "{error:?}"
     );
+}
+
+/// A constant nests no more deeply than `MAX_CONST_DEPTH`, whichever way one is
+/// made.
+///
+/// Building one from a value is bounded where the value is walked, but a
+/// constant can also be built out of other constants - which is what a host
+/// does, and what the `ToConstValue` derive writes - and nothing about that
+/// goes through a value. So the bound is checked where the array is finished
+/// instead, which is the one place every constant passes through.
+#[test]
+fn a_constant_built_out_of_others_is_bounded() {
+    let mut value = ConstValueBuf::from(runtime::Inline::Unit);
+
+    // One more level than is allowed, so the last of them has to be refused.
+    for depth in 1..=MAX_CONST_DEPTH {
+        value = match ConstValueBuf::tuple([&*value]) {
+            Ok(value) => value,
+            Err(error) => {
+                assert_eq!(
+                    depth, MAX_CONST_DEPTH,
+                    "Should be refused at the limit, not at {depth}: {error}"
+                );
+
+                assert!(error.to_string().contains("nested too deeply"), "{error}");
+
+                return;
+            }
+        };
+    }
+
+    panic!("Nesting past the limit should be refused");
+}
+
+/// The nodes of a constant which nests `depth` levels, outermost first.
+///
+/// Every level is a tuple of one field, so the array is a chain - which is the
+/// shape whoever wrote it would have chosen to make a walk over it descend as
+/// far as it can.
+fn nested_kinds(depth: usize) -> alloc::Vec<runtime::ConstNodeKind> {
+    let mut kinds = alloc::Vec::new();
+
+    for _ in 1..depth {
+        kinds
+            .try_push(runtime::ConstNodeKind::Instance {
+                hash: OwnedTuple::HASH,
+                variant_hash: Hash::EMPTY,
+                fields: 1,
+            })
+            .expect("Nodes should be allocated");
+    }
+
+    kinds
+        .try_push(runtime::ConstNodeKind::Inline(runtime::Inline::Unit))
+        .expect("Nodes should be allocated");
+
+    kinds
+}
+
+/// A constant read back from somewhere else is checked before it is walked.
+///
+/// A `.rnc` file is read off disk and a unit can be deserialized by a host, so
+/// the array a constant is stored as arrives from somewhere which decided what
+/// is in it. Working out the shape of the array is a pass over it, so a chain
+/// far longer than the native stack could descend is turned away rather than
+/// found out about by overflowing.
+#[test]
+fn a_deep_constant_is_not_read_back() {
+    let error = ConstValueBuf::from_kinds(nested_kinds(4000)).expect_err("Should exceed the limit");
+
+    assert!(error.to_string().contains("nested too deeply"), "{error}");
+
+    // Within the limit it is read back as it was written.
+    let value = ConstValueBuf::from_kinds(nested_kinds(8)).expect("Should be read back");
+    assert_eq!(value.as_nodes().len(), 8);
+}
+
+/// An array which is not a tree is not a constant.
+///
+/// Nothing here builds such an array, but whoever wrote a `.rnc` file decided
+/// what is in it, so each of the ways one can fail to describe a tree is turned
+/// away rather than walked past the end of.
+#[test]
+fn a_constant_which_is_not_a_tree_is_not_read_back() {
+    let mut cases = alloc::Vec::new();
+
+    // A node which claims a field that does not follow it.
+    let mut kinds = alloc::Vec::new();
+    kinds
+        .try_push(runtime::ConstNodeKind::Instance {
+            hash: OwnedTuple::HASH,
+            variant_hash: Hash::EMPTY,
+            fields: 1,
+        })
+        .expect("Nodes should be allocated");
+    cases.try_push(kinds).expect("Cases should be allocated");
+
+    // Two roots, so the array holds more than the outermost subtree.
+    let mut kinds = alloc::Vec::new();
+    kinds
+        .try_push(runtime::ConstNodeKind::Inline(runtime::Inline::Unit))
+        .expect("Nodes should be allocated");
+    kinds
+        .try_push(runtime::ConstNodeKind::Inline(runtime::Inline::Unit))
+        .expect("Nodes should be allocated");
+    cases.try_push(kinds).expect("Cases should be allocated");
+
+    // An object whose keys and subtrees do not agree.
+    let mut kinds = alloc::Vec::new();
+    kinds
+        .try_push(runtime::ConstNodeKind::Object {
+            keys: alloc::Box::try_from([alloc::Box::try_from("a").expect("Key should allocate")])
+                .expect("Keys should allocate"),
+        })
+        .expect("Nodes should be allocated");
+    cases.try_push(kinds).expect("Cases should be allocated");
+
+    // Nothing at all, and every constant has at least a root.
+    cases
+        .try_push(alloc::Vec::new())
+        .expect("Cases should be allocated");
+
+    for kinds in cases {
+        let len = kinds.len();
+        ConstValueBuf::from_kinds(kinds)
+            .map(|_| ())
+            .expect_err(&rust_alloc::format!("Array of {len} should be refused"));
+    }
+}
+
+/// Reading a constant back through each of the two formats a unit is written
+/// in goes through the same check.
+///
+/// The nodes are written down as they are and the shape is worked out again on
+/// the way in, so neither format has a nesting of its own for a walk to descend
+/// through - which is what makes a deep constant a rejected document rather
+/// than an overflow inside the decoder.
+#[test]
+fn a_deep_constant_is_not_deserialized() {
+    let deep = Vec::from_iter(nested_kinds(4000));
+    let shallow = Vec::from_iter(nested_kinds(8));
+
+    #[cfg(feature = "serde")]
+    {
+        let json = serde_json::to_string(&deep).expect("Nodes should serialize");
+        let error =
+            serde_json::from_str::<ConstValueBuf>(&json).expect_err("Should exceed the limit");
+        assert!(error.to_string().contains("nested too deeply"), "{error}");
+
+        let json = serde_json::to_string(&shallow).expect("Nodes should serialize");
+        serde_json::from_str::<ConstValueBuf>(&json).expect("Shallow constant should deserialize");
+    }
+
+    #[cfg(feature = "byte-code")]
+    {
+        let bytes = musli::storage::to_vec(&deep).expect("Nodes should encode");
+        let error = musli::storage::from_slice::<ConstValueBuf>(&bytes)
+            .expect_err("Should exceed the limit");
+        assert!(error.to_string().contains("nested too deeply"), "{error}");
+
+        let bytes = musli::storage::to_vec(&shallow).expect("Nodes should encode");
+        musli::storage::from_slice::<ConstValueBuf>(&bytes)
+            .expect("Shallow constant should decode");
+    }
 }
 
 /// A constant function which calls itself is assembled once and recurses in the

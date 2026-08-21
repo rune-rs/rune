@@ -27,7 +27,7 @@ use crate::macros::Storage;
 use crate::parse::{NonZeroId, Resolve};
 #[cfg(feature = "doc")]
 use crate::runtime::Call;
-use crate::runtime::ConstValue;
+use crate::runtime::{ConstValue, ConstValueBuf};
 use crate::shared::{Consts, Gen};
 use crate::{Context, Diagnostics, Hash, Item, ItemBuf, Options, SourceId, Sources};
 
@@ -89,9 +89,9 @@ pub(crate) struct QueryInner<'arena> {
     /// Constant functions which are queued to be assembled into `const_unit`.
     pub(crate) const_pending: Vec<ItemId>,
     /// Indexed constant values.
-    constants: HashMap<Hash, ConstValue>,
+    constants: HashMap<Hash, ConstValueBuf>,
     /// Initializers of indexed static items, for those which have one.
-    static_inits: HashMap<Hash, ConstValue>,
+    static_inits: HashMap<Hash, ConstValueBuf>,
     /// Statics which have been declared with the build rather than by a source.
     declared_statics: HashSet<ItemId>,
     /// The result of internally resolved macros.
@@ -112,12 +112,12 @@ pub(crate) struct QueryInner<'arena> {
 impl QueryInner<'_> {
     /// Get a constant value but only from the dynamic query system.
     pub(crate) fn get_const_value(&self, hash: Hash) -> Option<&ConstValue> {
-        self.constants.get(&hash)
+        Some(self.constants.get(&hash)?)
     }
 
     /// Get the initializer of a static item, if it has one.
     pub(crate) fn get_static_init(&self, hash: Hash) -> Option<&ConstValue> {
-        self.static_inits.get(&hash)
+        Some(self.static_inits.get(&hash)?)
     }
 }
 
@@ -993,7 +993,7 @@ impl<'a, 'arena> Query<'a, 'arena> {
         location: Location,
         span: &dyn Spanned,
         entry: Entry<'_>,
-    ) -> compile::Result<ConstValue> {
+    ) -> compile::Result<ConstValueBuf> {
         let value = const_eval::eval(self, location, span, entry, Vec::new())?;
         Ok(crate::from_value(value).with_span(span)?)
     }
@@ -1005,9 +1005,9 @@ impl<'a, 'arena> Query<'a, 'arena> {
         item_meta: ItemMeta,
         span: &dyn Spanned,
         entry: Entry<'_>,
-    ) -> compile::Result<ConstValue> {
+    ) -> compile::Result<ConstValueBuf> {
         if let Some(const_value) = self.consts.get(item_meta.item) {
-            return Ok(const_value.try_clone()?);
+            return Ok(const_value.try_to_owned()?);
         }
 
         if !self.consts.mark(item_meta.item)? {
@@ -1032,8 +1032,8 @@ impl<'a, 'arena> Query<'a, 'arena> {
         &mut self,
         span: &dyn Spanned,
         id: ItemId,
-        args: &[ConstValue],
-    ) -> compile::Result<ConstValue> {
+        args: &[ConstValueBuf],
+    ) -> compile::Result<ConstValueBuf> {
         let const_fn = self.const_fn_for(id).with_span(span)?;
 
         if const_fn.hir.args.len() != args.len() {

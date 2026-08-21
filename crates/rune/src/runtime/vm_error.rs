@@ -558,6 +558,13 @@ pub(crate) enum VmErrorKind {
     MaxConstSize {
         max: usize,
     },
+    /// The array a constant is stored as does not describe a tree.
+    ///
+    /// A constant is one array of nodes in which every subtree is a contiguous
+    /// run, so an array in which a node claims children it does not have is not
+    /// a constant. Building one here cannot produce such an array; reading one
+    /// back from somewhere else can.
+    MalformedConstValue,
     /// Executions were nested more deeply than they are allowed to be.
     ///
     /// A call which a native function performs is driven by a machine of its
@@ -826,6 +833,9 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MaxConstSize { max } => {
                 write!(f, "Value is too large to be a constant, limit is {max}")
+            }
+            VmErrorKind::MalformedConstValue => {
+                write!(f, "Constant value is not a tree")
             }
             VmErrorKind::MaxConstDepth { max } => {
                 write!(

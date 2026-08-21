@@ -10,8 +10,8 @@ macro_rules! inline_into {
         /// This gets a copy of the value.
         #[inline]
         pub fn $as(&self) -> Result<$ty, RuntimeError> {
-            match &self.kind {
-                ConstValueKind::Inline(Inline::$kind(value)) => {
+            match self.kind() {
+                ConstNodeKind::Inline(Inline::$kind(value)) => {
                     Ok(*value)
                 }
                 value => {
@@ -25,12 +25,14 @@ macro_rules! inline_into {
         /// This gets the value by mutable reference.
         #[inline]
         pub fn $as_mut(&mut self) -> Result<&mut $ty, RuntimeError> {
-            match &mut self.kind {
-                ConstValueKind::Inline(Inline::$kind(value)) => {
+            let type_info = self.type_info();
+
+            match self.kind_mut() {
+                Some(ConstNodeKind::Inline(Inline::$kind(value))) => {
                     Ok(value)
                 }
-                value => {
-                    Err(RuntimeError::expected::<$ty>(value.type_info()))
+                _ => {
+                    Err(RuntimeError::expected::<$ty>(type_info))
                 }
             }
         }

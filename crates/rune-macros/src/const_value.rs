@@ -38,7 +38,7 @@ impl Derive {
         let body;
 
         let Tokens {
-            const_value,
+            const_value_buf,
             from_const_value_t,
             to_const_value_t,
             type_hash_t,
@@ -98,7 +98,7 @@ impl Derive {
                 }
 
                 body = quote! {
-                    #const_value::for_struct(<Self as #type_hash_t>::HASH, [#(#fields),*])
+                    #const_value_buf::for_struct(<Self as #type_hash_t>::HASH, [#(#fields),*])
                 };
             }
             syn::Data::Enum(..) => {
@@ -138,6 +138,7 @@ where
             const_construct_t,
             const_construct_impl,
             const_value,
+            const_value_buf,
             option,
             result,
             runtime_error,
@@ -161,7 +162,7 @@ where
             #[automatically_derived]
             impl #to_const_value_t for #ident {
                 #[inline]
-                fn to_const_value(self) -> #result<#const_value, #runtime_error> {
+                fn to_const_value(self) -> #result<#const_value_buf, #runtime_error> {
                     #body
                 }
 
@@ -171,10 +172,21 @@ where
 
                     impl #const_construct_t for #construct {
                         #[inline]
-                        fn const_construct(&self, values: &[#const_value]) -> #result<#value, #runtime_error> {
-                            let [#(#variables),*] = values else {
-                                return #result::Err(#runtime_error::bad_argument_count(values.len(), #expected));
-                            };
+                        fn const_construct(&self, value: &#const_value) -> #result<#value, #runtime_error> {
+                            let fields = value.fields();
+
+                            if fields.len() != #expected {
+                                return #result::Err(#runtime_error::bad_argument_count(fields.len(), #expected));
+                            }
+
+                            #[allow(unused_mut, unused_variables)]
+                            let mut fields = fields.iter();
+
+                            #(
+                                let #option::Some(#variables) = fields.next() else {
+                                    return #result::Err(#runtime_error::bad_argument_count(#expected, #expected));
+                                };
+                            )*
 
                             let value = #ident {
                                 #(#members: #from_const_fields,)*

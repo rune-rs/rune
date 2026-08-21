@@ -13,8 +13,8 @@ use crate::alloc::{self, Box};
 use crate::Any;
 
 use super::{
-    ConstValue, Dismantle, EmptyConstContext, Formatter, FromConstValue, FromValue, Handover,
-    Hasher, Mut, ProtocolCaller, RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue,
+    ConstValue, ConstValueBuf, Dismantle, EmptyConstContext, Formatter, FromConstValue, FromValue,
+    Handover, Hasher, Mut, ProtocolCaller, RawAnyGuard, Ref, RuntimeError, ToConstValue, ToValue,
     UnsafeToMut, UnsafeToRef, Value, VmError, VmErrorKind,
 };
 
@@ -303,10 +303,10 @@ impl From<alloc::Box<[Value]>> for OwnedTuple {
     }
 }
 
-impl TryFrom<alloc::Box<[ConstValue]>> for OwnedTuple {
+impl TryFrom<alloc::Box<[ConstValueBuf]>> for OwnedTuple {
     type Error = RuntimeError;
 
-    fn try_from(inner: alloc::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
+    fn try_from(inner: alloc::Box<[ConstValueBuf]>) -> Result<Self, RuntimeError> {
         if inner.is_empty() {
             return Ok(OwnedTuple::new());
         }
@@ -330,27 +330,6 @@ impl TryFrom<rust_alloc::boxed::Box<[Value]>> for OwnedTuple {
     fn try_from(inner: rust_alloc::boxed::Box<[Value]>) -> alloc::Result<Self> {
         Ok(Self {
             inner: alloc::Box::try_from(inner)?,
-        })
-    }
-}
-
-impl TryFrom<rust_alloc::boxed::Box<[ConstValue]>> for OwnedTuple {
-    type Error = RuntimeError;
-
-    #[inline]
-    fn try_from(inner: rust_alloc::boxed::Box<[ConstValue]>) -> Result<Self, RuntimeError> {
-        if inner.is_empty() {
-            return Ok(OwnedTuple::new());
-        }
-
-        let mut out = alloc::Vec::try_with_capacity(inner.len())?;
-
-        for value in inner.iter() {
-            out.try_push(value.to_value_with(&EmptyConstContext)?)?;
-        }
-
-        Ok(Self {
-            inner: out.try_into_boxed_slice()?,
         })
     }
 }
@@ -412,18 +391,27 @@ macro_rules! impl_tuple {
         where
             $($ty: FromConstValue,)*
         {
-            fn from_const_value(value: ConstValue) -> Result<Self, RuntimeError> {
-                let tuple = value.into_tuple()?;
+            fn from_const_value(value: &ConstValue) -> Result<Self, RuntimeError> {
+                let fields = value.as_tuple()?;
 
-                let [$($var,)*] = match <Box<[ConstValue; $count]>>::try_from(tuple) {
-                    Ok(tuple) => Box::into_inner(tuple),
-                    Err(tuple) => {
+                if fields.len() != $count {
+                    return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {
+                        actual: fields.len(),
+                        expected: $count,
+                    }));
+                }
+
+                #[allow(unused_mut, unused_variables)]
+                let mut fields = fields.iter();
+
+                $(
+                    let Some($var) = fields.next() else {
                         return Err(RuntimeError::new(VmErrorKind::ExpectedTupleLength {
-                            actual: tuple.len(),
+                            actual: $count,
                             expected: $count,
                         }));
-                    }
-                };
+                    };
+                )*
 
                 Ok(($(<$ty as FromConstValue>::from_const_value($var)?,)*))
             }
@@ -447,13 +435,12 @@ macro_rules! impl_tuple {
         where
             $($ty: ToConstValue,)*
         {
-            fn to_const_value(self) -> Result<ConstValue, RuntimeError> {
+            fn to_const_value(self) -> Result<ConstValueBuf, RuntimeError> {
                 let ($($var,)*) = self;
                 $(let $var = $var.to_const_value()?;)*
                 let mut vec = alloc::Vec::try_with_capacity($count)?;
                 $(vec.try_push($var)?;)*
-                let tuple = Box::<[ConstValue]>::try_from(vec)?;
-                ConstValue::tuple(tuple)
+                ConstValueBuf::tuple(vec)
             }
         }
     };

@@ -10,10 +10,10 @@ use crate::compile::const_eval;
 use crate::compile::{self, Assembly, ErrorKind, ItemId, Location, Options, WithSpan};
 use crate::hir;
 use crate::query::Query;
-use crate::runtime::ConstInstance;
 use crate::runtime::{
-    self, inst, ConstValue, ConstValueKind, Inline, InstArithmeticOp, InstBitwiseOp, InstOp,
-    InstRange, InstShiftOp, InstTarget, InstValue, Label, Output, PanicReason, Protocol, TypeHash,
+    self, inst, ConstNodeKind, ConstValue, ConstValueBuf, Inline, InstArithmeticOp, InstBitwiseOp,
+    InstOp, InstRange, InstShiftOp, InstTarget, InstValue, Label, Output, PanicReason, Protocol,
+    TypeHash,
 };
 use crate::{Hash, ItemBuf, SourceId};
 
@@ -112,7 +112,7 @@ impl<'hir> Ctxt<'_, 'hir, '_> {
         span: &dyn Spanned,
         id: ItemId,
         args: &[hir::ExprId],
-    ) -> compile::Result<ConstValue> {
+    ) -> compile::Result<ConstValueBuf> {
         let mut values = Vec::try_with_capacity(args.len())?;
 
         for &arg in args {
@@ -1073,8 +1073,8 @@ fn const_<'a, 'hir>(
 
     let out = addr.output();
 
-    match value.as_kind() {
-        ConstValueKind::Inline(value) => match *value {
+    match value.kind() {
+        ConstNodeKind::Inline(value) => match *value {
             Inline::Empty => {
                 return Err(compile::Error::msg(
                     span,
@@ -1109,122 +1109,80 @@ fn const_<'a, 'hir>(
                 cx.asm.push(inst::Kind::hash(v, out), span)?;
             }
         },
-        ConstValueKind::String(s) => {
+        ConstNodeKind::String(s) => {
             let slot = cx.q.unit.new_static_string(span, s)?;
             cx.asm.push(inst::Kind::String { slot, out }, span)?;
         }
-        ConstValueKind::Bytes(b) => {
+        ConstNodeKind::Bytes(b) => {
             let slot = cx.q.unit.new_static_bytes(span, b)?;
             cx.asm.push(inst::Kind::Bytes { slot, out }, span)?;
         }
-        ConstValueKind::Instance(instance) => match &**instance {
-            ConstInstance {
-                hash: runtime::Object::HASH,
-                variant_hash: Hash::EMPTY,
-                fields,
-            } => {
-                let mut entries = Vec::try_with_capacity(fields.len())?;
+        ConstNodeKind::Object { keys } => {
+            // The keys of a constant object are kept sorted by whoever built
+            // it, so there is nothing to sort here.
+            let fields = value.fields();
+            let mut linear = cx.scopes.linear(span, fields.len())?;
 
-                for value in fields.iter() {
-                    let (key, value) = value.as_pair().with_span(span)?;
-                    let key = key.as_string().with_span(span)?;
-                    entries.try_push((key, value))?;
-                }
-
-                entries.sort_by_key(|&(k, _)| k);
-
-                let mut linear = cx.scopes.linear(span, entries.len())?;
-
-                for ((_, value), needs) in entries.iter().copied().zip(&mut linear) {
-                    const_(cx, value, span, needs)?;
-                }
-
-                let slot =
-                    cx.q.unit
-                        .new_static_object_keys_iter(span, entries.iter().map(|e| e.0))?;
-
-                cx.asm.push(
-                    inst::Kind::Object {
-                        addr: linear.addr(),
-                        slot,
-                        out,
-                    },
-                    span,
-                )?;
-
-                linear.free_non_dangling()?;
+            for (value, needs) in fields.iter().zip(&mut linear) {
+                const_(cx, value, span, needs)?;
             }
-            ConstInstance {
-                hash,
-                variant_hash: Hash::EMPTY,
-                fields,
-            } => {
-                let mut linear = cx.scopes.linear(span, fields.len())?;
 
-                for (value, needs) in fields.iter().zip(&mut linear) {
-                    const_(cx, value, span, needs)?;
+            let slot =
+                cx.q.unit
+                    .new_static_object_keys_iter(span, keys.iter().map(|key| key.as_ref()))?;
+
+            cx.asm.push(
+                inst::Kind::Object {
+                    addr: linear.addr(),
+                    slot,
+                    out,
+                },
+                span,
+            )?;
+
+            linear.free_non_dangling()?;
+        }
+        ConstNodeKind::Instance {
+            hash, variant_hash, ..
+        } => {
+            let fields = value.fields();
+            let mut linear = cx.scopes.linear(span, fields.len())?;
+
+            for (value, needs) in fields.iter().zip(&mut linear) {
+                const_(cx, value, span, needs)?;
+            }
+
+            let kind = if *variant_hash != Hash::EMPTY {
+                inst::Kind::Call {
+                    addr: linear.addr(),
+                    hash: *variant_hash,
+                    args: fields.len(),
+                    out,
                 }
-
+            } else {
                 match *hash {
-                    runtime::Vec::HASH => {
-                        cx.asm.push(
-                            inst::Kind::Vec {
-                                addr: linear.addr(),
-                                count: fields.len(),
-                                out,
-                            },
-                            span,
-                        )?;
-                    }
-                    runtime::OwnedTuple::HASH => {
-                        cx.asm.push(
-                            inst::Kind::Tuple {
-                                addr: linear.addr(),
-                                count: fields.len(),
-                                out,
-                            },
-                            span,
-                        )?;
-                    }
-                    _ => {
-                        cx.asm.push(
-                            inst::Kind::ConstConstruct {
-                                addr: linear.addr(),
-                                hash: *hash,
-                                count: fields.len(),
-                                out,
-                            },
-                            span,
-                        )?;
-                    }
-                }
-
-                linear.free_non_dangling()?;
-            }
-            ConstInstance {
-                variant_hash,
-                fields,
-                ..
-            } => {
-                let mut linear = cx.scopes.linear(span, fields.len())?;
-
-                for (value, needs) in fields.iter().zip(&mut linear) {
-                    const_(cx, value, span, needs)?;
-                }
-
-                cx.asm.push(
-                    inst::Kind::Call {
+                    runtime::Vec::HASH => inst::Kind::Vec {
                         addr: linear.addr(),
-                        hash: *variant_hash,
-                        args: fields.len(),
+                        count: fields.len(),
                         out,
                     },
-                    span,
-                )?;
+                    runtime::OwnedTuple::HASH => inst::Kind::Tuple {
+                        addr: linear.addr(),
+                        count: fields.len(),
+                        out,
+                    },
+                    hash => inst::Kind::ConstConstruct {
+                        addr: linear.addr(),
+                        hash,
+                        count: fields.len(),
+                        out,
+                    },
+                }
+            };
 
-                linear.free_non_dangling()?;
-            }
-        },
+            cx.asm.push(kind, span)?;
+            linear.free_non_dangling()?;
+        }
     }
 
     Ok(())
@@ -5501,7 +5459,7 @@ fn const_item<'a, 'hir>(
         ));
     };
 
-    let const_value = const_value.try_clone().with_span(span)?;
+    let const_value = const_value.try_to_owned().with_span(span)?;
     const_(cx, &const_value, span, needs)?;
     Ok(Asm::new(span, ()))
 }

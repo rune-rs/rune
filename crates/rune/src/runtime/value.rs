@@ -40,8 +40,8 @@ use crate::sync::Arc;
 use crate::{Any, Hash, TypeHash};
 
 use super::{
-    AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstValue,
-    ConstValueKind, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
+    AccessError, AnyObj, AnyObjDrop, BorrowMut, BorrowRef, CallResultOnly, ConstNodeKind,
+    ConstValueBuf, DynGuardedArgs, EnvProtocolCaller, Formatter, FromValue, Future, Hasher,
     Iterator, MaybeTypeOf, Mut, Object, OwnedTuple, Protocol, ProtocolCaller, RawAnyObjGuard, Ref,
     RuntimeError, Shared, Snapshot, Tuple, Type, TypeInfo, Vec, VmError, VmErrorKind,
     VmIntegerRepr,
@@ -569,8 +569,8 @@ impl Value {
 
         crate::runtime::env::shared(|context, unit, _| {
             if let Some(name) = context.constant(&hash) {
-                match name.as_kind() {
-                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_ref())?),
+                match name.kind() {
+                    ConstNodeKind::String(s) => return Ok(String::try_from(s.as_ref())?),
                     _ => {
                         return Err(VmError::new(VmErrorKind::expected::<String>(
                             name.type_info(),
@@ -580,8 +580,8 @@ impl Value {
             }
 
             if let Some(name) = unit.constant(&hash) {
-                match name.as_kind() {
-                    ConstValueKind::String(s) => return Ok(String::try_from(s.as_ref())?),
+                match name.kind() {
+                    ConstNodeKind::String(s) => return Ok(String::try_from(s.as_ref())?),
                     _ => {
                         return Err(VmError::new(VmErrorKind::expected::<String>(
                             name.type_info(),

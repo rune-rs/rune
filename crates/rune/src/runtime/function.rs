@@ -13,9 +13,9 @@ use crate::sync::Arc;
 use crate::{Any, Hash};
 
 use super::{
-    Address, AnySequence, Args, Call, ConstValue, Dismantle, Formatter, FromValue, FunctionHandler,
-    Globals, GuardedArgs, Handover, Output, OwnedTuple, Rtti, RuntimeContext, RuntimeError, Stack,
-    Unit, Value, Vm, VmCall, VmError, VmErrorKind, VmHalt,
+    Address, AnySequence, Args, Call, ConstValueBuf, Dismantle, Formatter, FromValue,
+    FunctionHandler, Globals, GuardedArgs, Handover, Output, OwnedTuple, Rtti, RuntimeContext,
+    RuntimeError, Stack, Unit, Value, Vm, VmCall, VmError, VmErrorKind, VmHalt,
 };
 
 /// The type of a function in Rune.
@@ -387,7 +387,7 @@ impl Function {
 /// A callable sync function. This currently only supports a subset of values
 /// that are supported by the Vm.
 #[repr(transparent)]
-pub struct SyncFunction(FunctionImpl<ConstValue>);
+pub struct SyncFunction(FunctionImpl<ConstValueBuf>);
 
 assert_impl!(SyncFunction: Send + Sync);
 
@@ -744,7 +744,7 @@ where
 
 impl FunctionImpl<Value> {
     /// Try to convert into a [SyncFunction].
-    fn into_sync(self) -> Result<FunctionImpl<ConstValue>, RuntimeError> {
+    fn into_sync(self) -> Result<FunctionImpl<ConstValueBuf>, RuntimeError> {
         let inner = match self.inner {
             Inner::FnClosureOffset(closure) => {
                 let mut env = Vec::try_with_capacity(closure.environment.len())?;
@@ -893,7 +893,7 @@ impl FnValue for Value {
     }
 }
 
-impl FnValue for ConstValue {
+impl FnValue for ConstValueBuf {
     type Globals = ();
 
     #[inline]
@@ -1021,7 +1021,7 @@ impl FnOffset<Value> {
     /// The storage isn't thread safe, so a [`SyncFunction`] cannot carry it.
     /// Reading a static through the resulting function reports that no storage
     /// has been configured.
-    fn into_sync(self) -> FnOffset<ConstValue> {
+    fn into_sync(self) -> FnOffset<ConstValueBuf> {
         FnOffset {
             context: self.context,
             unit: self.unit,

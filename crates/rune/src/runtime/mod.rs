@@ -55,11 +55,11 @@ mod const_value;
 #[doc(hidden)]
 pub use self::const_value::ToConstValue;
 pub use self::const_value::{
-    from_const_value, to_const_value, ConstConstruct, ConstConstructImpl, ConstValue,
-    FromConstValue,
+    from_const_value, to_const_value, ConstConstruct, ConstConstructImpl, ConstFields,
+    ConstFieldsIter, ConstValue, ConstValueBuf, FromConstValue,
 };
 pub(crate) use self::const_value::{
-    ConstContext, ConstInstance, ConstValueKind, EmptyConstContext, MAX_CONST_DEPTH,
+    ConstContext, ConstNodeKind, EmptyConstContext, MAX_CONST_DEPTH,
 };
 
 pub mod debug;

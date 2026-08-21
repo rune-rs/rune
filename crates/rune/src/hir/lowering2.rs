@@ -17,9 +17,7 @@ use crate::hir::{self, alloc_with};
 use crate::internal_macros::resolve_context;
 use crate::parse::{NonZeroId, Resolve};
 use crate::query::{self, GenericsParameters, Named2, Named2Kind, Used};
-use crate::runtime::{
-    self, format, ConstInstance, ConstValue, ConstValueKind, Inline, Type, TypeHash,
-};
+use crate::runtime::{self, format, ConstNodeKind, ConstValue, Inline, Type, TypeHash};
 use crate::Hash;
 
 use super::{Ctxt, Needs};
@@ -5183,7 +5181,7 @@ fn pat_path<'hir>(
                         ));
                     };
 
-                    let const_value = const_value.try_clone().with_span(&*p)?;
+                    let const_value = const_value.try_to_owned().with_span(&*p)?;
                     return pat_const_value(cx, &const_value, &*p);
                 }
                 meta::Kind::Static => {
@@ -5737,8 +5735,8 @@ fn pat_const_value<'hir>(
     alloc_with!(cx, span);
 
     let kind = 'kind: {
-        let lit = match const_value.as_kind() {
-            ConstValueKind::Inline(value) => match *value {
+        let lit = match const_value.kind() {
+            ConstNodeKind::Inline(value) => match *value {
                 Inline::Unit => {
                     break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
                         kind: hir::PatSequenceKind::Sequence {
@@ -5755,50 +5753,46 @@ fn pat_const_value<'hir>(
                 Inline::Signed(value) => hir::Lit::Signed(value),
                 _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
             },
-            ConstValueKind::String(string) => hir::Lit::Str(alloc_str!(string.as_ref())),
-            ConstValueKind::Bytes(bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
-            ConstValueKind::Instance(instance) => match &**instance {
-                ConstInstance {
-                    hash: runtime::Object::HASH,
-                    variant_hash: Hash::EMPTY,
-                    fields,
-                } => {
-                    let bindings = iter!(fields.iter(), fields.len(), |value| {
-                        let (key, value) = value.as_pair().with_span(span)?;
-                        let key = key.as_string().with_span(span)?;
-                        let pat = alloc!(pat_const_value(cx, value, span)?);
-                        hir::Binding::Binding(span.span(), alloc_str!(key.as_ref()), pat)
-                    });
+            ConstNodeKind::String(string) => hir::Lit::Str(alloc_str!(string.as_ref())),
+            ConstNodeKind::Bytes(bytes) => hir::Lit::ByteStr(alloc_bytes!(bytes.as_ref())),
+            ConstNodeKind::Object { keys } => {
+                let fields = const_value.fields();
 
-                    break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
-                        kind: hir::PatSequenceKind::Sequence {
-                            hash: runtime::Object::HASH,
-                            count: bindings.len(),
-                            is_open: false,
-                        },
-                        bindings,
-                    }));
-                }
-                ConstInstance {
-                    hash,
-                    variant_hash: Hash::EMPTY,
-                    fields,
-                } => {
-                    let items = iter!(fields.iter(), fields.len(), |value| pat_const_value(
-                        cx, value, span
-                    )?);
+                let bindings = iter!(keys.iter().zip(fields), keys.len(), |(key, value)| {
+                    let pat = alloc!(pat_const_value(cx, value, span)?);
+                    hir::Binding::Binding(span.span(), alloc_str!(key.as_ref()), pat)
+                });
 
-                    break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
-                        kind: hir::PatSequenceKind::Sequence {
-                            hash: *hash,
-                            count: items.len(),
-                            is_open: false,
-                        },
-                        items,
-                    }));
-                }
-                _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
-            },
+                break 'kind hir::PatKind::Object(alloc!(hir::PatObject {
+                    kind: hir::PatSequenceKind::Sequence {
+                        hash: runtime::Object::HASH,
+                        count: bindings.len(),
+                        is_open: false,
+                    },
+                    bindings,
+                }));
+            }
+            ConstNodeKind::Instance {
+                hash,
+                variant_hash: Hash::EMPTY,
+                ..
+            } => {
+                let fields = const_value.fields();
+
+                let items = iter!(fields.iter(), fields.len(), |value| pat_const_value(
+                    cx, value, span
+                )?);
+
+                break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence {
+                    kind: hir::PatSequenceKind::Sequence {
+                        hash: *hash,
+                        count: items.len(),
+                        is_open: false,
+                    },
+                    items,
+                }));
+            }
+            _ => return Err(Error::msg(span, "Unsupported constant value in pattern")),
         };
 
         hir::PatKind::Lit(expr!(hir::Expr {

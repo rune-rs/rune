@@ -867,11 +867,11 @@ impl Duration {
 }
 
 mod const_duration {
-    use rune::runtime::{ConstValue, RuntimeError, Value};
+    use rune::runtime::{ConstValue, ConstValueBuf, RuntimeError, Value};
     use tokio::time::Duration;
 
     #[inline]
-    pub(super) fn to_const_value(duration: Duration) -> Result<ConstValue, RuntimeError> {
+    pub(super) fn to_const_value(duration: Duration) -> Result<ConstValueBuf, RuntimeError> {
         let secs = duration.as_secs();
         let nanos = duration.subsec_nanos();
         rune::to_const_value((secs, nanos))
