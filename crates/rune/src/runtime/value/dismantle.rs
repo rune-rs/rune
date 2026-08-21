@@ -381,14 +381,22 @@ mod tests {
     /// Taking them apart by recursing overflowed in the thousands, and a test
     /// runs on a thread with a much smaller stack than the main one, so this is
     /// well past what used to abort the process.
-    const DEEP: usize = 50000;
+    ///
+    /// Under miri a graph that size is out of reach, so what runs there is only
+    /// deep enough to reach every shape a level can be. It still says the walk
+    /// does not nest - the counter below is what says that, at any depth - but
+    /// it no longer says the walk survives a graph the native stack could not.
+    const DEEP: usize = if cfg!(miri) { 128 } else { 50000 };
 
     /// How many values the graph built below holds at one level.
     ///
     /// Taking a value apart used to walk over the values it had already handed
     /// over to find the next one, which is quadratic - this is enough of them
     /// that the test does not finish if that comes back.
-    const WIDE: usize = 200000;
+    ///
+    /// Under miri it is only enough to walk a container which holds more than a
+    /// handful, which says the walk is right rather than that it is one pass.
+    const WIDE: usize = if cfg!(miri) { 512 } else { 200000 };
 
     /// A type which says which of its fields hold values the way an external
     /// type does, so that what the derive writes is walked over as well.

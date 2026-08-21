@@ -177,10 +177,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crate:
-        - rune
-        - rune-core
-        - rune-alloc
+        include:
+        # Rune's own doctests are left out: nearly every one of them builds a
+        # context out of the whole standard library and compiles a script with
+        # it, which is minutes apiece under miri and grows with every example
+        # added. What they would say about the unsafe code - `AnyObj`,
+        # `Access`, `Ref`, `Mut` - the lib tests say directly and in seconds.
+        - crate: rune
+          doc: false
+        - crate: rune-core
+          doc: true
+        # These doctests are the collections' own coverage rather than
+        # documentation of something else, and all 620 run in a few seconds.
+        - crate: rune-alloc
+          doc: true
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -189,6 +199,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
     - run: cargo miri test -p ${{matrix.crate}} --all-features --all-targets
     - run: cargo miri test -p ${{matrix.crate}} --all-features --doc
+      if: matrix.doc
 
   test_rune:
     runs-on: ubuntu-latest

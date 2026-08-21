@@ -2,7 +2,11 @@
 
 #![allow(clippy::too_many_arguments)]
 
-#[cfg(test)]
+// The tests drive a whole server, which needs a tokio runtime with timers and
+// asks the filesystem whether a path the client named is a file. Neither is
+// something miri can run, and there is no unsafe code here for it to check, so
+// they are left out of it the way the tests in `crate::tests` are.
+#[cfg(all(test, not(miri)))]
 mod tests;
 
 mod completion;
