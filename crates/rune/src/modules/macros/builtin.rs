@@ -1,9 +1,8 @@
 //! Built-in macros.
 
 use crate as rune;
-use crate::compile;
+use crate::compile::{self, ErrorKind};
 use crate::macros::{quote, MacroContext, TokenStream};
-use crate::parse::Parser;
 use crate::{ContextError, Module};
 
 /// Built-in macros.
@@ -29,8 +28,7 @@ pub(crate) fn line(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut parser = Parser::from_token_stream(stream, cx.input_span());
-    parser.eof()?;
+    expect_no_input(stream)?;
 
     let stream = quote!(
         #[builtin]
@@ -54,8 +52,7 @@ pub(crate) fn file(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut parser = Parser::from_token_stream(stream, cx.input_span());
-    parser.eof()?;
+    expect_no_input(stream)?;
 
     let stream = quote!(
         #[builtin]
@@ -63,4 +60,19 @@ pub(crate) fn file(
     );
 
     Ok(stream.into_token_stream(cx)?)
+}
+
+/// Refuse the input of a macro which takes none.
+///
+/// The tokens are looked at rather than parsed, since a macro which has nothing
+/// to parse has no business building a syntax tree to find that out.
+fn expect_no_input(stream: &TokenStream) -> compile::Result<()> {
+    let Some(token) = stream.into_iter().next() else {
+        return Ok(());
+    };
+
+    Err(compile::Error::new(
+        token.span,
+        ErrorKind::ExpectedEof { actual: token.kind },
+    ))
 }

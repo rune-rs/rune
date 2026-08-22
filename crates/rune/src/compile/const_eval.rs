@@ -16,7 +16,7 @@ use rust_alloc::rc::Rc;
 
 use crate::alloc::prelude::*;
 use crate::alloc::{self, Vec};
-use crate::ast::{self, Kind, Spanned};
+use crate::ast::{self, Kind, Span, Spanned};
 use crate::compile::v2;
 use crate::compile::{self, ErrorKind, ItemId, Location, UnitBuilder, WithSpan};
 use crate::hir;
@@ -104,20 +104,31 @@ impl<'hir> Body<'hir> {
 ///
 /// The expression arrives as an [`ast::Expr`], which a macro has parsed out of
 /// its own input, so it has been through neither the grammar nor indexing. It
-/// is emitted back into a token stream and re-parsed here, which is what
-/// [`crate::worker`] does with the output of a macro, so that everything
-/// downstream of it walks a tree over an explicit stack rather than recursing
-/// over the syntax tree.
+/// is emitted back into a token stream and evaluated as one.
 pub(crate) fn eval_ast(
     cx: &mut MacroContext<'_, '_, '_>,
     ast: &ast::Expr,
 ) -> compile::Result<Value> {
-    let location = cx.item_meta.location;
-
     let mut stream = TokenStream::new();
     ast.to_tokens(cx, &mut stream)?;
+    eval_stream(cx, &stream, ast.span())
+}
 
-    let tree = crate::grammar::token_stream(&stream)
+/// Evaluate an expression from within a macro, as `cx.eval_stream(..)` does.
+///
+/// The expression arrives as the tokens it was written as, which have been
+/// through neither the grammar nor indexing. They are parsed here the same way
+/// [`crate::worker`] parses the output of a macro, so that everything
+/// downstream of it walks a tree over an explicit stack rather than recursing
+/// over a syntax tree.
+pub(crate) fn eval_stream(
+    cx: &mut MacroContext<'_, '_, '_>,
+    stream: &TokenStream,
+    span: Span,
+) -> compile::Result<Value> {
+    let location = cx.item_meta.location;
+
+    let tree = crate::grammar::token_stream(stream)
         .max_nesting(cx.idx.q.options.max_depth)
         .root()?;
 
@@ -148,7 +159,7 @@ pub(crate) fn eval_ast(
     let node = {
         let Some([root]) = tree.nodes() else {
             return Err(compile::Error::msg(
-                ast,
+                span,
                 "expected single root in evaluated expression",
             ));
         };
@@ -159,7 +170,7 @@ pub(crate) fn eval_ast(
 
         let Some([node]) = root.nodes() else {
             return Err(compile::Error::msg(
-                ast,
+                span,
                 "expected single evaluated expression",
             ));
         };

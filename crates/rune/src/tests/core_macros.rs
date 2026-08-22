@@ -135,3 +135,78 @@ fn macro_call_delimiters_chained() {
     assert_eq!(parens, 2);
     assert_eq!(brackets, 2);
 }
+
+/// The macros the standard library provides split their input into arguments
+/// with the compiler's own parser, so an argument is the whole expression it
+/// was written as.
+///
+/// The cases below are what splitting on commas by hand gets wrong: the commas
+/// between the parameters of a closure and between the parameters of a
+/// turbofish are not inside a delimiter, and a block is one argument however
+/// many statements it is made of.
+#[test]
+fn an_argument_is_the_expression_it_was_written_as() {
+    let closure: String = eval(r#"format!("{}", (|a, b| a + b)(1, 2))"#);
+    assert_eq!(closure, "3");
+
+    let closure: String = eval(r#"format!("{}", [|a, b| a + b][0](1, 2))"#);
+    assert_eq!(closure, "3");
+
+    let block: String = eval(r#"format!("{}", { let a = 1; a + 1 })"#);
+    assert_eq!(block, "2");
+
+    // Nothing in the standard library takes generic parameters, so the only
+    // thing a turbofish can do here is fail to resolve - but it fails as the
+    // one path it was written as rather than as two arguments.
+    assert_errors! {
+        r#"pub fn main() { format!("{}", Vec::<i64, i64>::new()); }"#,
+        span, ErrorKind::MissingItemParameters { parameters, .. } => {
+            // Both parameters belong to the one path, which is what says the
+            // comma between them did not end the argument.
+            assert_eq!(parameters.len(), 2);
+            assert_eq!(span.range(), 30..50);
+        }
+    };
+}
+
+/// A block is parsed into a node which has a body of its own, and the body of
+/// an empty one has nothing in it.
+///
+/// The tokens of an argument are pulled back out of the tree it was split with,
+/// and a node with no children looks exactly like a token to anything which
+/// only asks whether it is a leaf - so an empty body used to be handed on as if
+/// it were a token, which nothing downstream could make sense of.
+#[test]
+fn an_empty_block_is_an_argument() {
+    let empty: String = eval(r#"format!("{:?}", {})"#);
+    assert_eq!(empty, "()");
+
+    let _: () = rune!(
+        assert!({} is Tuple);
+    );
+
+    let nested: String = eval(r#"format!("{:?}", { {} })"#);
+    assert_eq!(nested, "()");
+}
+
+/// An argument which is not separated from the next one, and a separator with
+/// no argument between it and the next, are both reported where they are
+/// written rather than being read as something else.
+#[test]
+fn arguments_are_separated() {
+    assert_errors! {
+        r#"pub fn main() { println!("{}" 1); }"#,
+        span, ErrorKind::Custom { error } => {
+            assert_eq!(error.as_str(), "expected `,`");
+            assert_eq!(span.range(), 30..31);
+        }
+    };
+
+    assert_errors! {
+        r#"pub fn main() { println!("{}",, 1); }"#,
+        span, ErrorKind::Custom { error } => {
+            assert_eq!(error.as_str(), "expected an expression");
+            assert_eq!(span.range(), 30..31);
+        }
+    };
+}

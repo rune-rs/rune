@@ -83,6 +83,14 @@ fn main() -> Result<()> {
         })
         .collect::<Vec<_>>();
 
+    // Everything from `Root` on is a kind the grammar gives a node it built
+    // rather than a kind a token has, which is where `tokens.yaml` says the
+    // high level kinds begin.
+    let nodes = tokens
+        .iter()
+        .skip_while(|t| t.variant() != "Root")
+        .collect::<Vec<_>>();
+
     // Collection of non-syntax tokens.
     let non_syntax = tokens
         .iter()
@@ -355,6 +363,16 @@ fn main() -> Result<()> {
                     match ident {
                         $(for k in &keywords join ($['\r']) => $(quoted(&k.keyword)) => Some(Self::$(&k.variant)),)
                         _ => None,
+                    }
+                }
+
+                $("/// Whether this is the kind of a node in a syntax tree rather than\n/// of a token.")
+                $("///")
+                $("/// A node with no children of its own is as much of a leaf as a token\n/// is, so anything which pulls the tokens back out of a tree has to ask\n/// which of the two it is looking at.")
+                pub(crate) fn is_node(&self) -> bool {
+                    match self {
+                        $(for n in &nodes join ($['\r']) => Self::$(n.variant()) => true,)
+                        _ => false,
                     }
                 }
 

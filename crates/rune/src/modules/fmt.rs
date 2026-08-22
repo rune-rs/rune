@@ -59,9 +59,7 @@ pub(crate) fn format(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
 ) -> compile::Result<TokenStream> {
-    let mut p = cx.parser(stream, cx.input_span());
-    let args = p.parse::<FormatArgs>()?;
-    p.eof()?;
+    let args = FormatArgs::parse(cx, stream)?;
     let expanded = args.expand(cx)?;
     Ok(expanded.into_token_stream(cx)?)
 }

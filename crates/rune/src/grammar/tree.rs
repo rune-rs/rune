@@ -780,9 +780,26 @@ impl<'a> Node<'a> {
         self.inner.is_empty()
     }
 
+    /// Test whether this is a token rather than a node the grammar built.
+    ///
+    /// A node with no children of its own is as much of a leaf as a token is -
+    /// the body of an empty block is one - so the two are told apart by their
+    /// kind. Anything which pulls a token stream back out of a tree has to ask
+    /// this rather than only whether a node is a leaf, or it hands the kind of
+    /// an empty node on as if it were a token, which nothing downstream can
+    /// make sense of.
+    pub(crate) fn is_token(&self) -> bool {
+        self.is_empty() && !self.kind().is_node()
+    }
+
     /// Convert a node into a token.
     pub(crate) fn token(&self) -> Token {
         inner_token(self.inner)
+    }
+
+    /// Walk the tokens of the subtree in the order they were written.
+    pub(crate) fn walk_tokens(&self) -> impl Iterator<Item = Token> + 'a {
+        self.walk().filter(Node::is_token).map(|n| n.token())
     }
 
     /// Get the kind of the node.

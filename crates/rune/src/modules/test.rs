@@ -2,7 +2,6 @@
 
 use crate as rune;
 use crate::alloc::{self, try_format, Vec};
-use crate::ast;
 use crate::compile;
 use crate::macros::{quote, FormatArgs, MacroContext, TokenStream};
 use crate::runtime::Function;
@@ -68,11 +67,17 @@ pub(crate) fn assert(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = cx.parser(stream, cx.input_span());
-    let expr = p.parse::<ast::Expr>()?;
+    let mut it = cx.exprs(stream)?.into_iter().peekable();
 
-    let message = if p.parse::<Option<T![,]>>()?.is_some() {
-        p.parse_all::<Option<FormatArgs>>()?
+    let Some(expr) = it.next() else {
+        return Err(compile::Error::msg(
+            cx.input_span(),
+            "expected an expression to assert",
+        ));
+    };
+
+    let message = if it.peek().is_some() {
+        Some(FormatArgs::from_exprs(cx, it)?)
     } else {
         None
     };
@@ -113,13 +118,17 @@ pub(crate) fn assert_eq(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = cx.parser(stream, cx.input_span());
-    let left = p.parse::<ast::Expr>()?;
-    p.parse::<T![,]>()?;
-    let right = p.parse::<ast::Expr>()?;
+    let mut it = cx.exprs(stream)?.into_iter().peekable();
 
-    let message = if p.parse::<Option<T![,]>>()?.is_some() {
-        p.parse_all::<Option<FormatArgs>>()?
+    let (Some(left), Some(right)) = (it.next(), it.next()) else {
+        return Err(compile::Error::msg(
+            cx.input_span(),
+            "expected two expressions to compare",
+        ));
+    };
+
+    let message = if it.peek().is_some() {
+        Some(FormatArgs::from_exprs(cx, it)?)
     } else {
         None
     };
@@ -175,13 +184,17 @@ pub(crate) fn assert_ne(
 ) -> compile::Result<TokenStream> {
     use crate as rune;
 
-    let mut p = cx.parser(stream, cx.input_span());
-    let left = p.parse::<ast::Expr>()?;
-    p.parse::<T![,]>()?;
-    let right = p.parse::<ast::Expr>()?;
+    let mut it = cx.exprs(stream)?.into_iter().peekable();
 
-    let message = if p.parse::<Option<T![,]>>()?.is_some() {
-        p.parse_all::<Option<FormatArgs>>()?
+    let (Some(left), Some(right)) = (it.next(), it.next()) else {
+        return Err(compile::Error::msg(
+            cx.input_span(),
+            "expected two expressions to compare",
+        ));
+    };
+
+    let message = if it.peek().is_some() {
+        Some(FormatArgs::from_exprs(cx, it)?)
     } else {
         None
     };

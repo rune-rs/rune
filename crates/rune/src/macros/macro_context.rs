@@ -3,9 +3,11 @@
 use core::fmt;
 
 use crate::alloc;
+use crate::alloc::Vec;
 use crate::ast;
-use crate::ast::Span;
+use crate::ast::{OptionSpanned, Span};
 use crate::compile::{self, ErrorKind, ItemMeta};
+use crate::grammar::ws;
 use crate::indexing::Indexer;
 use crate::internal_macros::resolve_context;
 use crate::macros::{IntoLit, ToTokens, TokenStream};
@@ -136,6 +138,10 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// option's default, since it has no way of seeing what the compiler was
     /// configured with.
     ///
+    /// A macro which only needs to know where each of its arguments ends does
+    /// not need a tree at all - see [`MacroContext::exprs`], which splits an
+    /// input without either recursing over it or holding it to that bound.
+    ///
     /// `span` is the span to use if the stream is empty - typically
     /// [`MacroContext::input_span`].
     ///
@@ -162,6 +168,121 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     pub fn parser<'s>(&self, token_stream: &'s TokenStream, span: Span) -> Parser<'s> {
         Parser::from_token_stream(token_stream, span)
             .with_max_depth(self.idx.q.options.max_ast_depth)
+    }
+
+    /// Split a token stream into the comma separated expressions it is made
+    /// of, each one being the tokens it was written as.
+    ///
+    /// This is what a macro which takes a list of arguments uses to find where
+    /// each one ends. The split is done by the same parser the compiler uses,
+    /// which walks its input over an explicit stack, and each expression is
+    /// handed back as tokens rather than as a syntax tree - so a macro built
+    /// out of this neither recurses over its own input nor holds it to the
+    /// much smaller `max-ast-depth` which bounds [`MacroContext::parser`].
+    ///
+    /// What comes back is where each argument ends rather than what it means:
+    /// the tokens are handed on as they were written, and whatever they turn
+    /// out to say is reported where the macro puts them, since that is where
+    /// they are lowered.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rune::support::*;
+    /// use rune::macros::{self, quote};
+    ///
+    /// macros::test(|cx| {
+    ///     let stream = quote!("Hello {}", 1 + 2).into_token_stream(cx)?;
+    ///
+    ///     let exprs = cx.exprs(&stream)?;
+    ///     assert_eq!(exprs.len(), 2);
+    ///
+    ///     let value = cx.eval_stream(&exprs[1])?;
+    ///     assert_eq!(value.as_integer::<u32>()?, 3);
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn exprs(&mut self, stream: &TokenStream) -> compile::Result<Vec<TokenStream>> {
+        let span = self.stream_span(stream);
+
+        let tree = crate::grammar::token_stream(stream)
+            .max_nesting(self.idx.q.options.max_depth)
+            .exprs(ast::Kind::Comma)?;
+
+        let Some([root]) = tree.nodes() else {
+            return Err(compile::Error::msg(span, "expected a single root"));
+        };
+
+        let mut exprs = Vec::new();
+
+        // Whether the expression read most recently is still waiting for the
+        // separator which ends it, which is what tells a missing separator
+        // apart from a missing expression.
+        let mut separated = true;
+
+        for node in root.children() {
+            if node.is_empty() {
+                match node.kind() {
+                    ws!() => {}
+                    ast::Kind::Comma if !separated => {
+                        separated = true;
+                    }
+                    _ => {
+                        return Err(compile::Error::msg(node.span(), "expected an expression"));
+                    }
+                }
+
+                continue;
+            }
+
+            if !separated {
+                return Err(compile::Error::msg(node.span(), "expected `,`"));
+            }
+
+            let mut expr = TokenStream::new();
+
+            for token in node.walk_tokens() {
+                expr.push(token)?;
+            }
+
+            exprs.try_push(expr)?;
+            separated = false;
+        }
+
+        Ok(exprs)
+    }
+
+    /// Evaluate the tokens of an expression as a constant.
+    ///
+    /// This is [`MacroContext::eval`] over the tokens an expression was
+    /// written as, which is what a macro that split its input with
+    /// [`MacroContext::exprs`] holds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rune::support::*;
+    /// use rune::macros::{self, quote};
+    ///
+    /// macros::test(|cx| {
+    ///     let stream = quote!(1 + 2).into_token_stream(cx)?;
+    ///
+    ///     let value = cx.eval_stream(&stream)?;
+    ///     assert_eq!(value.as_integer::<u32>()?, 3);
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn eval_stream(&mut self, stream: &TokenStream) -> compile::Result<Value> {
+        let span = self.stream_span(stream);
+        crate::compile::const_eval::eval_stream(self, stream, span)
+    }
+
+    /// The span of a token stream, which is the span of the input the macro
+    /// was called with if the stream is empty.
+    pub(crate) fn stream_span(&self, stream: &TokenStream) -> Span {
+        stream.option_span().unwrap_or(self.input_span)
     }
 
     /// Evaluate the given target as a constant expression.

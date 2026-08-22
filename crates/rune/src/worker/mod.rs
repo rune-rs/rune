@@ -540,12 +540,8 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let mut input_stream = TokenStream::new();
 
-        for node in stream
-            .children()
-            .flat_map(|c| c.walk())
-            .filter(|n| n.is_empty())
-        {
-            input_stream.push(node.token())?;
+        for token in stream.children().flat_map(|c| c.walk_tokens()) {
+            input_stream.push(token)?;
         }
 
         let output_stream = {
@@ -618,8 +614,8 @@ impl<'a, 'arena> Worker<'a, 'arena> {
                     continue;
                 }
 
-                for node in child.walk().filter(|n| n.is_empty()) {
-                    item_stream.push(node.token())?;
+                for token in child.walk_tokens() {
+                    item_stream.push(token)?;
                 }
             }
 
@@ -689,12 +685,8 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let mut input_stream = TokenStream::new();
 
-        for node in input
-            .children()
-            .flat_map(|c| c.walk())
-            .filter(|n| n.is_empty())
-        {
-            input_stream.push(node.token())?;
+        for token in input.children().flat_map(|c| c.walk_tokens()) {
+            input_stream.push(token)?;
         }
 
         let items = crate::indexing::Items::new(self.q.pool.item(this.item.id))?;

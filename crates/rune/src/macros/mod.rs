@@ -10,6 +10,15 @@
 //! The attribute macros [`rune::macro_`](crate::macro_) for function macros (`some_macro!( ... )`) and
 //! [`rune::attribute_macro`](crate::attribute_macro) for attribute macros (`#[some_macro ...]`).
 //!
+//! There are two ways to make sense of an input. A macro which needs to know
+//! what an argument *is* parses it into a syntax tree with
+//! [`MacroContext::parser`], which is bounded by the `max-ast-depth` option
+//! since a tree is walked by recursing over it. A macro which only needs to
+//! know where each argument *ends* - which is what the standard library's own
+//! macros need - splits the input with [`MacroContext::exprs`] and passes each
+//! argument on as the tokens it was written as, which neither recurses nor
+//! holds the input to that much smaller bound.
+//!
 //! ```
 //! use rune::{T, Context, Diagnostics, Module, Vm};
 //! use rune::ast;

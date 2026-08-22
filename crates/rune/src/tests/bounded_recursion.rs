@@ -11,9 +11,12 @@
 //! constant, whose value is a recursive structure, cannot nest arbitrarily.
 //! Exceeding it is reported as a diagnostic rather than as a stack overflow.
 //!
-//! The syntax tree parser macros use over their own input is the exception. It
-//! recurses, and so does everything which walks what it produced, so it has a
-//! much smaller bound of its own which chains count towards as well.
+//! The syntax tree parser is the exception. It recurses, and so does everything
+//! which walks what it produced, so it has a much smaller bound of its own
+//! which chains count towards as well. The macros the standard library provides
+//! do not reach it: they split their input with the same parser as everything
+//! else and hand each expression on as the tokens it was written as. What that
+//! bound is left covering is a macro which asks for a syntax tree of its own.
 //!
 //! The formatter walks the same tree over its own explicit stack, so anything
 //! which parses can also be formatted. That matters more there than elsewhere,
@@ -24,6 +27,7 @@ prelude!();
 use rust_alloc::string::String;
 
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
+use crate::macros::{quote, MacroContext, TokenStream};
 use crate::runtime::{ConstValueBuf, MAX_CONST_DEPTH};
 use crate::{SourceId, Unit, VmError};
 
@@ -800,43 +804,177 @@ fn ast_chains_are_bounded() {
     parse_ast::<ast::Block>(&source, max).expect("Sibling expressions should parse");
 }
 
-/// `println!` parses its arguments with the syntax tree parser and evaluates its
-/// format argument as a constant, so it is a way into both from ordinary source.
+/// The macros the standard library provides split their input into the
+/// expressions it is made of with the same parser the compiler uses, which
+/// walks its input over an explicit stack, and hand each one on as the tokens
+/// it was written as - so nothing recurses over what was written inside one.
 ///
-/// Input which is too deep for the parser is a diagnostic rather than an
-/// overflow, whether it got that way by nesting or by chaining, and how deep is
-/// too deep comes from the `max-ast-depth` option the macro is expanded under.
+/// What that buys is that the input of a macro is held to `max-depth` like
+/// everything else, rather than to the much smaller `max-ast-depth` which
+/// bounds a syntax tree. Nesting far past that limit compiles.
 #[test]
-fn macro_input_is_bounded() {
-    let default = options(usize::MAX);
+fn std_macro_input_is_not_a_syntax_tree() {
+    let mut options = options(usize::MAX);
+    // Deep input used to reach the syntax tree parser and be refused by it.
+    // Lowering the bound to almost nothing shows that it no longer does.
+    options.max_ast_depth = 1;
 
-    let mut lowered = default.clone();
-    lowered.max_ast_depth = 16;
+    let deep = 512;
 
-    // Deeper than the lowered option, but well within its default.
-    let deep = lowered.max_ast_depth * 2;
+    let nested = format!("{}1{}", "(".repeat(deep), ")".repeat(deep));
 
-    let mut arg = String::from("\"x\"");
+    let mut chain = String::from("1");
 
     for _ in 1..deep {
-        arg.push_str(" + \"x\"");
+        chain.push_str(" + 1");
     }
 
+    let mut cases = Vec::new();
+
+    for arg in [&nested, &chain] {
+        cases.push(format!("println!(\"{{}}\", {arg});"));
+        cases.push(format!("print!(\"{{}}\", {arg});"));
+        cases.push(format!("let s = format!(\"{{}}\", {arg});"));
+        cases.push(format!("let s = format!(\"{{a}}\", a = {arg});"));
+        cases.push(format!("if false {{ panic!(\"{{}}\", {arg}); }}"));
+        cases.push(format!("assert!(({arg}) == ({arg}));"));
+        cases.push(format!("assert!(({arg}) == ({arg}), \"{{}}\", {arg});"));
+        cases.push(format!("assert_eq!({arg}, {arg});"));
+        cases.push(format!("assert_ne!({arg}, {arg}, \"{{}}\", {arg});"));
+        cases.push(format!("dbg!({arg});"));
+        cases.push(format!("let s = stringify!({arg});"));
+        // The format string is evaluated as a constant, so it nests too -
+        // within `max-const-depth`, which bounds a constant however it was
+        // written.
+        cases.push(format!(
+            "println!({}\"x\"{});",
+            "(".repeat(64),
+            ")".repeat(64)
+        ));
+    }
+
+    for source in cases {
+        if let Err(error) = build(&source, &options) {
+            panic!("Deeply nested macro input should compile: {error:?}\n{source}");
+        }
+    }
+}
+
+/// The input of a macro is bounded by `max-depth` instead, since the tree it is
+/// split with is the same tree the compiler builds out of everything else.
+///
+/// Exceeding it is a diagnostic rather than a stack overflow.
+#[test]
+fn std_macro_input_is_bounded_by_max_depth() {
+    let max = 16;
+    let deep = max * 8;
+
+    let nested = format!("{}1{}", "(".repeat(deep), ")".repeat(deep));
+
     let cases = [
-        format!("println!({}\"x\"{});", "(".repeat(deep), ")".repeat(deep)),
-        format!("println!({arg});"),
+        format!("println!(\"{{}}\", {nested});"),
+        format!("let s = format!(\"{{}}\", {nested});"),
+        format!("assert!({nested} == 1);"),
+        format!("assert_eq!({nested}, 1);"),
     ];
 
     for source in cases {
-        let error = build(&source, &lowered).expect_err("Should exceed the limit");
+        let error = build(&source, &options(max)).expect_err("Should exceed the limit");
         assert!(
-            matches!(error, ErrorKind::MaxAstDepth { max } if max == lowered.max_ast_depth),
+            matches!(
+                error,
+                ErrorKind::MaxNesting { max: m } | ErrorKind::MaxDepth { max: m } if m == max
+            ),
             "{error:?}"
         );
-
-        // The same source compiles under the default.
-        build(&source, &default).expect("Source should compile");
     }
+}
+
+/// A macro is still free to parse its input into a syntax tree of its own with
+/// [`MacroContext::parser`], and one which does is bounded by `max-ast-depth`,
+/// since it walks what it parsed by recursing.
+///
+/// Nothing in the standard library does this any more, so this is what keeps
+/// the option covered.
+#[test]
+fn a_macro_which_parses_a_syntax_tree_is_bounded() {
+    let max = 8;
+    // Past the lowered bound, but within the option's default.
+    let deep = max * 4;
+
+    let mut lowered = options(usize::MAX);
+    lowered.max_ast_depth = max;
+
+    let source = format!(
+        "use ::tests::parse_expr; let a = parse_expr!({}1{});",
+        "(".repeat(deep),
+        ")".repeat(deep)
+    );
+
+    let error = build_with_macro(&source, &lowered).expect_err("Should exceed the limit");
+    assert!(
+        matches!(error, ErrorKind::MaxAstDepth { max: m } if m == max),
+        "{error:?}"
+    );
+
+    // The same source compiles under the option's default.
+    build_with_macro(&source, &options(usize::MAX)).expect("Source should compile");
+}
+
+/// Build `source` against a context which has [`parse_expr`] installed.
+fn build_with_macro(source: &str, options: &Options) -> Result<Unit, ErrorKind> {
+    let mut context = Context::with_default_modules().expect("Failed to build context");
+
+    context
+        .install(parse_expr_module().expect("Failed to build module"))
+        .expect("Failed to install module");
+
+    let mut sources = Sources::new();
+    sources
+        .insert(Source::memory(source).expect("Failed to build source"))
+        .expect("Failed to insert source");
+
+    let mut diagnostics = Diagnostics::new();
+
+    let result = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .with_options(options)
+        .build();
+
+    if let Ok(unit) = result {
+        return Ok(unit);
+    }
+
+    for diagnostic in diagnostics.into_diagnostics() {
+        if let Diagnostic::Fatal(fatal) = diagnostic {
+            if let FatalDiagnosticKind::CompileError(error) = fatal.into_kind() {
+                return Err(error.into_kind());
+            }
+        }
+    }
+
+    panic!("Expected a compile error diagnostic");
+}
+
+/// A macro which parses its input into a syntax tree, which is what the
+/// standard library's own macros no longer do.
+#[rune::macro_]
+fn parse_expr(
+    cx: &mut MacroContext<'_, '_, '_>,
+    stream: &TokenStream,
+) -> compile::Result<TokenStream> {
+    use crate as rune;
+
+    let mut p = cx.parser(stream, cx.input_span());
+    let expr = p.parse_all::<ast::Expr>()?;
+    Ok(quote!(#expr).into_token_stream(cx)?)
+}
+
+fn parse_expr_module() -> Result<Module, ContextError> {
+    let mut m = Module::with_crate("tests")?;
+    m.macro_meta(parse_expr)?;
+    Ok(m)
 }
 
 /// `MacroContext::eval` evaluates an expression a macro has parsed out of its

@@ -3,62 +3,121 @@ use core::str;
 use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeMap, BTreeSet, Box, HashMap, String, Vec};
-use crate::ast::{self, Span, Spanned};
+use crate::ast::{self, Span};
 use crate::compile::{self, WithSpan};
 use crate::macros::{quote, MacroContext, Quote, ToTokens, TokenStream};
-use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
 
 /// A format specification: A format string followed by arguments to be
 /// formatted in accordance with that string.
 ///
-/// This type can only be parsed inside of a macro context since it performs
+/// This type can only be built inside of a macro context since it performs
 /// constant evaluation.
+///
+/// Both the format string and the arguments are held as the tokens they were
+/// written as rather than as a syntax tree, so nothing here recurses over what
+/// a macro was handed - see [`MacroContext::exprs`].
 pub struct FormatArgs {
-    /// Format argument.
-    format: ast::Expr,
+    /// The format string.
+    format: TokenStream,
+    /// The span of the format string.
+    format_span: Span,
     /// Format arguments.
     args: Vec<FormatArg>,
 }
 
 impl FormatArgs {
+    /// Parse format arguments out of the whole input of a macro.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rune::support::*;
+    /// use rune::macros::{self, quote, FormatArgs};
+    ///
+    /// macros::test(|cx| {
+    ///     let stream = quote!("Hello {}", 42).into_token_stream(cx)?;
+    ///     let args = FormatArgs::parse(cx, &stream)?;
+    ///     let expanded = args.expand(cx)?.into_token_stream(cx)?;
+    ///     assert!(expanded.kinds().count() > 0);
+    ///     Ok(())
+    /// })?;
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn parse(cx: &mut MacroContext<'_, '_, '_>, stream: &TokenStream) -> compile::Result<Self> {
+        let exprs = cx.exprs(stream)?;
+        Self::from_exprs(cx, exprs)
+    }
+
+    /// Build format arguments out of expressions which have already been split
+    /// out of the input of a macro with [`MacroContext::exprs`].
+    ///
+    /// This is what a macro whose format specification is preceded by
+    /// arguments of its own uses, `assert!` being one.
+    pub fn from_exprs<I>(cx: &mut MacroContext<'_, '_, '_>, exprs: I) -> compile::Result<Self>
+    where
+        I: IntoIterator<Item = TokenStream>,
+    {
+        let mut it = exprs.into_iter();
+
+        let Some(format) = it.next() else {
+            return Err(compile::Error::msg(
+                cx.input_span(),
+                "expected format specifier",
+            ));
+        };
+
+        let format_span = cx.stream_span(&format);
+
+        let mut args = Vec::new();
+
+        for expr in it {
+            args.try_push(FormatArg::new(cx, expr)?)?;
+        }
+
+        Ok(Self {
+            format,
+            format_span,
+            args,
+        })
+    }
+
     /// Expand the format specification.
     pub fn expand(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Quote<'_>> {
-        let format = cx.eval(&self.format)?;
+        let format = cx.eval_stream(&self.format)?;
 
         let mut pos = Vec::new();
         let mut named = HashMap::<Box<str>, _>::new();
 
         for a in &self.args {
-            match a {
-                FormatArg::Positional(expr) => {
+            match &a.name {
+                None => {
                     if !named.is_empty() {
                         return Err(compile::Error::msg(
-                            expr.span(),
+                            a.span,
                             "unnamed positional arguments must come before named ones",
                         ));
                     }
 
-                    pos.try_push(expr)?;
+                    pos.try_push(a)?;
                 }
-                FormatArg::Named(n) => {
-                    let name = cx.resolve(n.key)?;
-                    named.try_insert(name.try_into()?, n)?;
+                Some(name) => {
+                    named.try_insert(name.try_clone()?, a)?;
                 }
             }
         }
 
-        let format = format.downcast::<String>().with_span(&self.format)?;
+        let format = format.downcast::<String>().with_span(self.format_span)?;
 
         let mut unused_pos = (0..pos.len()).try_collect::<BTreeSet<_>>()?;
         let mut unused_named = named
             .iter()
-            .map(|(key, n)| Ok::<_, alloc::Error>((key.try_clone()?, n.span())))
+            .map(|(key, n)| Ok::<_, alloc::Error>((key.try_clone()?, n.span)))
             .try_collect::<alloc::Result<BTreeMap<_, _>>>()??;
 
         let result = expand_format_spec(
             cx,
-            self.format.span(),
+            self.format_span,
             &format,
             &pos,
             &mut unused_pos,
@@ -68,14 +127,16 @@ impl FormatArgs {
 
         let expanded = match result {
             Ok(expanded) => expanded,
-            Err(message) => return Err(compile::Error::msg(self.format.span(), message)),
+            Err(message) => return Err(compile::Error::msg(self.format_span, message)),
         };
 
-        if let Some(expr) = unused_pos.into_iter().flat_map(|n| pos.get(n)).next() {
-            return Err(compile::Error::msg(
-                expr.span(),
-                "unused positional argument",
-            ));
+        if let Some(span) = unused_pos
+            .into_iter()
+            .flat_map(|n| pos.get(n))
+            .map(|a| a.span)
+            .next()
+        {
+            return Err(compile::Error::msg(span, "unused positional argument"));
         }
 
         if let Some((key, span)) = unused_named.into_iter().next() {
@@ -89,64 +150,57 @@ impl FormatArgs {
     }
 }
 
-impl Parse for FormatArgs {
-    /// Parse format arguments inside of a macro.
-    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
-        if p.is_eof()? {
-            return Err(compile::Error::msg(
-                p.last_span(),
-                "expected format specifier",
-            ));
-        }
-
-        let format = p.parse::<ast::Expr>()?;
-
-        let mut args = Vec::new();
-
-        while p.parse::<Option<T![,]>>()?.is_some() {
-            if p.is_eof()? {
-                break;
-            }
-
-            args.try_push(p.parse()?)?;
-        }
-
-        Ok(Self { format, args })
-    }
-}
-
-impl Peek for FormatArgs {
-    fn peek(p: &mut Peeker<'_>) -> bool {
-        !p.is_eof()
-    }
-}
-
-/// A named format argument.
-#[derive(Debug, TryClone, Parse, Spanned)]
-pub struct NamedFormatArg {
-    /// The key of the named argument.
-    pub key: ast::Ident,
-    /// The `=` token.
-    pub eq_token: T![=],
-    /// The value expression.
-    pub expr: ast::Expr,
-}
-
 /// A single format argument.
-#[derive(Debug, TryClone)]
-pub enum FormatArg {
-    /// A positional argument.
-    Positional(ast::Expr),
-    /// A named argument.
-    Named(NamedFormatArg),
+struct FormatArg {
+    /// The name of the argument, if it was written as `name = value`.
+    name: Option<Box<str>>,
+    /// The tokens the value of the argument was written as.
+    value: TokenStream,
+    /// The span of the argument as a whole.
+    span: Span,
 }
 
-impl Parse for FormatArg {
-    fn parse(p: &mut Parser<'_>) -> compile::Result<Self> {
-        Ok(if let (K![ident], K![=]) = (p.nth(0)?, p.nth(1)?) {
-            FormatArg::Named(p.parse()?)
-        } else {
-            FormatArg::Positional(p.parse()?)
+impl FormatArg {
+    /// Classify one of the expressions a macro's input was split into.
+    ///
+    /// An argument is named if it starts with `ident =`, which is decided by
+    /// looking at the two tokens it starts with rather than by parsing it.
+    fn new(cx: &mut MacroContext<'_, '_, '_>, expr: TokenStream) -> compile::Result<Self> {
+        let span = cx.stream_span(&expr);
+
+        let mut it = (&expr).into_iter();
+
+        let key = match (it.next(), it.next()) {
+            (Some(key), Some(eq)) if matches!(eq.kind, ast::Kind::Eq) => match key.kind {
+                ast::Kind::Ident(source) => Some(ast::Ident {
+                    span: key.span,
+                    source,
+                }),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        let Some(key) = key else {
+            return Ok(Self {
+                name: None,
+                value: expr,
+                span,
+            });
+        };
+
+        let name = cx.resolve(key)?.try_into()?;
+
+        let mut value = TokenStream::new();
+
+        for token in expr.into_iter().skip(2) {
+            value.push(token)?;
+        }
+
+        Ok(Self {
+            name: Some(name),
+            value,
+            span,
         })
     }
 }
@@ -155,9 +209,9 @@ fn expand_format_spec<'a>(
     cx: &mut MacroContext<'_, '_, '_>,
     span: Span,
     input: &str,
-    pos: &[&'a ast::Expr],
+    pos: &[&'a FormatArg],
     unused_pos: &mut BTreeSet<usize>,
-    named: &HashMap<Box<str>, &'a NamedFormatArg>,
+    named: &HashMap<Box<str>, &'a FormatArg>,
     unused_named: &mut BTreeMap<Box<str>, Span>,
 ) -> compile::Result<Quote<'a>> {
     let mut iter = Iter::new(input);
@@ -325,7 +379,7 @@ fn expand_format_spec<'a>(
     });
 
     enum ExprOrIdent<'a> {
-        Expr(&'a ast::Expr),
+        Expr(&'a TokenStream),
         Ident(ast::Ident),
     }
 
@@ -423,9 +477,9 @@ fn expand_format_spec<'a>(
         name: &mut String,
         width: &mut String,
         precision: &mut String,
-        pos: &[&'a ast::Expr],
+        pos: &[&'a FormatArg],
         unused_pos: &mut BTreeSet<usize>,
-        named: &HashMap<Box<str>, &'a NamedFormatArg>,
+        named: &HashMap<Box<str>, &'a FormatArg>,
         unused_named: &mut BTreeMap<Box<str>, Span>,
     ) -> compile::Result<C<'a>> {
         // Parsed flags.
@@ -589,8 +643,8 @@ fn expand_format_spec<'a>(
         }
 
         let precision = if input_precision {
-            let &expr = match pos.get(*count) {
-                Some(expr) => expr,
+            let &arg = match pos.get(*count) {
+                Some(arg) => arg,
                 None => {
                     return Err(compile::Error::msg(
                         span,
@@ -604,7 +658,7 @@ fn expand_format_spec<'a>(
 
             unused_pos.remove(count);
 
-            let value = cx.eval(expr)?;
+            let value = cx.eval_stream(&arg.value)?;
             let precision = value.as_usize().with_span(span)?;
 
             *count += 1;
@@ -617,7 +671,7 @@ fn expand_format_spec<'a>(
 
         let expr = 'expr: {
             if name.is_empty() {
-                let Some(expr) = pos.get(*count) else {
+                let Some(arg) = pos.get(*count) else {
                     return Err(compile::Error::msg(
                         span,
                         format!("missing positional argument #{count}"),
@@ -626,12 +680,12 @@ fn expand_format_spec<'a>(
 
                 unused_pos.remove(count);
                 *count += 1;
-                break 'expr ExprOrIdent::Expr(expr);
+                break 'expr ExprOrIdent::Expr(&arg.value);
             };
 
             if let Ok(n) = str::parse::<usize>(name) {
-                let expr = match pos.get(n) {
-                    Some(expr) => *expr,
+                let arg = match pos.get(n) {
+                    Some(arg) => *arg,
                     None => {
                         return Err(compile::Error::msg(
                             span,
@@ -641,12 +695,12 @@ fn expand_format_spec<'a>(
                 };
 
                 unused_pos.remove(&n);
-                break 'expr ExprOrIdent::Expr(expr);
+                break 'expr ExprOrIdent::Expr(&arg.value);
             }
 
             if let Some(n) = named.get(name.as_str()) {
                 unused_named.remove(name.as_str());
-                break 'expr ExprOrIdent::Expr(&n.expr);
+                break 'expr ExprOrIdent::Expr(&n.value);
             }
 
             let mut ident = cx.ident(name.as_str())?;

@@ -228,3 +228,34 @@ fn compile(mut sources: Sources) -> Result<Vm> {
     let unit = Arc::try_new(unit)?;
     Ok(Vm::new(runtime, unit))
 }
+
+/// An attribute macro is handed the item it decorates as the tokens it was
+/// written as, and an empty block is written as `{}` and nothing else.
+///
+/// The tree an item is pulled out of is made of nodes as well as tokens, and a
+/// node with no children of its own - which is what the body of an empty block
+/// is - looks exactly like a token to anything which only asks whether a node
+/// is a leaf. One handed on as if it were a token is not something the macro
+/// can parse.
+#[test]
+fn an_attribute_macro_is_handed_an_empty_body() -> rune::support::Result<()> {
+    let mut vm = compile(rune::sources! {
+        entry => {
+            use ::test::macros::rename;
+
+            #[rename = empty]
+            fn renamed() {}
+
+            pub fn main() {
+                empty();
+                42
+            }
+        }
+    })?;
+
+    let value = vm.call(["main"], ())?;
+    let value: u32 = rune::from_value(value)?;
+
+    assert_eq!(value, 42);
+    Ok(())
+}
