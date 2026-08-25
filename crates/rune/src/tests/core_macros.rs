@@ -19,6 +19,25 @@ fn test_asserts() {
 }
 
 #[test]
+fn non_constant_format_argument() {
+    use ErrorKind::*;
+
+    // Passing a runtime value where the format string is expected used to
+    // surface an inner const-eval error like "no local variable `s`". Make
+    // sure it now explains what the macro actually wants.
+    assert_errors! {
+        r#"pub fn main() { let s = ""; format!(s) }"#,
+        span!(36, 37), Custom { error } => {
+            assert_eq!(
+                error.to_string(),
+                "the format argument must be a string literal or constant expression, \
+                 use a \"{}\" placeholder to format a runtime value"
+            );
+        }
+    }
+}
+
+#[test]
 fn test_stringify() {
     let out: String = rune!(stringify!(assert_eq!(1 + 1, 2)));
     assert_eq!("assert_eq ! ( 1 + 1 , 2 )", out);
