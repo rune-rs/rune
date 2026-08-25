@@ -61,7 +61,6 @@ impl Error {
     }
 
     /// Get the kind of the error.
-    #[cfg(feature = "emit")]
     pub(crate) fn kind(&self) -> &ErrorKind {
         &self.kind
     }

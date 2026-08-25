@@ -4,7 +4,7 @@ use crate as rune;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, BTreeMap, BTreeSet, Box, HashMap, String, Vec};
 use crate::ast::{self, Span, Spanned};
-use crate::compile::{self, WithSpan};
+use crate::compile::{self, ErrorKind, WithSpan};
 use crate::macros::{quote, MacroContext, Quote, ToTokens, TokenStream};
 use crate::parse::{Parse, Parser, Peek, Peeker};
 use crate::runtime::format;
@@ -24,7 +24,26 @@ pub struct FormatArgs {
 impl FormatArgs {
     /// Expand the format specification.
     pub fn expand(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Quote<'_>> {
-        let format = cx.eval(&self.format)?;
+        let format = match cx.eval(&self.format) {
+            Ok(format) => format,
+            Err(error) => {
+                // A missing local means a runtime value was passed where the
+                // format argument, which is evaluated at compile time, has to
+                // be a constant. The raw error points inside the expression
+                // ("no local variable `s`") without saying that, so replace it
+                // with a clearer message. Anything else (such as a depth limit
+                // hit while evaluating a constant) is left untouched.
+                if let ErrorKind::MissingLocal { .. } = error.kind() {
+                    return Err(compile::Error::msg(
+                        self.format.span(),
+                        "the format argument must be a string literal or constant expression, \
+                         use a \"{}\" placeholder to format a runtime value",
+                    ));
+                }
+
+                return Err(error);
+            }
+        };
 
         let mut pos = Vec::new();
         let mut named = HashMap::<Box<str>, _>::new();
