@@ -1487,6 +1487,18 @@ impl<'a, 'arena> Query<'a, 'arena> {
                     continue;
                 };
 
+                // NB: a self-referential import, where the import target is
+                // the item itself (e.g. `use http;` at the crate root, which
+                // refers to a context-installed module of the same name),
+                // does not rewrite the item being resolved. Treat it as
+                // resolving to itself and stop here, so that resolution can
+                // fall through to other sources of meta (like the context)
+                // instead of looping and reporting a bogus import cycle.
+                if import.target == cur {
+                    any_matched = true;
+                    break 'outer;
+                }
+
                 // Imports are *always* used once they pass this step.
                 if let Used::Used = import_used {
                     self.set_used(&item_meta)?;
@@ -1598,6 +1610,15 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 return Ok(None);
             }
         };
+
+        // NB: A self-referential import (e.g. `use http;` at the crate root,
+        // where the imported item equals its target) is treated as *not
+        // found*, so that resolution falls through to other sources of meta
+        // (such as a context-installed module of the same name) instead of
+        // looping on itself and producing a bogus `Cycle in import` error.
+        if import.target == item {
+            return Ok(None);
+        }
 
         let meta = meta::Meta {
             context: false,
