@@ -28,8 +28,8 @@ byte-code = ["alloc", "musli", "dep:musli", "musli/storage", "musli/std", "rune-
 capture-io = ["alloc", "parking_lot"]
 disable-io = ["alloc"]
 fmt = ["alloc", "anyhow"]
-std = ["alloc", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "once_cell/std", "anyhow?/std", "syntree/std", "tokio?/io-std"]
-alloc = ["rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc"]
+std = ["alloc", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "musli-core?/std", "once_cell/std", "anyhow?/std", "syntree/std", "tokio?/io-std"]
+alloc = ["rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc", "musli?/alloc", "musli-core?/alloc"]
 musli = ["dep:musli-core", "rune-core/musli", "rune-alloc/musli"]
 serde = ["dep:serde", "rune-alloc/serde", "relative-path?/serde"]
 
@@ -46,8 +46,8 @@ itoa = "1.0.6"
 pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, optional = true, features = ["derive", "rc"] }
-musli = { version = "0.1.0", default-features = false, optional = true, features = ["alloc"] }
-musli-core = { version = "0.1.0", default-features = false, optional = true, features = ["alloc"] }
+musli = { version = "0.1.0", default-features = false, optional = true }
+musli-core = { version = "0.1.0", default-features = false, optional = true }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }

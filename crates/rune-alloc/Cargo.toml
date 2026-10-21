@@ -17,7 +17,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly, rune_docsrs)
 
 [features]
 default = ["std", "serde"]
-std = ["alloc", "ahash/std", "serde?/std"]
+std = ["alloc", "ahash/std", "serde?/std", "musli-core?/std"]
 alloc = ["musli-core?/alloc"]
 inline-more = []
 raw = []

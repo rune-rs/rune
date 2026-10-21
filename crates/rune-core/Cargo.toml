@@ -18,8 +18,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly)'] }
 [features]
 default = ["alloc"]
 doc = []
-std = ["alloc", "rune-alloc/std"]
-alloc = ["serde/alloc", "rune-alloc/alloc"]
+std = ["alloc", "rune-alloc/std", "musli-core?/std"]
+alloc = ["serde/alloc", "rune-alloc/alloc", "musli-core?/alloc"]
 musli = ["dep:musli-core"]
 
 [dependencies]
