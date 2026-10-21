@@ -899,7 +899,7 @@ pub mod __priv {
     }
 }
 
-#[cfg(feature = "musli")]
+#[cfg(feature = "musli02")]
 mod musli;
 #[cfg(feature = "serde")]
 mod serde;

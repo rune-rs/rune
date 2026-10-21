@@ -124,7 +124,7 @@ pub mod callable;
 #[doc(hidden)]
 pub mod slice;
 
-#[cfg(feature = "musli")]
+#[cfg(feature = "musli02")]
 mod musli;
 
 pub mod limit;

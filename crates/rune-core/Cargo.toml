@@ -18,16 +18,16 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly)'] }
 [features]
 default = ["alloc"]
 doc = []
-std = ["alloc", "rune-alloc/std", "musli-core?/std"]
-alloc = ["serde/alloc", "rune-alloc/alloc", "musli-core?/alloc"]
-musli = ["dep:musli-core"]
+std = ["alloc", "rune-alloc/std", "musli-core02?/std"]
+alloc = ["serde/alloc", "rune-alloc/alloc", "musli-core02?/alloc"]
+musli02 = ["dep:musli-core02"]
 
 [dependencies]
-rune-alloc = { version = "0.15.0", path = "../rune-alloc", default-features = false, features = ["serde", "musli"] }
+rune-alloc = { version = "0.15.0", path = "../rune-alloc", default-features = false, features = ["serde", "musli02"] }
 
 twox-hash = { version = "2.0.0", default-features = false, features = ["xxhash64"] }
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
-musli-core = { version = "0.1.0", default-features = false, optional = true }
+musli-core02 = { package = "musli-core", version = "0.2.0", default-features = false, optional = true }
 
 [dev-dependencies]
 rune = { path = "../rune", features = ["alloc"] }

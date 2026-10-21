@@ -108,8 +108,8 @@ jobs:
         - languageserver
         - byte-code
         - alloc,serde
-        - alloc,musli
-        - alloc,serde,musli
+        - alloc,musli02
+        - alloc,serde,musli02
         - capture-io
         - emit
     env:

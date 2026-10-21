@@ -1,5 +1,5 @@
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ use crate::{item, FromValue, Hash, Item, Value};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02, transparent))]
 pub struct Type(Hash);
 
 impl Type {

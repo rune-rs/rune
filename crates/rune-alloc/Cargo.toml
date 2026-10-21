@@ -17,17 +17,17 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rune_nightly, rune_docsrs)
 
 [features]
 default = ["std", "serde"]
-std = ["alloc", "ahash/std", "serde?/std", "musli-core?/std"]
-alloc = ["musli-core?/alloc"]
+std = ["alloc", "ahash/std", "serde?/std", "musli-core02?/std"]
+alloc = ["musli-core02?/alloc"]
 inline-more = []
 raw = []
-musli = ["dep:musli-core"]
+musli02 = ["dep:musli-core02"]
 
 [dependencies]
 rune-alloc-macros = { version = "=0.15.0", path = "../rune-alloc-macros" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
-musli-core = { version = "0.1.0", default-features = false, optional = true }
+musli-core02 = { package = "musli-core", version = "0.2.0", default-features = false, optional = true }
 ahash = { version = "0.8.8", default-features = false }
 pin-project = "1.1.0"
 

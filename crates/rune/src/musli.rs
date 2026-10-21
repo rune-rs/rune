@@ -1,7 +1,7 @@
 pub(crate) mod ordering {
     use core::cmp::Ordering;
 
-    use musli_core::{Context, Decoder, Encoder};
+    use musli_core02::{Context, Decoder, Encoder};
 
     pub(crate) fn encode<E>(value: &Ordering, encoder: E) -> Result<(), E::Error>
     where

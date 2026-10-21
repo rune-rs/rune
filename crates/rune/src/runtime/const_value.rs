@@ -122,7 +122,7 @@ pub use rune_macros::ToConstValue;
 impl From<ConstNodesError> for RuntimeError {
     fn from(error: ConstNodesError) -> Self {
         match error {
-            #[cfg(any(feature = "serde", feature = "musli"))]
+            #[cfg(any(feature = "serde", feature = "musli02"))]
             ConstNodesError::Empty | ConstNodesError::Malformed => {
                 RuntimeError::new(VmErrorKind::MalformedConstValue)
             }

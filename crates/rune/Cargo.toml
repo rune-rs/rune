@@ -24,13 +24,13 @@ workspace = ["std", "anyhow", "toml", "semver", "relative-path", "serde-hashkey"
 doc = ["std", "anyhow", "rust-embed", "handlebars", "pulldown-cmark", "pulldown-cmark-escape", "syntect", "sha2", "base64", "rune-core/doc", "relative-path"]
 cli = ["std", "anyhow", "emit", "doc", "tracing-subscriber", "clap", "webbrowser", "capture-io", "disable-io", "languageserver", "fmt", "similar", "rand", "musli/storage"]
 languageserver = ["std", "anyhow", "lsp", "ropey", "percent-encoding", "url", "serde_json", "tokio", "workspace", "doc", "fmt"]
-byte-code = ["alloc", "musli", "dep:musli", "musli/storage", "musli/std", "rune-alloc/std"]
+byte-code = ["alloc", "musli02", "dep:musli", "musli/storage", "musli/std", "rune-alloc/std"]
 capture-io = ["alloc", "parking_lot"]
 disable-io = ["alloc"]
 fmt = ["alloc", "anyhow"]
-std = ["alloc", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "musli-core?/std", "once_cell/std", "anyhow?/std", "syntree/std", "tokio?/io-std"]
-alloc = ["rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc", "musli?/alloc", "musli-core?/alloc"]
-musli = ["dep:musli-core", "rune-core/musli", "rune-alloc/musli"]
+std = ["alloc", "serde/std", "rune-core/std", "rune-alloc/std", "musli?/std", "musli-core02?/std", "once_cell/std", "anyhow?/std", "syntree/std", "tokio?/io-std"]
+alloc = ["rune-alloc/alloc", "rune-core/alloc", "once_cell/alloc", "serde?/alloc", "musli?/alloc", "musli-core02?/alloc"]
+musli02 = ["dep:musli-core02", "rune-core/musli02", "rune-alloc/musli02"]
 serde = ["dep:serde", "rune-alloc/serde", "relative-path?/serde"]
 
 [dependencies]
@@ -46,8 +46,8 @@ itoa = "1.0.6"
 pin-project = "1.1.0"
 ryu = "1.0.13"
 serde = { version = "1.0.163", default-features = false, optional = true, features = ["derive", "rc"] }
-musli = { version = "0.1.0", default-features = false, optional = true }
-musli-core = { version = "0.1.0", default-features = false, optional = true }
+musli = { version = "0.2.0", default-features = false, optional = true }
+musli-core02 = { package = "musli-core", version = "0.2.0", default-features = false, optional = true }
 once_cell = { version = "1.18.0", default-features = false, features = ["critical-section"] }
 
 anyhow = { version = "1.0.71", default-features = false, optional = true }

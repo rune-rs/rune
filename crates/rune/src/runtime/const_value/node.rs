@@ -14,8 +14,8 @@ use core::fmt;
 use core::mem::take;
 use core::ops::{Deref, DerefMut};
 
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -56,7 +56,7 @@ pub(crate) struct ConstNode {
 /// where they are, which is what makes the array a tree.
 #[derive(Debug, TryClone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
 pub(crate) enum ConstNodeKind {
     /// An inline constant value.
     Inline(#[try_clone(copy)] Inline),
@@ -136,11 +136,11 @@ impl ConstNodeKind {
 #[derive(Debug)]
 pub(crate) enum ConstNodesError {
     /// The array is empty, and every constant has at least a root.
-    #[cfg(any(feature = "serde", feature = "musli"))]
+    #[cfg(any(feature = "serde", feature = "musli02"))]
     Empty,
     /// A node claims more subtrees follow it than the array has left, or the
     /// array has nodes left over once the root's subtree ends.
-    #[cfg(any(feature = "serde", feature = "musli"))]
+    #[cfg(any(feature = "serde", feature = "musli02"))]
     Malformed,
     /// The array nests deeper than a constant is allowed to.
     TooDeep { max: usize },
@@ -160,9 +160,9 @@ impl From<alloc::Error> for ConstNodesError {
 impl fmt::Display for ConstNodesError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            #[cfg(any(feature = "serde", feature = "musli"))]
+            #[cfg(any(feature = "serde", feature = "musli02"))]
             ConstNodesError::Empty => write!(f, "Constant value is empty"),
-            #[cfg(any(feature = "serde", feature = "musli"))]
+            #[cfg(any(feature = "serde", feature = "musli02"))]
             ConstNodesError::Malformed => {
                 write!(f, "Constant value is not a tree")
             }
@@ -190,7 +190,7 @@ impl core::error::Error for ConstNodesError {}
 /// is what says the array is a tree: running out of them means a node claimed
 /// children it does not have, and having any left at the end means the array
 /// holds more than the root's subtree.
-#[cfg(any(feature = "serde", feature = "musli"))]
+#[cfg(any(feature = "serde", feature = "musli02"))]
 fn measure(kinds: &[ConstNodeKind]) -> Result<Vec<(u32, u32)>, ConstNodesError> {
     let len = kinds.len();
 
@@ -538,7 +538,7 @@ impl ConstValueBuf {
     ///
     /// This is what reading a constant back from somewhere else goes through,
     /// so it is where an array which is not a constant is turned away.
-    #[cfg(any(feature = "serde", feature = "musli"))]
+    #[cfg(any(feature = "serde", feature = "musli02"))]
     pub(crate) fn from_kinds(kinds: Vec<ConstNodeKind>) -> Result<Self, ConstNodesError> {
         let sizes = measure(&kinds)?;
 
@@ -553,7 +553,7 @@ impl ConstValueBuf {
 
     /// The kinds this constant is made of, which is what is written down when
     /// one is handed to somebody else.
-    #[cfg(any(feature = "serde", feature = "musli"))]
+    #[cfg(any(feature = "serde", feature = "musli02"))]
     #[inline]
     pub(crate) fn kinds(&self) -> impl ExactSizeIterator<Item = &ConstNodeKind> + '_ {
         self.nodes.as_slice().iter().map(|node| &node.kind)
@@ -630,7 +630,7 @@ impl<'de> Deserialize<'de> for ConstValueBuf {
     }
 }
 
-#[cfg(feature = "musli")]
+#[cfg(feature = "musli02")]
 impl<M> Encode<M> for ConstValueBuf
 where
     ConstNodeKind: Encode<M>,
@@ -642,9 +642,9 @@ where
     #[inline]
     fn encode<E>(&self, encoder: E) -> Result<(), E::Error>
     where
-        E: musli_core::en::Encoder<Mode = M>,
+        E: musli_core02::en::Encoder<Mode = M>,
     {
-        use musli_core::en::{Encoder, SequenceEncoder};
+        use musli_core02::en::{Encoder, SequenceEncoder};
 
         encoder.encode_sequence_fn(self.nodes.as_slice().len(), |seq| {
             for kind in self.kinds() {
@@ -661,10 +661,10 @@ where
     }
 }
 
-#[cfg(feature = "musli")]
+#[cfg(feature = "musli02")]
 impl<'de, M, A> Decode<'de, M, A> for ConstValueBuf
 where
-    A: musli_core::Allocator,
+    A: musli_core02::Allocator,
     ConstNodeKind: Decode<'de, M, A>,
 {
     const IS_BITWISE_DECODE: bool = false;
@@ -672,9 +672,9 @@ where
     #[inline]
     fn decode<D>(decoder: D) -> Result<Self, D::Error>
     where
-        D: musli_core::de::Decoder<'de, Mode = M, Allocator = A>,
+        D: musli_core02::de::Decoder<'de, Mode = M, Allocator = A>,
     {
-        use musli_core::Context;
+        use musli_core02::Context;
 
         let cx = decoder.cx();
         let kinds = decoder.decode::<Vec<ConstNodeKind>>()?;

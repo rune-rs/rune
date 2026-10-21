@@ -9,8 +9,8 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
 use rust_alloc::rc::Rc;
 
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -76,7 +76,7 @@ impl fmt::Display for Label {
 /// A label that can be jumped to.
 #[derive(Debug, TryClone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
 pub struct DebugLabel {
     /// The name of the label.
     name: Cow<'static, str>,

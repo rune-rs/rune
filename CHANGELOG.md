@@ -119,6 +119,10 @@ item of the same name is a compile error. See the `declared_statics` example.
 - `Function::into_sync` produces a `SyncFunction` which cannot carry static
   storage, since the storage is not thread safe. Reading a static through a
   `SyncFunction` reports that no storage has been configured.
+- The `musli` feature of `rune`, `rune-core` and `rune-alloc` is renamed to
+  `musli02` and now implements the traits of `musli-core` 0.2 rather than 0.1.
+  The version is part of the name so that support for later versions of musli
+  can sit beside it. The `byte-code` feature uses musli 0.2 as well.
 
 <!--
 TODO: The entries above cover statics only. The rest of 0.15.0 is still to be

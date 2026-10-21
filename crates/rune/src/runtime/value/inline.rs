@@ -3,8 +3,8 @@ use core::cmp::Ordering;
 use core::fmt;
 use core::hash::Hash as _;
 
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ use crate::{Hash, TypeHash};
 /// An inline value.
 #[derive(Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
 pub enum Inline {
     /// An empty value.
     ///
@@ -43,7 +43,7 @@ pub enum Inline {
     Type(Type),
     /// Ordering.
     Ordering(
-        #[cfg_attr(feature = "musli", musli(with = crate::musli::ordering))]
+        #[cfg_attr(feature = "musli02", musli(with = crate::musli::ordering))]
         #[cfg_attr(feature = "serde", serde(with = "crate::serde::ordering"))]
         Ordering,
     ),

@@ -4,8 +4,8 @@ use core::num;
 #[cfg(feature = "std")]
 use std::path::Path;
 
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -188,7 +188,7 @@ impl<'a> files::Files<'a> for Sources {
 #[try_clone(copy)]
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core, transparent))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02, transparent))]
 pub struct SourceId {
     index: u32,
 }

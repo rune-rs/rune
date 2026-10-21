@@ -9,10 +9,10 @@ mod storage;
 
 use core::fmt;
 
-#[cfg(feature = "musli")]
-use musli_core::mode::Binary;
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::mode::Binary;
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::de::DeserializeOwned;
 #[cfg(feature = "serde")]
@@ -47,8 +47,8 @@ pub type DefaultStorage = ByteCodeUnit;
 #[derive(Debug, TryClone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(bound = "S: Serialize + DeserializeOwned"))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
-#[cfg_attr(feature = "musli", musli(Binary, bound = {S: Encode<Binary>}, decode_bound<'de, A> = {S: Decode<'de, Binary, A>}))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
+#[cfg_attr(feature = "musli02", musli(Binary, bound = {S: Encode<Binary>}, decode_bound<'de, A> = {S: Decode<'de, Binary, A>}))]
 #[try_clone(bound = {S: TryClone})]
 pub struct Unit<S = DefaultStorage> {
     /// The information needed to execute the program.
@@ -67,7 +67,7 @@ assert_impl!(Unit<DefaultStorage>: Send + Sync);
     derive(Serialize, Deserialize),
     serde(rename = "Unit")
 )]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
 #[try_clone(bound = {S: TryClone})]
 pub struct Logic<S = DefaultStorage> {
     /// Storage for the unit.
@@ -320,7 +320,7 @@ where
 /// The kind and necessary information on registered functions.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
 pub(crate) enum UnitFn {
     /// Instruction offset of a function inside of the unit.
     Offset {

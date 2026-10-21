@@ -1,7 +1,7 @@
 use core::fmt;
 
-#[cfg(feature = "musli")]
-use musli_core::{Decode, Encode};
+#[cfg(feature = "musli02")]
+use musli_core02::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ use crate::runtime::{Future, Generator, Stream, Value, Vm, VmError};
 /// The calling convention of a function.
 #[derive(Debug, TryClone, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "musli", derive(Decode, Encode), musli(crate = musli_core))]
+#[cfg_attr(feature = "musli02", derive(Decode, Encode), musli(crate = musli_core02))]
 #[try_clone(copy)]
 #[non_exhaustive]
 pub enum Call {
