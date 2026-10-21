@@ -75,9 +75,13 @@ macro_rules! __static_env {
             static mut RAW_ENV: RawEnv = RawEnv::null();
 
             /// Necessary hook to abort the current process.
+            ///
+            /// This defers to the embedder's own `#[panic_handler]`, which
+            /// every `no_std` binary has and which cannot return, so that the
+            /// expansion needs no unstable feature.
             #[no_mangle]
             extern "C" fn __rune_alloc_abort() -> ! {
-                ::core::intrinsics::abort()
+                ::core::panic!("rune: abort")
             }
 
             #[no_mangle]
