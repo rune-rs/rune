@@ -1,6 +1,6 @@
 // Implementation copied and adjusted from https://github.com/servo/rust-url
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 
@@ -9,8 +9,8 @@ use crate::alloc::prelude::*;
 use crate::alloc::String;
 use crate::support::Result;
 
+use lsp::Uri;
 use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
-use url::Url;
 
 /// https://url.spec.whatwg.org/#fragment-percent-encode-set
 const FRAGMENT: &AsciiSet = &CONTROLS.add(b' ').add(b'"').add(b'<').add(b'>').add(b'`');
@@ -19,13 +19,40 @@ const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
 const PATH_SEGMENT: &AsciiSet = &PATH.add(b'/').add(b'%');
 
 /// Convert a file path into a URL.
-pub(super) fn from_file_path<P>(path: P) -> Result<Url>
+pub(super) fn from_file_path<P>(path: P) -> Result<Uri>
 where
     P: AsRef<Path>,
 {
     let mut buf = "file://".try_to_owned()?;
     path_to_file_url_segments(path.as_ref(), &mut buf)?;
-    Ok(Url::parse(&buf)?)
+    Ok(buf.parse()?)
+}
+
+/// Convert a `file:` URL into a file path.
+pub(super) fn to_file_path(uri: &Uri) -> Result<PathBuf> {
+    let url = url::Url::parse(uri.as_str())?;
+
+    let Ok(path) = url.to_file_path() else {
+        return Err(anyhow!("URL `{url}` is not a file path"));
+    };
+
+    Ok(path)
+}
+
+/// Append a path segment to a URL.
+pub(super) fn join(uri: &Uri, segment: &str) -> Result<Uri> {
+    let mut url = url::Url::parse(uri.as_str())?;
+
+    let Ok(mut path) = url.path_segments_mut() else {
+        return Err(anyhow!(
+            "URL `{uri}` cannot have path segments",
+            uri = uri.as_str()
+        ));
+    };
+
+    path.push(segment);
+    drop(path);
+    Ok(url.as_str().parse()?)
 }
 
 #[cfg(any(unix, target_os = "redox", target_os = "wasi"))]

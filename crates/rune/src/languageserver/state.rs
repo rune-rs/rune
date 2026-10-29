@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use lsp::Url;
+use lsp::Uri;
 use ropey::{Rope, RopeSlice};
 use tokio::sync::Notify;
 
@@ -27,25 +27,25 @@ use crate::{BuildError, Context, Hash, Item, Options, Source, SourceId, Sources,
 
 #[derive(Default)]
 struct Reporter {
-    by_url: BTreeMap<Url, Vec<lsp::Diagnostic>>,
+    by_url: BTreeMap<Uri, Vec<lsp::Diagnostic>>,
 }
 
 impl Reporter {
     /// Ensure that the given URL is being reporter.
-    fn ensure(&mut self, url: &Url) {
+    fn ensure(&mut self, url: &Uri) {
         if !self.by_url.contains_key(url) {
             self.by_url.insert(url.clone(), Vec::new());
         }
     }
 
     /// Get entry for the given URL.
-    fn entry(&mut self, url: &Url) -> &mut Vec<lsp::Diagnostic> {
+    fn entry(&mut self, url: &Uri) -> &mut Vec<lsp::Diagnostic> {
         self.by_url.entry(url.clone()).or_default()
     }
 }
 
 struct Build {
-    id_to_url: HashMap<SourceId, Url>,
+    id_to_url: HashMap<SourceId, Uri>,
     sources: Sources,
     /// If a file is coming from a workspace.
     workspace: bool,
@@ -89,7 +89,10 @@ impl Build {
         Ok(())
     }
 
-    pub(super) fn visit(&mut self, visited: &mut HashSet<Url>) {
+    // `Uri` caches parts of itself in cells, but hashes and compares by its
+    // string alone.
+    #[allow(clippy::mutable_key_type)]
+    pub(super) fn visit(&mut self, visited: &mut HashSet<Uri>) {
         for id in self.sources.source_ids() {
             let Some(source) = self.sources.get(id) else {
                 continue;
@@ -283,7 +286,7 @@ impl<'a> State<'a> {
     /// Find definition at the given uri and LSP position.
     pub(super) fn goto_definition(
         &self,
-        uri: &Url,
+        uri: &Uri,
         position: lsp::Position,
     ) -> Result<Option<lsp::Location>> {
         let Some(source) = self.workspace.get(uri) else {
@@ -321,7 +324,7 @@ impl<'a> State<'a> {
     #[tracing::instrument(skip_all)]
     pub(super) fn complete(
         &self,
-        uri: &Url,
+        uri: &Uri,
         position: lsp::Position,
     ) -> Result<Option<Vec<lsp::CompletionItem>>> {
         let sources = &self.workspace.sources;
@@ -398,7 +401,7 @@ impl<'a> State<'a> {
 
     pub(super) fn format(
         &mut self,
-        uri: &Url,
+        uri: &Uri,
         format: &lsp::FormattingOptions,
     ) -> Result<Option<lsp::TextEdit>> {
         let sources = &mut self.workspace.sources;
@@ -440,7 +443,7 @@ impl<'a> State<'a> {
 
     pub(super) fn range_format(
         &mut self,
-        uri: &Url,
+        uri: &Uri,
         range: &lsp::Range,
         format: &lsp::FormattingOptions,
     ) -> Result<Option<lsp::TextEdit>> {
@@ -482,6 +485,7 @@ impl<'a> State<'a> {
     }
 
     /// Rebuild the project.
+    #[allow(clippy::mutable_key_type)]
     pub(super) fn rebuild(&mut self) -> Result<()> {
         // Keep track of URLs visited as part of workspace builds.
         let mut visited = HashSet::new();
@@ -524,8 +528,7 @@ impl<'a> State<'a> {
         } else if let Some((url, _)) = &self.workspace.sources.iter().next() {
             let mut workspace_manifest = None;
 
-            if url.scheme() == "file" {
-                let mut path = PathBuf::from(url.path());
+            if let Ok(mut path) = crate::languageserver::url::to_file_path(url) {
                 path.pop();
 
                 while path.parent().is_some() {
@@ -584,9 +587,9 @@ impl<'a> State<'a> {
 
             let mut build = Build::from_file();
 
-            let input = match url.to_file_path() {
-                Ok(path) => Source::with_path(url, source.try_to_string()?, path)?,
-                Err(..) => Source::new(url, source.try_to_string()?)?,
+            let input = match crate::languageserver::url::to_file_path(url) {
+                Ok(path) => Source::with_path(url.as_str(), source.try_to_string()?, path)?,
+                Err(..) => Source::new(url.as_str(), source.try_to_string()?)?,
             };
 
             build.sources.insert(input)?;
@@ -654,7 +657,7 @@ impl<'a> State<'a> {
     /// Try to load workspace.
     fn load_workspace(
         &self,
-        url: &Url,
+        url: &Uri,
         path: &Path,
         manifest_build: &mut Build,
         diagnostics: &mut workspace::Diagnostics,
@@ -674,7 +677,7 @@ impl<'a> State<'a> {
 
         manifest_build
             .sources
-            .insert(Source::with_path(url, source, path)?)?;
+            .insert(Source::with_path(url.as_str(), source, path)?)?;
 
         let mut source_loader = WorkspaceSourceLoader::new(&self.workspace.sources);
 
@@ -690,7 +693,7 @@ impl<'a> State<'a> {
                 continue;
             };
 
-            tracing::trace!("Found manifest source: {}", url);
+            tracing::trace!("Found manifest source: {}", url.as_str());
 
             let source = match workspace.sources.get(&url) {
                 Some(source) => source.chunks().try_collect::<String>()?,
@@ -704,7 +707,7 @@ impl<'a> State<'a> {
 
             build
                 .sources
-                .insert(Source::with_path(&url, source, p.found.path)?)?;
+                .insert(Source::with_path(url.as_str(), source, p.found.path)?)?;
 
             script_builds.try_push(build)?;
         }
@@ -715,7 +718,7 @@ impl<'a> State<'a> {
     fn build_scripts(
         &self,
         mut build: Build,
-        built: Option<&mut HashSet<Url>>,
+        built: Option<&mut HashSet<Uri>>,
     ) -> Result<(
         crate::Diagnostics,
         Build,
@@ -872,18 +875,18 @@ impl<'a> State<'a> {
 #[derive(Default)]
 pub(super) struct Workspace {
     /// Found workspace root.
-    pub(super) manifest_path: Option<(Url, PathBuf)>,
+    pub(super) manifest_path: Option<(Uri, PathBuf)>,
     /// Sources that might be modified.
-    sources: HashMap<Url, ServerSource>,
+    sources: HashMap<Uri, ServerSource>,
     /// A source that has been removed.
-    removed: Vec<Url>,
+    removed: Vec<Uri>,
 }
 
 impl Workspace {
     /// Insert the given source at the given url.
     pub(super) fn insert_source(
         &mut self,
-        url: Url,
+        url: Uri,
         text: String,
         language: Language,
     ) -> alloc::Result<Option<ServerSource>> {
@@ -900,17 +903,17 @@ impl Workspace {
     }
 
     /// Get the source at the given url.
-    pub(super) fn get(&self, url: &Url) -> Option<&ServerSource> {
+    pub(super) fn get(&self, url: &Uri) -> Option<&ServerSource> {
         self.sources.get(url)
     }
 
     /// Get the mutable source at the given url.
-    pub(super) fn get_mut(&mut self, url: &Url) -> Option<&mut ServerSource> {
+    pub(super) fn get_mut(&mut self, url: &Uri) -> Option<&mut ServerSource> {
         self.sources.get_mut(url)
     }
 
     /// Remove the given url as a source.
-    pub(super) fn remove(&mut self, url: &Url) -> Result<()> {
+    pub(super) fn remove(&mut self, url: &Uri) -> Result<()> {
         if self.sources.remove(url).is_some() {
             self.removed.try_push(url.clone())?;
         }
@@ -1292,13 +1295,13 @@ impl CompileVisitor for Visitor {
 }
 
 struct ScriptSourceLoader<'a> {
-    sources: &'a HashMap<Url, ServerSource>,
+    sources: &'a HashMap<Uri, ServerSource>,
     base: compile::FileSourceLoader,
 }
 
 impl<'a> ScriptSourceLoader<'a> {
     /// Construct a new source loader.
-    pub(super) fn new(sources: &'a HashMap<Url, ServerSource>) -> Self {
+    pub(super) fn new(sources: &'a HashMap<Uri, ServerSource>) -> Self {
         Self {
             sources,
             base: compile::FileSourceLoader::new(),
@@ -1310,7 +1313,7 @@ impl<'a> ScriptSourceLoader<'a> {
         root: &Path,
         item: &Item,
         span: &dyn Spanned,
-    ) -> compile::Result<Option<[(Url, PathBuf); 2]>> {
+    ) -> compile::Result<Option<[(Uri, PathBuf); 2]>> {
         let mut base = root.try_to_owned()?;
 
         let mut it = item.iter().peekable();
@@ -1368,7 +1371,7 @@ impl crate::compile::SourceLoader for ScriptSourceLoader<'_> {
         if let Some(candidates) = Self::candidates(path, item, span)? {
             for (url, path) in candidates {
                 if let Some(s) = self.sources.get(&url) {
-                    return Ok(Source::with_path(url, s.try_to_string()?, path)?);
+                    return Ok(Source::with_path(url.as_str(), s.try_to_string()?, path)?);
                 }
             }
         }
@@ -1378,13 +1381,13 @@ impl crate::compile::SourceLoader for ScriptSourceLoader<'_> {
 }
 
 struct WorkspaceSourceLoader<'a> {
-    sources: &'a HashMap<Url, ServerSource>,
+    sources: &'a HashMap<Uri, ServerSource>,
     base: workspace::FileSourceLoader,
 }
 
 impl<'a> WorkspaceSourceLoader<'a> {
     /// Construct a new source loader.
-    pub(super) fn new(sources: &'a HashMap<Url, ServerSource>) -> Self {
+    pub(super) fn new(sources: &'a HashMap<Uri, ServerSource>) -> Self {
         Self {
             sources,
             base: workspace::FileSourceLoader::new(),
@@ -1397,7 +1400,7 @@ impl workspace::SourceLoader for WorkspaceSourceLoader<'_> {
         if let Ok(url) = crate::languageserver::url::from_file_path(path) {
             if let Some(s) = self.sources.get(&url) {
                 let source = s.try_to_string().with_span(span)?;
-                return Ok(Source::with_path(url, source, path).with_span(span)?);
+                return Ok(Source::with_path(url.as_str(), source, path).with_span(span)?);
             }
         }
 

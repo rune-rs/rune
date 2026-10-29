@@ -395,13 +395,13 @@ fn initialize(s: &mut State<'_>, params: lsp::InitializeParams) -> Result<lsp::I
 
     #[allow(deprecated)]
     if let Some(root_uri) = &params.root_uri {
-        let mut manifest_uri = root_uri.clone();
+        let manifest_uri = url::join(root_uri, MANIFEST_FILE);
+        let manifest_path = manifest_uri
+            .as_ref()
+            .ok()
+            .and_then(|u| url::to_file_path(u).ok());
 
-        if let Ok(mut path) = manifest_uri.path_segments_mut() {
-            path.push(MANIFEST_FILE);
-        }
-
-        if let Ok(manifest_path) = manifest_uri.to_file_path() {
+        if let (Ok(manifest_uri), Some(manifest_path)) = (manifest_uri, manifest_path) {
             if fs::is_file(&manifest_path)? {
                 tracing::trace!(?manifest_uri, ?manifest_path, "Activating workspace");
                 s.workspace.manifest_path = Some((manifest_uri, manifest_path));
@@ -497,7 +497,7 @@ fn did_open_text_document(s: &mut State<'_>, params: lsp::DidOpenTextDocumentPar
     {
         tracing::warn!(
             "opened text document `{}`, but it was already open!",
-            params.text_document.uri
+            params.text_document.uri.as_str()
         );
     }
 
@@ -535,7 +535,7 @@ fn did_change_text_document(
     } else {
         tracing::warn!(
             "tried to modify `{}`, but it was not open!",
-            params.text_document.uri
+            params.text_document.uri.as_str()
         );
     }
 
@@ -544,7 +544,7 @@ fn did_change_text_document(
             lsp::MessageType::WARNING,
             format_args!(
                 "{}: a change could not be applied: {error}",
-                params.text_document.uri
+                params.text_document.uri.as_str()
             ),
         )?;
     }

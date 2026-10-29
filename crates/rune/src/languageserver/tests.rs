@@ -209,11 +209,12 @@ fn a_path_survives_being_made_into_a_url() {
     ] {
         let url = super::url::from_file_path(path).expect("Should become a url");
 
-        let back: PathBuf = url
-            .to_file_path()
-            .unwrap_or_else(|()| panic!("{path}: {url} should become a path"));
+        let url_str = url.as_str();
 
-        assert_eq!(back, Path::new(path), "{url}");
+        let back: PathBuf = super::url::to_file_path(&url)
+            .unwrap_or_else(|e| panic!("{path}: {url_str} should become a path: {e}"));
+
+        assert_eq!(back, Path::new(path), "{url_str}");
     }
 }
 
