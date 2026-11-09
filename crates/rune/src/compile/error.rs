@@ -362,6 +362,7 @@ pub(crate) enum ErrorKind {
     },
     UnsupportedPatternExpr,
     UnsupportedBinding,
+    OrPatternBinding,
     DuplicateObjectKey {
         #[cfg(feature = "emit")]
         existing: Span,
@@ -862,6 +863,9 @@ impl fmt::Display for ErrorKind {
             }
             ErrorKind::UnsupportedBinding => {
                 write!(f, "Not a valid binding")?;
+            }
+            ErrorKind::OrPatternBinding => {
+                write!(f, "An or-pattern cannot bind variables")?;
             }
             ErrorKind::DuplicateObjectKey { .. } => {
                 write!(f, "Duplicate key in literal object")?;

@@ -114,3 +114,22 @@ Pretty fast!
 Can't tell 😞
 What, where did you get that?
 ```
+
+## Or-patterns
+
+A single arm can match any of several alternatives by separating them with `|`.
+This is called an *or-pattern*, and it matches if any of its alternatives match.
+
+```rune
+{{#include ../../scripts/book/pattern_matching/or_pattern.rn}}
+```
+
+```text
+$> cargo run -- run scripts/book/pattern_matching/or_pattern.rn
+2 is small.
+5 is medium.
+9 is something else.
+```
+
+The alternatives bind no variables, since there would be no single value for the
+arm body to read a binding back from.

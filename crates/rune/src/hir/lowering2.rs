@@ -5261,6 +5261,14 @@ enum PatStep<'hir, 'a> {
         keys_dup: HashMap<&'hir str, Span>,
         key: (Span, &'hir str),
     },
+    /// An or-pattern, `a | b | c`, waiting on the next alternative.
+    Or {
+        buf: StreamBuf<'a>,
+        items: Vec<hir::Pat<'hir>>,
+        /// The number of bindings in scope when the or-pattern started, used to
+        /// reject bindings introduced by any alternative.
+        bindings: usize,
+    },
 }
 
 /// What lowering a pattern produced.
@@ -5378,8 +5386,57 @@ fn pat_start<'hir, 'a>(
                 HashMap::new(),
             )
         }
+        PatOr => {
+            let bindings = cx.pattern_bindings.len();
+            pat_or_next(cx, buf, Vec::new(), bindings)
+        }
         _ => Err(buf.stream().expected(Pat)),
     }
+}
+
+/// Lower the next alternative of an or-pattern, or finish it.
+fn pat_or_next<'hir, 'a>(
+    cx: &mut Ctxt<'hir, '_, '_>,
+    mut buf: StreamBuf<'a>,
+    items: Vec<hir::Pat<'hir>>,
+    bindings: usize,
+) -> Result<PatState<'hir, 'a>> {
+    // Consume the separator between alternatives, if any, then the next one.
+    buf.stream().eat(K![|]);
+
+    if let MaybeNode::Some(node) = buf.stream().eat(Pat) {
+        let node = node.parse(|p| p.pump())?;
+
+        return Ok(PatState::Child(
+            PatStep::Or {
+                buf,
+                items,
+                bindings,
+            },
+            node,
+        ));
+    }
+
+    // No alternative may introduce a binding, since there would be no single
+    // value for the arm body to read it back from.
+    if cx.pattern_bindings.len() != bindings {
+        return Err(Error::new(buf.stream().span(), ErrorKind::OrPatternBinding));
+    }
+
+    let span = buf.stream().span();
+
+    let items = {
+        let p = buf.stream();
+        alloc_with!(cx, p);
+        iter!(items)
+    };
+
+    let pat = hir::Pat {
+        span,
+        kind: hir::PatKind::Or(items),
+    };
+
+    Ok(PatState::Done(buf, pat))
 }
 
 /// Resume a pattern whose child has just been lowered.
@@ -5389,6 +5446,14 @@ fn pat_resume<'hir, 'a>(
     pat: hir::Pat<'hir>,
 ) -> Result<PatState<'hir, 'a>> {
     match step {
+        PatStep::Or {
+            mut buf,
+            mut items,
+            bindings,
+        } => {
+            items.try_push(pat).with_span(buf.stream().span())?;
+            pat_or_next(cx, buf, items, bindings)
+        }
         PatStep::Seq {
             mut buf,
             path,

@@ -103,6 +103,9 @@ pub(crate) enum PatKind<'hir> {
     Sequence(&'hir PatSequence<'hir>),
     /// An object pattern.
     Object(&'hir PatObject<'hir>),
+    /// An or-pattern, matching if any of its alternatives match. The
+    /// alternatives bind no variables.
+    Or(&'hir [Pat<'hir>]),
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]

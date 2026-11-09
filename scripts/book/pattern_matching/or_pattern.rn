@@ -1,0 +1,11 @@
+fn classify(n) {
+    match n {
+        1 | 2 | 3 => println!("{n} is small."),
+        4 | 5 | 6 => println!("{n} is medium."),
+        _ => println!("{n} is something else."),
+    }
+}
+
+classify(2);
+classify(5);
+classify(9);
