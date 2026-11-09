@@ -78,3 +78,78 @@ fn test_const_in_pattern() {
         }
     }
 }
+
+#[test]
+fn test_or_pattern() {
+    // An or-pattern matches when the value equals any of its alternatives, and
+    // falls through to the next arm when it equals none of them.
+    let out: (i64, i64, i64, i64) = eval(
+        r#"
+        fn classify(n) {
+            match n {
+                1 | 2 | 3 => 1,
+                _ => 0,
+            }
+        }
+        (classify(1), classify(2), classify(3), classify(4))
+        "#,
+    );
+    assert_eq!(out, (1, 1, 1, 0));
+}
+
+#[test]
+fn test_or_pattern_strings() {
+    let out: (i64, i64) = eval(
+        r#"
+        fn f(s) { match s { "a" | "b" => 1, _ => 0 } }
+        (f("b"), f("z"))
+        "#,
+    );
+    assert_eq!(out, (1, 0));
+}
+
+#[test]
+fn test_or_pattern_with_guard() {
+    let out: (i64, i64) = eval(
+        r#"
+        fn f(n) {
+            match n {
+                1 | 2 if n > 1 => 2,
+                1 | 2 => 1,
+                _ => 0,
+            }
+        }
+        (f(1), f(2))
+        "#,
+    );
+    assert_eq!(out, (1, 2));
+}
+
+#[test]
+fn test_or_pattern_multiple_arms() {
+    let out: i64 = eval(
+        r#"
+        match 7 {
+            1 | 2 => 10,
+            6 | 7 | 8 => 20,
+            _ => 30,
+        }
+        "#,
+    );
+    assert_eq!(out, 20);
+}
+
+#[test]
+fn test_or_pattern_binding_rejected() {
+    // Every alternative binds no variables, since there would be no single
+    // value for the arm body to read a binding back from.
+    assert_errors! {
+        "pub fn main() { match 1 { a | b => 1, _ => 0 } }",
+        _, OrPatternBinding
+    };
+
+    assert_errors! {
+        "pub fn main() { match 1 { 1 | x => 1, _ => 0 } }",
+        _, OrPatternBinding
+    };
+}

@@ -1142,7 +1142,21 @@ fn parse(p: &mut Parser<'_>, task: Task) -> Result<Kind> {
             Step::MatchArms => {
                 if is_pat(p)? {
                     let c = p.checkpoint()?;
+                    let pat_c = p.checkpoint()?;
                     pat(p)?;
+
+                    // An or-pattern, `a | b | c`, is parsed as a run of
+                    // alternatives wrapped so the arm still sees a single
+                    // pattern: `Pat[PatOr[Pat, Pat, Pat]]`.
+                    if p.peek()? == K![|] {
+                        while p.peek()? == K![|] {
+                            p.bump()?;
+                            pat(p)?;
+                        }
+
+                        p.close_at(&pat_c, PatOr)?;
+                        p.close_at(&pat_c, Pat)?;
+                    }
 
                     if p.bump_if(K![if])? {
                         push(&mut stack, span, Step::MatchGuard { c })?;

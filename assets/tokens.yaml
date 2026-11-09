@@ -460,6 +460,7 @@
 - {kind: "syntax", variant: "PatTuple", doc: "a tuple pattern"}
 - {kind: "syntax", variant: "PatObject", doc: "an object pattern"}
 - {kind: "syntax", variant: "PatIgnore", doc: "an ignore pattern"}
+- {kind: "syntax", variant: "PatOr", doc: "an or-pattern"}
 - {kind: "syntax", variant: "Path", doc: "a path"}
 - {kind: "syntax", variant: "PathGenerics", doc: "the generics of a path"}
 - {kind: "syntax", variant: "Condition", doc: "the `let` condition of a loop"}

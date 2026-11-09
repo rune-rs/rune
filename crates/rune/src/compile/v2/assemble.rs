@@ -453,7 +453,12 @@ fn pat_binding_with<'a, 'hir>(
         bindings.try_insert(name, needs).with_span(span)?;
     }
 
-    let asm = self::pat(cx, pat, false_label, load, &mut bindings)?;
+    let asm = match pat.kind {
+        hir::PatKind::Or(alternatives) => {
+            pat_or(cx, pat, alternatives, false_label, load, &mut bindings)?
+        }
+        _ => self::pat(cx, pat, false_label, load, &mut bindings)?,
+    };
 
     if let Some(key) = bindings.into_keys().next() {
         return Err(compile::Error::msg(
@@ -502,6 +507,48 @@ fn pat_binding_with_single<'a, 'hir>(
 
     cx.scopes.define(needs.span(), name, addr)?;
     Ok(asm)
+}
+
+/// Assemble an or-pattern, `a | b | c`.
+///
+/// Each alternative is compiled with its own false label pointing at the next
+/// one, so a mismatch falls through to the next alternative rather than the
+/// arm's false label. The last alternative uses the arm's false label, and any
+/// alternative which matches jumps to a shared label past the whole pattern.
+/// Alternatives bind no variables, so there is nothing to reconcile between
+/// them.
+#[instrument_ast(span = span)]
+fn pat_or<'a, 'hir>(
+    cx: &mut Ctxt<'a, 'hir, '_>,
+    span: &'hir dyn Spanned,
+    alternatives: &'hir [hir::Pat<'hir>],
+    false_label: &Label,
+    load: &mut dyn FnMut(
+        &mut Ctxt<'a, 'hir, '_>,
+        &mut dyn Needs<'a, 'hir>,
+    ) -> compile::Result<Asm<'hir>>,
+    bindings: &mut dyn Bindings<hir::Variable, &mut dyn Needs<'a, 'hir>>,
+) -> compile::Result<Asm<'hir, Pattern>> {
+    let Some((last, rest)) = alternatives.split_last() else {
+        // The grammar never produces an empty or-pattern, but one would match
+        // nothing, so jump straight to the false label.
+        cx.asm.jump(false_label, span)?;
+        return Ok(Asm::new(span, Pattern::Refutable));
+    };
+
+    let match_label = cx.asm.new_label("or_match");
+
+    for alt in rest {
+        let next_label = cx.asm.new_label("or_next");
+        converge!(self::pat(cx, alt, &next_label, load, bindings)?);
+        cx.asm.jump(&match_label, alt)?;
+        cx.asm.label(&next_label)?;
+    }
+
+    converge!(self::pat(cx, last, false_label, load, bindings)?);
+    cx.asm.label(&match_label)?;
+
+    Ok(Asm::new(span, Pattern::Refutable))
 }
 
 trait Bindings<K, T> {
@@ -910,6 +957,15 @@ fn pat_one<'a, 'hir>(
             })?;
 
             Ok(Some(Pattern::Refutable))
+        }
+        hir::PatKind::Or(..) => {
+            // Or-patterns are only produced at the top level of a match arm,
+            // where they are compiled by `pat_or` before the pattern walk is
+            // entered, so one cannot be reached here.
+            Err(compile::Error::msg(
+                hir,
+                "or-patterns are only supported at the top level of a match arm",
+            ))
         }
     }
 }
