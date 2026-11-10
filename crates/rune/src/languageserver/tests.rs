@@ -244,7 +244,7 @@ impl Session {
 
     fn with_capabilities(capabilities: serde_json::Value) -> Self {
         let mut this = Session {
-            stages: rust_alloc::vec::from_elem((rust_alloc::vec::Vec::new(), None), 1),
+            stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
             id: 0,
         };
 
