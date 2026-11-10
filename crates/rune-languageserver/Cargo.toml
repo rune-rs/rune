@@ -16,7 +16,6 @@ categories = ["parser-implementations"]
 tokio = { version = "1.28.1", features = ["full"] }
 anyhow = "1.0.71"
 tracing = "0.1.37"
-tracing-appender = "0.2.2"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 rune = { version = "0.15.0", path = "../rune", features = ["languageserver", "tracing"] }
