@@ -1,4 +1,4 @@
-//! Public types related to using rune in #[no_std] environments.
+//! Public types related to using rune in `#[no_std]` environments.
 
 use core::ptr::NonNull;
 
