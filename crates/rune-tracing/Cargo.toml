@@ -7,7 +7,6 @@ rust-version = "1.95"
 description = "Rune tracing shims for the Rune Language, an embeddable dynamic programming language for Rust."
 documentation = "https://docs.rs/rune"
 readme = "README.md"
-homepage = "https://github.com/rune-rs/rune"
 repository = "https://github.com/rune-rs/rune"
 license = "MIT OR Apache-2.0"
 keywords = ["language", "scripting", "scripting-language"]
