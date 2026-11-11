@@ -1,4 +1,4 @@
-use crate::item::internal::MAX_DATA;
+use crate::item::internal::{self, MAX_DATA};
 use crate::item::{ComponentRef, ItemBuf};
 use rune_alloc as alloc;
 
@@ -145,4 +145,50 @@ fn store_max_string_overflow() {
     ));
 
     assert_eq!(item.last(), None);
+}
+
+#[test]
+fn validate() -> alloc::Result<()> {
+    assert!(internal::validate(b""));
+
+    let mut item = ItemBuf::with_crate("std")?;
+    item.push("option")?;
+    item.push(ComponentRef::Id(42))?;
+    item.push("Option")?;
+
+    let bytes = item.as_bytes();
+    assert!(internal::validate(bytes));
+
+    // A strict prefix is only valid if it ends on a component boundary: the
+    // empty item, and after each of the first three components.
+    let valid_prefixes = (0..bytes.len())
+        .filter(|&len| internal::validate(&bytes[..len]))
+        .count();
+
+    assert_eq!(valid_prefixes, 4);
+    Ok(())
+}
+
+#[test]
+fn validate_rejects_malformed() -> alloc::Result<()> {
+    let item = ItemBuf::with_item(["name"])?;
+    let bytes = item.as_bytes();
+    let last = bytes.len() - 1;
+
+    // Tail tag which does not match the head tag.
+    let mut mismatched = bytes.to_vec();
+    mismatched[last] ^= 0xff;
+    assert!(!internal::validate(&mismatched));
+
+    // String which is not UTF-8.
+    let mut not_utf8 = bytes.to_vec();
+    not_utf8[internal::TAG_BYTES] = 0xff;
+    assert!(!internal::validate(&not_utf8));
+
+    // Tag of an unknown type.
+    assert!(!internal::validate(&0b11u16.to_ne_bytes()));
+
+    // Half a tag.
+    assert!(!internal::validate(&[0]));
+    Ok(())
 }
