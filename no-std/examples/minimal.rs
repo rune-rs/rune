@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(alloc_error_handler, core_intrinsics, lang_items)]
+#![feature(abort_immediate, alloc_error_handler, lang_items)]
 #![allow(internal_features)]
 
 extern crate alloc;
@@ -18,12 +18,12 @@ extern "C" {}
 
 #[alloc_error_handler]
 fn err_handler(_: core::alloc::Layout) -> ! {
-    core::intrinsics::abort();
+    core::process::abort_immediate()
 }
 
 #[panic_handler]
 fn rust_begin_panic(_: &core::panic::PanicInfo) -> ! {
-    core::intrinsics::abort();
+    core::process::abort_immediate()
 }
 
 #[lang = "eh_personality"]
