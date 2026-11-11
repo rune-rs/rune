@@ -77,7 +77,7 @@ macro_rules! __static_env {
             /// Necessary hook to abort the current process.
             #[no_mangle]
             extern "C" fn __rune_alloc_abort() -> ! {
-                ::core::intrinsics::abort()
+                ::core::process::abort_immediate()
             }
 
             #[no_mangle]

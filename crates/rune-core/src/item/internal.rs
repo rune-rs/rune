@@ -37,6 +37,42 @@ pub(super) fn read_tag(content: &[u8]) -> (Tag, usize) {
     (Tag((n & TYPE_MASK) as u8), n >> TYPE_BITS)
 }
 
+/// Test if the given bytes are the encoding of an item.
+///
+/// An item is a sequence of components. An identifier is a single tag, while a
+/// crate or a string is a tag, followed by that many bytes of UTF-8, followed
+/// by the same tag again so that it can be read from the back.
+#[cfg(any(feature = "musli", test))]
+pub(super) fn validate(mut content: &[u8]) -> bool {
+    while !content.is_empty() {
+        let Some((head_tag, rest)) = content.split_at_checked(TAG_BYTES) else {
+            return false;
+        };
+
+        content = match read_tag(head_tag) {
+            (ID, _) => rest,
+            (CRATE | STRING, n) => {
+                let Some((string, rest)) = rest.split_at_checked(n) else {
+                    return false;
+                };
+
+                let Some((tail_tag, rest)) = rest.split_at_checked(TAG_BYTES) else {
+                    return false;
+                };
+
+                if head_tag != tail_tag || str::from_utf8(string).is_err() {
+                    return false;
+                }
+
+                rest
+            }
+            _ => return false,
+        };
+    }
+
+    true
+}
+
 /// Helper function to write an identifier.
 ///
 /// A component longer than [`MAX_DATA`] does not fit in the tag, which is an
