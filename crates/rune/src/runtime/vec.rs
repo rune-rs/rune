@@ -362,11 +362,7 @@ impl Vec {
             }
         }
 
-        if b.next()?.is_some() {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(!b.next()?.is_some())
     }
 
     pub(crate) fn eq_with(

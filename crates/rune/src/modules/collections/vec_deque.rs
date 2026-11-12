@@ -631,11 +631,7 @@ impl VecDeque {
             }
         }
 
-        if b.next()?.is_some() {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(!b.next()?.is_some())
     }
 
     /// Perform a total equality check with this deque.
@@ -669,11 +665,7 @@ impl VecDeque {
             }
         }
 
-        if b.next().is_some() {
-            return Ok(false);
-        }
-
-        Ok(true)
+        Ok(!b.next().is_some())
     }
 
     /// Perform a partial comparison check with this deque.

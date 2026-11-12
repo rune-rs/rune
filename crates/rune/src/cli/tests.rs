@@ -131,11 +131,7 @@ where
 
         write!(name, "{item}")?;
 
-        if !flags.filters.iter().any(|f| name.contains(f.as_str())) {
-            return Ok(true);
-        }
-
-        Ok(false)
+        Ok(!flags.filters.iter().any(|f| name.contains(f.as_str())))
     };
 
     for e in entries {
