@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794462836304,
+  "lastUpdate": 1794546780116,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -35697,6 +35697,130 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 444,
             "range": "± 4",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "f789c53f90b8e7257b847933c07929ba68d2cc72",
+          "message": "Stop using core::intrinsics::abort in no_std\n\nThe intrinsic is gone on current nightly (renamed abort_immediate). The\nstatic_env! abort hook now defers to the embedder's panic handler with a\nstable panic!, so its expansion needs no feature gate, and the no-std\nexample uses core::process::abort_immediate.",
+          "timestamp": "2026-10-21T10:56:52Z",
+          "url": "https://github.com/rune-rs/rune/commit/f789c53f90b8e7257b847933c07929ba68d2cc72"
+        },
+        "date": 1794546779291,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10012753,
+            "range": "± 177373",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5626032,
+            "range": "± 111880",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1228,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1327,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 195217,
+            "range": "± 7314",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1175371,
+            "range": "± 12750",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 298868306,
+            "range": "± 2442276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 247637104,
+            "range": "± 1783802",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sync_call",
+            "value": 11990497,
+            "range": "± 82340",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "await_call",
+            "value": 26877204,
+            "range": "± 499747",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 690933,
+            "range": "± 6306",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7511445,
+            "range": "± 87978",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 39184682,
+            "range": "± 647369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6366919,
+            "range": "± 23954",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 232583,
+            "range": "± 1259",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2581215,
+            "range": "± 10488",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 451,
+            "range": "± 6",
             "unit": "ns/iter"
           }
         ]
