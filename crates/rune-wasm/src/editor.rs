@@ -68,7 +68,11 @@ impl Props {
         let mut rest = Vec::new();
 
         for line in content.split('\n') {
-            match line.strip_prefix('#') {
+            // Rustdoc style: `#[attr]` at the start of a line is still code.
+            match line
+                .strip_prefix("# ")
+                .or_else(|| (line == "#").then_some(""))
+            {
                 Some(line) => prelude.push(line),
                 None => rest.push(line),
             }

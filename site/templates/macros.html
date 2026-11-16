@@ -97,7 +97,7 @@ rune-run-on-change="{% if manually %}false{% else %}true{% endif %}"
 rune-options="{% if options %}{{options}}{% endif %}"
 rune-config='{% if rune_config %}{{rune_config}}{% endif %}'
 >
-<div class="rune-editor">{{ body }}</div>
+<div class="rune-editor">{{ body | escape | replace(from="\n", to="&#10;") }}</div>
 {% if footnote %}<div class="rune-footnote">{{footnote}}</div>{% endif %}
 </div>
 {% endcomponent %}
