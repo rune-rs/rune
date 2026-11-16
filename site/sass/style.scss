@@ -460,23 +460,27 @@ nav.pagination {
 .rune {
     margin-top: 10px;
     margin-bottom: 10px;
+    border-radius: $editor-border-radius;
+    overflow: hidden;
 
     &-control {
-        padding: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: $control-gap $editor-padding;
+        padding: $control-gap $editor-padding;
     }
 
     &-editor {
         display: block;
         width: 100%;
         font-size: $editor-font-size;
-        border-top-left-radius: $editor-border-radius;
-        border-top-right-radius: $editor-border-radius;
 
         .error {
             position: absolute;
             background-color: $error-color;
         }
-    
+
         .warning {
             position: absolute;
             border-bottom: 2px solid $warning-color;
@@ -490,43 +494,94 @@ nav.pagination {
     &-console {
         position: relative;
         display: block;
-        background-color: black;
-        font-size: 14px;
-        color: $accent2;
-        
-        border-bottom-left-radius: $editor-border-radius;
-        border-bottom-right-radius: $editor-border-radius;
+        background-color: $console-background;
+        font-size: $console-font-size;
+        color: $console-text;
+        border-top: 1px solid $console-border;
+    }
+
+    &-button {
+        height: $control-height;
+        padding: 0 $editor-padding;
+        font-family: $font-stack;
+        font-size: $editor-font-size;
+        font-weight: 600;
+        color: $console-background;
+        background-color: $console-accent;
+        border: 0;
+        border-radius: $editor-border-radius;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+
+        &:hover {
+            background-color: lighten($console-accent, 8%);
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: progress;
+        }
+    }
+
+    &-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: $control-height;
+        font-family: $font-stack;
+        font-size: $editor-font-size;
+        color: $console-text;
+        cursor: pointer;
+    }
+
+    &-checkbox {
+        margin: 0;
+        accent-color: $console-accent;
     }
 
     &-output {
-        color: white;
-        padding: 6px;
-        overflow-x: auto;
-        font-family: monospace;
+        color: $console-text;
+        padding: $editor-padding;
+        overflow: auto;
+        max-height: 40vh;
+        font-family: $monospace-font-stack;
         white-space: pre;
-        border-top: 1px solid $accent;
+        border-top: 1px solid $console-border;
 
         & > h4 {
-            color: white;
-            font-weight: bold;
-            margin: 6px 0;
-        }
-
-        & > p {
-            color: white;
-            margin: 6px 0;
+            color: $console-muted;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: $control-gap 0 4px;
 
             &:first-child {
                 margin-top: 0;
             }
+        }
+
+        & > p {
+            color: $console-text;
+            margin: 4px 0;
 
             &:last-child {
                 margin-bottom: 0;
             }
         }
 
+        & > .rune-error {
+            color: $console-error;
+        }
+
+        &.diagnostics {
+            color: $console-error;
+            border-left: 3px solid $console-error;
+        }
+
         &.instructions {
             max-height: 300px;
+            color: $console-muted;
         }
     }
 
@@ -543,12 +598,19 @@ nav.pagination {
         text-align: center;
     }
 
-    &-button {
-        font-size: 14px;
-    }
-
     .hidden {
         display: none;
     }
 }
 
+@media (max-width: $phone-width) {
+    .rune {
+        &-editor {
+            font-size: $console-font-size;
+        }
+
+        &-output {
+            padding: $control-gap;
+        }
+    }
+}

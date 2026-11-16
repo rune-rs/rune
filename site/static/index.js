@@ -123,7 +123,9 @@ function setupEditor(element, opts) {
         theme: "ace/theme/nord_dark",
         tabSize: 4,
         useSoftTabs: false,
+        minLines: 10,
         maxLines: Infinity,
+        showPrintMargin: false,
     });
 
     editor.renderer.setScrollMargin(6, 6, 6, 6);
@@ -132,13 +134,9 @@ function setupEditor(element, opts) {
     let [prelude, newContent] = filterPrelude(content);
 
     if (!!opts.updateUrl) {
-        let content = getUrlContent();
-
-        if (!!content) {
-            editor.setValue(content);
-        }
+        editor.setValue(getUrlContent() || content.replace(/^\n+/, ""), -1);
     } else {
-        editor.setValue(newContent);
+        editor.setValue(newContent.replace(/^\n+/, ""), -1);
     }
 
     let recompile = async () => {
@@ -220,7 +218,7 @@ function setupEditor(element, opts) {
         }
 
         if (!!result.error) {
-            text.push({ title: "Result", content: [result.error] });
+            text.push({ title: "Error", content: [result.error], error: true });
         }
 
         if (!!result.result) {
@@ -239,6 +237,11 @@ function setupEditor(element, opts) {
                 for (let line of section.content) {
                     let text = document.createElement("p");
                     text.textContent = line;
+
+                    if (section.error) {
+                        text.classList.add("rune-error");
+                    }
+
                     el.appendChild(text);
                 }
             }
