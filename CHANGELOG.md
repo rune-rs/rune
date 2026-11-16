@@ -110,6 +110,8 @@ item of the same name is a compile error. See the `declared_statics` example.
 
 ### Changed
 
+- The minimum supported Rust version (`rust-version`) is raised from 1.95 to
+  1.100 for every crate in the workspace, and CI checks it on that toolchain.
 - Two instructions were added, `GlobalGet` and `GlobalSet`. These are internal,
   but they show up in disassembly through `--dump-unit --emit-instructions`.
 - The serialized representation of `Unit` and `DebugInfo` gained fields for
