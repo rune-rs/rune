@@ -382,3 +382,30 @@ pub async fn compile(input: String, config: JsValue) -> JsValue {
 
     <JsValue as JsValueSerdeExt>::from_serde(&result).unwrap()
 }
+
+#[derive(Serialize)]
+struct WasmHighlight {
+    class: &'static str,
+    start: u32,
+    end: u32,
+}
+
+/// Classify `input` for syntax highlighting, as `{class, start, end}` byte
+/// spans which cover it.
+#[wasm_bindgen]
+pub fn highlight(input: &str) -> JsValue {
+    let tokens = rune::highlight::highlight(input)
+        .map(|tokens| {
+            tokens
+                .iter()
+                .map(|t| WasmHighlight {
+                    class: t.class.as_str(),
+                    start: t.span.start.into_usize() as u32,
+                    end: t.span.end.into_usize() as u32,
+                })
+                .collect::<std::vec::Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    <JsValue as JsValueSerdeExt>::from_serde(&tokens).unwrap()
+}

@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog], and this project adheres to
 
 ### Added
 
+#### `rune::highlight`
+
+A public `highlight` function splits source into classified byte spans (keyword,
+string, comment, ...) using the lexer in the formatter's mode, so it keeps
+whitespace and comments and copes with source that does not compile. It adds
+public API (`rune::highlight::{highlight, Class, Token}`), which embedders may
+want to be aware of, and `rune-wasm` exports it as `highlight`.
+
 #### `static` items
 
 Scripts can declare `static` items, which are named pieces of mutable state that

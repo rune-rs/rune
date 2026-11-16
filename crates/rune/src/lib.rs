@@ -200,6 +200,8 @@ pub mod ast;
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "fmt")))]
 pub mod fmt;
 
+pub mod highlight;
+
 #[cfg(feature = "emit")]
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
 #[doc(inline)]

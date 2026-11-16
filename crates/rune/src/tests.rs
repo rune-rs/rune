@@ -509,6 +509,8 @@ mod external_ops;
 mod f64;
 #[cfg(not(miri))]
 mod format_spec;
+#[cfg(not(miri))]
+mod highlight;
 // Deliberately not excluded from miri, unlike the rest of this module: passing
 // a reference into the machine goes through `UnsafeToRef`, and whether that is
 // sound is exactly what miri is here to say.
