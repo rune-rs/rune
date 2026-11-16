@@ -4,22 +4,20 @@ title = "The Rune Programming Language"
 description="Party dynamically like it's 1995"
 default_language = "en"
 
-generate_feed = true
-feed_filename = "rss.xml"
-rss_limit = 20
+generate_feeds = true
+feed_filenames = ["rss.xml"]
+feed_limit = 20
 compile_sass = true
-highlight_code = true
 build_search_index = false
-extra_syntaxes = ["syntaxes"]
 
 taxonomies = [
   { name = "categories", feed = true, render = false },
   { name = "tags", feed = true, render = false },
 ]
 
-[markdown]
-highlight_theme = "kronuz"
-highlight_code = true
+[markdown.highlighting]
+theme = "github-dark"
+extra_grammars = ["syntaxes/rune.tmLanguage.json"]
 
 [extra]
 profile = "logo.png"

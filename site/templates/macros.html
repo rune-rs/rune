@@ -1,12 +1,12 @@
-{% macro mini_logo(classes, title, siteurl, logourl) %}
+{% component mini_logo(classes, title, siteurl, logourl) %}
 <img class="mini-logo {{ classes }}" src="{{siteurl}}/img/{{logourl}}"></img>
 <span class="mini-logo-title">
     <a href="{{siteurl}}">{{title}}</a>
 </span>
-{% endmacro mini_logo %}
+{% endcomponent %}
 
 <!-- classes=any extra styling, bsize=buttonsize, extra=config.extra, siteurl=config.base_url -->
-{% macro social_list(classes, bsize, extra, rss, siteurl) %}
+{% component social_list(classes, bsize, extra, rss, siteurl) %}
 <ul class="social-list {{classes}}" >
     {% if extra.website %}
     <li class="button {{bsize}} font_faint"><a href="https://{{extra.website}}" target="_blank">{{extra.website}}</a></li>
@@ -40,14 +40,14 @@
     {% endif %}
 
     <li class="button {{bsize}} font_faint">
-        <a title="rust api docs" href="{{config.base_url}}/api/rune/">
+        <a title="rust api docs" href="{{siteurl}}/api/rune/">
             <i class="fab fa-rust"></i>
             rust docs (git)
         </a>
     </li>
 
     <li class="button {{bsize}} font_faint">
-        <a title="rune docs" href="{{config.base_url}}/docs/">
+        <a title="rune docs" href="{{siteurl}}/docs/">
             <i class="fa fa-book"></i>
             rune docs (git)
         </a>
@@ -62,9 +62,9 @@
     </li>
     {% endif %}
 </ul>
-{% endmacro social_list %}
+{% endcomponent %}
 
-{% macro frontmatter(classes, author, date, word_count, read_time) %}
+{% component frontmatter(classes, author, date, word_count, read_time) %}
 <ul class="frontmatter {{classes}}" id="frontmatter">
     {% if author %}
     <li>{{author}}</li>
@@ -78,14 +78,44 @@
     <span class="dot-divider" ></span>
     <li> {{read_time}} min </li>
 </ul>
-{% endmacro frontmatter %}
+{% endcomponent %}
 
-{%macro nav() %}
+{% component site_nav(base_url) %}
 <nav>
-    <a href="{{config.base_url}}">Home</a>
+    <a href="{{base_url}}">Home</a>
     <span class="dot-divider"></span>
-    <a href="{{config.base_url}}/posts/">Posts</a>
+    <a href="{{base_url}}/posts/">Posts</a>
     <span class="dot-divider"></span>
-    <a href="{{config.base_url}}/play/">Playground</a>
+    <a href="{{base_url}}/play/">Playground</a>
 </nav>
-{% endmacro nav %}
+{% endcomponent %}
+
+{% component rune(footnote="", manually=false, run=false, options="", instructions="", rune_config="") %}
+<div class="rune big"
+rune-update-url="false"
+rune-run-on-change="{% if manually %}false{% else %}true{% endif %}"
+rune-run-button="{% if run %}true{% else %}false{% endif %}"
+rune-options="{% if options %}{{options}}{% endif %}"
+rune-instructions="{% if instructions %}{{instructions}}{% endif %}"
+rune-config="{% if rune_config %}{{rune_config}}{% endif %}"
+>
+<div class="rune-editor">{{ body }}</div>
+<div class="rune-console">
+<div class="rune-control">
+<button class="rune-button rune-run">Run</button>
+<label class="rune-option">
+<input class="rune-checkbox instructions" type="checkbox" title="Show compiled instructions"></input>
+Instructions
+</label>
+<label class="rune-option">
+<input class="rune-checkbox run-on-change" type="checkbox" title="Show compiled instructions"></input>
+Run on change
+</label>
+</div>
+<div class="rune-output primary"></div>
+<div class="rune-output diagnostics"></div>
+<div class="rune-output instructions"></div>
+</div>
+{% if footnote %}<div class="rune-footnote">{{footnote}}</div>{% endif %}
+</div>
+{% endcomponent %}

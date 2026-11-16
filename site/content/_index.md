@@ -13,7 +13,7 @@ Rune prioritized excellent support for `async` with support for async functions,
 [closures], [blocks], and [generators]. And native support for [`select`], a
 popular control flow mechanism for asynchronous code.
 
-{% rune(footnote = "Asynchronous programming using select", manually = true) %}
+{% <rune footnote="Asynchronous programming using select" manually={true}> %}
 use std::future;
 
 struct Timeout;
@@ -37,7 +37,7 @@ pub async fn main() {
     let result = future::join((request(0), request(1500))).await;
     dbg(result);
 }
-{% end %}
+{% </rune> %}
 
 [closures]: https://rune-rs.github.io/book/async.html#async-closures
 [blocks]: https://rune-rs.github.io/book/async.html#async-blocks
@@ -49,7 +49,7 @@ pub async fn main() {
 Rune has support for constant evaluation using the `const` keyword. Which
 can perform complex work at compile time.
 
-{% rune(footnote = "VALUE and LIMIT is calculated once, reducing the work needed at runtime") %}
+{% <rune footnote="VALUE and LIMIT is calculated once, reducing the work needed at runtime"> %}
 const BASE = 10;
 const LIMIT = 0b1 << 10;
 
@@ -66,4 +66,4 @@ const VALUE = {
 pub fn main() {
     dbg(VALUE, LIMIT);
 }
-{% end %}
+{% </rune> %}

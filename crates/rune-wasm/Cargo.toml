@@ -18,20 +18,16 @@ rune-macros = { version = "=0.15.0", path = "../rune-macros" }
 rune-modules = { version = "0.15.0", path = "../rune-modules", features = ["core", "test", "json", "toml", "rand"] }
 
 serde = { version = "1.0.163", features = ["derive"] }
-wasm-bindgen = { version = "0.2.100", features = ["serde-serialize"] }
-wasm-bindgen-futures = "0.4.35"
-js-sys = "0.3.62"
-anyhow = "1.0.71"
-gloo-utils = "0.3.0"
+wasm-bindgen = { version = "=0.2.130", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.80"
+js-sys = "0.3.107"
+anyhow = "1.0.104"
+gloo-utils = "0.3.1"
 
 [dependencies.web-sys]
-version = "0.3.62"
+version = "0.3.107"
 features = ["Request", "Response", "Window", "RequestInit", "RequestMode"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 path = "src/lib.rs"
-
-[package.metadata.wasm-pack.profile.release]
-# Note: doesn't work
-wasm-opt = false

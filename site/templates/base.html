@@ -1,4 +1,3 @@
-{% import "macros.html" as macros %}
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -7,7 +6,7 @@
         <meta http-equiv="content-type" content="text/html; charset=utf-8">
 
         <!-- SEO -->
-        {% if page.title %}
+        {% if page is defined and page.title %}
         <title> {{ page.title }} | {{ config.title }} </title>
         {% else %}
         <title> {{ config.title }} </title>
@@ -42,9 +41,9 @@
   
           <h2 class="site-title">{{config.title}}</h2>
 
-          {{ macros::nav() }}
+          {{ <site_nav base_url={config.base_url} /> }}
 
-          {{ macros::social_list(classes="head-list", bsize="extra-small", extra=config.extra, siteurl=config.base_url, rss=config.generate_feed) }}
+          {{ <social_list classes="head-list" bsize="extra-small" extra={config.extra} siteurl={config.base_url} rss={config.generate_feeds} /> }}
         </header>
       {% endblock header %}
 
@@ -53,7 +52,7 @@
 
       {% block footer %}
         <footer>
-          {{ macros::social_list(classes="foot-list", bsize="extra-small", extra=config.extra, siteurl=config.base_url, rss=config.generate_feed) }}
+          {{ <social_list classes="foot-list" bsize="extra-small" extra={config.extra} siteurl={config.base_url} rss={config.generate_feeds} /> }}
         </footer>
       {% endblock footer %}
     </body>

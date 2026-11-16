@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% import "macros.html" as macros %}
 
 
 {% block content %}
@@ -10,9 +9,9 @@
           <a href="{{page.permalink}}"  id="article-link" >{{page.title}}</a>
         </h1>
           {% if page.date %}
-            {{ macros::frontmatter(classes="", author=page.extra.author, date=page.date, word_count=page.word_count, read_time=page.reading_time) }}
+            {{ <frontmatter classes="" author={page.extra.author} date={page.date} word_count={page.word_count} read_time={page.reading_time} /> }}
           {% else %}
-            {{ macros::frontmatter(classes="", author=page.extra.author, date="", word_count=page.word_count, read_time=page.reading_time) }}
+            {{ <frontmatter classes="" author={page.extra.author} date="" word_count={page.word_count} read_time={page.reading_time} /> }}
           {% endif %}
           {% if page.summary %}
             <p class="article_content">{{ page.summary | safe }}</p>

@@ -3,7 +3,9 @@ use rune::{Any, ContextError, Module, VmError};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-#[wasm_bindgen(module = "/module.js")]
+#[wasm_bindgen(
+    inline_js = "export function js_sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }"
+)]
 extern "C" {
     fn js_sleep(ms: i32) -> Promise;
 }

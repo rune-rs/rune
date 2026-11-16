@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-reqwest = { version = "0.13.1", features = ["blocking"] }
-anyhow = "1.0.71"
-flate2 = "1.0.26"
-tar = "0.4.38"
+reqwest = { version = "0.13.5", features = ["blocking"] }
+anyhow = "1.0.104"
+flate2 = "1.1.11"
+tar = "0.4.46"

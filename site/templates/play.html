@@ -1,13 +1,12 @@
 {% extends "base.html" %}
-{% import "macros.html" as macros %}
 
 {% block header %}
   <header class="header-small">
     <nav id="overlord" class="overlord" >
-      {{ macros::mini_logo(classes="", title=config.title, siteurl=config.base_url, logourl=config.extra.profile) }}
+      {{ <mini_logo classes="" title={config.title} siteurl={config.base_url} logourl={config.extra.profile} /> }}
     </nav>
 
-    {{ macros::nav() }}
+    {{ <site_nav base_url={config.base_url} /> }}
   </header>
 {% endblock header %}
 
