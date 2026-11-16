@@ -1,7 +1,8 @@
-import wasm from "./Cargo.toml";
+const rune = {
+    module: null,
+    async init() {
+        this.module = await import("./Cargo.toml");
+    },
+};
 
-export async function init() {
-    module = await wasm();
-}
-
-export var module = null;
+globalThis.rune = rune;

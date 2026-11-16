@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "description": "A WASM module for the Rune Language, an embeddable dynamic programming language for Rust.",
   "main": "rollup.config.mjs",
-  "dependencies": {},
   "devDependencies": {
-    "@wasm-tool/rollup-plugin-rust": "^2.3.3",
-    "rollup": "^3.29.5"
+    "@wasm-tool/rollup-plugin-rust": "^3.1.6",
+    "binaryen": "^132.0.0",
+    "rollup": "^4.68.4"
   },
   "scripts": {
     "build": "rollup -c"

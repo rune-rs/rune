@@ -1,16 +1,17 @@
 import rust from "@wasm-tool/rollup-plugin-rust";
- 
+
 export default {
     input: "rune.js",
     output: {
         dir: "../../site/static/js",
-        format: "iife",
-        name: "rune",
+        format: "es",
         sourcemap: true,
     },
     plugins: [
         rust({
-            serverPath: "/js/"
+            extraArgs: {
+                wasmOpt: ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int", "--enable-sign-ext", "--enable-mutable-globals", "--enable-reference-types", "--enable-multivalue"],
+            },
         }),
     ],
 };
