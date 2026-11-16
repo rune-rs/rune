@@ -472,23 +472,88 @@ nav.pagination {
     }
 
     &-editor {
-        display: block;
-        width: 100%;
+        display: grid;
         font-size: $editor-font-size;
+        background-color: $editor-background;
+    }
 
-        .error {
-            position: absolute;
-            background-color: $error-color;
-        }
+    &-highlight,
+    &-input {
+        grid-area: 1 / 1;
+        box-sizing: border-box;
+        width: 100%;
+        min-height: calc(#{$editor-min-lines} * #{$editor-line-height} + 2 * #{$editor-padding});
+        margin: 0;
+        padding: $editor-padding;
+        border: 0;
+        border-radius: 0;
+        font-family: $monospace-font-stack;
+        font-size: inherit;
+        line-height: $editor-line-height;
+        letter-spacing: normal;
+        tab-size: $editor-tab-size;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
 
-        .warning {
-            position: absolute;
-            border-bottom: 2px solid $warning-color;
+    &-highlight {
+        color: $editor-text;
+        background-color: transparent;
+        pointer-events: none;
+    }
+
+    &-input {
+        align-self: stretch;
+        overflow: hidden;
+        resize: none;
+        outline: none;
+        color: transparent;
+        background-color: transparent;
+        caret-color: $editor-caret;
+
+        &::selection {
+            background-color: $editor-selection;
         }
     }
 
-    &-instructions {
-        display: inline-block;
+    &-token {
+        &.keyword { color: $syntax-keyword; }
+        &.number { color: $syntax-number; }
+        &.string,
+        &.char,
+        &.byte,
+        &.template { color: $syntax-string; }
+        &.comment { color: $syntax-comment; font-style: italic; }
+        &.doc-comment { color: $syntax-doc-comment; font-style: italic; }
+        &.attribute { color: $syntax-attribute; }
+        &.macro { color: $syntax-macro; }
+        &.punctuation { color: $syntax-punctuation; }
+        &.operator { color: $syntax-operator; }
+        &.error { color: $syntax-error; }
+    }
+
+    &-mark {
+        text-decoration-line: underline;
+        text-decoration-style: wavy;
+        text-decoration-skip-ink: none;
+
+        &.error { text-decoration-color: $console-error; }
+        &.warning { text-decoration-color: $warning-color; }
+    }
+
+    &-diagnostic {
+        padding: $control-gap $editor-padding;
+        font-family: $monospace-font-stack;
+        font-size: $console-font-size;
+        white-space: pre-wrap;
+        background-color: $console-background;
+        border-left: 3px solid $console-error;
+        color: $console-error;
+
+        &.warning {
+            border-left-color: $warning-color;
+            color: $warning-color;
+        }
     }
 
     &-console {
@@ -585,21 +650,10 @@ nav.pagination {
         }
     }
 
-    &-title {
-        font-family: monospace;
-        color: $accent2;
-        margin: 0;
-        margin-bottom: 5px;
-    }
-
     &-footnote {
         padding: 4px 0px;
         font-size: 0.7em;
         text-align: center;
-    }
-
-    .hidden {
-        display: none;
     }
 }
 

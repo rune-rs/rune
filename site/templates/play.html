@@ -14,24 +14,6 @@
 
 <div class="rune" rune-update-url="true" rune-run-on-change="true">
   <div class="rune-editor">{{config.extra.playground}}</div>
-  <div class="rune-console">
-    <div class="rune-control">
-      <button class="rune-button rune-run">Run</button>
-
-      <label class="rune-option">
-        <input class="rune-checkbox instructions" type="checkbox" title="Show compiled instructions"></input>
-        Instructions
-      </label>
-
-      <label class="rune-option">
-        <input class="rune-checkbox run-on-change" type="checkbox" title="Run the code while typing"></input>
-        Run on change
-      </label>
-    </div>
-    <div class="rune-output primary"></div>
-    <div class="rune-output diagnostics"></div>
-    <div class="rune-output instructions"></div>
-  </div>
 </div>
 
 {% endblock content %}

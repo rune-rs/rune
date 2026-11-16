@@ -43,6 +43,7 @@ use rune::{Context, ContextError, Options, Vm};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+mod editor;
 mod http;
 mod time;
 
@@ -88,6 +89,8 @@ enum WasmDiagnosticKind {
 #[derive(Serialize)]
 struct WasmDiagnostic {
     kind: WasmDiagnosticKind,
+    #[serde(skip)]
+    span: (usize, usize),
     start: WasmPosition,
     end: WasmPosition,
     message: String,
@@ -160,14 +163,8 @@ fn setup_context(io: &CaptureIo) -> Result<Context, ContextError> {
     Ok(context)
 }
 
-async fn inner_compile(
-    input: String,
-    config: JsValue,
-    io: &CaptureIo,
-) -> Result<WasmCompileResult> {
+async fn inner_compile(input: String, config: Config, io: &CaptureIo) -> Result<WasmCompileResult> {
     let instructions = None;
-
-    let config: Config = JsValueSerdeExt::into_serde(&config)?;
     let budget = config.budget.unwrap_or(1_000_000);
 
     let source = rune::Source::new("entry", input)?;
@@ -206,6 +203,7 @@ async fn inner_compile(
 
                         diagnostics.push(WasmDiagnostic {
                             kind: WasmDiagnosticKind::Error,
+                            span: (span.start.into_usize(), span.end.into_usize()),
                             start,
                             end,
                             message: error.to_string(),
@@ -227,6 +225,7 @@ async fn inner_compile(
 
                                     diagnostics.push(WasmDiagnostic {
                                         kind: WasmDiagnosticKind::Error,
+                                        span: (span.start.into_usize(), span.end.into_usize()),
                                         start,
                                         end,
                                         message: format!("missing function (hash: {hash})"),
@@ -248,6 +247,7 @@ async fn inner_compile(
 
                     diagnostics.push(WasmDiagnostic {
                         kind: WasmDiagnosticKind::Warning,
+                        span: (span.start.into_usize(), span.end.into_usize()),
                         start,
                         end,
                         message: warning.to_string(),
@@ -331,6 +331,7 @@ async fn inner_compile(
 
                         diagnostics.push(WasmDiagnostic {
                             kind: WasmDiagnosticKind::Error,
+                            span: (inst.span.start.into_usize(), inst.span.end.into_usize()),
                             start,
                             end,
                             message: error.to_string(),
@@ -371,14 +372,24 @@ fn diagnostics_output(writer: termcolor::Buffer) -> Option<String> {
     Some(string)
 }
 
-#[wasm_bindgen]
-pub async fn compile(input: String, config: JsValue) -> JsValue {
+async fn compile_with(input: String, config: Result<Config>) -> WasmCompileResult {
     let io = CaptureIo::new();
 
-    let result = match inner_compile(input, config, &io).await {
+    let result = match config {
+        Ok(config) => inner_compile(input, config, &io).await,
+        Err(error) => Err(error),
+    };
+
+    match result {
         Ok(result) => result,
         Err(error) => WasmCompileResult::from_error(&io, error, None, Vec::new(), None),
-    };
+    }
+}
+
+#[wasm_bindgen]
+pub async fn compile(input: String, config: JsValue) -> JsValue {
+    let config = JsValueSerdeExt::into_serde(&config).map_err(anyhow::Error::from);
+    let result = compile_with(input, config).await;
 
     <JsValue as JsValueSerdeExt>::from_serde(&result).unwrap()
 }
