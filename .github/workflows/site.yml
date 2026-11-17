@@ -17,10 +17,7 @@ jobs:
     - uses: peaceiris/actions-mdbook@v1
       with:
         mdbook-version: latest
-    - run: cargo run -p wasm
-    - run: cargo run --manifest-path tools/site/Cargo.toml -- -r site build -o target/site
-      env:
-        ZOLA_URL: "https://github.com/getzola/zola/releases/download/v0.23.6/zola-v0.23.6-x86_64-unknown-linux-gnu.tar.gz"
+    - run: cargo run -p site -- build -o target/site
     - run: cargo run --bin rune -- doc --output target/site/docs
       env:
         RUST_LOG: rune=info
