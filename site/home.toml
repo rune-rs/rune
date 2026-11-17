@@ -1,0 +1,292 @@
+# The front page. Text is markdown; every `source` is a runnable Rune program.
+
+[hero]
+eyebrow = "An embeddable dynamic language for Rust"
+headline = "Scripting that feels like Rust."
+lead = "Rune gives your Rust application a fast, async-first scripting language with the syntax your team already knows. Embed it in a few lines, then let your users program it."
+install = "cargo add rune"
+file = "ship.rn"
+source = """
+struct Ship {
+    name,
+    fuel,
+}
+
+impl Ship {
+    fn fly(self, distance) {
+        if distance > self.fuel {
+            return Err(`${self.name} is out of fuel`);
+        }
+
+        self.fuel -= distance;
+        Ok(self.fuel)
+    }
+}
+
+pub fn main() {
+    let ship = Ship { name: "Rocinante", fuel: 100 };
+
+    let left = ship.fly(60)?;
+    println!("{} has {} fuel left", ship.name, left);
+
+    ship.fly(60)
+}
+"""
+
+[[features]]
+icon = "code"
+title = "Looks like Rust"
+text = "Structs, enums, pattern matching, closures, modules and the `?` operator, without types to annotate or a borrow checker to satisfy."
+
+[[features]]
+icon = "async"
+title = "Async from the start"
+text = "Async functions, closures and blocks, `select`, generators and streams are part of the language, and the host awaits a script like any other future."
+
+[[features]]
+icon = "plug"
+title = "Embeds cleanly"
+text = "Expose Rust functions and types through a `Module`, call into scripts with `vm.call`, convert values with serde, and reload scripts while the host keeps running."
+
+[[features]]
+icon = "shield"
+title = "Limits the host controls"
+text = "Instruction budgets, memory limits and a bounded compiler keep a script within what its host allows, on the way to a full sandbox."
+
+[[features]]
+icon = "zap"
+title = "Compact and fast"
+text = "Scripts compile to a compact representation for a stack-based virtual machine, constants are evaluated at compile time, and a compiled unit can run on many threads at once."
+
+[[features]]
+icon = "tool"
+title = "Tooling included"
+text = "The `rune` CLI comes with a language server, a formatter, a documentation generator and a test runner, and there is an extension for VS Code."
+
+[[examples]]
+title = "Pattern matching"
+text = "Enums with data, guards and destructuring. If you can read Rust, you can already read Rune."
+source = """
+enum Shape {
+    Circle(r),
+    Rect { w, h },
+}
+
+fn describe(shape) {
+    match shape {
+        Shape::Circle(r) => `a circle with area ${3.14 * r * r}`,
+        Shape::Rect { w, h } if w == h => `a square with area ${w * h}`,
+        Shape::Rect { w, h } => `a ${w} by ${h} rectangle`,
+    }
+}
+
+pub fn main() {
+    let shapes = [
+        Shape::Circle(2.0),
+        Shape::Rect { w: 3, h: 3 },
+        Shape::Rect { w: 2, h: 5 },
+    ];
+
+    for shape in shapes {
+        println!("{}", describe(shape));
+    }
+}
+"""
+
+[[examples]]
+title = "Generators"
+text = "A function which `yield`s is a generator: an infinite sequence, computed only as far as it is used."
+source = """
+fn fibonacci() {
+    let a = 0;
+    let b = 1;
+
+    loop {
+        yield a;
+        let next = a + b;
+        a = b;
+        b = next;
+    }
+}
+
+pub fn main() {
+    let evens = [];
+
+    for n in fibonacci() {
+        if n > 1000 {
+            break;
+        }
+
+        if n % 2 == 0 {
+            evens.push(n);
+        }
+    }
+
+    evens
+}
+"""
+
+[[examples]]
+title = "Closures & iterators"
+text = "Closures capture their environment, and iterators chain the way they do in Rust."
+source = """
+pub fn main() {
+    let words = ["rune", "is", "a", "dynamic", "language", "for", "rust"];
+
+    let shout = words
+        .iter()
+        .filter(|w| w.len() > 3)
+        .map(|w| w.to_uppercase())
+        .collect::<Vec>();
+
+    let scale = 3;
+    let triple = |n| n * scale;
+
+    println!("{:?}", shout);
+    (1..=5).iter().map(triple).sum::<i64>()
+}
+"""
+
+[[examples]]
+title = "Async & select"
+text = "`async` functions, `.await`, `join` and `select` are part of the language, not a library bolted on."
+source = """
+use std::future;
+
+async fn fetch(name, steps) {
+    let total = 0;
+
+    for n in 0..steps {
+        total += n;
+    }
+
+    `${name}: ${total}`
+}
+
+pub async fn main() {
+    let (a, b) = future::join((fetch("users", 100), fetch("posts", 10))).await;
+    println!("{a}, {b}");
+
+    let first = select {
+        value = fetch("cache", 1) => value,
+        value = fetch("database", 1000) => value,
+    };
+
+    first
+}
+"""
+
+[[examples]]
+title = "Dynamic objects"
+text = "Objects, vectors and tuples are built in, so scripts can shape data as they go. They convert to and from Rust with serde."
+source = """
+pub fn main() {
+    let config = #{
+        name: "rune",
+        version: (0, 15),
+        features: ["async", "macros", "templates"],
+    };
+
+    config.features.push("generators");
+    config.stable = true;
+
+    for (key, value) in config {
+        println!("{key} = {value:?}");
+    }
+
+    config.features.len()
+}
+"""
+
+[[examples]]
+title = "Compile-time constants"
+text = "A constant can be computed by running code in the compiler, so the work is done once rather than every call."
+source = """
+const PRIMES = {
+    let primes = [];
+    let n = 2;
+
+    while primes.len() < 10 {
+        let prime = true;
+
+        for p in primes {
+            if n % p == 0 {
+                prime = false;
+                break;
+            }
+        }
+
+        if prime {
+            primes.push(n);
+        }
+
+        n += 1;
+    }
+
+    primes
+};
+
+pub fn main() {
+    println!("Computed once, at compile time:");
+    PRIMES
+}
+"""
+
+[safeguards]
+eyebrow = "Safeguards"
+title = "Go ahead, try to hang it."
+text = "Every script on this site runs with a budget of a million instructions, so this endless loop stops with an error instead of freezing the page. The budget is one of several limits a host sets around a script."
+source = """
+pub fn main() {
+    let n = 0;
+
+    loop {
+        n += 1;
+    }
+}
+"""
+note = "The goal is for a host to be able to run code it does not trust. Rune is not there yet: a limit holds only where the native functions a host exposes cooperate with it, so those still need vetting, and these safeguards are younger than the rest of the language."
+
+[[safeguards.points]]
+title = "Instruction budgets"
+text = "A host decides how many instructions a script may run. Native functions which loop draw from the same budget, so calling into Rust does not escape it."
+
+[[safeguards.points]]
+title = "Memory limits"
+text = "Everything the language allocates goes through fallible collections, so a host can cap the memory a script uses while it is compiled and while it runs."
+
+[[safeguards.points]]
+title = "A bounded compiler"
+text = "Nesting depth, macro expansion and constant evaluation each have a limit, so a source file cannot make the compiler run away."
+
+[[safeguards.points]]
+title = "No stack overflows from data"
+text = "Comparing, hashing, formatting and dropping deeply nested values either works without recursion or ends in an error, rather than overflowing the host's stack."
+
+[embed]
+eyebrow = "Embedding"
+title = "A few lines of Rust."
+text = "Install the modules you want scripts to see, compile a script, and call into it. Native functions are plain Rust closures, and values cross the boundary with `rune::from_value` and `rune::to_value`."
+code = """
+use rune::{Context, Module, Source, Sources};
+
+let mut module = Module::new();
+module.function("greet", |name: String| format!("Hello, {name}!")).build()?;
+
+let mut context = Context::with_default_modules()?;
+context.install(module)?;
+
+let mut sources = Sources::new();
+sources.insert(Source::memory("pub fn main(user) { greet(user) }")?)?;
+
+let mut vm = rune::prepare(&mut sources)
+    .with_context(&context)
+    .build_vm()?;
+
+let output: String = rune::from_value(vm.call(["main"], ("Ferris",))?)?;
+assert_eq!(output, "Hello, Ferris!");
+"""
+
+[closing]
+title = "Ready to write some Rune?"
+text = "Start in the playground, learn the language from the book, or come and say hello on Discord."

@@ -4,9 +4,10 @@ use rune::highlight::{highlight, Class};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlDocument, HtmlTextAreaElement, KeyboardEvent, UrlSearchParams};
+use web_sys::{HtmlDocument, HtmlTextAreaElement, KeyboardEvent, MouseEvent, UrlSearchParams};
 use yew::prelude::*;
 
+use crate::listing::Row;
 use crate::{compile_with, Config, WasmCompileResult, WasmDiagnosticKind};
 
 const BUDGET: usize = 1_000_000;
@@ -20,9 +21,13 @@ pub struct Props {
     /// lines of an embedded snippet which start with `# `.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub prelude: String,
-    /// Keep the source in the page's `?c=` parameter.
+    /// Load a source shared through the page's `?c=` parameter, and offer to
+    /// share the source as such a link.
     #[serde(default, skip_serializing_if = "is_false")]
-    pub update_url: bool,
+    pub share: bool,
+    /// Keep the source in local storage under this key as it is edited.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_key: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub run_on_change: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -76,8 +81,23 @@ impl Props {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub struct Tip {
+    line: usize,
+    left: f64,
+    top: f64,
+}
+
 pub enum Msg {
     Refresh,
+    /// The textarea scrolled itself, which it must not since the editor
+    /// around it is what scrolls.
+    Unscroll,
+    Tip(Option<Tip>),
+    Share,
+    Reset,
+    /// The instruction row under the pointer.
+    Hover(Option<usize>),
     Input,
     Key(KeyboardEvent),
     Caret,
@@ -96,6 +116,7 @@ struct Mark {
 
 pub struct Editor {
     textarea: NodeRef,
+    editor: NodeRef,
     text: String,
     caret: usize,
     instructions: bool,
@@ -104,6 +125,18 @@ pub struct Editor {
     generation: u64,
     result: Option<Box<WasmCompileResult>>,
     marks: Vec<Mark>,
+    hover: Option<usize>,
+    /// The hovered code should be scrolled into view once it is rendered.
+    reveal: bool,
+    /// The caret should be scrolled into view once the edit is rendered.
+    follow: bool,
+    /// The gutter line whose diagnostics are shown, and where.
+    tip: Option<Tip>,
+    /// A link was just copied.
+    shared: bool,
+    /// The source has changed since the result was produced, so its spans no
+    /// longer point at the right code.
+    stale: bool,
 }
 
 impl Component for Editor {
@@ -115,6 +148,7 @@ impl Component for Editor {
 
         Self {
             textarea: NodeRef::default(),
+            editor: NodeRef::default(),
             text: props.source.clone(),
             caret: 0,
             instructions: false,
@@ -123,6 +157,12 @@ impl Component for Editor {
             generation: 0,
             result: None,
             marks: Vec::new(),
+            hover: None,
+            reveal: false,
+            follow: false,
+            tip: None,
+            shared: false,
+            stale: false,
         }
     }
 
@@ -130,6 +170,14 @@ impl Component for Editor {
     // where the browser-only parts start: the source from the URL, the textarea
     // and the first run.
     fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
+        if std::mem::take(&mut self.reveal) {
+            self.reveal_hover();
+        }
+
+        if std::mem::take(&mut self.follow) {
+            self.follow_caret();
+        }
+
         if !first_render {
             return;
         }
@@ -137,11 +185,19 @@ impl Component for Editor {
         let props = ctx.props();
         let mut changed = false;
 
-        if props.update_url {
-            if let Some(text) = url_content().filter(|text| *text != self.text) {
-                self.text = text;
-                changed = true;
-            }
+        // A shared link wins over what was stored, and is then taken out of
+        // the address so that a reload does not bring it back over later edits.
+        let shared = props.share.then(take_url_content).flatten();
+
+        if let (Some(text), Some(key)) = (&shared, &props.storage_key) {
+            storage::set(key, text);
+        }
+
+        let loaded = shared.or_else(|| props.storage_key.as_deref().and_then(storage::get));
+
+        if let Some(text) = loaded.filter(|text| *text != self.text) {
+            self.text = text;
+            changed = true;
         }
 
         // The textarea is uncontrolled so that the browser keeps its own undo
@@ -160,6 +216,54 @@ impl Component for Editor {
     fn update(&mut self, ctx: &Context<Self>, msg: Msg) -> bool {
         match msg {
             Msg::Refresh => true,
+            Msg::Unscroll => {
+                if let Some(textarea) = self.textarea.cast::<HtmlTextAreaElement>() {
+                    textarea.set_scroll_top(0);
+                    textarea.set_scroll_left(0);
+                }
+
+                false
+            }
+            Msg::Tip(tip) => {
+                let changed = tip != self.tip;
+                self.tip = tip;
+                changed
+            }
+            Msg::Share => {
+                if let Some(url) = share_url(&self.text) {
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.navigator().clipboard().write_text(&url);
+                    }
+
+                    self.shared = true;
+                }
+
+                true
+            }
+            Msg::Reset => {
+                let props = ctx.props();
+                self.text = props.source.clone();
+
+                if let Some(textarea) = self.textarea.cast::<HtmlTextAreaElement>() {
+                    textarea.set_value(&self.text);
+                }
+
+                if let Some(key) = &props.storage_key {
+                    storage::remove(key);
+                }
+
+                self.marks.clear();
+                self.hover = None;
+                self.stale = true;
+                self.run(ctx);
+                true
+            }
+            Msg::Hover(hover) => {
+                let changed = hover != self.hover;
+                self.hover = hover;
+                self.reveal = changed && hover.is_some();
+                changed
+            }
             Msg::Input => {
                 let Some(textarea) = self.textarea.cast::<HtmlTextAreaElement>() else {
                     return false;
@@ -168,6 +272,14 @@ impl Component for Editor {
                 self.text = textarea.value();
                 self.caret = caret(&textarea, &self.text);
                 self.marks.clear();
+                self.hover = None;
+                self.stale = true;
+                self.shared = false;
+                self.follow = true;
+
+                if let Some(key) = &ctx.props().storage_key {
+                    storage::set(key, &self.text);
+                }
 
                 if self.run_on_change {
                     self.run(ctx);
@@ -198,7 +310,8 @@ impl Component for Editor {
                 let caret = caret(&textarea, &self.text);
                 let changed = caret != self.caret;
                 self.caret = caret;
-                changed && !self.marks.is_empty()
+                self.follow = changed;
+                changed
             }
             Msg::Run => {
                 self.run(ctx);
@@ -206,7 +319,14 @@ impl Component for Editor {
             }
             Msg::Instructions(value) => {
                 self.instructions = value;
-                false
+
+                let listed = self.result.as_ref().is_some_and(|r| !r.listing.is_empty());
+
+                if value && !listed {
+                    self.run(ctx);
+                }
+
+                true
             }
             Msg::RunOnChange(value) => {
                 self.run_on_change = value;
@@ -218,6 +338,8 @@ impl Component for Editor {
                 }
 
                 self.running = false;
+                self.stale = false;
+                self.hover = None;
                 self.marks = marks(&result, &self.text);
                 self.result = Some(result);
                 true
@@ -227,6 +349,7 @@ impl Component for Editor {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let link = ctx.link();
+        let props = ctx.props();
 
         let at_caret = self
             .marks
@@ -236,12 +359,17 @@ impl Component for Editor {
 
         html! {
             <>
-            <div class="rune-editor">
-                <pre class="rune-highlight" aria-hidden="true">{self.view_code()}{"\n"}</pre>
+            <div class={classes!("rune-workspace", self.instructions.then_some("with-side"))}>
+            <div class="rune-editor" ref={self.editor.clone()}>
+                <div class="rune-gutter" aria-hidden="true">{self.view_gutter(ctx)}</div>
+                // The spare line keeps the textarea's text inside its box, so
+                // that it never has anything to scroll.
+                <pre class="rune-highlight" aria-hidden="true">{self.view_code()}{"\n "}</pre>
                 <textarea
                     class="rune-input"
                     ref={self.textarea.clone()}
                     rows="1"
+                    wrap="off"
                     spellcheck="false"
                     autocapitalize="off"
                     autocomplete="off"
@@ -249,7 +377,22 @@ impl Component for Editor {
                     onkeydown={link.callback(Msg::Key)}
                     onkeyup={link.callback(|_| Msg::Caret)}
                     onclick={link.callback(|_| Msg::Caret)}
+                    onselect={link.callback(|_| Msg::Caret)}
+                    onscroll={link.callback(|_| Msg::Unscroll)}
                 />
+            </div>
+            {self.view_tip()}
+            // Always present and hidden instead, so that showing it does not
+            // shift the editor among its siblings.
+            <aside class="rune-side" aria-label="Instructions" hidden={!self.instructions}>
+                <div class="rune-side-head">
+                    <span class="rune-side-title">{"Instructions"}</span>
+                    <span class="rune-side-hint">{"Hover one to see its code"}</span>
+                </div>
+                <div class="rune-listing" onmouseleave={link.callback(|_| Msg::Hover(None))}>
+                    {self.view_listing(ctx)}
+                </div>
+            </aside>
             </div>
             // A stable wrapper, since yew matches unkeyed siblings from the end
             // and would otherwise rebuild the textarea when this changes.
@@ -269,6 +412,20 @@ impl Component for Editor {
                             onchange={link.callback(|e: Event| Msg::RunOnChange(checked(&e)))} />
                         {"Run on change"}
                     </label>
+                    if props.share || props.storage_key.is_some() {
+                        <span class="rune-control-end">
+                            if props.storage_key.is_some() && self.text != props.source {
+                                <button class="rune-button quiet" title="Go back to the example this started with"
+                                    onclick={link.callback(|_| Msg::Reset)}>{"Reset"}</button>
+                            }
+                            if props.share {
+                                <button class="rune-button quiet" title="Copy a link to this code"
+                                    onclick={link.callback(|_| Msg::Share)}>
+                                    {if self.shared { "Link copied" } else { "Share" }}
+                                </button>
+                            }
+                        </span>
+                    }
                 </div>
                 {self.view_output()}
             </div>
@@ -280,11 +437,6 @@ impl Component for Editor {
 impl Editor {
     fn run(&mut self, ctx: &Context<Self>) {
         let props = ctx.props();
-
-        if props.update_url {
-            set_url_content(&self.text);
-        }
-
         let mut input = self.text.clone();
 
         if !props.prelude.is_empty() {
@@ -306,10 +458,234 @@ impl Editor {
         });
     }
 
+    /// Scroll the editor, when it scrolls, so that the caret can be seen.
+    /// The textarea is as large as its content and never scrolls itself, so
+    /// the browser does not do this on its own.
+    fn follow_caret(&self) {
+        self.reveal(".rune-caret", 2.0);
+    }
+
+    /// Scroll the editor so that the code the hovered instruction came from
+    /// can be seen.
+    fn reveal_hover(&self) {
+        self.reveal(".rune-hover", 3.0);
+    }
+
+    /// Scroll the editor until the element `selector` finds in the code is
+    /// inside it, with `lines` of it as a margin above and below.
+    fn reveal(&self, selector: &str, lines: f64) {
+        let Some(editor) = self.editor.cast::<web_sys::Element>() else {
+            return;
+        };
+
+        let Ok(Some(target)) = editor.query_selector(selector) else {
+            return;
+        };
+
+        let gutter = editor
+            .query_selector(".rune-gutter")
+            .ok()
+            .flatten()
+            .map_or(0.0, |g| g.get_bounding_client_rect().width());
+
+        let view = editor.get_bounding_client_rect();
+        let target = target.get_bounding_client_rect();
+        let line = target.height().max(16.0);
+        let margin = line * lines;
+
+        let top = view.top() + margin.min(view.height() / 3.0);
+        let bottom = view.bottom() - margin.min(view.height() / 3.0);
+
+        if target.top() < top {
+            editor.set_scroll_top(editor.scroll_top() - (top - target.top()).ceil() as i32);
+        } else if target.bottom() > bottom {
+            editor.set_scroll_top(editor.scroll_top() + (target.bottom() - bottom).ceil() as i32);
+        }
+
+        let left = view.left() + gutter + line;
+        let right = view.right() - line * 2.0;
+
+        if target.left() < left {
+            editor.set_scroll_left(editor.scroll_left() - (left - target.left()).ceil() as i32);
+        } else if target.left() > right {
+            editor.set_scroll_left(editor.scroll_left() + (target.left() - right).ceil() as i32);
+        }
+    }
+
+    /// Line numbers, with the lines which have diagnostics marked by their
+    /// worst kind.
+    fn view_gutter(&self, ctx: &Context<Self>) -> Html {
+        let lines = self.text.split('\n').count();
+        let mut kinds = vec![None::<&'static str>; lines];
+
+        for mark in &self.marks {
+            let line = line_of(&self.text, mark.start).min(lines - 1);
+
+            if kinds[line] != Some("error") {
+                kinds[line] = Some(mark.kind);
+            }
+        }
+
+        let rows = kinds.into_iter().enumerate().map(|(line, kind)| {
+            let Some(kind) = kind else {
+                return html! { <div class="rune-gutter-line">{line + 1}</div> };
+            };
+
+            let onmouseenter = ctx.link().callback(move |event: MouseEvent| {
+                let rect = event
+                    .target()
+                    .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                    .map(|e| e.get_bounding_client_rect());
+
+                Msg::Tip(rect.map(|rect| Tip {
+                    line,
+                    left: rect.right(),
+                    top: rect.top(),
+                }))
+            });
+
+            html! {
+                <div class={classes!("rune-gutter-line", "marked", kind)}
+                    {onmouseenter} onmouseleave={ctx.link().callback(|_| Msg::Tip(None))}>
+                    <span class={classes!("rune-gutter-marker", kind)}></span>
+                    {line + 1}
+                </div>
+            }
+        });
+
+        html! { <>{for rows}</> }
+    }
+
+    /// The diagnostics of the hovered gutter line. It is fixed to the window
+    /// rather than placed in the editor, which would clip it.
+    fn view_tip(&self) -> Html {
+        let messages = self.tip.map(|tip| {
+            self.marks
+                .iter()
+                .filter(|m| line_of(&self.text, m.start) == tip.line)
+                .map(|m| {
+                    html! {
+                        <p class={classes!("rune-tip-message", m.kind)}>{&m.message}</p>
+                    }
+                })
+                .collect::<Html>()
+        });
+
+        let style = self
+            .tip
+            .map(|tip| format!("left: {}px; top: {}px;", tip.left + 8.0, tip.top - 4.0));
+
+        html! {
+            <div class="rune-tip" role="tooltip" hidden={self.tip.is_none()} {style}>
+                {messages.unwrap_or_default()}
+            </div>
+        }
+    }
+
+    /// The span of code the hovered instruction was compiled from, within
+    /// what is shown rather than the hidden prelude.
+    fn hover_span(&self) -> Option<(usize, usize)> {
+        if self.stale {
+            return None;
+        }
+
+        match self.result.as_ref()?.listing.get(self.hover?)? {
+            Row::Inst {
+                span: Some((start, end)),
+                ..
+            } if *start < self.text.len() => Some((*start, (*end).min(self.text.len()))),
+            _ => None,
+        }
+    }
+
+    fn view_listing(&self, ctx: &Context<Self>) -> Html {
+        let Some(result) = &self.result else {
+            return html! { <p class="rune-side-empty">{"Run the program to see what it compiles to."}</p> };
+        };
+
+        if result.listing.is_empty() {
+            return html! { <p class="rune-side-empty">{"Nothing to show: the program did not compile."}</p> };
+        }
+
+        let hovered = match self.hover.and_then(|i| result.listing.get(i)) {
+            Some(Row::Inst {
+                span: Some(span), ..
+            }) => Some(*span),
+            _ => None,
+        };
+
+        let rows = result.listing.iter().enumerate().map(|(index, row)| match row {
+            Row::Function { signature, hash } => html! {
+                <div class="rune-listing-row function">
+                    <span class="rune-inst-keyword">{"fn "}</span>
+                    <span class="rune-inst-function">{signature}</span>
+                    {" "}
+                    <span class="rune-inst-hash">{hash}</span>
+                </div>
+            },
+            Row::Label { name } => html! {
+                <div class="rune-listing-row label">{name}{":"}</div>
+            },
+            Row::Inst {
+                ip,
+                op,
+                args,
+                comment,
+                span,
+            } => {
+                let current = self.hover == Some(index);
+                let related = !current && span.is_some() && *span == hovered;
+
+                let args = args.iter().enumerate().map(|(n, arg)| {
+                    html! {
+                        <>
+                        if n > 0 {
+                            <span class="rune-inst-punctuation">{", "}</span>
+                        }
+                        if !arg.key.is_empty() {
+                            <span class="rune-inst-key">{&arg.key}{"="}</span>
+                        }
+                        <span class={classes!("rune-inst-value", value_class(&arg.value))}>{&arg.value}</span>
+                        </>
+                    }
+                });
+
+                let class = classes!(
+                    "rune-listing-row",
+                    "inst",
+                    current.then_some("hovered"),
+                    related.then_some("related"),
+                    span.is_none().then_some("unmapped"),
+                    self.stale.then_some("stale"),
+                );
+
+                html! {
+                    <div {class} onmouseenter={ctx.link().callback(move |_| Msg::Hover(Some(index)))}>
+                        <span class="rune-inst-ip">{ip}</span>
+                        <span class="rune-inst-op">{op}</span>
+                        {" "}
+                        {for args}
+                        if let Some(comment) = comment {
+                            <span class="rune-inst-comment">{" // "}{comment}</span>
+                        }
+                    </div>
+                }
+            }
+        });
+
+        html! { <>{for rows}</> }
+    }
+
     fn view_code(&self) -> Html {
+        let hover = self.hover_span();
         let text = self.text.as_str();
         let tokens = highlight(text).unwrap_or_default();
         let mut out = Vec::new();
+
+        // An empty element at the caret, which is what following the caret
+        // measures.
+        let caret = self.caret.min(text.len());
+        let mut placed = false;
 
         for token in tokens.iter() {
             let start = token.span.start.into_usize();
@@ -317,12 +693,15 @@ impl Editor {
 
             let mut cuts = vec![start, end];
 
-            for m in &self.marks {
-                cuts.extend(
-                    [m.start, m.end]
-                        .into_iter()
-                        .filter(|&c| start < c && c < end),
-                );
+            let spans = self
+                .marks
+                .iter()
+                .map(|m| (m.start, m.end))
+                .chain(hover)
+                .chain([(caret, caret)]);
+
+            for (a, b) in spans {
+                cuts.extend([a, b].into_iter().filter(|&c| start < c && c < end));
             }
 
             cuts.sort_unstable();
@@ -330,6 +709,11 @@ impl Editor {
 
             for pair in cuts.windows(2) {
                 let (a, b) = (pair[0], pair[1]);
+
+                if a == caret && !placed {
+                    out.push(html! { <span class="rune-caret"></span> });
+                    placed = true;
+                }
 
                 let Some(segment) = text.get(a..b) else {
                     continue;
@@ -346,8 +730,19 @@ impl Editor {
                     None => html,
                 };
 
+                let html = match hover {
+                    Some((start, end)) if start <= a && b <= end => {
+                        html! { <span class="rune-hover">{html}</span> }
+                    }
+                    _ => html,
+                };
+
                 out.push(html);
             }
+        }
+
+        if !placed {
+            out.push(html! { <span class="rune-caret"></span> });
         }
 
         out.into_iter().collect()
@@ -401,14 +796,25 @@ impl Editor {
             None => Html::default(),
         };
 
-        let instructions = match result.instructions.as_deref().filter(|s| !s.is_empty()) {
-            Some(text) => html! {
-                <div class="rune-output instructions">{format!("# instruction\n{text}")}</div>
-            },
-            None => Html::default(),
-        };
+        html! { <>{primary}{diagnostics}</> }
+    }
+}
 
-        html! { <>{primary}{diagnostics}{instructions}</> }
+/// The zero-based line `offset` is on.
+fn line_of(text: &str, offset: usize) -> usize {
+    text.get(..offset)
+        .map_or(0, |before| before.matches('\n').count())
+}
+
+fn value_class(value: &str) -> &'static str {
+    let mut chars = value.chars();
+
+    match (chars.next(), chars.next()) {
+        (Some('0'), Some('x')) => "hash",
+        (Some('"'), _) => "string",
+        (Some(c), _) if c.is_ascii_digit() => "number",
+        (Some('-'), Some(c)) if c.is_ascii_digit() => "number",
+        _ => "plain",
     }
 }
 
@@ -705,10 +1111,11 @@ fn keydown(textarea: &HtmlTextAreaElement, event: &KeyboardEvent) -> bool {
     }
 }
 
-fn url_content() -> Option<String> {
+/// The source in the address's `?c=` parameter, which is then removed.
+fn take_url_content() -> Option<String> {
     let window = web_sys::window()?;
-    let search = window.location().search().ok()?;
-    let params = UrlSearchParams::new_with_str(&search).ok()?;
+    let location = window.location();
+    let params = UrlSearchParams::new_with_str(&location.search().ok()?).ok()?;
     let binary = window.atob(&params.get("c")?).ok()?;
 
     let bytes = binary
@@ -717,32 +1124,65 @@ fn url_content() -> Option<String> {
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
 
+    params.delete("c");
+
+    let rest = String::from(params.to_string());
+    let path = location.pathname().ok()?;
+    let url = if rest.is_empty() {
+        path
+    } else {
+        format!("{path}?{rest}")
+    };
+
+    if let Ok(history) = window.history() {
+        let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(&url));
+    }
+
     String::from_utf8(bytes).ok().filter(|s| !s.is_empty())
 }
 
-fn set_url_content(content: &str) {
-    let Some(window) = web_sys::window() else {
-        return;
-    };
-
-    let Ok(search) = window.location().search() else {
-        return;
-    };
-
-    let Ok(params) = UrlSearchParams::new_with_str(&search) else {
-        return;
-    };
-
+/// A link to this page which loads `content`.
+fn share_url(content: &str) -> Option<String> {
+    let window = web_sys::window()?;
+    let location = window.location();
     let binary = content.bytes().map(char::from).collect::<String>();
+    let encoded = window.btoa(&binary).ok()?;
 
-    let Ok(encoded) = window.btoa(&binary) else {
-        return;
-    };
-
+    let params = UrlSearchParams::new().ok()?;
     params.set("c", &encoded);
 
-    if let Ok(history) = window.history() {
-        let url = format!("?{}", String::from(params.to_string()));
-        let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(&url));
+    Some(format!(
+        "{}{}?{}",
+        location.origin().ok()?,
+        location.pathname().ok()?,
+        String::from(params.to_string())
+    ))
+}
+
+/// Local storage, which may be missing or refuse writes, in which case the
+/// source is simply not kept.
+mod storage {
+    fn storage() -> Option<web_sys::Storage> {
+        web_sys::window()?.local_storage().ok().flatten()
+    }
+
+    pub(super) fn get(key: &str) -> Option<String> {
+        storage()?
+            .get_item(key)
+            .ok()
+            .flatten()
+            .filter(|s| !s.is_empty())
+    }
+
+    pub(super) fn set(key: &str, value: &str) {
+        if let Some(storage) = storage() {
+            let _ = storage.set_item(key, value);
+        }
+    }
+
+    pub(super) fn remove(key: &str) {
+        if let Some(storage) = storage() {
+            let _ = storage.remove_item(key);
+        }
     }
 }

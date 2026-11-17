@@ -5,6 +5,7 @@ mod content;
 mod date;
 mod feed;
 mod highlight;
+mod home;
 mod serve;
 mod wasm;
 
@@ -60,7 +61,11 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Render the site into `out`, leaving the wasm build in `out/js` alone.
+/// What other builds put in the output: the wasm here, and the book and the
+/// generated documentation in the site workflow.
+const KEEP: [&str; 4] = ["js", "book", "docs", "api"];
+
+/// Render the site into `out`, leaving what other builds put there alone.
 pub fn build(site: &Path, out: &Path) -> Result<()> {
     let content = content::load(site)?;
 
@@ -68,7 +73,7 @@ pub fn build(site: &Path, out: &Path) -> Result<()> {
         for entry in fs::read_dir(out)? {
             let entry = entry?;
 
-            if entry.file_name() != "js" {
+            if !KEEP.iter().any(|keep| entry.file_name() == *keep) {
                 let path = entry.path();
 
                 if path.is_dir() {
@@ -160,7 +165,7 @@ fn shell(config: &config::Config, title: Option<&str>, description: Option<&str>
     let description = escape(description.unwrap_or(&config.description));
 
     format!(
-        r#"<!doctype html>
+        r##"<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -170,7 +175,11 @@ fn shell(config: &config::Config, title: Option<&str>, description: Option<&str>
 <meta name="description" content="{description}">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
-<link rel="icon" href="/img/logo.png">
+<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" href="/img/icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1015" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="/style.css">
 <link rel="alternate" type="application/rss+xml" title="{site}" href="/rss.xml">
 <script>try{{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}}catch(e){{}}</script>
@@ -181,7 +190,7 @@ fn shell(config: &config::Config, title: Option<&str>, description: Option<&str>
 <noscript><p class="noscript">This site is an application written in Rust, and needs JavaScript and WebAssembly to run.</p></noscript>
 </body>
 </html>
-"#,
+"##,
         site = escape(&config.title),
     )
 }

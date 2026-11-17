@@ -16,7 +16,8 @@
     --text-l: 1.125rem;
     --text-xl: 1.5rem;
     --text-2xl: 2.25rem;
-    --text-hero: clamp(2.75rem, 7vw, 4.5rem);
+    --text-hero: clamp(2.5rem, 5.5vw, 4.25rem);
+    --text-section: clamp(1.75rem, 3.5vw, 2.5rem);
 
     --space-1: 4px;
     --space-2: 8px;
@@ -56,12 +57,15 @@
     --link-line: #b8c400;
     --focus: #3b82f6;
     --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 4px 16px rgba(16, 24, 40, 0.06);
+    --shadow-lifted: 0 2px 4px rgba(16, 24, 40, 0.04), 0 24px 64px -12px rgba(16, 24, 40, 0.18);
 
     --code-bg: #f5f6f8;
     --code-border: #e3e6eb;
     --code-text: #24292f;
     --code-muted: #6e7781;
     --code-selection: #cfe0ff;
+    --code-hover: rgba(196, 210, 0, 0.38);
+    --code-related: rgba(196, 210, 0, 0.14);
     --console-bg: #eef0f3;
     --error: #c42b2b;
     --warning: #9a6700;
@@ -93,12 +97,17 @@
         --link-line: #9aa600;
         --focus: #6ea8fe;
         --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+        --shadow-lifted: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 64px -12px rgba(0, 0, 0, 0.6);
 
         --code-bg: #141820;
         --code-border: #232a35;
         --code-text: #d6dce5;
         --code-muted: #7d8796;
         --code-selection: #2c3e5c;
+    --code-hover: rgba(240, 254, 58, 0.24);
+    --code-related: rgba(240, 254, 58, 0.08);
+        --code-hover: rgba(240, 254, 58, 0.24);
+        --code-related: rgba(240, 254, 58, 0.08);
         --console-bg: #10141a;
         --error: #ff7b7b;
         --warning: #e3b341;
@@ -130,6 +139,7 @@
     --link-line: #9aa600;
     --focus: #6ea8fe;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    --shadow-lifted: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 64px -12px rgba(0, 0, 0, 0.6);
 
     --code-bg: #141820;
     --code-border: #232a35;
@@ -175,10 +185,17 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
-#app {
+.shell {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+}
+
+/* A page which is the window: nothing scrolls but what is inside it. */
+.shell.fill {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
 }
 
 a {
@@ -191,8 +208,7 @@ img {
 }
 
 ::selection {
-    background-color: var(--accent);
-    color: var(--accent-ink);
+    background-color: var(--code-selection);
 }
 
 :focus-visible {
@@ -260,6 +276,14 @@ main.container {
     flex: 1;
     padding-top: var(--space-7);
     padding-bottom: var(--space-8);
+}
+
+main.container.fill {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
 }
 
 .cluster {
@@ -356,8 +380,12 @@ main.container {
     justify-content: center;
     width: var(--control-height);
     height: var(--control-height);
+    padding: 0;
     color: var(--text-muted);
+    background-color: transparent;
+    border: 0;
     border-radius: var(--radius-full);
+    cursor: pointer;
     transition: color var(--ease), background-color var(--ease);
 }
 
@@ -459,6 +487,12 @@ main.container {
     border-color: var(--accent-ink);
 }
 
+.button.large {
+    height: calc(var(--control-height) + 12px);
+    padding: 0 var(--space-5);
+    font-size: var(--text-m);
+}
+
 .button.small {
     height: var(--control-height-s);
     padding: 0 var(--space-3);
@@ -505,43 +539,316 @@ main.container {
     text-align: center;
 }
 
+.eyebrow {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
 .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    align-items: center;
+    gap: var(--space-7);
+    padding: var(--space-6) 0 var(--space-8);
+}
+
+.hero-pitch {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-5);
+}
+
+.hero-title {
+    margin: 0;
+    font-size: var(--text-hero);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+    color: var(--heading);
+    text-wrap: balance;
+}
+
+.hero-lead {
+    margin: 0;
+    max-width: 34rem;
+    font-size: var(--text-l);
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.hero-demo {
+    --editor-lines: 14;
+    box-shadow: var(--shadow-lifted);
+}
+
+.install {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+    font-family: var(--font-mono);
+    font-size: var(--text-s);
+    background-color: var(--bg-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+}
+
+.install-prompt {
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.install-command {
+    padding: 0;
+    font-size: inherit;
+    color: var(--heading);
+    background-color: transparent;
+    border: 0;
+}
+
+.icon-button.small {
+    width: var(--control-height-s);
+    height: var(--control-height-s);
+}
+
+/* A frame around an editor or a code block, which drop their own. */
+.window {
+    --frame-border: 0;
+    --frame-radius: 0;
+    --code-block-margin: 0;
+
+    overflow: hidden;
+    background-color: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: var(--radius-l);
+}
+
+.window-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--code-border);
+}
+
+.window-dots {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.window-dots > span {
+    width: 10px;
+    height: 10px;
+    background-color: var(--border-strong);
+    border-radius: 50%;
+}
+
+.window-title {
+    font-family: var(--font-mono);
+}
+
+.window-hint {
+    margin-left: auto;
+}
+
+.section {
+    padding: var(--space-8) 0 0;
+}
+
+.section-head {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-6) 0 var(--space-8);
+    max-width: 46rem;
+    margin: 0 auto var(--space-6);
     text-align: center;
 }
 
-.hero-logo {
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow);
-}
-
-.hero-title {
-    margin: var(--space-3) 0 0;
-    font-size: var(--text-hero);
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.04em;
-    color: var(--heading);
-}
-
-.hero-lead {
-    max-width: 30ch;
+.section-title {
     margin: 0;
-    font-size: var(--text-xl);
-    line-height: 1.35;
-    color: var(--text);
+    font-size: var(--text-section);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+    color: var(--heading);
     text-wrap: balance;
 }
 
-.hero-tagline {
-    margin: 0 0 var(--space-4);
-    font-family: var(--font-mono);
-    font-size: var(--text-s);
+.section-lead {
+    margin: 0;
+    font-size: var(--text-l);
     color: var(--text-muted);
+}
+
+.section.split {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: center;
+    gap: var(--space-7);
+}
+
+.split-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.checklist {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.checklist-item {
+    display: flex;
+    gap: var(--space-3);
+    font-size: var(--text-s);
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.checklist-mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    font-size: var(--text-xs);
+    color: var(--accent-ink);
+    background-color: var(--accent);
+    border-radius: 50%;
+}
+
+.checklist-title {
+    color: var(--heading);
+}
+
+.callout {
+    margin: var(--space-2) 0 0;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-s);
+    line-height: 1.6;
+    color: var(--text-muted);
+    background-color: var(--bg-sunken);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius-m) var(--radius-m) 0;
+}
+
+.callout-title {
+    color: var(--heading);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    gap: var(--space-4);
+}
+
+.feature {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-l);
+    color: var(--accent-ink);
+    background-color: var(--accent);
+    border-radius: var(--radius-m);
+}
+
+.feature-title {
+    margin: 0;
+    font-size: var(--text-l);
+    letter-spacing: -0.01em;
+    color: var(--heading);
+}
+
+.feature-text {
+    margin: 0;
+    font-size: var(--text-s);
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.examples {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 920px;
+    margin: 0 auto;
+}
+
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.tab {
+    height: var(--control-height);
+    padding: 0 var(--space-4);
+    font: inherit;
+    font-size: var(--text-s);
+    font-weight: 500;
+    color: var(--text-muted);
+    background-color: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: color var(--ease), background-color var(--ease), border-color var(--ease);
+}
+
+.tab:hover {
+    color: var(--heading);
+    border-color: var(--border-strong);
+}
+
+.tab.active {
+    color: var(--bg);
+    background-color: var(--heading);
+    border-color: var(--heading);
+}
+
+.examples-text {
+    min-height: 3.3em;
+    margin: 0;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.closing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-8);
+    padding: var(--space-8) var(--space-5);
+    text-align: center;
+    background-color: var(--bg-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
 }
 
 .page-head {
@@ -561,6 +868,36 @@ main.container {
     text-wrap: balance;
 }
 
+.page-head.split {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.page-head-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.page-head.compact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-4);
+    margin-bottom: var(--space-3);
+}
+
+.page-title.small {
+    font-size: var(--text-xl);
+}
+
+.page-lead.small {
+    font-size: var(--text-s);
+}
+
 .page-lead {
     margin: 0;
     font-size: var(--text-l);
@@ -577,17 +914,6 @@ main.container {
 
 .back-link:hover {
     color: var(--heading);
-}
-
-.inline-icon {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    color: var(--heading);
-    text-decoration: underline;
-    text-decoration-color: var(--link-line);
-    text-decoration-thickness: 2px;
-    text-underline-offset: 3px;
 }
 
 .meta {
@@ -773,7 +1099,7 @@ main.container {
     border-radius: var(--radius-m);
 }
 
-.prose :not(pre) > code {
+:not(pre) > code {
     padding: 0.1em 0.35em;
     font-family: var(--font-mono);
     font-size: 0.875em;
@@ -791,7 +1117,7 @@ main.container {
 /* Code */
 
 .code-block {
-    margin: 0 0 var(--space-5);
+    margin: var(--code-block-margin, 0 0 var(--space-5));
     padding: var(--space-4);
     overflow-x: auto;
     font-family: var(--font-mono);
@@ -799,18 +1125,13 @@ main.container {
     line-height: 1.6;
     color: var(--code-text);
     background-color: var(--code-bg);
-    border: 1px solid var(--code-border);
-    border-radius: var(--radius-m);
+    border: var(--frame-border, 1px) solid var(--code-border);
+    border-radius: var(--frame-radius, var(--radius-m));
     tab-size: 4;
 }
 
 .code-block code {
     font: inherit;
-}
-
-.code-block ::selection {
-    background-color: var(--code-selection);
-    color: inherit;
 }
 
 /* Classes from syntect, which are prefixed scope names. */
@@ -864,22 +1185,266 @@ main.container {
     text-align: center;
 }
 
+/* Fills what the page leaves, with the editor taking whatever the controls
+   and the output do not, and scrolling inside. */
 .playground {
-    --editor-lines: 22;
+    --editor-flex: 1 1 0;
+    --editor-lines: 8;
+    --output-height: min(30vh, 220px);
+    --stacked-rows: minmax(0, 1fr) minmax(0, 1fr);
+    --side-height: auto;
+
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
 }
 
+.rune-workspace {
+    display: grid;
+    flex: var(--editor-flex, 0 1 auto);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+    background-color: var(--code-bg);
+    border: var(--frame-border, 1px) solid var(--code-border);
+    border-bottom: 0;
+    border-radius: var(--frame-radius, var(--radius-m)) var(--frame-radius, var(--radius-m)) 0 0;
+}
+
+.rune-workspace.with-side {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/*
+ * The gutter and the code side by side. The row is as tall as the code, or
+ * the frame if that is taller, so that the textarea always holds all of its
+ * text and only the editor around it scrolls.
+ */
 .rune-editor {
     display: grid;
+    grid-template-columns: auto minmax(max-content, 1fr);
+    grid-template-rows: minmax(max-content, 1fr);
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
     font-size: var(--text-s);
+}
+
+/* Sized by the editor beside it rather than by its own rows, which scroll. */
+.rune-side {
+    display: flex;
+    flex-direction: column;
+    contain: size;
+    background-color: var(--console-bg);
+    border-left: 1px solid var(--code-border);
+}
+
+.rune-side[hidden] {
+    display: none;
+}
+
+.rune-side-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    border-bottom: 1px solid var(--code-border);
+}
+
+.rune-side-title {
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--code-muted);
+}
+
+.rune-side-hint {
+    color: var(--code-muted);
+}
+
+.rune-side-empty {
+    margin: 0;
+    padding: var(--space-3);
+    font-size: var(--text-s);
+    color: var(--code-muted);
+}
+
+.rune-listing {
+    flex: 1;
+    min-height: 0;
+    padding: var(--space-2) 0;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.75;
+    white-space: pre;
+    color: var(--code-text);
+}
+
+.rune-listing-row {
+    padding: 0 var(--space-3);
+}
+
+.rune-listing-row.function {
+    margin-top: var(--space-3);
+    font-weight: 600;
+}
+
+.rune-listing-row.function:first-child {
+    margin-top: 0;
+}
+
+.rune-listing-row.label {
+    color: var(--syntax-attribute);
+}
+
+.rune-listing-row.inst {
+    padding-left: var(--space-5);
+    cursor: default;
+}
+
+.rune-listing-row.related {
+    background-color: var(--code-related);
+}
+
+.rune-listing-row.hovered {
+    background-color: var(--code-hover);
+}
+
+.rune-listing-row.unmapped,
+.rune-listing-row.stale {
+    opacity: 0.55;
+}
+
+.rune-inst-ip {
+    margin-right: var(--space-3);
+    color: var(--code-muted);
+}
+
+.rune-inst-op,
+.rune-inst-keyword {
+    color: var(--syntax-keyword);
+}
+
+.rune-inst-function {
+    color: var(--syntax-function);
+}
+
+.rune-inst-key,
+.rune-inst-punctuation {
+    color: var(--code-muted);
+}
+
+.rune-inst-value.number {
+    color: var(--syntax-number);
+}
+
+.rune-inst-value.string {
+    color: var(--syntax-string);
+}
+
+.rune-inst-value.hash,
+.rune-inst-hash {
+    color: var(--syntax-macro);
+}
+
+.rune-inst-comment {
+    color: var(--syntax-comment);
+    font-style: italic;
+}
+
+/* A background only, since the span is cut into one element per token. */
+.rune-hover {
+    background-color: var(--code-hover);
+}
+
+.rune-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    grid-area: 1 / 1;
+    padding: var(--space-4) 0;
+    font-family: var(--font-mono);
+    font-size: inherit;
+    line-height: 1.6;
+    color: var(--code-muted);
     background-color: var(--code-bg);
-    border: 1px solid var(--code-border);
-    border-bottom: 0;
-    border-radius: var(--radius-m) var(--radius-m) 0 0;
+    border-right: 1px solid var(--code-border);
+    user-select: none;
+}
+
+.rune-gutter-line {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    min-width: 4.5ch;
+    padding: 0 var(--space-3) 0 var(--space-2);
+}
+
+.rune-gutter-line.marked {
+    cursor: help;
+}
+
+.rune-gutter-line.error {
+    color: var(--error);
+}
+
+.rune-gutter-line.warning {
+    color: var(--warning);
+}
+
+.rune-gutter-marker {
+    width: 8px;
+    height: 8px;
+    background-color: currentColor;
+    border-radius: 50%;
+}
+
+.rune-caret {
+    display: inline;
+}
+
+.rune-tip {
+    position: fixed;
+    z-index: 30;
+    max-width: min(480px, 80vw);
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: var(--code-text);
+    background-color: var(--bg-raised);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-m);
+    box-shadow: var(--shadow);
+    pointer-events: none;
+}
+
+.rune-tip-message {
+    margin: 0;
+}
+
+.rune-tip-message + .rune-tip-message {
+    margin-top: var(--space-2);
+}
+
+.rune-tip-message.error {
+    color: var(--error);
+}
+
+.rune-tip-message.warning {
+    color: var(--warning);
 }
 
 .rune-highlight,
 .rune-input {
-    grid-area: 1 / 1;
+    grid-area: 1 / 2;
     width: 100%;
     min-height: calc(var(--editor-lines, 6) * 1.6em + 2 * var(--space-4));
     margin: 0;
@@ -891,8 +1456,8 @@ main.container {
     line-height: 1.6;
     letter-spacing: normal;
     tab-size: 4;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    white-space: pre;
+    overflow-wrap: normal;
 }
 
 /* Above the input, so that the input's selection is painted under the text. */
@@ -917,7 +1482,7 @@ main.container {
     background-color: var(--code-selection);
 }
 
-.rune-editor:focus-within {
+.rune-workspace:focus-within {
     border-color: var(--border-strong);
 }
 
@@ -956,8 +1521,8 @@ main.container {
     font-size: var(--text-s);
     color: var(--code-text);
     background-color: var(--console-bg);
-    border: 1px solid var(--code-border);
-    border-radius: 0 0 var(--radius-m) var(--radius-m);
+    border: var(--frame-border, 1px) solid var(--code-border);
+    border-radius: 0 0 var(--frame-radius, var(--radius-m)) var(--frame-radius, var(--radius-m));
 }
 
 .rune-control {
@@ -987,6 +1552,23 @@ main.container {
     border-color: var(--accent-ink);
 }
 
+.rune-button.quiet {
+    font-weight: 500;
+    color: var(--code-text);
+    background-color: transparent;
+    border-color: var(--code-border);
+}
+
+.rune-button.quiet:hover {
+    border-color: var(--code-muted);
+}
+
+.rune-control-end {
+    display: inline-flex;
+    gap: var(--space-2);
+    margin-left: auto;
+}
+
 .rune-button:disabled {
     opacity: 0.6;
     cursor: progress;
@@ -1008,7 +1590,7 @@ main.container {
 }
 
 .rune-output {
-    max-height: 40vh;
+    max-height: var(--output-height, 40vh);
     padding: var(--space-3) var(--space-4);
     overflow: auto;
     font-family: var(--font-mono);
@@ -1049,11 +1631,6 @@ main.container {
     box-shadow: inset 3px 0 0 var(--error);
 }
 
-.rune-output.instructions {
-    max-height: 300px;
-    color: var(--code-muted);
-}
-
 /* Narrow screens */
 
 @media (max-width: 720px) {
@@ -1088,8 +1665,27 @@ main.container {
         padding: var(--space-4);
     }
 
-    .hero-lead {
-        font-size: var(--text-l);
+    .section {
+        padding-top: var(--space-7);
+    }
+}
+
+@media (max-width: 960px) {
+    .rune-workspace.with-side {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: var(--stacked-rows, minmax(0, 1fr) auto);
+    }
+
+    .rune-side {
+        height: var(--side-height, min(320px, 35vh));
+        border-top: 1px solid var(--code-border);
+        border-left: 0;
+    }
+
+    .hero,
+    .section.split {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-6);
     }
 }
 

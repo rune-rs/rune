@@ -69,3 +69,28 @@ pub fn github() -> Html {
         </svg>
     }
 }
+
+pub fn copy() -> Html {
+    stroked(html! { <path d="M9 9h11v11H9zM5 15H4V4h11v1" /> })
+}
+
+pub fn check() -> Html {
+    stroked(html! { <path d="M20 6L9 17l-5-5" /> })
+}
+
+/// The icons the front page's content refers to by name.
+pub fn named(name: &str) -> Html {
+    match name {
+        "code" => stroked(html! { <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" /> }),
+        "async" => stroked(html! { <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /> }),
+        "plug" => stroked(html! {
+            <path d="M21 16V8l-9-5-9 5v8l9 5zM3.3 7L12 12l8.7-5M12 22V12" />
+        }),
+        "shield" => stroked(html! { <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /> }),
+        "zap" => stroked(html! { <path d="M13 2L3 14h9l-1 8 10-12h-9z" /> }),
+        "tool" => stroked(html! {
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z" />
+        }),
+        _ => Html::default(),
+    }
+}

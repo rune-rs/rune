@@ -9,11 +9,12 @@ cargo run -p site -- build        # target/site
 ```
 
 - `site.toml` - the title, links and the playground's starting program.
-- `content/index.md` - the front page, below its header.
+- `home.toml` - the front page: its pitch, features and live examples.
 - `content/<name>.md` - a page at `/<name>/`.
 - `content/posts/<date>-<name>.md` - a post at `/posts/<name>/`. Anything else
   in `content/` is copied as is, so a post's images sit next to it.
-- `static/` - copied to the root of the site, including `style.css`.
+- `static/` - copied to the root of the site: `style.css`, the favicon and
+  images.
 
 Pages and posts start with TOML front matter between `+++` lines:
 

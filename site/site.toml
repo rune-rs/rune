@@ -3,16 +3,54 @@ title = "The Rune Programming Language"
 description = "An embeddable dynamic programming language for Rust."
 tagline = "Party dynamically like it's 1995"
 playground = """
-fn fib(n) {
-    if n <= 1 {
-        n
-    } else {
-        fib(n - 1) + fib(n - 2)
+// Welcome to the Rune playground!
+//
+// Everything here runs in your browser and is saved as you type. Tick
+// "Instructions" to see what the code compiles to, then hover an instruction
+// to find the code it came from.
+
+struct Player {
+    name,
+    score,
+}
+
+enum Event {
+    Scored(points),
+    Penalty {
+        reason,
+        points,
+    },
+}
+
+impl Player {
+    fn apply(self, event) {
+        match event {
+            Event::Scored(points) => self.score += points,
+            Event::Penalty { reason, points } => {
+                println!("{} loses {} for {}", self.name, points, reason);
+                self.score -= points;
+            }
+        }
     }
 }
 
 pub fn main() {
-    fib(15)
+    let ferris = Player { name: "Ferris", score: 0 };
+
+    let events = [
+        Event::Scored(10),
+        Event::Penalty { reason: "a late tackle", points: 3 },
+        Event::Scored(25),
+    ];
+
+    for event in events {
+        ferris.apply(event);
+    }
+
+    println!("{} ends on {} points", ferris.name, ferris.score);
+
+    // The last expression is what `main` returns.
+    (1..=5).iter().map(|n| n * n).collect::<Vec>()
 }
 """
 

@@ -47,6 +47,7 @@ mod app;
 pub mod editor;
 mod http;
 mod icons;
+mod listing;
 pub mod model;
 mod theme;
 mod time;
@@ -108,6 +109,7 @@ pub struct WasmCompileResult {
     result: Option<String>,
     output: Option<String>,
     instructions: Option<String>,
+    listing: Vec<listing::Row>,
 }
 
 impl WasmCompileResult {
@@ -117,7 +119,7 @@ impl WasmCompileResult {
         result: String,
         diagnostics_output: Option<String>,
         diagnostics: Vec<WasmDiagnostic>,
-        instructions: Option<String>,
+        (instructions, listing): (Option<String>, Vec<listing::Row>),
     ) -> Self {
         Self {
             error: None,
@@ -126,6 +128,7 @@ impl WasmCompileResult {
             result: Some(result),
             output: io.drain_utf8().ok().map(|s| s.into_std()),
             instructions,
+            listing,
         }
     }
 
@@ -135,7 +138,7 @@ impl WasmCompileResult {
         error: E,
         diagnostics_output: Option<String>,
         diagnostics: Vec<WasmDiagnostic>,
-        instructions: Option<String>,
+        (instructions, listing): (Option<String>, Vec<listing::Row>),
     ) -> Self
     where
         E: fmt::Display,
@@ -147,6 +150,7 @@ impl WasmCompileResult {
             result: None,
             output: io.drain_utf8().ok().map(|s| s.into_std()),
             instructions,
+            listing,
         }
     }
 }
@@ -168,12 +172,12 @@ fn setup_context(io: &CaptureIo) -> Result<Context, ContextError> {
 }
 
 async fn inner_compile(input: String, config: Config, io: &CaptureIo) -> Result<WasmCompileResult> {
-    let instructions = None;
+    let instructions = (None, Vec::new());
     let budget = config.budget.unwrap_or(1_000_000);
 
     let source = rune::Source::new("entry", input)?;
     let mut sources = rune::Sources::new();
-    sources.insert(source)?;
+    let source_id = sources.insert(source)?;
 
     let context = setup_context(io)?;
     let runtime = Arc::try_new(context.runtime()?)?;
@@ -284,11 +288,13 @@ async fn inner_compile(input: String, config: Config, io: &CaptureIo) -> Result<
 
     let instructions = if config.instructions {
         let mut out = termcolor::Buffer::no_color();
-        unit.emit_instructions(&mut out, &sources, false)
+        unit.emit_instructions(&mut out, &sources, true)
             .expect("dumping to string shouldn't fail");
-        Some(diagnostics_output(out).context("Converting instructions to UTF-8")?)
+        let text = diagnostics_output(out).context("Converting instructions to UTF-8")?;
+        let rows = listing::rows(&unit, source_id, &text);
+        (Some(text), rows)
     } else {
-        None
+        (None, Vec::new())
     };
 
     let mut vm = Vm::new(runtime, unit);
@@ -386,7 +392,9 @@ async fn compile_with(input: String, config: Result<Config>) -> WasmCompileResul
 
     match result {
         Ok(result) => result,
-        Err(error) => WasmCompileResult::from_error(&io, error, None, Vec::new(), None),
+        Err(error) => {
+            WasmCompileResult::from_error(&io, error, None, Vec::new(), (None, Vec::new()))
+        }
     }
 }
 

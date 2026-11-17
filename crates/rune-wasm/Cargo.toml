@@ -32,10 +32,13 @@ gloo-net = { version = "0.8.0", default-features = false, features = ["http", "j
 version = "0.3.107"
 features = [
     "Document",
+    "DomRect",
+    "Clipboard",
     "Element",
     "History",
     "HtmlAnchorElement",
     "MouseEvent",
+    "Navigator",
     "InputEvent",
     "HtmlDocument",
     "HtmlInputElement",

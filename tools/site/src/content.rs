@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use rune_wasm::editor;
-use rune_wasm::model::{Block, Document, PostSummary, Site};
+use rune_wasm::model::{self, Block, Document, PostSummary, Site};
 use serde::Deserialize;
 
 use crate::config::Config;
@@ -21,7 +21,7 @@ const WORDS_PER_MINUTE: usize = 200;
 pub struct Content {
     pub config: Config,
     pub site: Site,
-    pub home: Document,
+    pub home: model::Home,
     pub pages: Vec<Entry>,
     pub posts: Vec<Entry>,
     pub assets: Vec<PathBuf>,
@@ -65,11 +65,8 @@ pub fn load(site: &Path) -> Result<Content> {
     let content = site.join("content");
     let highlighter = Highlighter::new();
 
-    let (_, body) = read_markdown(&content.join("index.md"))?;
-    let home = Document {
-        title: None,
-        blocks: render(&highlighter, &body, true)?,
-    };
+    let home: crate::home::Home = read_toml(&site.join("home.toml"))?;
+    let home = home.render(&highlighter)?;
 
     let mut pages = Vec::new();
     let mut posts = Vec::new();
@@ -81,10 +78,6 @@ pub fn load(site: &Path) -> Result<Content> {
 
         if path.extension().is_none_or(|e| e != "md") {
             assets.push(path);
-            continue;
-        }
-
-        if relative == Path::new("index.md") {
             continue;
         }
 
@@ -332,7 +325,8 @@ fn render(highlighter: &Highlighter, markdown: &str, editors: bool) -> Result<Ve
                         props: editor::Props {
                             source,
                             prelude,
-                            update_url: false,
+                            share: false,
+                            storage_key: None,
                             run_on_change: !snippet.manual,
                             options: snippet.options,
                             config,

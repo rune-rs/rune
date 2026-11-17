@@ -14,7 +14,7 @@ use yew_router::prelude::*;
 
 use crate::editor::{self, Editor};
 use crate::icons;
-use crate::model::{Block, Document, PostSummary, Site};
+use crate::model::{self, Block, Document, PostSummary, Site};
 use crate::theme::ThemeToggle;
 
 #[derive(Debug, Clone, PartialEq, Routable)]
@@ -249,7 +249,9 @@ fn Shell(props: &ShellProps) -> Html {
     let route = use_route::<Route>();
     let links = &site.links;
 
-    let wide = matches!(route, Some(Route::Playground));
+    let wide = matches!(route, Some(Route::Playground | Route::Home));
+    // The playground is the window, with nothing below it to scroll to.
+    let fill = matches!(route, Some(Route::Playground));
 
     let nav = |target: Route, label: &'static str| {
         let current = match (&route, &target) {
@@ -266,12 +268,12 @@ fn Shell(props: &ShellProps) -> Html {
     };
 
     html! {
-        <>
+        <div class={classes!("shell", fill.then_some("fill"))}>
         <a class="skip-link" href="#main">{"Skip to content"}</a>
         <header class="site-header">
             <div class="site-header-inner">
                 <Link<Route> to={Route::Home} classes="brand">
-                    <img class="brand-logo" src="/img/logo.png" alt="" width="28" height="28" />
+                    <img class="brand-logo" src="/img/logo-256.png" alt="" width="28" height="28" />
                     <span class="brand-name">{"Rune"}</span>
                 </Link<Route>>
                 <nav class="nav" aria-label="Main">
@@ -287,9 +289,10 @@ fn Shell(props: &ShellProps) -> Html {
                 </div>
             </div>
         </header>
-        <main id="main" class={classes!("container", wide.then_some("wide"))}>
+        <main id="main" class={classes!("container", wide.then_some("wide"), fill.then_some("fill"))}>
             {props.children.clone()}
         </main>
+        if !fill {
         <footer class="site-footer">
             <div class="container wide cluster spread">
                 <nav class="cluster" aria-label="Elsewhere">
@@ -303,7 +306,8 @@ fn Shell(props: &ShellProps) -> Html {
                 <p class="footer-note muted small">{"Rune is dual licensed under MIT or Apache-2.0."}</p>
             </div>
         </footer>
-        </>
+        }
+        </div>
     }
 }
 
@@ -338,30 +342,224 @@ fn loading() -> Html {
 #[function_component]
 fn Home() -> Html {
     let site = use_context::<Rc<Site>>().expect("site context");
-    let document = use_content::<Document>(String::from("/content/home.json"));
+    let home = use_content::<model::Home>(String::from("/content/home.json"));
     use_title(None);
 
-    let body = match &document {
-        Load::Loading => loading(),
-        Load::Ready(document) => blocks("home", document),
-        Load::Missing => missing(),
+    let home = match &home {
+        Load::Loading => return loading(),
+        Load::Missing => return missing(),
+        Load::Ready(home) => home,
     };
+
+    let hero = &home.hero;
+    let links = &site.links;
+
+    let features = home.features.iter().map(|feature| {
+        html! {
+            <article class="card feature">
+                <span class="feature-icon">{icons::named(&feature.icon)}</span>
+                <h3 class="feature-title">{&feature.title}</h3>
+                <p class="feature-text">{raw(&feature.text)}</p>
+            </article>
+        }
+    });
 
     html! {
         <>
         <section class="hero">
-            <img class="hero-logo" src="/img/logo.png" alt="" width="88" height="88" />
-            <h1 class="hero-title">{"Rune"}</h1>
-            <p class="hero-lead">{&site.description}</p>
-            <p class="hero-tagline">{&site.tagline}</p>
-            <div class="cluster center">
-                <Link<Route> to={Route::Playground} classes="button primary">{icons::play()}{"Try it in the playground"}</Link<Route>>
-                <a class="button" href={site.links.book.clone()}>{icons::book()}{"Read the book"}</a>
-                <a class="button" href={site.links.github.clone()}>{icons::github()}{"GitHub"}</a>
+            <div class="hero-pitch">
+                <p class="eyebrow">{&hero.eyebrow}</p>
+                <h1 class="hero-title">{&hero.headline}</h1>
+                <p class="hero-lead">{raw(&hero.lead)}</p>
+                <div class="cluster">
+                    <Link<Route> to={Route::Playground} classes="button primary large">{icons::play()}{"Try it now"}</Link<Route>>
+                    <a class="button large" href={links.book.clone()}>{icons::book()}{"Read the book"}</a>
+                </div>
+                <Install command={hero.install.clone()} />
+            </div>
+            <div class="window hero-demo">
+                <div class="window-bar">
+                    <span class="window-dots" aria-hidden="true"><span /><span /><span /></span>
+                    <span class="window-title">{&hero.file}</span>
+                    <span class="window-hint">{"Edit me"}</span>
+                </div>
+                <Editor ..hero.editor.clone() />
             </div>
         </section>
-        {body}
+
+        <section class="section">
+            <header class="section-head">
+                <p class="eyebrow">{"Why Rune"}</p>
+                <h2 class="section-title">{"Everything you want from a scripting language. Nothing you have to fight."}</h2>
+            </header>
+            <div class="grid">{for features}</div>
+        </section>
+
+        <section class="section">
+            <header class="section-head">
+                <p class="eyebrow">{"Live examples"}</p>
+                <h2 class="section-title">{"Don't take our word for it. Run it."}</h2>
+                <p class="section-lead">{"Every example below compiles and runs right here in your browser, on the same virtual machine you would embed. Change anything you like."}</p>
+            </header>
+            <Examples examples={home.examples.clone()} />
+        </section>
+
+        {showcase(&home.safeguards, "budget.rn")}
+        {showcase(&home.embed, "main.rs")}
+
+        <section class="closing">
+            <h2 class="section-title">{&home.closing.title}</h2>
+            <p class="section-lead">{raw(&home.closing.text)}</p>
+            <div class="cluster center">
+                <Link<Route> to={Route::Playground} classes="button primary large">{icons::play()}{"Open the playground"}</Link<Route>>
+                <a class="button large" href={links.book.clone()}>{icons::book()}{"Read the book"}</a>
+                <a class="button large" href={links.github.clone()}>{icons::github()}{"GitHub"}</a>
+                <a class="button large" href={links.discord.clone()}>{icons::chat()}{"Discord"}</a>
+            </div>
+        </section>
         </>
+    }
+}
+
+fn raw(html: &str) -> Html {
+    Html::from_html_unchecked(html.to_owned().into())
+}
+
+fn showcase(showcase: &model::Showcase, file: &str) -> Html {
+    let demo = match (&showcase.editor, &showcase.code) {
+        (Some(editor), _) => html! {
+            <div class="window">
+                <div class="window-bar">
+                    <span class="window-dots" aria-hidden="true"><span /><span /><span /></span>
+                    <span class="window-title">{file}</span>
+                </div>
+                <Editor ..editor.clone() />
+            </div>
+        },
+        (None, Some(code)) => html! {
+            <div class="window">
+                <div class="window-bar">
+                    <span class="window-dots" aria-hidden="true"><span /><span /><span /></span>
+                    <span class="window-title">{file}</span>
+                </div>
+                {raw(code)}
+            </div>
+        },
+        (None, None) => Html::default(),
+    };
+
+    let points = showcase.points.iter().map(|point| {
+        html! {
+            <li class="checklist-item">
+                <span class="checklist-mark">{icons::check()}</span>
+                <span>
+                    <strong class="checklist-title">{&point.title}</strong>
+                    {" "}{raw(&point.text)}
+                </span>
+            </li>
+        }
+    });
+
+    html! {
+        <section class="section split">
+            <div class="split-text">
+                <p class="eyebrow">{&showcase.eyebrow}</p>
+                <h2 class="section-title">{&showcase.title}</h2>
+                <p class="section-lead">{raw(&showcase.text)}</p>
+                if !showcase.points.is_empty() {
+                    <ul class="checklist">{for points}</ul>
+                }
+                if let Some(note) = &showcase.note {
+                    <p class="callout">
+                        <strong class="callout-title">{"Where this is going. "}</strong>
+                        {raw(note)}
+                    </p>
+                }
+            </div>
+            {demo}
+        </section>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct ExamplesProps {
+    examples: Vec<model::Example>,
+}
+
+#[function_component]
+fn Examples(props: &ExamplesProps) -> Html {
+    let selected = use_state(|| 0usize);
+
+    let tabs = props.examples.iter().enumerate().map(|(index, example)| {
+        let onclick = {
+            let selected = selected.clone();
+            Callback::from(move |_| selected.set(index))
+        };
+
+        let current = *selected == index;
+
+        html! {
+            <button type="button" role="tab" class={classes!("tab", current.then_some("active"))}
+                aria-selected={current.to_string()} {onclick}>
+                {&example.title}
+            </button>
+        }
+    });
+
+    let Some(example) = props.examples.get(*selected) else {
+        return Html::default();
+    };
+
+    html! {
+        <div class="examples">
+            <div class="tabs" role="tablist" aria-label="Examples">{for tabs}</div>
+            <p class="examples-text">{raw(&example.text)}</p>
+            // Keyed, so that each example gets a fresh editor: an editor reads
+            // its source only when it is created.
+            <div class="window" key={*selected}>
+                <Editor ..example.editor.clone() />
+            </div>
+        </div>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct InstallProps {
+    command: String,
+}
+
+#[function_component]
+fn Install(props: &InstallProps) -> Html {
+    let copied = use_state(|| false);
+
+    let onclick = {
+        let copied = copied.clone();
+        let command = props.command.clone();
+
+        Callback::from(move |_| {
+            let Some(window) = web_sys::window() else {
+                return;
+            };
+
+            let _ = window.navigator().clipboard().write_text(&command);
+            copied.set(true);
+        })
+    };
+
+    let label = if *copied {
+        "Copied"
+    } else {
+        "Copy to clipboard"
+    };
+
+    html! {
+        <div class="install">
+            <span class="install-prompt" aria-hidden="true">{"$"}</span>
+            <code class="install-command">{&props.command}</code>
+            <button type="button" class="icon-button small" title={label} aria-label={label} {onclick}>
+                {if *copied { icons::check() } else { icons::copy() }}
+            </button>
+        </div>
     }
 }
 
@@ -387,12 +585,12 @@ fn Posts() -> Html {
 
     html! {
         <>
-        <header class="page-head">
-            <h1 class="page-title">{"Blog"}</h1>
-            <p class="page-lead">
-                {"News and notes from the development of Rune. "}
-                <a class="inline-icon" href="/rss.xml">{icons::rss()}{"Subscribe"}</a>
-            </p>
+        <header class="page-head split">
+            <div class="page-head-text">
+                <h1 class="page-title">{"Blog"}</h1>
+                <p class="page-lead">{"News and notes from the development of Rune."}</p>
+            </div>
+            <a class="button small" href="/rss.xml">{icons::rss()}{"RSS feed"}</a>
         </header>
         <div class="stack">{for posts}</div>
         </>
@@ -454,19 +652,20 @@ fn Playground() -> Html {
 
     let props = editor::Props {
         source: site.playground.trim().to_owned(),
-        update_url: true,
+        share: true,
+        storage_key: Some(String::from("playground")),
         run_on_change: true,
         ..editor::Props::default()
     };
 
     html! {
         <>
-        <header class="page-head">
-            <h1 class="page-title">{"Playground"}</h1>
-            <p class="page-lead">
+        <header class="page-head compact">
+            <h1 class="page-title small">{"Playground"}</h1>
+            <p class="page-lead small">
                 {"Write Rune and run it in your browser. "}
                 <kbd>{"Ctrl"}</kbd>{" + "}<kbd>{"Enter"}</kbd>
-                {" runs it, and the address bar always holds your code, so you can share it."}
+                {" runs it, your code is kept in this browser between visits, and Share copies a link to it."}
             </p>
         </header>
         <div class="playground">
