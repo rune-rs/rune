@@ -1,13 +1,6 @@
 +++
 title = "Hello Internet"
 date = 2020-09-18
-template = "post.html"
-
-[taxonomies]
-categories = []
-tags = ["updates"]
-
-[extra]
 author = "John-John Tedro"
 +++
 
@@ -67,8 +60,8 @@ So now that I've set up the skeleton for it. Let's build something cool!
 
 P.S. And as a final treat, here's a code snippet that you can edit and run! 😊
 
-{% <rune footnote="Showcasing the integrated editor. Neat, huh?"> %}
+```rune { caption = "Showcasing the integrated editor. Neat, huh?" }
 pub fn main() {
     println!("Hello World!");
 }
-{% </rune> %}
+```

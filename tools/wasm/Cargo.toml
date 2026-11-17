@@ -1,9 +1,0 @@
-[package]
-name = "wasm"
-authors = ["John-John Tedro <udoprog@tedro.se>"]
-edition = "2021"
-publish = false
-
-[dependencies]
-anyhow = "1.0.104"
-wasm-bindgen-cli-support = "=0.2.130"

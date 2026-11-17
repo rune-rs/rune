@@ -25,6 +25,8 @@ anyhow = "1.0.104"
 gloo-utils = "0.3.1"
 serde_json = "1.0.154"
 yew = { version = "0.23.0", features = ["csr"] }
+yew-router = "0.20.0"
+gloo-net = { version = "0.8.0", default-features = false, features = ["http", "json"] }
 
 [dependencies.web-sys]
 version = "0.3.107"
@@ -32,6 +34,8 @@ features = [
     "Document",
     "Element",
     "History",
+    "HtmlAnchorElement",
+    "MouseEvent",
     "InputEvent",
     "HtmlDocument",
     "HtmlInputElement",
@@ -44,6 +48,7 @@ features = [
     "RequestInit",
     "RequestMode",
     "Response",
+    "Storage",
     "UrlSearchParams",
     "Window",
 ]

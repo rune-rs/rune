@@ -43,8 +43,12 @@ use rune::{Context, ContextError, Options, Vm};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-mod editor;
+mod app;
+pub mod editor;
 mod http;
+mod icons;
+pub mod model;
+mod theme;
 mod time;
 
 #[derive(Default, Serialize)]

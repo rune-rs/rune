@@ -1,0 +1,24 @@
+base_url = "https://rune-rs.github.io"
+title = "The Rune Programming Language"
+description = "An embeddable dynamic programming language for Rust."
+tagline = "Party dynamically like it's 1995"
+playground = """
+fn fib(n) {
+    if n <= 1 {
+        n
+    } else {
+        fib(n - 1) + fib(n - 2)
+    }
+}
+
+pub fn main() {
+    fib(15)
+}
+"""
+
+[links]
+book = "/book/"
+docs = "/docs/"
+api = "/api/rune/"
+github = "https://github.com/rune-rs/rune"
+discord = "https://discord.gg/v5AeNkT"

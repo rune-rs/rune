@@ -1,9 +1,10 @@
-//! The playground editor, mounted on every `.rune` element of a page.
+//! The playground editor.
 
 use rune::highlight::{highlight, Class};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{Element, HtmlDocument, HtmlTextAreaElement, KeyboardEvent, UrlSearchParams};
+use web_sys::{HtmlDocument, HtmlTextAreaElement, KeyboardEvent, UrlSearchParams};
 use yew::prelude::*;
 
 use crate::{compile_with, Config, WasmCompileResult, WasmDiagnosticKind};
@@ -12,58 +13,32 @@ const BUDGET: usize = 1_000_000;
 const LINE_TRIM: usize = 80;
 const LINES_TRIM: usize = 100;
 
-#[wasm_bindgen(start)]
-pub fn start() {
-    let Some(document) = web_sys::window().and_then(|w| w.document()) else {
-        return;
-    };
-
-    let Ok(nodes) = document.query_selector_all(".rune") else {
-        return;
-    };
-
-    for index in 0..nodes.length() {
-        let Some(root) = nodes.item(index).and_then(|n| n.dyn_into::<Element>().ok()) else {
-            continue;
-        };
-
-        if let Some(props) = Props::take(&document, &root) {
-            let Ok(mount) = document.create_element("div") else {
-                continue;
-            };
-
-            if root.prepend_with_node_1(&mount).is_ok() {
-                yew::Renderer::<Editor>::with_root_and_props(mount, props).render();
-            }
-        }
-    }
+#[derive(Debug, Default, Clone, Properties, PartialEq, Serialize, Deserialize)]
+pub struct Props {
+    pub source: String,
+    /// Code appended to the source when it is run but not shown, from the
+    /// lines of an embedded snippet which start with `# `.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub prelude: String,
+    /// Keep the source in the page's `?c=` parameter.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub update_url: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub run_on_change: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
+    /// Extra JSON merged into the compile configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<String>,
 }
 
-#[derive(Properties, PartialEq)]
-pub struct Props {
-    source: String,
-    prelude: String,
-    update_url: bool,
-    run_on_change: bool,
-    options: Vec<String>,
-    config: Option<String>,
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 impl Props {
-    /// Read the settings off a `.rune` element and remove the markup the
-    /// editor replaces.
-    fn take(document: &web_sys::Document, root: &Element) -> Option<Self> {
-        let editor = root.query_selector(".rune-editor").ok()??;
-        let content = editor.text_content().unwrap_or_default();
-        editor.remove();
-
-        if let Ok(Some(console)) = root.query_selector(".rune-console") {
-            console.remove();
-        }
-
-        let attr = |name: &str| root.get_attribute(name).filter(|v| !v.is_empty());
-        let update_url = attr("rune-update-url").as_deref() == Some("true");
-
+    /// Split a snippet into what is shown and its hidden prelude.
+    pub fn snippet(content: &str) -> (String, String) {
         let mut prelude = Vec::new();
         let mut rest = Vec::new();
 
@@ -78,28 +53,8 @@ impl Props {
             }
         }
 
-        let source = if update_url {
-            url_content(document).unwrap_or_else(|| content.trim_start_matches('\n').to_owned())
-        } else {
-            rest.join("\n").trim_start_matches('\n').to_owned()
-        };
-
-        let options = attr("rune-options")
-            .unwrap_or_default()
-            .split(';')
-            .map(str::trim)
-            .filter(|o| !o.is_empty())
-            .map(str::to_owned)
-            .collect();
-
-        Some(Self {
-            source,
-            prelude: prelude.join("\n"),
-            update_url,
-            run_on_change: attr("rune-run-on-change").as_deref() == Some("true"),
-            options,
-            config: attr("rune-config"),
-        })
+        let source = rest.join("\n").trim_matches('\n').to_owned();
+        (source, prelude.join("\n"))
     }
 
     fn config(&self, instructions: bool) -> anyhow::Result<Config> {
@@ -122,6 +77,7 @@ impl Props {
 }
 
 pub enum Msg {
+    Refresh,
     Input,
     Key(KeyboardEvent),
     Caret,
@@ -157,10 +113,6 @@ impl Component for Editor {
     fn create(ctx: &Context<Self>) -> Self {
         let props = ctx.props();
 
-        if props.run_on_change {
-            ctx.link().send_message(Msg::Run);
-        }
-
         Self {
             textarea: NodeRef::default(),
             text: props.source.clone(),
@@ -174,18 +126,40 @@ impl Component for Editor {
         }
     }
 
-    fn rendered(&mut self, _: &Context<Self>, first_render: bool) {
+    // Nothing here runs when the page is rendered at build time, so this is
+    // where the browser-only parts start: the source from the URL, the textarea
+    // and the first run.
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
+        if !first_render {
+            return;
+        }
+
+        let props = ctx.props();
+        let mut changed = false;
+
+        if props.update_url {
+            if let Some(text) = url_content().filter(|text| *text != self.text) {
+                self.text = text;
+                changed = true;
+            }
+        }
+
         // The textarea is uncontrolled so that the browser keeps its own undo
         // history, which assigning `value` would clear.
-        if first_render {
-            if let Some(textarea) = self.textarea.cast::<HtmlTextAreaElement>() {
-                textarea.set_value(&self.text);
-            }
+        if let Some(textarea) = self.textarea.cast::<HtmlTextAreaElement>() {
+            textarea.set_value(&self.text);
+        }
+
+        if self.run_on_change {
+            ctx.link().send_message(Msg::Run);
+        } else if changed {
+            ctx.link().send_message(Msg::Refresh);
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Msg) -> bool {
         match msg {
+            Msg::Refresh => true,
             Msg::Input => {
                 let Some(textarea) = self.textarea.cast::<HtmlTextAreaElement>() else {
                     return false;
@@ -731,9 +705,9 @@ fn keydown(textarea: &HtmlTextAreaElement, event: &KeyboardEvent) -> bool {
     }
 }
 
-fn url_content(document: &web_sys::Document) -> Option<String> {
+fn url_content() -> Option<String> {
     let window = web_sys::window()?;
-    let search = document.location()?.search().ok()?;
+    let search = window.location().search().ok()?;
     let params = UrlSearchParams::new_with_str(&search).ok()?;
     let binary = window.atob(&params.get("c")?).ok()?;
 

@@ -1,14 +1,6 @@
 +++
 title = "Fixing a common miscompilation in Rune"
 date = 2020-10-19
-draft = false
-template = "post.html"
-
-[taxonomies]
-categories = ["TMIR"]
-tags = ["updates"]
-
-[extra]
 author = "John-John Tedro"
 +++
 
@@ -52,7 +44,7 @@ This is not something that can be determined in a single pass. We have to go
 looking for a `yield` statement before we can decide how the function should be
 assembled. From this requirement the indexing stage was born.
 
-{% <rune footnote="The main function calling a generator"> %}
+```rune { caption = "The main function calling a generator" }
 fn foo() {
     yield 42;
 }
@@ -60,7 +52,7 @@ fn foo() {
 pub fn main() {
     foo()
 }
-{% </rune> %}
+```
 
 During indexing we store whether a function is a generator or not in its
 *metadata*. And this metadata used to be keyed by its item. So simplified the
@@ -74,13 +66,13 @@ main: { type: function, is_generator: false }
 So far so good. Let's have a look at an example where we instead have a program
 with two closures. Closures are compiled as special *unaddressable* functions:
 
-{% <rune footnote="A tuple with two closures"> %}
+```rune { caption = "A tuple with two closures" }
 pub fn main() {
     let a = || 1;
     let b = || 2;
     (a, b)
 }
-{% </rune> %}
+```
 
 This program might contain the following items:
 
@@ -95,11 +87,11 @@ access this during assembly the item was reconstructed. And in order to do this
 faithfully we have to traverse the AST in the same order as during indexing. We
 started noticing problems when we encountered code like this:
 
-{% <rune footnote="A tuple with two anonymous functions"> %}
+```rune { caption = "A tuple with two anonymous functions" }
 pub fn main() {
     (|| 1, || 2)
 }
-{% </rune> %}
+```
 
 We have two options here. Either we assign the anonymous component `$0` to the
 *first* or the *second* closure. This might seem trivially solvable by having a
@@ -107,13 +99,13 @@ rule like "always assign anonymous components from left to right", which is
 essentially what we did. But not all operations are evaluated from left to
 right. Take this for example:
 
-{% <rune footnote="A tuple with two anonymous functions"> %}
+```rune { caption = "A tuple with two anonymous functions" }
 pub fn main() {
     let object = #{};
     (|| object)()[(|| "key")()] = (|| "value")();
     object
 }
-{% </rune> %}
+```
 
 > If you have a hard time visualizing what this evaluates to, it should simply
 > result in `object["key"] = "value"`.

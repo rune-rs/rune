@@ -1,14 +1,6 @@
 +++
 title = "Faster integration tests"
 date = 2020-12-07
-draft = false
-template = "post.html"
-
-[taxonomies]
-categories = ["rust"]
-tags = ["tips", "rust"]
-
-[extra]
 author = "John-John Tedro"
 +++
 

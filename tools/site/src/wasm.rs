@@ -1,23 +1,22 @@
-//! Builds `rune-wasm` and bundles it with wasm-bindgen into `site/static/js`.
-
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 use wasm_bindgen_cli_support::Bindgen;
 
-const GLUE: &str = include_str!("../rune.js");
+const GLUE: &str = r#"import init from "./rune_wasm.js";
 
-fn main() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let out = root.join("site/static/js");
+await init({ module_or_path: new URL("./rune_wasm_bg.wasm", import.meta.url) });
+"#;
 
+/// Build `rune-wasm` and bindgen it into `out/js`.
+pub fn build(root: &Path, out: &Path) -> Result<()> {
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
 
     let status = Command::new(cargo)
-        .current_dir(&root)
+        .current_dir(root)
         .args(["build", "-p", "rune-wasm", "--release", "--lib"])
         .args(["--target", "wasm32-unknown-unknown"])
         .status()
@@ -33,21 +32,21 @@ fn main() -> Result<()> {
     };
 
     let input = target_dir.join("wasm32-unknown-unknown/release/rune_wasm.wasm");
+    let js = out.join("js");
 
-    if out.exists() {
-        fs::remove_dir_all(&out)?;
+    if js.exists() {
+        fs::remove_dir_all(&js)?;
     }
 
-    fs::create_dir_all(&out)?;
+    fs::create_dir_all(&js)?;
 
     Bindgen::new()
         .input_path(&input)
         .web(true)?
         .out_name("rune_wasm")
-        .generate(&out)
+        .generate(&js)
         .context("running wasm-bindgen")?;
 
-    fs::write(out.join("rune.js"), GLUE)?;
-    println!("Wrote {}", out.display());
+    fs::write(js.join("rune.js"), GLUE)?;
     Ok(())
 }

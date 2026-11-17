@@ -1,6 +1,5 @@
 +++
-[extra]
-classes = "center"
+title = "Moved"
 +++
 
 ### The page you're looking for has been moved!
