@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794546780116,
+  "lastUpdate": 1794897765382,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -35821,6 +35821,130 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 451,
             "range": "± 6",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "4c1427acd8674ba133a7b24f2237d182880b7956",
+          "message": "Note that the tmir1 wildcard import snippet no longer compiles\n\nThe 2020 post says the last of two conflicting wildcard imports wins.\nThe compiler now reports them as ambiguous, so add a footnote under the\nsnippet saying the rule changed rather than rewriting the dated post.",
+          "timestamp": "2026-11-16T19:38:22Z",
+          "url": "https://github.com/rune-rs/rune/commit/4c1427acd8674ba133a7b24f2237d182880b7956"
+        },
+        "date": 1794897763969,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11458495,
+            "range": "± 209331",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 6861294,
+            "range": "± 155033",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1632,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1817,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 247052,
+            "range": "± 841",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1574151,
+            "range": "± 10721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 394850527,
+            "range": "± 2450695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 335158109,
+            "range": "± 2387700",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sync_call",
+            "value": 15157332,
+            "range": "± 187703",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "await_call",
+            "value": 31893377,
+            "range": "± 390204",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 895231,
+            "range": "± 3518",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9178315,
+            "range": "± 39221",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 48926062,
+            "range": "± 194808",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 7783429,
+            "range": "± 63867",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 319999,
+            "range": "± 2275",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 3578944,
+            "range": "± 28753",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 622,
+            "range": "± 3",
             "unit": "ns/iter"
           }
         ]
