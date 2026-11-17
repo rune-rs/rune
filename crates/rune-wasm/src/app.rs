@@ -1,6 +1,7 @@
 //! The site, as a single page application over the content `tools/site`
 //! writes to `/content`.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gloo_net::http::Request;
@@ -43,9 +44,19 @@ pub fn start() {
         return;
     };
 
+    if let Some(base) = root.get_attribute("data-content") {
+        CONTENT.with_borrow_mut(|content| *content = base);
+    }
+
     // What the page shows until the app has loaded.
     root.set_inner_html("");
     yew::Renderer::<App>::with_root(root).render();
+}
+
+thread_local! {
+    /// The directory of the content this build of the app was made with,
+    /// which the page names in `data-content` on `#app`.
+    static CONTENT: RefCell<String> = RefCell::new(String::from("/content"));
 }
 
 #[derive(Clone, PartialEq)]
@@ -65,6 +76,23 @@ async fn fetch<T: DeserializeOwned>(url: &str) -> Option<T> {
     response.json().await.ok()
 }
 
+/// Content by its path under the content directory. A page which was loaded
+/// before the site was deployed again asks for a directory which is gone, and
+/// falls back to the latest content, which is also written unversioned.
+async fn fetch_content<T: DeserializeOwned>(path: &str) -> Option<T> {
+    let base = CONTENT.with_borrow(|content| content.clone());
+
+    if let Some(value) = fetch(&format!("{base}/{path}")).await {
+        return Some(value);
+    }
+
+    if base == "/content" {
+        return None;
+    }
+
+    fetch(&format!("/content/{path}")).await
+}
+
 #[hook]
 fn use_content<T>(url: String) -> Load<Rc<T>>
 where
@@ -80,7 +108,7 @@ where
             state.set((url.clone(), Load::Loading));
 
             spawn_local(async move {
-                let load = match fetch::<T>(&url).await {
+                let load = match fetch_content::<T>(&url).await {
                     Some(value) => Load::Ready(Rc::new(value)),
                     None => Load::Missing,
                 };
@@ -117,7 +145,7 @@ fn use_title(title: Option<String>) {
 
 #[function_component]
 fn App() -> Html {
-    let site = use_content::<Site>(String::from("/content/site.json"));
+    let site = use_content::<Site>(String::from("site.json"));
 
     match site {
         Load::Loading => html! { <div class="boot" aria-busy="true"></div> },
@@ -342,7 +370,7 @@ fn loading() -> Html {
 #[function_component]
 fn Home() -> Html {
     let site = use_context::<Rc<Site>>().expect("site context");
-    let home = use_content::<model::Home>(String::from("/content/home.json"));
+    let home = use_content::<model::Home>(String::from("home.json"));
     use_title(None);
 
     let home = match &home {
@@ -619,7 +647,7 @@ struct PostProps {
 #[function_component]
 fn Post(props: &PostProps) -> Html {
     let site = use_context::<Rc<Site>>().expect("site context");
-    let document = use_content::<Document>(format!("/content/posts/{}.json", props.slug));
+    let document = use_content::<Document>(format!("posts/{}.json", props.slug));
     let summary = site.posts.iter().find(|p| p.slug == props.slug);
     use_title(summary.map(|s| s.title.clone()));
 
@@ -682,7 +710,7 @@ struct PageProps {
 
 #[function_component]
 fn Page(props: &PageProps) -> Html {
-    let document = use_content::<Document>(format!("/content/pages/{}.json", props.name));
+    let document = use_content::<Document>(format!("pages/{}.json", props.name));
     let title = match &document {
         Load::Ready(document) => document.title.clone(),
         _ => None,

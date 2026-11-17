@@ -11,7 +11,7 @@ use std::time::SystemTime;
 
 use anyhow::Result;
 
-pub fn run(site: &Path, out: &Path, bind: &str, port: u16) -> Result<()> {
+pub fn run(site: &Path, out: &Path, js: &str, bind: &str, port: u16) -> Result<()> {
     let listener = TcpListener::bind((bind, port))?;
     println!("Serving {} on http://{bind}:{port}/", out.display());
 
@@ -24,10 +24,11 @@ pub fn run(site: &Path, out: &Path, bind: &str, port: u16) -> Result<()> {
 
         let site = site.to_owned();
         let out = out.to_owned();
+        let js = js.to_owned();
         let built = built.clone();
 
         thread::spawn(move || {
-            if let Err(error) = handle(stream, &site, &out, &built) {
+            if let Err(error) = handle(stream, &site, &out, &js, &built) {
                 eprintln!("error: {error}");
             }
         });
@@ -36,7 +37,13 @@ pub fn run(site: &Path, out: &Path, bind: &str, port: u16) -> Result<()> {
     Ok(())
 }
 
-fn handle(mut stream: TcpStream, site: &Path, out: &Path, built: &Mutex<SystemTime>) -> Result<()> {
+fn handle(
+    mut stream: TcpStream,
+    site: &Path,
+    out: &Path,
+    js: &str,
+    built: &Mutex<SystemTime>,
+) -> Result<()> {
     let mut line = String::new();
     let mut reader = BufReader::new(stream.try_clone()?);
     reader.read_line(&mut line)?;
@@ -67,7 +74,7 @@ fn handle(mut stream: TcpStream, site: &Path, out: &Path, built: &Mutex<SystemTi
         let now = modified(site);
 
         if now > *built {
-            match crate::build(site, out) {
+            match crate::build(site, out, js) {
                 Ok(()) => println!("Rebuilt after a change"),
                 Err(error) => eprintln!("error: rebuilding: {error:?}"),
             }

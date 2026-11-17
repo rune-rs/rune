@@ -14,7 +14,12 @@ cargo run -p site -- build        # target/site
 - `content/posts/<date>-<name>.md` - a post at `/posts/<name>/`. Anything else
   in `content/` is copied as is, so a post's images sit next to it.
 - `static/` - copied to the root of the site: `style.css`, the favicon and
-  images.
+  images. Not `js/` or `content/`, which the build writes itself.
+
+Scripts and content are written under directories named for their contents
+(`/js/<hash>/`, `/content/<hash>/`), and the stylesheet is linked with its
+hash, because GitHub Pages lets them be cached for minutes without asking
+again: a page from one deploy must not load a script from another.
 
 Pages and posts start with TOML front matter between `+++` lines:
 

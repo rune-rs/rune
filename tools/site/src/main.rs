@@ -3,6 +3,7 @@
 mod config;
 mod content;
 mod date;
+mod digest;
 mod feed;
 mod highlight;
 mod home;
@@ -39,23 +40,20 @@ fn main() -> Result<()> {
     let site = root.join("site");
     let out = out.unwrap_or_else(|| root.join("target/site"));
 
-    match command.as_str() {
-        "build" => {
-            if wasm {
-                wasm::build(&root, &out)?;
-            }
+    if !matches!(command.as_str(), "build" | "serve") {
+        bail!("{USAGE}");
+    }
 
-            build(&site, &out)?;
-        }
-        "serve" => {
-            if wasm {
-                wasm::build(&root, &out)?;
-            }
+    let js = if wasm {
+        wasm::build(&root, &out)?
+    } else {
+        wasm::current(&out)?
+    };
 
-            build(&site, &out)?;
-            serve::run(&site, &out, &bind, port)?;
-        }
-        _ => bail!("{USAGE}"),
+    build(&site, &out, &js)?;
+
+    if command == "serve" {
+        serve::run(&site, &out, &js, &bind, port)?;
     }
 
     Ok(())
@@ -65,9 +63,31 @@ fn main() -> Result<()> {
 /// generated documentation in the site workflow.
 const KEEP: [&str; 4] = ["js", "book", "docs", "api"];
 
-/// Render the site into `out`, leaving what other builds put there alone.
-pub fn build(site: &Path, out: &Path) -> Result<()> {
+/// Where the pages find what they load, each named for what is in it so that
+/// a page never meets a script, style or content from another build.
+struct Assets<'a> {
+    js: &'a str,
+    style: String,
+    content: String,
+}
+
+/// Render the site into `out`, leaving what other builds put there alone. `js`
+/// is the directory under `out/js` which the wasm build wrote.
+pub fn build(site: &Path, out: &Path, js: &str) -> Result<()> {
     let content = content::load(site)?;
+
+    // A stale `site/static/js` from the old JavaScript build replaced the
+    // loader the pages ask for, and the site never started.
+    for reserved in KEEP.iter().chain(["content"].iter()) {
+        let path = site.join("static").join(reserved);
+
+        if path.exists() {
+            bail!(
+                "{} would overwrite what the build writes to `{reserved}`; remove it",
+                path.display()
+            );
+        }
+    }
 
     if out.is_dir() {
         for entry in fs::read_dir(out)? {
@@ -85,50 +105,75 @@ pub fn build(site: &Path, out: &Path) -> Result<()> {
         }
     }
 
-    write_json(&out.join("content/site.json"), &content.site)?;
-    write_json(&out.join("content/home.json"), &content.home)?;
+    let mut documents = vec![
+        (
+            String::from("site.json"),
+            serde_json::to_string(&content.site)?,
+        ),
+        (
+            String::from("home.json"),
+            serde_json::to_string(&content.home)?,
+        ),
+    ];
 
     for page in &content.pages {
-        write_json(
-            &out.join(format!("content/pages/{}.json", page.name)),
-            &page.document,
-        )?;
+        let json = serde_json::to_string(&page.document)?;
+        documents.push((format!("pages/{}.json", page.name), json));
     }
 
     for post in &content.posts {
-        write_json(
-            &out.join(format!("content/posts/{}.json", post.name)),
-            &post.document,
-        )?;
+        let json = serde_json::to_string(&post.document)?;
+        documents.push((format!("posts/{}.json", post.name), json));
     }
+
+    let version = digest::of(
+        documents
+            .iter()
+            .flat_map(|(path, json)| [path.as_bytes(), json.as_bytes()]),
+    );
+
+    // The unversioned copy is for a page loaded before the site was deployed
+    // again, whose own version is gone.
+    for (path, json) in &documents {
+        write(
+            &out.join("content").join(&version).join(path),
+            json.as_bytes(),
+        )?;
+        write(&out.join("content").join(path), json.as_bytes())?;
+    }
+
+    let assets = Assets {
+        js,
+        style: digest::of([fs::read(site.join("static/style.css"))?.as_slice()]),
+        content: format!("/content/{version}"),
+    };
 
     // Every address the app answers is a file too, so that it can be linked to
     // and reloaded on a host which serves files and nothing else.
     let config = &content.config;
-    write(
-        &out.join("index.html"),
-        shell(config, None, None).as_bytes(),
-    )?;
+    let shell = |title, description| shell(config, &assets, title, description);
+
+    write(&out.join("index.html"), shell(None, None).as_bytes())?;
     write(
         &out.join("404.html"),
-        shell(config, Some("Not found"), None).as_bytes(),
+        shell(Some("Not found"), None).as_bytes(),
     )?;
     write(
         &out.join("posts/index.html"),
-        shell(config, Some("Blog"), None).as_bytes(),
+        shell(Some("Blog"), None).as_bytes(),
     )?;
     write(
         &out.join("play/index.html"),
-        shell(config, Some("Playground"), None).as_bytes(),
+        shell(Some("Playground"), None).as_bytes(),
     )?;
 
     for entry in content.pages.iter() {
-        let html = shell(config, Some(&entry.title), entry.description.as_deref());
+        let html = shell(Some(&entry.title), entry.description.as_deref());
         write(&out.join(&entry.name).join("index.html"), html.as_bytes())?;
     }
 
     for entry in content.posts.iter() {
-        let html = shell(config, Some(&entry.title), entry.description.as_deref());
+        let html = shell(Some(&entry.title), entry.description.as_deref());
         write(
             &out.join("posts").join(&entry.name).join("index.html"),
             html.as_bytes(),
@@ -148,13 +193,14 @@ pub fn build(site: &Path, out: &Path) -> Result<()> {
     Ok(())
 }
 
-fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<()> {
-    write(path, serde_json::to_string(value)?.as_bytes())
-}
-
 /// The document the app starts in, with what a link preview or a crawler
 /// which does not run it should know about the page.
-fn shell(config: &config::Config, title: Option<&str>, description: Option<&str>) -> String {
+fn shell(
+    config: &config::Config,
+    assets: &Assets<'_>,
+    title: Option<&str>,
+    description: Option<&str>,
+) -> String {
     use highlight::escape;
 
     let title = match title {
@@ -180,18 +226,21 @@ fn shell(config: &config::Config, title: Option<&str>, description: Option<&str>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d1015" media="(prefers-color-scheme: dark)">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/style.css?v={style}">
 <link rel="alternate" type="application/rss+xml" title="{site}" href="/rss.xml">
 <script>try{{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}}catch(e){{}}</script>
-<script type="module" src="/js/rune.js"></script>
+<script type="module" src="/js/{js}/rune.js"></script>
 </head>
 <body>
-<div id="app"><div class="boot" aria-busy="true"></div></div>
+<div id="app" data-content="{content}"><div class="boot" aria-busy="true"></div></div>
 <noscript><p class="noscript">This site is an application written in Rust, and needs JavaScript and WebAssembly to run.</p></noscript>
 </body>
 </html>
 "##,
         site = escape(&config.title),
+        style = assets.style,
+        js = assets.js,
+        content = assets.content,
     )
 }
 
