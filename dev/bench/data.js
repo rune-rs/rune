@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794897765382,
+  "lastUpdate": 1794981738982,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -35945,6 +35945,130 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 622,
             "range": "± 3",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "id": "972f80c01bb61d362d9a856c4b0e73853a9fd5b5",
+          "message": "Name the site's scripts, style and content by their hashes\n\nGitHub Pages lets browsers and its own caches keep a file for minutes\nwithout asking again, and the new loader was published at /js/rune.js,\nwhere the old bundle used to be. A page could so start with the script,\nbindings, wasm or content of another deploy, and never load.\n\nThe wasm-bindgen output and its loader are now written to /js/<hash>/,\ncontent to /content/<hash>/ which the page names in a data-content\nattribute, and the stylesheet is linked with its hash. Content is also\nwritten unversioned, for a page loaded before a deploy whose own version\nis gone.\n\nThe build also refuses a site/static/js or site/static/content: a stale,\nignored site/static/js from the old JavaScript build was copied over the\nnew loader in local builds.",
+          "timestamp": "2026-11-17T08:13:47Z",
+          "url": "https://github.com/rune-rs/rune/commit/972f80c01bb61d362d9a856c4b0e73853a9fd5b5"
+        },
+        "date": 1794981738206,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 10001814,
+            "range": "± 170096",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5439586,
+            "range": "± 81567",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1204,
+            "range": "± 36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1362,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 188676,
+            "range": "± 3548",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1193159,
+            "range": "± 17346",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 284743526,
+            "range": "± 4102652",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 240348525,
+            "range": "± 1574384",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sync_call",
+            "value": 11499769,
+            "range": "± 123321",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "await_call",
+            "value": 25250767,
+            "range": "± 503142",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 672116,
+            "range": "± 2502",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7206867,
+            "range": "± 27245",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 38180813,
+            "range": "± 229465",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6115213,
+            "range": "± 30429",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 224119,
+            "range": "± 5391",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2512388,
+            "range": "± 22982",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 435,
+            "range": "± 4",
             "unit": "ns/iter"
           }
         ]
