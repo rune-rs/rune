@@ -270,13 +270,35 @@ pub(crate) fn local<'hir>(
     p.expect(K![=])?;
     let expr = p.expect(Expr)?;
 
+    let else_block = if p.eat(K![else]).is_some() {
+        Some(p.expect(Block)?)
+    } else {
+        None
+    };
+
     let expr = expr.parse(|p| self::expr(cx, p))?;
+
+    // The else block is lowered before the pattern, so that it does not see
+    // the bindings the pattern introduces.
+    let else_expr = match else_block {
+        Some(node) => {
+            let block = node.parse(|p| self::block(cx, None, p))?;
+
+            Some(expr!(hir::Expr {
+                span: block.span,
+                kind: hir::ExprKind::Block(alloc!(block)),
+            }))
+        }
+        None => None,
+    };
+
     let pat = pat.parse(|p| self::pat_binding(cx, p))?;
 
     Ok(hir::Local {
         span: p.span(),
         pat,
         expr: expr!(expr),
+        else_expr,
     })
 }
 
@@ -449,6 +471,12 @@ enum ExprStep<'hir, 'a> {
     },
     /// Finish a local declaration, having lowered its expression.
     Local { buf: StreamBuf<'a>, pat: Node<'a> },
+    /// Finish a local declaration, having lowered its `else` block.
+    LocalElse {
+        buf: StreamBuf<'a>,
+        pat: Node<'a>,
+        expr: hir::Expr<'hir>,
+    },
     /// Finish a range which has two operands, having lowered its start.
     RangeEnd {
         buf: StreamBuf<'a>,
@@ -1416,6 +1444,16 @@ fn expr_resume<'hir, 'a>(
         ExprStep::Local { mut buf, pat } => {
             let expr = expect_expr(&mut buf, value)?;
 
+            if buf.stream().eat(K![else]).is_some() {
+                let node = buf.stream().expect(Block)?;
+
+                return Ok(ExprState::Child(
+                    ExprStep::LocalElse { buf, pat, expr },
+                    node,
+                    Start::Block,
+                ));
+            }
+
             let local = {
                 let p = buf.stream();
                 alloc_with!(cx, p);
@@ -1426,6 +1464,35 @@ fn expr_resume<'hir, 'a>(
                     span: p.span(),
                     pat,
                     expr,
+                    else_expr: None,
+                }
+            };
+
+            buf.end()?;
+            Ok(ExprState::Local(local))
+        }
+        ExprStep::LocalElse { mut buf, pat, expr } => {
+            let ExprState::Block(block) = value else {
+                return Err(Error::msg(buf.stream().span(), "Expected a block"));
+            };
+
+            let local = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+                let expr = expr!(expr);
+
+                let else_expr = Some(expr!(hir::Expr {
+                    span: block.span,
+                    kind: hir::ExprKind::Block(alloc!(block)),
+                }));
+
+                let pat = pat.parse(|p| self::pat_binding(cx, p))?;
+
+                hir::Local {
+                    span: p.span(),
+                    pat,
+                    expr,
+                    else_expr,
                 }
             };
 

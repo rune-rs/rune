@@ -415,6 +415,49 @@ where
     Ok(Asm::new(span, ()))
 }
 
+/// Like [`pattern_panic`], but evaluates the `else` expression of a `let`
+/// statement instead of panicking when the pattern does not match.
+fn pattern_else<'a, 'hir, 'arena, F>(
+    cx: &mut Ctxt<'a, 'hir, 'arena>,
+    span: &'hir dyn Spanned,
+    else_expr: Option<hir::ExprId>,
+    f: F,
+) -> compile::Result<Asm<'hir>>
+where
+    F: FnOnce(&mut Ctxt<'a, 'hir, 'arena>, &Label) -> compile::Result<Asm<'hir, Pattern>>,
+{
+    let Some(else_expr) = else_expr else {
+        return pattern_panic(cx, span, f);
+    };
+
+    let false_label = cx.asm.new_label("pattern_else");
+
+    if matches!(converge!(f(cx, &false_label)?), Pattern::Refutable) {
+        let match_label = cx.asm.new_label("pattern_match");
+
+        cx.asm.jump(&match_label, span)?;
+        cx.asm.label(&false_label)?;
+
+        let mut needs = Any::ignore(span);
+
+        // The block is expected to diverge, but this can't always be known
+        // statically, so make sure that falling out of it is never a way to
+        // continue with unbound variables.
+        if expr(cx, cx.exprs.get(else_expr), &mut needs)?.converging() {
+            cx.asm.push(
+                inst::Kind::Panic {
+                    reason: PanicReason::UnmatchedPattern,
+                },
+                span,
+            )?;
+        }
+
+        cx.asm.label(&match_label)?;
+    }
+
+    Ok(Asm::new(span, ()))
+}
+
 /// Encode a pattern from a known set of bindings.
 ///
 /// Returns a boolean indicating if the label was used.
@@ -4028,9 +4071,14 @@ where
                                 Ok(Asm::new(&local_hir.pat, ()))
                             };
 
-                        let asm = pattern_panic(cx, &local_hir.pat, |cx, false_label| {
-                            pat_binding(cx, &local_hir.pat, false_label, &mut load)
-                        })?;
+                        let asm = pattern_else(
+                            cx,
+                            &local_hir.pat,
+                            local_hir.else_expr,
+                            |cx, false_label| {
+                                pat_binding(cx, &local_hir.pat, false_label, &mut load)
+                            },
+                        )?;
 
                         addr.free()?;
 
@@ -5776,9 +5824,12 @@ fn local<'a, 'hir>(
         expr(cx, cx.exprs.get(hir.expr), needs)
     };
 
-    converge!(pattern_panic(cx, &hir.pat, |cx, false_label| {
-        pat_binding(cx, &hir.pat, false_label, &mut load)
-    })?);
+    converge!(pattern_else(
+        cx,
+        &hir.pat,
+        hir.else_expr,
+        |cx, false_label| { pat_binding(cx, &hir.pat, false_label, &mut load) }
+    )?);
 
     // If a value is needed for a let expression, it is evaluated as a unit.
     if let Some(out) = needs.try_alloc_output()? {

@@ -907,6 +907,8 @@ enum Step {
     SelectArm { c: Checkpoint },
     /// Continue the statements of the block body opened at the checkpoint.
     Stmts { c: Checkpoint },
+    /// Parse the `else { .. }` block of a `let` statement, if present.
+    LetElse,
     /// Close a statement at the checkpoint.
     StmtEnd { c: Checkpoint, kind: Kind },
     /// Close a statement which is an expression at the checkpoint.
@@ -1245,6 +1247,11 @@ fn parse(p: &mut Parser<'_>, task: Task) -> Result<Kind> {
                 } else {
                     p.close_at(&c, BlockBody)?;
                     p.bump_if(K!['}'])?;
+                }
+            }
+            Step::LetElse => {
+                if p.bump_if(K![else])? {
+                    next = Some(Task::Block);
                 }
             }
             Step::StmtEnd { c, kind: k } => {
@@ -1881,6 +1888,7 @@ fn stmt_start(p: &mut Parser<'_>, stack: &mut Vec<Step>, span: Span) -> Result<O
     match p.peek()? {
         K![let] => {
             push(stack, span, Step::StmtEnd { c, kind: Local })?;
+            push(stack, span, Step::LetElse)?;
             p.bump()?;
             deny_mut(p)?;
             pat(p)?;
