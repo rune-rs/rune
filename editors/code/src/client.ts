@@ -1,6 +1,6 @@
 import * as lc from "vscode-languageclient/node";
 
-import { Env, substituteVariablesInEnv } from "./config";
+import { type Env, substituteVariablesInEnv } from "./config";
 import { outputChannel, traceOutputChannel } from "./extension";
 import { log } from "./util";
 

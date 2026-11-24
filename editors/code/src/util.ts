@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { spawnSync } from "node:child_process";
 import { inspect } from "node:util";
-import { Env, substituteVariablesInEnv } from "./config";
+import { type Env, substituteVariablesInEnv } from "./config";
 
 export const log = new (class {
 	private enabled = true;

@@ -134,7 +134,7 @@ export class Config implements vscode.Disposable {
 	}
 
 	private get<T>(section: string): T {
-		return this.cfg.get<T>(section)!;
+		return this.cfg.get<T>(section) as T;
 	}
 
 	get serverPath(): string | null {
@@ -185,10 +185,11 @@ export function substituteVariablesInEnv(env: Env): Record<string, string> {
 	const envWithDeps: Record<string, { deps: string[]; value: string }> = Object.fromEntries(
 		definedEntries.map(([key, value]) => {
 			const deps = new Set<string>();
-			const depRe = /\${(?<depName>.+?)}/g;
-			let match: RegExpExecArray | null;
-			while ((match = depRe.exec(value))) {
-				const depName = match.groups!.depName;
+			for (const match of value.matchAll(/\${(?<depName>.+?)}/g)) {
+				const depName = match.groups?.depName;
+				if (!depName) {
+					continue;
+				}
 				deps.add(depName);
 				// `depName` at this point can have a form of `expression` or
 				// `prefix:expression`
@@ -203,8 +204,8 @@ export function substituteVariablesInEnv(env: Env): Record<string, string> {
 	const resolved = new Set<string>();
 	for (const dep of missingDeps) {
 		const match = /(?<prefix>.*?):(?<body>.+)/.exec(dep);
-		if (match) {
-			const { prefix, body } = match.groups!;
+		if (match?.groups) {
+			const { prefix, body } = match.groups;
 			if (prefix === "env") {
 				envWithDeps[dep] = {
 					value: process.env[body] ?? "",
@@ -215,7 +216,7 @@ export function substituteVariablesInEnv(env: Env): Record<string, string> {
 				// we can't handle other prefixes at the moment
 				// leave values as is, but still mark them as resolved
 				envWithDeps[dep] = {
-					value: "${" + dep + "}",
+					value: `\${${dep}}`,
 					deps: [],
 				};
 				resolved.add(dep);
@@ -275,5 +276,5 @@ function computeVscodeVar(varName: string): string {
 		return supportedVariables[varName]();
 	}
 	// can't resolve, keep the expression as is
-	return "${" + varName + "}";
+	return `\${${varName}}`;
 }

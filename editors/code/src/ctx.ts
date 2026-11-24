@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import * as lc from "vscode-languageclient/node";
+import type * as lc from "vscode-languageclient/node";
 import * as os from "node:os";
 import * as cp from "node:child_process";
 import * as rl from "node:readline";
@@ -399,7 +399,7 @@ export class Ctx {
 		let tooltipExtra: string;
 
 		if (this.lastClientError) {
-			this.statusBar.text += ": " + this.lastClientError.message;
+			this.statusBar.text += `: ${this.lastClientError.message}`;
 
 			if (this.lastClientError.tooltip) {
 				tooltipExtra =
@@ -434,7 +434,7 @@ export class Ctx {
 		}
 
 		if (tooltipExtra) {
-			tooltip.appendMarkdown("\n\n" + tooltipExtra);
+			tooltip.appendMarkdown(`\n\n${tooltipExtra}`);
 		}
 
 		this.statusBar.tooltip = tooltip;

@@ -4,7 +4,8 @@ node_modules/**
 src/**
 .gitignore
 esbuild.js
-eslint.config.mjs
+biome.json
+package-lock.json
 vsc-extension-quickstart.md
 **/tsconfig.json
 **/*.map

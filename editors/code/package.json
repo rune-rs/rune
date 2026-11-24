@@ -150,19 +150,19 @@
     "compile": "npm run check-types && npm run lint && node esbuild.js",
     "watch": "node esbuild.js --watch",
     "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "vsix": "vsce package",
     "check-types": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "biome lint src"
   },
   "dependencies": {
     "vscode-languageclient": "^11.0.1"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/node": "22.x",
+    "@biomejs/biome": "^2.6.8",
+    "@types/node": "^26.6.6",
     "@types/vscode": "^1.91.0",
+    "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.28.2",
-    "eslint": "^10.15.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.74.0"
+    "typescript": "^7.0.2"
   }
 }
