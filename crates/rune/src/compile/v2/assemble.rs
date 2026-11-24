@@ -591,6 +591,8 @@ enum PatLoad {
     Tuple { addr: inst::Address, index: usize },
     /// From a field of an already loaded container.
     Field { addr: inst::Address, slot: usize },
+    /// From a copy of an address which already holds the value.
+    Copy { addr: inst::Address },
 }
 
 /// A partially assembled pattern, waiting for its remaining children.
@@ -608,12 +610,18 @@ enum PatStep<'a, 'hir> {
         slots: Vec<usize>,
         at: usize,
     },
+    /// The sub-pattern of `name @ pat`, matched against the bound value.
+    Then {
+        pat: &'hir hir::Pat<'hir>,
+        addr: inst::Address,
+    },
 }
 
 impl<'a, 'hir> PatStep<'a, 'hir> {
     fn free(self) -> compile::Result<()> {
         match self {
             PatStep::Sequence { addr, .. } | PatStep::Object { addr, .. } => addr.free(),
+            PatStep::Then { .. } => Ok(()),
         }
     }
 }
@@ -636,6 +644,17 @@ fn pat_load<'a, 'hir>(
                 inst::Kind::TupleIndexGetAt {
                     addr,
                     index,
+                    out: needs.alloc_output()?,
+                },
+                span,
+            )?;
+
+            Ok(Asm::new(span, ()))
+        }
+        PatLoad::Copy { addr } => {
+            cx.asm.push(
+                inst::Kind::Copy {
+                    addr,
                     out: needs.alloc_output()?,
                 },
                 span,
@@ -707,6 +726,10 @@ fn pat<'a, 'hir>(
             };
 
             match step {
+                PatStep::Then { pat, addr } => {
+                    next = Some((pat, PatLoad::Copy { addr }));
+                    continue 'outer;
+                }
                 PatStep::Sequence { addr, items, at } => {
                     if let Some(p) = items.get(at) {
                         let src = PatLoad::Tuple {
@@ -958,6 +981,25 @@ fn pat_one<'a, 'hir>(
 
             Ok(Some(Pattern::Refutable))
         }
+        hir::PatKind::At(at) => {
+            let Some(binding) = bindings.remove(&at.name) else {
+                return Err(compile::Error::msg(hir, "No binding for `@` pattern"));
+            };
+
+            if pat_load(cx, src, root, span, binding)?.diverging() {
+                return Ok(None);
+            }
+
+            let addr = binding.addr()?.addr();
+
+            stack.try_push(PatStep::Then { pat: &at.pat, addr })?;
+
+            Ok(Some(if pat_is_irrefutable(&at.pat) {
+                Pattern::Irrefutable
+            } else {
+                Pattern::Refutable
+            }))
+        }
         hir::PatKind::Or(..) => {
             // Or-patterns are only produced at the top level of a match arm,
             // where they are compiled by `pat_or` before the pattern walk is
@@ -966,6 +1008,21 @@ fn pat_one<'a, 'hir>(
                 hir,
                 "or-patterns are only supported at the top level of a match arm",
             ))
+        }
+    }
+}
+
+/// Test if a pattern matches anything, which only holds for bindings and
+/// ignores, including `name @ pat` where `pat` does.
+fn pat_is_irrefutable(hir: &hir::Pat<'_>) -> bool {
+    let mut hir = hir;
+
+    loop {
+        match hir.kind {
+            hir::PatKind::Ignore => return true,
+            hir::PatKind::Path(hir::PatPathKind::Ident(..)) => return true,
+            hir::PatKind::At(at) => hir = &at.pat,
+            _ => return false,
         }
     }
 }

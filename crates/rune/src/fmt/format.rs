@@ -733,6 +733,11 @@ enum Step<'a> {
         comma: Remaining<'a>,
         at: u8,
     },
+    /// A `name @ pat` pattern.
+    PatAt {
+        buf: StreamBuf<'a>,
+        at: u8,
+    },
     /// The alternatives of an or-pattern, `a | b | c`.
     PatOr {
         buf: StreamBuf<'a>,
@@ -1461,8 +1466,30 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                     })
                 }
                 PatOr => cx.push(Step::PatOr { buf, at: 0 }),
+                PatAt => cx.push(Step::PatAt { buf, at: 0 }),
                 _ => Err(buf.stream().expected("pattern")),
             }
+        }
+        Step::PatAt { mut buf, at } => {
+            if at == 1 {
+                return buf.end();
+            }
+
+            let node = {
+                let p = buf.stream();
+                p.expect(Path)?.parse(|p| path(fmt, p))?;
+                fmt.ws()?;
+                p.expect(K![@])?.fmt(fmt)?;
+                fmt.ws()?;
+                p.expect(Pat)?
+            };
+
+            cx.push(Step::PatAt { buf, at: 1 })?;
+
+            cx.push(Step::Pat {
+                buf: node.into_stream(),
+                at: 0,
+            })
         }
         Step::PatOr { mut buf, at } => {
             // Alternatives are separated by `|`, with a space on either side.

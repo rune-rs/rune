@@ -153,3 +153,45 @@ fn test_or_pattern_binding_rejected() {
         _, OrPatternBinding
     };
 }
+
+#[test]
+fn test_at_pattern() {
+    let out: (i64, i64) = eval(
+        r#"
+        let n @ 1 = 1;
+        let t @ (a, b) = (3, 4);
+        let (x, y) = t;
+        (n + a, b + x + y)
+        "#,
+    );
+    assert_eq!(out, (4, 11));
+
+    let out: i64 = eval(
+        r#"
+        fn f(v) {
+            match v {
+                n @ 1 => n + 100,
+                v @ [a, b] => v.len() + a + b,
+                o @ #{x} => o.x + x,
+                _ => 0,
+            }
+        }
+        f(1) + f([5, 6]) + f(#{x: 10})
+        "#,
+    );
+    assert_eq!(out, 101 + 13 + 20);
+}
+
+#[test]
+fn test_at_pattern_nested_refutable() {
+    let out: i64 = eval(
+        r#"
+        match (1, 2) {
+            (a, b @ 3) => 1,
+            (a, b @ 2) => a + b,
+            _ => 0,
+        }
+        "#,
+    );
+    assert_eq!(out, 3);
+}

@@ -5261,6 +5261,12 @@ enum PatStep<'hir, 'a> {
         keys_dup: HashMap<&'hir str, Span>,
         key: (Span, &'hir str),
     },
+    /// A `name @ pat` pattern, waiting on the sub-pattern.
+    At {
+        buf: StreamBuf<'a>,
+        name: hir::Variable,
+        span: Span,
+    },
     /// An or-pattern, `a | b | c`, waiting on the next alternative.
     Or {
         buf: StreamBuf<'a>,
@@ -5386,6 +5392,30 @@ fn pat_start<'hir, 'a>(
                 HashMap::new(),
             )
         }
+        PatAt => {
+            let (name, span, node) = {
+                let p = buf.stream();
+                let MaybeNode::Some(path) = p.eat_matching(|kind| matches!(kind, IndexedPath(..)))
+                else {
+                    return Err(p.expected_peek("a binding name"));
+                };
+
+                p.expect(K![@])?;
+                let node = p.expect(Pat)?;
+
+                let span = p.span();
+                let pat = path.parse(|p| pat_path(cx, p, false))?;
+
+                let hir::PatKind::Path(&hir::PatPathKind::Ident(name)) = pat.kind else {
+                    return Err(Error::new(span, ErrorKind::UnsupportedBinding));
+                };
+
+                let node = node.parse(|p| p.pump())?;
+                (name, span, node)
+            };
+
+            Ok(PatState::Child(PatStep::At { buf, name, span }, node))
+        }
         PatOr => {
             let bindings = cx.pattern_bindings.len();
             pat_or_next(cx, buf, Vec::new(), bindings)
@@ -5446,6 +5476,23 @@ fn pat_resume<'hir, 'a>(
     pat: hir::Pat<'hir>,
 ) -> Result<PatState<'hir, 'a>> {
     match step {
+        PatStep::At {
+            mut buf,
+            name,
+            span,
+        } => {
+            let pat = {
+                let p = buf.stream();
+                alloc_with!(cx, p);
+
+                hir::Pat {
+                    span,
+                    kind: hir::PatKind::At(alloc!(hir::PatAt { name, pat })),
+                }
+            };
+
+            Ok(PatState::Done(buf, pat))
+        }
         PatStep::Or {
             mut buf,
             mut items,
