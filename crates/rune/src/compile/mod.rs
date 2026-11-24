@@ -12,7 +12,7 @@ pub use self::error::{Error, ImportStep, MetaError};
 
 mod compile_visitor;
 pub use self::compile_visitor::CompileVisitor;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "anyhow"))]
 pub(crate) use self::compile_visitor::NoopCompileVisitor;
 
 pub(crate) mod context;

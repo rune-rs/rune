@@ -5,14 +5,14 @@
 #[cfg(feature = "anyhow")]
 pub use anyhow::Context;
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(all(feature = "std", feature = "anyhow")))]
 #[doc(inline)]
 pub use self::no_std::{Error, Result};
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "anyhow"))]
 #[doc(inline)]
 pub use anyhow::{Error, Result};
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(all(feature = "std", feature = "anyhow")))]
 pub(crate) mod no_std {
     use core::fmt;
 

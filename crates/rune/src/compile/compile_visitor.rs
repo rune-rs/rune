@@ -65,10 +65,10 @@ pub trait CompileVisitor {
 }
 
 /// A [CompileVisitor] which does nothing.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "anyhow"))]
 pub(crate) struct NoopCompileVisitor(());
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "anyhow"))]
 impl NoopCompileVisitor {
     /// Construct a new noop compile visitor.
     pub(crate) const fn new() -> Self {
@@ -76,5 +76,5 @@ impl NoopCompileVisitor {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "anyhow"))]
 impl CompileVisitor for NoopCompileVisitor {}
