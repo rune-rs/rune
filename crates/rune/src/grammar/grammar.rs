@@ -529,8 +529,7 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
 
     loop {
         if start {
-            start = false;
-            pat_start(p, &mut stack, span)?;
+            start = pat_start(p, &mut stack, span)?;
             continue;
         }
 
@@ -601,7 +600,8 @@ fn pat(p: &mut Parser<'_>) -> Result<()> {
 }
 
 /// Parse the head of a single pattern, pushing the steps needed to finish it.
-fn pat_start(p: &mut Parser<'_>, stack: &mut Vec<PatStep>, span: Span) -> Result<()> {
+/// Returns `true` if a child pattern follows immediately, as with `a @ b`.
+fn pat_start(p: &mut Parser<'_>, stack: &mut Vec<PatStep>, span: Span) -> Result<bool> {
     p.enter()?;
 
     let c = p.checkpoint()?;
@@ -656,6 +656,13 @@ fn pat_start(p: &mut Parser<'_>, stack: &mut Vec<PatStep>, span: Span) -> Result
                         })
                         .with_span(span)?;
                 }
+                K![@] => {
+                    stack
+                        .try_push(PatStep::Inner { c, kind: PatAt })
+                        .with_span(span)?;
+                    p.bump()?;
+                    return Ok(true);
+                }
                 _ => {}
             }
         }
@@ -703,7 +710,7 @@ fn pat_start(p: &mut Parser<'_>, stack: &mut Vec<PatStep>, span: Span) -> Result
         }
     }
 
-    Ok(())
+    Ok(false)
 }
 
 fn is_expr(p: &mut Parser<'_>) -> Result<bool> {

@@ -106,6 +106,20 @@ pub(crate) enum PatKind<'hir> {
     /// An or-pattern, matching if any of its alternatives match. The
     /// alternatives bind no variables.
     Or(&'hir [Pat<'hir>]),
+    /// A binding with a sub-pattern, `name @ pat`.
+    At(&'hir PatAt<'hir>),
+}
+
+/// A `name @ pat` pattern, which binds the matched value to `name` while also
+/// matching it against `pat`.
+#[derive(Debug, TryClone, Clone, Copy)]
+#[try_clone(copy)]
+#[non_exhaustive]
+pub(crate) struct PatAt<'hir> {
+    /// The variable being bound.
+    pub(crate) name: Variable,
+    /// The pattern the value must also match.
+    pub(crate) pat: Pat<'hir>,
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]

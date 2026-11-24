@@ -8471,6 +8471,8 @@ pub enum Kind {
     PatIgnore,
     /// an or-pattern
     PatOr,
+    /// an `ident @ pattern` binding
+    PatAt,
     /// a path
     Path,
     /// the generics of a path
@@ -8643,6 +8645,7 @@ impl Kind {
             Self::PatObject => true,
             Self::PatIgnore => true,
             Self::PatOr => true,
+            Self::PatAt => true,
             Self::Path => true,
             Self::PathGenerics => true,
             Self::Condition => true,
@@ -8979,6 +8982,7 @@ impl parse::IntoExpectation for Kind {
             Self::PatObject => parse::Expectation::Syntax("an object pattern"),
             Self::PatIgnore => parse::Expectation::Syntax("an ignore pattern"),
             Self::PatOr => parse::Expectation::Syntax("an or-pattern"),
+            Self::PatAt => parse::Expectation::Syntax("an `ident @ pattern` binding"),
             Self::Path => parse::Expectation::Syntax("a path"),
             Self::PathGenerics => parse::Expectation::Syntax("the generics of a path"),
             Self::Condition => parse::Expectation::Syntax("the `let` condition of a loop"),
