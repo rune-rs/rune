@@ -40,7 +40,7 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
     steps:
     - uses: actions/checkout@v4
-    - uses: udoprog/kick@nightly
+    - uses: udoprog/actions@kick
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - run: kick define --github-action
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: udoprog/kick@nightly
+    - uses: udoprog/actions@kick
     - uses: actions/download-artifact@v7
       with: {name: dist-macos-latest, path: dist}
     - uses: actions/download-artifact@v7
