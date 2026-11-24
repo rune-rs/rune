@@ -30,8 +30,8 @@ use crate::{Source, SourceId};
 /// })?;
 /// # Ok::<_, rune::support::Error>(())
 /// ```
-#[cfg(feature = "std")]
-#[cfg_attr(rune_docsrs, doc(cfg(feature = "std")))]
+#[cfg(all(feature = "std", feature = "anyhow"))]
+#[cfg_attr(rune_docsrs, doc(cfg(all(feature = "std", feature = "anyhow"))))]
 pub fn test<F, O>(f: F) -> crate::support::Result<O>
 where
     F: FnOnce(&mut MacroContext<'_, '_, '_>) -> crate::support::Result<O>,

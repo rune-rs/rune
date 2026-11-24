@@ -121,7 +121,7 @@ mod into_lit;
 pub use self::into_lit::IntoLit;
 
 mod macro_context;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "anyhow"))]
 #[doc(inline)]
 pub use self::macro_context::test;
 #[doc(inline)]
