@@ -845,4 +845,7 @@ pub(crate) struct Local<'hir> {
     pub(crate) pat: PatBinding<'hir>,
     /// The expression the binding is assigned to.
     pub(crate) expr: ExprId,
+    /// The block evaluated if the pattern does not match, from
+    /// `let pat = expr else { .. }`.
+    pub(crate) else_expr: Option<ExprId>,
 }

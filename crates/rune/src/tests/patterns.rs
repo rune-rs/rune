@@ -195,3 +195,42 @@ fn test_at_pattern_nested_refutable() {
     );
     assert_eq!(out, 3);
 }
+
+#[test]
+fn test_let_else() {
+    let out: i64 = eval(
+        r#"
+        fn f(v) {
+            let Some(x) = v else { return -1 };
+            x + 1
+        }
+        f(Some(41)) + f(None)
+        "#,
+    );
+    assert_eq!(out, 41);
+
+    let out: i64 = eval(
+        r#"
+        let total = 0;
+        for v in [Some(1), None, Some(5)] {
+            let Some(n) = v else { continue };
+            total += n;
+        }
+        let (a, 2) = (1, 2) else { panic!("no") };
+        total + a
+        "#,
+    );
+    assert_eq!(out, 7);
+}
+
+#[test]
+fn test_let_else_must_not_fall_through() {
+    // An else block which doesn't diverge panics rather than continuing with
+    // unbound variables.
+    assert_vm_error!(
+        "let Some(x) = None else { 0 }; x",
+        Panic { reason } => {
+            assert_eq!(reason.to_string(), "pattern did not match");
+        }
+    );
+}

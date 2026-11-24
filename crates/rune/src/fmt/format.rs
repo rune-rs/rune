@@ -1094,11 +1094,21 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                         fmt.ws()?;
                         p.expect(Pat)?
                     }
-                    _ => {
+                    1 => {
                         fmt.ws()?;
                         p.one(K![=]).fmt(fmt)?;
                         fmt.ws()?;
                         p.expect(Expr)?
+                    }
+                    _ => {
+                        let MaybeNode::Some(else_) = p.eat(K![else]) else {
+                            return buf.end();
+                        };
+
+                        fmt.ws()?;
+                        else_.fmt(fmt)?;
+                        fmt.ws()?;
+                        p.expect(Block)?
                     }
                 }
             };
@@ -1110,9 +1120,17 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                     buf: node.into_stream(),
                     at: 0,
                 })
+            } else if at == 1 {
+                cx.push(Step::Local { buf, at: 2 })?;
+                self::expr(cx, node)
             } else {
                 cx.push(Step::Done { buf })?;
-                self::expr(cx, node)
+
+                cx.push(Step::Block {
+                    buf: node.into_stream(),
+                    compact: false,
+                    at: 0,
+                })
             }
         }
         Step::Block {
