@@ -20,6 +20,7 @@ mod tests;
 mod visitor;
 
 use std::fmt;
+use std::fs::File;
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
@@ -218,9 +219,13 @@ impl<'a> Entry<'a> {
 
         let mut io = Io::new(&mut stdout, &mut stderr);
 
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .init();
+        if matches!(args.cmd, Some(Command::LanguageServer(..))) {
+            setup_languageserver_logging()?;
+        } else {
+            tracing_subscriber::fmt()
+                .with_env_filter(EnvFilter::from_default_env())
+                .init();
+        }
 
         match main_with_out(&mut io, &mut self, args).await {
             Ok(code) => Ok(code),
@@ -232,6 +237,42 @@ impl<'a> Entry<'a> {
             }
         }
     }
+}
+
+/// Configure tracing for the language server without writing to stdout, which
+/// is reserved for the LSP JSON-RPC transport.
+fn setup_languageserver_logging() -> Result<()> {
+    let env_filter =
+        match EnvFilter::try_from_env("RUNE_LOG").or_else(|_| EnvFilter::try_from_default_env()) {
+            Ok(env_filter) => env_filter,
+            Err(_) => return Ok(()),
+        };
+
+    if let Some(log_path) = std::env::var_os("RUNE_LOG_FILE") {
+        let log_path = PathBuf::from(log_path);
+
+        if let Some(d) = log_path.parent() {
+            let _ = std::fs::create_dir_all(d);
+        }
+
+        let file = File::options().append(true).create(true).open(log_path)?;
+
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_writer(file)
+            .with_ansi(false)
+            .try_init()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .with_writer(io::stderr)
+            .with_ansi(false)
+            .try_init()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+    }
+
+    Ok(())
 }
 
 /// A single entrypoint that can be built or processed.
@@ -449,7 +490,7 @@ impl Command {
         "bench",
         "run",
         "fmt",
-        "languageserver",
+        "language-server",
         "hash",
     ];
 

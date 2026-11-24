@@ -12,6 +12,15 @@ export class Config implements vscode.Disposable {
 	readonly globalStorageUri: vscode.Uri;
 
 	private configureLang: vscode.Disposable | undefined;
+	private readonly serverConfigChanged = new vscode.EventEmitter<void>();
+	readonly onDidChangeServerConfig = this.serverConfigChanged.event;
+
+	private static readonly serverConfigKeys = [
+		"rune.server.path",
+		"rune.server.cargoPackage",
+		"rune.server.cargoBinary",
+		"rune.server.extraEnv",
+	];
 
 	constructor(ctx: vscode.ExtensionContext) {
 		this.globalStorageUri = ctx.globalStorageUri;
@@ -26,6 +35,7 @@ export class Config implements vscode.Disposable {
 	dispose(): void {
 		this.configureLang?.dispose();
 		this.configureLang = undefined;
+		this.serverConfigChanged.dispose();
 	}
 
 	private refreshLogging(): void {
@@ -41,6 +51,10 @@ export class Config implements vscode.Disposable {
 		}
 		this.refreshLogging();
 		this.configureLanguage();
+
+		if (Config.serverConfigKeys.some((key) => event.affectsConfiguration(key))) {
+			this.serverConfigChanged.fire();
+		}
 	}
 
 	/**

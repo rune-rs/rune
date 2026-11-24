@@ -232,23 +232,28 @@ fn do_build(build: Build) -> Result<()> {
         .context("building .zip")?;
 
     if build.is_channel() {
-        // Create rune-languageserver gzips.
-        create_gz(
-            upload.join(format!(
-                "rune-languageserver-{os}-{arch}.gz",
-                os = consts::OS,
-                arch = consts::ARCH
-            )),
-            &rune_languageserver,
-        )
-        .context("building rune-languageserver .gz")?;
-
-        if consts::ARCH == "x86_64" {
+        // Create rune and rune-languageserver gzips.
+        for (name, path) in [
+            ("rune", &rune),
+            ("rune-languageserver", &rune_languageserver),
+        ] {
             create_gz(
-                upload.join(format!("rune-languageserver-{os}.gz", os = consts::OS)),
-                &rune_languageserver,
+                upload.join(format!(
+                    "{name}-{os}-{arch}.gz",
+                    os = consts::OS,
+                    arch = consts::ARCH
+                )),
+                path,
             )
-            .context("building rune-languageserver .gz")?;
+            .with_context(|| format!("building {name} .gz"))?;
+
+            if consts::ARCH == "x86_64" {
+                create_gz(
+                    upload.join(format!("{name}-{os}.gz", os = consts::OS)),
+                    path,
+                )
+                .with_context(|| format!("building {name} .gz"))?;
+            }
         }
     }
 

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { inspect } from "node:util";
 import { type Env, substituteVariablesInEnv } from "./config";
 
@@ -16,6 +16,10 @@ export const log = new (class {
 
 	setEnabled(yes: boolean): void {
 		this.enabled = yes;
+	}
+
+	show(preserveFocus = true): void {
+		this.getChannel().show(preserveFocus);
 	}
 
 	debug(...msg: [unknown, ...unknown[]]): void {
@@ -59,22 +63,28 @@ export const log = new (class {
 	}
 })();
 
-export function isValidExecutable(path: string, extraEnv: Env): boolean {
+export async function isValidExecutable(path: string, extraEnv: Env): Promise<boolean> {
 	log.debug("Checking availability of a binary at", path);
 
 	const newEnv = substituteVariablesInEnv({ ...process.env, ...extraEnv });
 	log.debug("newEnv", newEnv);
 
-	const res = spawnSync(path, ["--version"], { encoding: "utf8", env: newEnv });
-
-	const errno = res.error as NodeJS.ErrnoException | undefined;
-	if (errno && errno.code !== "ENOENT") {
-		log.warn(path, "--version:", res);
-	} else {
-		log.debug(path, "--version:", res);
-	}
-
-	return res.status === 0;
+	return await new Promise<boolean>((resolve) => {
+		execFile(path, ["--version"], { encoding: "utf8", env: newEnv }, (error, stdout, stderr) => {
+			if (error) {
+				const errno = error as NodeJS.ErrnoException;
+				if (errno.code !== "ENOENT") {
+					log.warn(path, "--version:", { error, stdout, stderr });
+				} else {
+					log.debug(path, "--version:", { error, stdout, stderr });
+				}
+				resolve(false);
+				return;
+			}
+			log.debug(path, "--version:", { stdout, stderr });
+			resolve(true);
+		});
+	});
 }
 
 /** Sets ['when'](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts) clause contexts */

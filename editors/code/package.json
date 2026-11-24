@@ -67,6 +67,11 @@
         "command": "rune-vscode.stopServer",
         "title": "Stop server",
         "category": "Rune"
+      },
+      {
+        "command": "rune-vscode.openLogs",
+        "title": "Open logs",
+        "category": "Rune"
       }
     ],
     "menus": {
@@ -107,7 +112,7 @@
         },
         "rune.server.cargoPackage": {
           "title": "Cargo Package",
-          "markdownDescription": "Set the extension to use the given cargo package to run the language server, rather than a downloaded rune-languageserver.",
+          "markdownDescription": "Set the extension to use the given cargo package to run the language server, rather than a downloaded `rune` binary.",
           "type": "string",
           "default": ""
         },
@@ -118,7 +123,7 @@
           "default": ""
         },
         "rune.server.path": {
-          "markdownDescription": "Path to rune-languageserver executable (will be downloaded by default). If this is set, then `#rune.updates.channel#` setting is not used",
+          "markdownDescription": "Path to `rune` executable (will be downloaded by default). If this is set, then `#rune.updates.channel#` setting is not used.",
           "type": "string",
           "scope": "machine-overridable",
           "default": ""
@@ -135,7 +140,7 @@
             ]
           },
           "default": null,
-          "markdownDescription": "Extra environment variables that will be passed to the rune-languageserver executable. Useful for passing e.g. `RUNE_LOG_FILE` for debugging."
+          "markdownDescription": "Extra environment variables that will be passed to the `rune` executable. Useful for passing e.g. `RUNE_LOG` / `RUNE_LOG_FILE` for debugging."
         },
         "rune.trace.extension": {
           "description": "Enable logging of VS Code extensions itself.",

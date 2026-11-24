@@ -67,6 +67,7 @@ interface DownloadOpts {
 	dest: vscode.Uri;
 	mode?: number;
 	gunzip?: boolean;
+	zipEntry?: string;
 }
 
 export async function download(opts: DownloadOpts): Promise<void> {
@@ -82,35 +83,56 @@ export async function download(opts: DownloadOpts): Promise<void> {
 	);
 	const tempFilePath = vscode.Uri.joinPath(serverDir, `${rawDest.name}${randomHex}`);
 
-	await vscode.window.withProgress(
-		{
-			location: vscode.ProgressLocation.Notification,
-			cancellable: false,
-			title: opts.progressTitle,
-		},
-		async (progress) => {
-			let lastPercentage = 0;
-			await downloadFile(
-				opts.url,
-				tempFilePath,
-				opts.mode,
-				Boolean(opts.gunzip),
-				(readBytes, totalBytes) => {
-					if (totalBytes <= 0) {
-						return;
+	try {
+		await vscode.window.withProgress(
+			{
+				location: vscode.ProgressLocation.Notification,
+				cancellable: true,
+				title: opts.progressTitle,
+			},
+			async (progress, cancellationToken) => {
+				const controller = new AbortController();
+				const cancelListener = cancellationToken.onCancellationRequested(() => {
+					controller.abort();
+				});
+
+				let lastPercentage = 0;
+				try {
+					await downloadFile(
+						opts.url,
+						tempFilePath,
+						opts.mode,
+						Boolean(opts.gunzip),
+						opts.zipEntry,
+						controller.signal,
+						(readBytes, totalBytes) => {
+							if (totalBytes <= 0) {
+								return;
+							}
+							const newPercentage = Math.round((readBytes / totalBytes) * 100);
+							if (newPercentage !== lastPercentage) {
+								progress.report({
+									message: `${newPercentage.toFixed(0)}%`,
+									increment: newPercentage - lastPercentage,
+								});
+								lastPercentage = newPercentage;
+							}
+						},
+					);
+				} catch (err) {
+					if (cancellationToken.isCancellationRequested) {
+						throw new Error("Download cancelled by user.");
 					}
-					const newPercentage = Math.round((readBytes / totalBytes) * 100);
-					if (newPercentage !== lastPercentage) {
-						progress.report({
-							message: `${newPercentage.toFixed(0)}%`,
-							increment: newPercentage - lastPercentage,
-						});
-						lastPercentage = newPercentage;
-					}
-				},
-			);
-		},
-	);
+					throw err;
+				} finally {
+					cancelListener.dispose();
+				}
+			},
+		);
+	} catch (err) {
+		await deleteQuietly(tempFilePath);
+		throw err;
+	}
 
 	// Try to rename a running server to avoid EPERM on Windows.
 	try {
@@ -130,7 +152,14 @@ export async function download(opts: DownloadOpts): Promise<void> {
 	try {
 		await vscode.workspace.fs.rename(tempFilePath, opts.dest, { overwrite: true });
 	} catch (err) {
-		log.error(`Cannot update server binary: ${err}`);
+		await deleteQuietly(tempFilePath);
+		throw new Error(`Cannot update server binary: ${err}`);
+	}
+
+	// Ensure executable permissions are set after rename (vscode.workspace.fs.rename
+	// and process umask can strip mode bits on POSIX systems).
+	if (opts.mode !== undefined && process.platform !== "win32") {
+		await fs.promises.chmod(opts.dest.fsPath, opts.mode);
 	}
 
 	// Now try to remove any stale server binaries.
@@ -152,14 +181,24 @@ export async function download(opts: DownloadOpts): Promise<void> {
 	}
 }
 
+async function deleteQuietly(uri: vscode.Uri): Promise<void> {
+	try {
+		await vscode.workspace.fs.delete(uri);
+	} catch {
+		// Ignore cleanup failures
+	}
+}
+
 async function downloadFile(
 	url: string,
 	destFilePath: vscode.Uri,
 	mode: number | undefined,
 	gunzip: boolean,
+	zipEntry: string | undefined,
+	signal: AbortSignal,
 	onProgress: (readBytes: number, totalBytes: number) => void,
 ): Promise<void> {
-	const res = await fetch(url);
+	const res = await fetch(url, { signal });
 
 	if (!res.ok) {
 		log.error("Error", res.status, "while downloading file from", url);
@@ -183,6 +222,22 @@ async function downloadFile(
 	log.debug("Downloading file of", totalBytes, "bytes size from", url, "to", destFilePath.fsPath);
 
 	let readBytes = 0;
+	const nodeBody = Readable.fromWeb(res.body as unknown as WebReadableStream<Uint8Array>);
+
+	if (zipEntry) {
+		const chunks: Buffer[] = [];
+		for await (const chunk of nodeBody) {
+			const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+			readBytes += buf.length;
+			onProgress(readBytes, totalBytes);
+			chunks.push(buf);
+		}
+		const archive = Buffer.concat(chunks);
+		const extracted = extractZipEntry(archive, zipEntry);
+		await fs.promises.writeFile(destFilePath.fsPath, extracted, { mode });
+		return;
+	}
+
 	const progressStream = new Transform({
 		transform(chunk: Buffer, _encoding, callback) {
 			readBytes += chunk.length;
@@ -191,12 +246,66 @@ async function downloadFile(
 		},
 	});
 
-	const nodeBody = Readable.fromWeb(res.body as unknown as WebReadableStream<Uint8Array>);
 	const destFileStream = fs.createWriteStream(destFilePath.fsPath, { mode });
 
 	if (gunzip) {
-		await pipeline(nodeBody, progressStream, zlib.createGunzip(), destFileStream);
+		await pipeline(nodeBody, progressStream, zlib.createGunzip(), destFileStream, { signal });
 	} else {
-		await pipeline(nodeBody, progressStream, destFileStream);
+		await pipeline(nodeBody, progressStream, destFileStream, { signal });
 	}
+}
+
+/**
+ * Extract a single named file from a ZIP archive buffer (supports Stored and Deflate).
+ */
+function extractZipEntry(buf: Buffer, entryName: string): Buffer {
+	const minEocdOffset = Math.max(0, buf.length - 65557);
+	let eocdOffset = -1;
+	for (let i = buf.length - 22; i >= minEocdOffset; i--) {
+		if (buf.readUInt32LE(i) === 0x06054b50) {
+			eocdOffset = i;
+			break;
+		}
+	}
+	if (eocdOffset === -1) {
+		throw new Error("Invalid ZIP archive: End of Central Directory not found.");
+	}
+
+	const entryCount = buf.readUInt16LE(eocdOffset + 10);
+	let pos = buf.readUInt32LE(eocdOffset + 16);
+
+	for (let i = 0; i < entryCount; i++) {
+		if (buf.readUInt32LE(pos) !== 0x02014b50) {
+			throw new Error("Invalid ZIP archive: malformed Central Directory header.");
+		}
+		const method = buf.readUInt16LE(pos + 10);
+		const compressedSize = buf.readUInt32LE(pos + 20);
+		const nameLen = buf.readUInt16LE(pos + 28);
+		const extraLen = buf.readUInt16LE(pos + 30);
+		const commentLen = buf.readUInt16LE(pos + 32);
+		const localHeaderOffset = buf.readUInt32LE(pos + 42);
+		const name = buf.toString("utf8", pos + 46, pos + 46 + nameLen);
+
+		if (name === entryName || path.posix.basename(name) === entryName) {
+			if (buf.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
+				throw new Error("Invalid ZIP archive: malformed Local File header.");
+			}
+			const localNameLen = buf.readUInt16LE(localHeaderOffset + 26);
+			const localExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
+			const dataStart = localHeaderOffset + 30 + localNameLen + localExtraLen;
+			const compressed = buf.subarray(dataStart, dataStart + compressedSize);
+
+			if (method === 0) {
+				return compressed;
+			}
+			if (method === 8) {
+				return zlib.inflateRawSync(compressed);
+			}
+			throw new Error(`Unsupported ZIP compression method: ${method}`);
+		}
+
+		pos += 46 + nameLen + extraLen + commentLen;
+	}
+
+	throw new Error(`Entry "${entryName}" not found in ZIP archive.`);
 }
