@@ -1,24 +1,26 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
-		"target": "ES2020",
-		"outDir": "out",
+		"module": "Node16",
+		"moduleResolution": "Node16",
+		"target": "ES2022",
 		"lib": [
-			"ES2020"
+			"ES2022"
 		],
+		"outDir": "out",
 		"sourceMap": true,
 		"rootDir": "src",
-		"strict": true /* enable all strict type-checking options */
-		/* Additional Checks */
-		// "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
-		// "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
-		// "noUnusedParameters": true,  /* Report errors on unused parameters. */
+		"strict": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUnusedParameters": true,
+		"skipLibCheck": true
 	},
 	"exclude": [
-		"node_modules"
+		"node_modules",
+		"dist",
+		"out"
 	],
 	"include": [
-		"src",
-		"tests"
+		"src"
 	]
 }

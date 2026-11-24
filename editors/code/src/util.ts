@@ -1,107 +1,92 @@
 import * as vscode from "vscode";
-import { strict as nativeAssert } from "assert";
-import { exec, ExecOptions, spawnSync } from "child_process";
+import { spawnSync } from "node:child_process";
+import { inspect } from "node:util";
 import { Env, substituteVariablesInEnv } from "./config";
-import { inspect } from "util";
-
-export function assert(condition: boolean, explanation: string): asserts condition {
-    try {
-        nativeAssert(condition, explanation);
-    } catch (err) {
-        log.error(`Assertion failed:`, explanation);
-        throw err;
-    }
-}
 
 export const log = new (class {
-    private enabled = true;
-    private readonly output = vscode.window.createOutputChannel("Rune Extension");
+	private enabled = true;
+	private output: vscode.LogOutputChannel | undefined;
 
-    setEnabled(yes: boolean): void {
-        log.enabled = yes;
-    }
+	private getChannel(): vscode.LogOutputChannel {
+		if (!this.output) {
+			this.output = vscode.window.createOutputChannel("Rune Extension", { log: true });
+		}
+		return this.output;
+	}
 
-    // Hint: the type [T, ...T[]] means a non-empty array
-    debug(...msg: [unknown, ...unknown[]]): void {
-        if (!log.enabled) {
-            return;
-        }
-        log.write("DEBUG", ...msg);
-    }
+	setEnabled(yes: boolean): void {
+		this.enabled = yes;
+	}
 
-    info(...msg: [unknown, ...unknown[]]): void {
-        log.write("INFO", ...msg);
-    }
+	debug(...msg: [unknown, ...unknown[]]): void {
+		if (!this.enabled) {
+			return;
+		}
+		this.getChannel().debug(this.format(msg));
+	}
 
-    warn(...msg: [unknown, ...unknown[]]): void {
-        debugger;
-        log.write("WARN", ...msg);
-    }
+	info(...msg: [unknown, ...unknown[]]): void {
+		this.getChannel().info(this.format(msg));
+	}
 
-    error(...msg: [unknown, ...unknown[]]): void {
-        debugger;
-        log.write("ERROR", ...msg);
-        log.output.show(true);
-    }
+	warn(...msg: [unknown, ...unknown[]]): void {
+		this.getChannel().warn(this.format(msg));
+	}
 
-    private write(label: string, ...messageParts: unknown[]): void {
-        const message = messageParts.map(log.stringify).join(" ");
-        const dateTime = new Date().toLocaleString();
-        log.output.appendLine(`${label} [${dateTime}]: ${message}`);
-    }
+	error(...msg: [unknown, ...unknown[]]): void {
+		const channel = this.getChannel();
+		channel.error(this.format(msg));
+		channel.show(true);
+	}
 
-    private stringify(val: unknown): string {
-        if (typeof val === "string") {
-            return val;
-        }
-        return inspect(val, {
-            colors: false,
-            depth: 6, // heuristic
-        });
-    }
+	dispose(): void {
+		this.output?.dispose();
+		this.output = undefined;
+	}
+
+	private format(messageParts: unknown[]): string {
+		return messageParts.map((val) => this.stringify(val)).join(" ");
+	}
+
+	private stringify(val: unknown): string {
+		if (typeof val === "string") {
+			return val;
+		}
+		return inspect(val, {
+			colors: false,
+			depth: 6,
+		});
+	}
 })();
 
 export function isValidExecutable(path: string, extraEnv: Env): boolean {
-    log.debug("Checking availability of a binary at", path);
+	log.debug("Checking availability of a binary at", path);
 
-    const newEnv = substituteVariablesInEnv(Object.assign({}, process.env, extraEnv));
-    log.debug('newEnv', newEnv);
+	const newEnv = substituteVariablesInEnv({ ...process.env, ...extraEnv });
+	log.debug("newEnv", newEnv);
 
-    const res = spawnSync(path, ["--version"], { encoding: "utf8", env: newEnv });
+	const res = spawnSync(path, ["--version"], { encoding: "utf8", env: newEnv });
 
-    const printOutput = res.error && (res.error as any).code !== "ENOENT" ? log.warn : log.debug;
-    printOutput(path, "--version:", res);
+	const errno = res.error as NodeJS.ErrnoException | undefined;
+	if (errno && errno.code !== "ENOENT") {
+		log.warn(path, "--version:", res);
+	} else {
+		log.debug(path, "--version:", res);
+	}
 
-    return res.status === 0;
+	return res.status === 0;
 }
 
 /** Sets ['when'](https://code.visualstudio.com/docs/getstarted/keybindings#_when-clause-contexts) clause contexts */
-export function setContextValue(key: string, value: any): Thenable<void> {
-    return vscode.commands.executeCommand("setContext", key, value);
+export function setContextValue(key: string, value: unknown): Thenable<void> {
+	return vscode.commands.executeCommand("setContext", key, value);
 }
 
-/** Awaitable wrapper around `child_process.exec` */
-export function execute(command: string, options: ExecOptions): Promise<string> {
-    return new Promise((resolve, reject) => {
-        exec(command, options, (err, stdout, stderr) => {
-            if (err) {
-                reject(err);
-                return;
-            }
-
-            if (stderr) {
-                reject(new Error(stderr));
-                return;
-            }
-
-            resolve(stdout.trimEnd());
-        });
-    });
-}
-
-export async function uriExists(uri: vscode.Uri) {
-    return await vscode.workspace.fs.stat(uri).then(
-        () => true,
-        () => false
-    );
+export async function uriExists(uri: vscode.Uri): Promise<boolean> {
+	try {
+		await vscode.workspace.fs.stat(uri);
+		return true;
+	} catch {
+		return false;
+	}
 }
