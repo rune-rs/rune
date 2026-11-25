@@ -100,6 +100,7 @@ macro_rules! __ws {
         $crate::ast::Kind::Whitespace
             | $crate::ast::Kind::Comment
             | $crate::ast::Kind::MultilineComment(..)
+            | $crate::ast::Kind::Shebang(..)
     };
 }
 

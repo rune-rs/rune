@@ -939,6 +939,42 @@ fn comments() {
 }
 
 #[test]
+fn shebang() {
+    assert_format!(
+        r#"
+        #!/usr/bin/env -S rune run
+
+        pub fn main() {
+            println!("Hello");
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        #!/usr/bin/env -S rune run
+        println!("Hello");
+        "#
+    );
+
+    assert_format!(
+        r#"
+        #!/usr/bin/env -S rune run
+        // Leading comment
+        pub fn main() {
+            let x = 1;
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        #!/usr/bin/env -S rune run
+        "#
+    );
+}
+
+#[test]
 fn test_macro_function_like() {
     assert_format!(
         r#"

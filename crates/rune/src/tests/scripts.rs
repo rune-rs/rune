@@ -29,6 +29,88 @@ fn simple_script() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn shebang_script() -> Result<()> {
+    let context = context()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+
+    let unit = compile(
+        &context,
+        "#!/usr/bin/env -S rune run\ncalculate(value) / 2\n",
+    )?;
+    let mut vm = Vm::new(runtime, unit);
+
+    let output = vm.call(Hash::EMPTY, (5,))?;
+    let output: i64 = crate::from_value(output)?;
+    assert_eq!(output, 7);
+    Ok(())
+}
+
+#[test]
+fn shebang_script_with_main() -> Result<()> {
+    let context = Context::with_default_modules()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+
+    let mut sources = Sources::new();
+    sources.insert(Source::memory(
+        "#!/usr/bin/env -S rune run\n\npub fn main() { 42 }\n",
+    )?)?;
+
+    let mut options = Options::default();
+    options.script = true;
+
+    let unit = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_options(&options)
+        .build()?;
+
+    let mut vm = Vm::new(runtime, Arc::try_new(unit)?);
+    let output: i64 = crate::from_value(vm.call(["main"], ())?)?;
+    assert_eq!(output, 42);
+    Ok(())
+}
+
+#[test]
+fn shebang_module() -> Result<()> {
+    for (source, expected) in [
+        ("#!/usr/bin/env -S rune run\n\npub fn main() { 42 }", 42i64),
+        (
+            "#!/usr/bin/env rune\n#![doc = \"module doc\"]\npub fn main() { 7 }",
+            7i64,
+        ),
+        ("#![doc = \"module doc\"]\npub fn main() { 9 }", 9i64),
+    ] {
+        let context = Context::with_default_modules()?;
+        let runtime = Arc::try_new(context.runtime()?)?;
+
+        let mut sources = Sources::new();
+        sources.insert(Source::memory(source)?)?;
+
+        let unit = crate::prepare(&mut sources)
+            .with_context(&context)
+            .build()?;
+
+        let mut vm = Vm::new(runtime, Arc::try_new(unit)?);
+        let output: i64 = crate::from_value(vm.call(["main"], ())?)?;
+        assert_eq!(output, expected);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn shebang_only_script() -> Result<()> {
+    let context = context()?;
+    let runtime = Arc::try_new(context.runtime()?)?;
+
+    let unit = compile(&context, "#!/usr/bin/env -S rune run\n")?;
+    let mut vm = Vm::new(runtime, unit);
+
+    let output: () = crate::from_value(vm.call(Hash::EMPTY, (5,))?)?;
+    assert_eq!(output, ());
+    Ok(())
+}
+
 fn context() -> Result<Arc<Context>, ContextError> {
     let m = module()?;
     let mut context = Context::with_default_modules()?;

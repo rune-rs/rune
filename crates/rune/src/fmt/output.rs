@@ -458,7 +458,7 @@ impl<'a> Formatter<'a> {
             }
 
             match node.kind() {
-                Kind::Comment | Kind::MultilineComment(..) => {}
+                Kind::Comment | Kind::MultilineComment(..) | Kind::Shebang(..) => {}
                 Kind::Whitespace => {
                     let span = node.span();
                     let source = self.source.get(span)?;
@@ -479,12 +479,12 @@ impl<'a> Formatter<'a> {
         let span = node.span();
 
         match node.kind() {
-            Kind::Comment | Kind::MultilineComment(..) => {
+            Kind::Comment | Kind::MultilineComment(..) | Kind::Shebang(..) => {
                 self.comments
                     .try_push_back(Comment {
                         span,
                         before: take(&mut self.lines),
-                        line: matches!(node.kind(), Kind::Comment),
+                        line: matches!(node.kind(), Kind::Comment | Kind::Shebang(..)),
                     })
                     .with_span(span)?;
 

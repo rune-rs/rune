@@ -623,7 +623,9 @@ impl<'a> Lexer<'a> {
             if self.shebang {
                 self.shebang = false;
 
-                if matches!((c, self.iter.peek()), ('#', Some('!'))) {
+                if matches!((c, self.iter.peek()), ('#', Some('!')))
+                    && !matches!(self.iter.peek2(), Some('['))
+                {
                     self.consume_line();
 
                     return Ok(Some(ast::Token {
