@@ -174,6 +174,7 @@ fn deny_unsupported_attributes() {
     denied("fn f(#[bogus] a) {}", "unsupported attribute `bogus`");
     denied("let f = |#[bogus] a| a;", "unsupported attribute `bogus`");
     denied("fn f() { #![bogus] }", "unsupported attribute `bogus`");
+    denied("#![bogus]", "unsupported attribute `bogus`");
 }
 
 /// Most punctuation is consumed with `bump_if`, so its absence produces a tree
