@@ -254,7 +254,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
         // we might introduce bounds which would not be communicated
         // through `Self`.
         match this.kind {
-            ImplItemKind::Node { path, functions } => {
+            ImplItemKind::Node { path, items } => {
                 let named =
                     path.parse(|p| self.q.convert_path2_with(p, true, Used::Used, Used::Unused))?;
 
@@ -275,7 +275,7 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
                 let mut idx = indexer!(path.tree(), named, meta);
 
-                for (id, attrs) in functions {
+                for (id, attrs) in items {
                     path.parse_id(id, |p| index2::item(&mut idx, p, attrs))?;
                 }
             }

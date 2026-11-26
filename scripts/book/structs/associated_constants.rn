@@ -1,0 +1,22 @@
+struct Rgb {
+    r,
+    g,
+    b,
+}
+
+impl Rgb {
+    /// The largest value a channel can have.
+    pub const MAX = 255;
+    const HALF = Self::MAX / 2;
+
+    fn grey(level) {
+        Rgb { r: level, g: level, b: level }
+    }
+
+    fn mid_grey() {
+        Self::grey(Self::HALF)
+    }
+}
+
+let grey = Rgb::mid_grey();
+println!("max: {}, grey: {}", Rgb::MAX, grey.r);

@@ -133,8 +133,8 @@ pub(crate) enum ImplItemKind {
     Node {
         /// The path being implemented.
         path: NodeAt,
-        /// Functions being added.
-        functions: Vec<(NodeId, Attrs)>,
+        /// Functions and constants being added, in source order.
+        items: Vec<(NodeId, Attrs)>,
     },
 }
 

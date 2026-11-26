@@ -48,6 +48,25 @@ Since a static is not known until runtime it cannot be used where a value is
 required at compile time. Referring to one from a `const`, from another static's
 initializer, or from a pattern is a compile error.
 
+#### Constants in `impl` blocks
+
+An `impl` block for a type defined in a script can declare constants beside its
+functions. They are items under the type, so they are reached as `Foo::X`, or as
+`Self::X` inside the impl, and are evaluated at compile time like any other
+`const`. Unlike an impl function, an impl constant may be `pub`. See the
+[Structs] chapter of the book.
+
+```rune
+struct Rgb;
+
+impl Rgb {
+    pub const MAX = 255;
+    const HALF = Self::MAX / 2;
+}
+```
+
+A constant cannot yet be a value of a type defined in a script.
+
 #### Static storage is configured on the virtual machine
 
 The values of statics are not stored in the `Unit`. A unit only records how many
@@ -118,6 +137,10 @@ item of the same name is a compile error. See the `declared_statics` example.
 
 ### Changed
 
+- `ast::ItemImpl::functions` is replaced by `ast::ItemImpl::items`, a list of
+  the new `ast::ImplItem` (a function or a constant) in source order, each with
+  the semicolon which followed it. This breaks code which walks the syntax tree
+  of an impl block, such as a macro parsing one.
 - An expression which a macro evaluates as a constant - the format
   specification of `format!` and `println!`, or one passed to
   `MacroContext::eval` - and which turns out not to be constant is reported as
@@ -155,3 +178,4 @@ written up; there are roughly 89 commits since 0.14.0.
 -->
 
 [Statics]: https://rune-rs.github.io/book/statics.html
+[Structs]: https://rune-rs.github.io/book/structs.html
