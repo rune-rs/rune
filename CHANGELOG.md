@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog], and this project adheres to
 
 ### Added
 
+#### Standard library docs cross-references
+
+The standard library documentation links to the types it mentions (`Option`,
+`Result`, `Vec`, `String`, `HashMap`, ...) instead of only naming them.
+
 #### `rune::highlight`
 
 A public `highlight` function splits source into classified byte spans (keyword,

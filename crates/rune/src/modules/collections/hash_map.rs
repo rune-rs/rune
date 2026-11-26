@@ -63,7 +63,7 @@ pub fn module() -> Result<Module, ContextError> {
 
 /// A [hash map] implemented with quadratic probing and SIMD lookup.
 ///
-/// By default, `HashMap` uses a hashing algorithm selected to provide
+/// By default, [`HashMap`] uses a hashing algorithm selected to provide
 /// resistance against HashDoS attacks. The algorithm is randomly seeded, and a
 /// reasonable best-effort is made to generate this seed from a high quality,
 /// secure source of randomness provided by the host without blocking the
@@ -79,7 +79,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// strings, though those algorithms will typically *not* protect against
 /// attacks such as HashDoS.
 ///
-/// The hashing algorithm can be replaced on a per-`HashMap` basis using the
+/// The hashing algorithm can be replaced on a per-[`HashMap`] basis using the
 /// `default`, `with_hasher`, and `with_capacity_and_hasher` methods.
 /// There are many alternative [hashing algorithms available on crates.io].
 ///
@@ -101,7 +101,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// unsafe code.
 ///
 /// The behavior resulting from either logic error is not specified, but will be
-/// encapsulated to the `HashMap` that observed the logic error and not result
+/// encapsulated to the [`HashMap`] that observed the logic error and not result
 /// in undefined behavior. This could include panics, incorrect results, aborts,
 /// memory leaks, and non-termination.
 ///
@@ -140,7 +140,7 @@ pub(crate) struct HashMap {
 }
 
 impl HashMap {
-    /// Creates an empty `HashMap`.
+    /// Creates an empty [`HashMap`].
     ///
     /// The hash map is initially created with a capacity of 0, so it will not
     /// allocate until it is first inserted into.
@@ -158,7 +158,7 @@ impl HashMap {
         }
     }
 
-    /// Creates an empty `HashMap` with at least the specified capacity.
+    /// Creates an empty [`HashMap`] with at least the specified capacity.
     ///
     /// The hash map will be able to hold at least `capacity` elements without
     /// reallocating. This method is allowed to allocate for more elements than

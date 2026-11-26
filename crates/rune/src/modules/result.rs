@@ -89,7 +89,7 @@ pub(crate) fn is_variant(this: &Result<Value, Value>, variant_hash: Hash) -> boo
     }
 }
 
-/// Converts from `Result` to `Option`.
+/// Converts from [`Result`] to [`Option`].
 ///
 /// # Examples
 ///
@@ -248,7 +248,7 @@ fn unwrap_or_else(this: &Result<Value, Value>, default: Function) -> Result<Valu
 /// # Recommended Message Style
 ///
 /// We recommend that `expect` messages are used to describe the reason you
-/// _expect_ the `Result` should be `Ok`. If you're having trouble remembering
+/// _expect_ the [`Result`] should be [`Ok`]. If you're having trouble remembering
 /// how to phrase expect error messages remember to focus on the word "should"
 /// as in "env variable should be set by blah" or "the given binary should be
 /// available and executable by the current user".
@@ -271,7 +271,7 @@ fn expect(result: &Result<Value, Value>, message: Value) -> Result<Value, VmErro
 
 /// Calls `op` if the result is [`Ok`], otherwise returns the [`Err`] value of `self`.
 ///
-/// This function can be used for control flow based on `Result` values.
+/// This function can be used for control flow based on [`Result`] values.
 ///
 /// # Examples
 ///

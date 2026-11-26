@@ -674,7 +674,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.nth(1), None);
                 /// ```
                 ///
-                /// Returning `None` if there are less than `n + 1` elements:
+                /// Returning [`None`] if there are less than `n + 1` elements:
                 ///
                 /// ```
                 /// let a = [1, 2, 3];
@@ -743,7 +743,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.size_hint(), (5, Some(15)));
                 /// ```
                 ///
-                /// Returning `None` for an upper bound:
+                /// Returning [`None`] for an upper bound:
                 ///
                 /// ```rune
                 /// // an infinite iterator has no upper bound
@@ -1439,7 +1439,7 @@ pub fn module() -> Result<Module, ContextError> {
                         /// type.
                         ///
                         /// `sum()` can be used to sum numerical built-in types,
-                        /// such as `i64`, `float` and `u64`. The first element
+                        /// such as [`i64`], `float` and [`u64`]. The first element
                         /// returned by the iterator determines the type being
                         /// summed.
                         ///
@@ -1480,7 +1480,7 @@ pub fn module() -> Result<Module, ContextError> {
                         /// An empty iterator returns the one value of the type.
                         ///
                         /// `sum()` can be used to sum numerical built-in types,
-                        /// such as `i64`, `f64` and `u64`. The first element
+                        /// such as [`i64`], [`f64`] and [`u64`]. The first element
                         /// returned by the iterator determines the type being
                         /// multiplied.
                         ///
@@ -1635,7 +1635,7 @@ pub fn module() -> Result<Module, ContextError> {
                         /// An empty iterator returns the one value of the type.
                         ///
                         /// `sum()` can be used to sum numerical built-in types,
-                        /// such as `i64`, `f64` and `u64`. The first element
+                        /// such as [`i64`], [`f64`] and [`u64`]. The first element
                         /// returned by the iterator determines the type being
                         /// multiplied.
                         ///
@@ -1762,7 +1762,7 @@ pub fn module() -> Result<Module, ContextError> {
             .docs(docstring! {
                 /// Removes and returns an element from the end of the iterator.
                 ///
-                /// Returns `None` when there are no more elements.
+                /// Returns [`None`] when there are no more elements.
                 ///
                 /// # Examples
                 ///
@@ -1826,7 +1826,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.nth_back(1), None);
                 /// ```
                 ///
-                /// Returning `None` if there are less than `n + 1` elements:
+                /// Returning [`None`] if there are less than `n + 1` elements:
                 ///
                 /// ```rune
                 /// let a = [1, 2, 3];
@@ -1975,7 +1975,7 @@ fn range(start: i64, end: i64) -> RangeIter<i64> {
     RangeIter::new(start..end)
 }
 
-/// Fuse the iterator if the expression is `None`.
+/// Fuse the iterator if the expression is [`None`].
 macro_rules! fuse {
     ($self:ident . $iter:ident . $($call:tt)+) => {
         match $self.$iter {
@@ -2401,7 +2401,7 @@ impl Peekable {
     /// Returns a reference to the `next()` value without advancing the iterator.
     ///
     /// Like [`next`], if there is a value, it is wrapped in a `Some(T)`. But if the
-    /// iteration is over, `None` is returned.
+    /// iteration is over, [`None`] is returned.
     ///
     /// [`next`]: Iterator::next
     ///

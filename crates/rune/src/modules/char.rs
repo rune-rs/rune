@@ -102,7 +102,7 @@ fn to_i64(value: char) -> i64 {
     value as i64
 }
 
-/// Returns `true` if this `char` has the `Alphabetic` property.
+/// Returns `true` if this [`char`] has the `Alphabetic` property.
 ///
 /// `Alphabetic` is described in Chapter 4 (Character Properties) of the [Unicode Standard] and
 /// specified in the [Unicode Character Database][ucd] [`DerivedCoreProperties.txt`].
@@ -127,7 +127,7 @@ fn is_alphabetic(c: char) -> bool {
     char::is_alphabetic(c)
 }
 
-/// Returns `true` if this `char` satisfies either [`is_alphabetic()`] or [`is_numeric()`].
+/// Returns `true` if this [`char`] satisfies either [`is_alphabetic()`] or [`is_numeric()`].
 ///
 /// [`is_alphabetic()`]: #method.is_alphabetic
 /// [`is_numeric()`]: #method.is_numeric
@@ -152,7 +152,7 @@ fn is_alphanumeric(c: char) -> bool {
     char::is_alphanumeric(c)
 }
 
-/// Returns `true` if this `char` has the general category for control codes.
+/// Returns `true` if this [`char`] has the general category for control codes.
 ///
 /// Control codes (code points with the general category of `Cc`) are described
 /// in Chapter 4 (Character Properties) of the [Unicode Standard] and specified
@@ -178,7 +178,7 @@ fn is_control(c: char) -> bool {
     char::is_control(c)
 }
 
-/// Returns `true` if this `char` has the `Lowercase` property.
+/// Returns `true` if this [`char`] has the `Lowercase` property.
 ///
 /// `Lowercase` is described in Chapter 4 (Character Properties) of the [Unicode
 /// Standard] and specified in the [Unicode Character Database][ucd]
@@ -208,7 +208,7 @@ fn is_lowercase(c: char) -> bool {
     char::is_lowercase(c)
 }
 
-/// Returns `true` if this `char` has one of the general categories for numbers.
+/// Returns `true` if this [`char`] has one of the general categories for numbers.
 ///
 /// The general categories for numbers (`Nd` for decimal digits, `Nl` for
 /// letter-like numeric characters, and `No` for other numeric characters) are
@@ -248,7 +248,7 @@ fn is_numeric(c: char) -> bool {
     char::is_numeric(c)
 }
 
-/// Returns `true` if this `char` has the `Uppercase` property.
+/// Returns `true` if this [`char`] has the `Uppercase` property.
 ///
 /// `Uppercase` is described in Chapter 4 (Character Properties) of the [Unicode
 /// Standard] and specified in the [Unicode Character Database][ucd]
@@ -278,7 +278,7 @@ fn is_uppercase(c: char) -> bool {
     char::is_uppercase(c)
 }
 
-/// Returns `true` if this `char` has the `White_Space` property.
+/// Returns `true` if this [`char`] has the `White_Space` property.
 ///
 /// `White_Space` is specified in the [Unicode Character Database][ucd]
 /// [`PropList.txt`].
@@ -307,7 +307,7 @@ fn is_whitespace(c: char) -> bool {
     char::is_whitespace(c)
 }
 
-/// Converts a `char` to a digit in the given radix.
+/// Converts a [`char`] to a digit in the given radix.
 ///
 /// A 'radix' here is sometimes also called a 'base'. A radix of two
 /// indicates a binary number, a radix of ten, decimal, and a radix of
@@ -322,7 +322,7 @@ fn is_whitespace(c: char) -> bool {
 ///
 /// # Errors
 ///
-/// Returns `None` if the `char` does not refer to a digit in the given radix.
+/// Returns [`None`] if the [`char`] does not refer to a digit in the given radix.
 ///
 /// # Panics
 ///
