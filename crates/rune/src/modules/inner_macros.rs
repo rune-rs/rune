@@ -189,7 +189,7 @@ macro_rules! unsigned_fns {
         /// # Overflow behavior
         ///
         /// This function errors on overflow, the same way `*` does. Use
-        /// `wrapping_pow`, `checked_pow` or `saturating_pow` to pick something
+        /// [`wrapping_pow`], [`checked_pow`] or [`saturating_pow`] to pick something
         /// else.
         ///
         /// # Examples
@@ -672,7 +672,7 @@ macro_rules! signed_fns {
         ///
         #[doc = concat!(" The absolute value of `", $n, "::MIN` cannot be represented as an `", $n, "`,")]
         /// so asking for it is an error, the same way negating it is. Use
-        /// `wrapping_abs`, `checked_abs` or `saturating_abs` to pick something
+        /// [`wrapping_abs`], [`checked_abs`] or [`saturating_abs`] to pick something
         /// else.
         ///
         /// # Examples

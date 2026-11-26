@@ -28,9 +28,9 @@ pub fn module(
         /// and [dbg()] functions which are used to hook up printing for a Rune project.
         ///
         /// With complete names:
-        /// * `::std::io::print`
-        /// * `::std::io::println`
-        /// * `::std::io::dbg`
+        /// * [`::std::io::print`]
+        /// * [`::std::io::println`]
+        /// * [`::std::io::dbg`]
         ///
         /// Their definitions can be omitted from the built-in standard library, and
         /// can then easily be defined by third party modules allowing for printing
