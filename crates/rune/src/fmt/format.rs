@@ -1275,7 +1275,15 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                     p.expect(Type)?.parse(|p| ty(fmt, p))?;
                 }
 
-                let block = p.eat(Block);
+                // Only a declaration may go without a body. Anywhere else the
+                // grammar leaves a missing one for a later pass to report, and
+                // laying it out as a declaration would end it in a `;`, which
+                // turns `fn` into `fn();` - something which no longer parses.
+                let block = if fmt.declaration {
+                    p.eat(Block)
+                } else {
+                    MaybeNode::Some(p.expect(Block)?)
+                };
 
                 cx.push(Step::ItemFn { buf, at: 2 })?;
 

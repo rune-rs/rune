@@ -95,6 +95,9 @@ fn known_shapes_are_a_fixed_point() {
         "f//c\nn\n",
         "return 'label break \n",
         "mod {   \n",
+        "fn\n",
+        "fn foo\n",
+        "fn foo(a)\n",
     ] {
         let Some(once) = try_format(source) else {
             continue;
