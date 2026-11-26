@@ -56,8 +56,10 @@ fn shebang_script_with_main() -> Result<()> {
         "#!/usr/bin/env -S rune run\n\npub fn main() { 42 }\n",
     )?)?;
 
-    let mut options = Options::default();
-    options.script = true;
+    let options = Options {
+        script: true,
+        ..Options::default()
+    };
 
     let unit = crate::prepare(&mut sources)
         .with_context(&context)
