@@ -57,15 +57,18 @@ functions. They are items under the type, so they are reached as `Foo::X`, or as
 [Structs] chapter of the book.
 
 ```rune
-struct Rgb;
+pub struct Color(r, g, b, a);
 
-impl Rgb {
+impl Color {
     pub const MAX = 255;
-    const HALF = Self::MAX / 2;
+    pub const RED = Self(Self::MAX, 0, 0, Self::MAX);
 }
 ```
 
-A constant cannot yet be a value of a type defined in a script.
+A constant, in an impl block or at the top level, may be a value of a struct,
+tuple struct or enum variant defined in the script, and such a constant can be
+used as a pattern. A constant of this kind is stored by type hash and fields,
+and is rebuilt out of the unit's type information wherever it is used.
 
 #### Static storage is configured on the virtual machine
 

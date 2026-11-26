@@ -119,6 +119,64 @@ fn lazy_initialization() {
     );
 }
 
+/// A static whose initializer is a script-defined type is rebuilt out of the
+/// unit's type information the first time it is read.
+#[test]
+#[cfg(not(miri))]
+fn initializer_of_a_script_type() {
+    with(
+        r#"
+        struct Point { x, y }
+        struct Color(r, g, b);
+        enum Shape { Circle(radius), Empty }
+
+        static P = Point { y: 2, x: 1 };
+        static C = Color(1, 2, 3);
+        static S = [Shape::Circle(4), Shape::Empty];
+
+        pub fn main() {
+            let area = match S {
+                [Shape::Circle(r), Shape::Empty] => r,
+                _ => 0,
+            };
+
+            P.x * 10000 + P.y * 1000 + C.0 * 100 + C.2 * 10 + area
+        }
+        "#,
+        |unit, runtime| {
+            let globals = Globals::new(unit.clone())?;
+            let mut vm = Vm::new(runtime, unit).with_globals(globals);
+            let output: i64 = from_value(vm.call(["main"], ())?)?;
+            assert_eq!(output, 12134);
+            Ok(())
+        },
+    );
+}
+
+/// A unit read back from byte code still knows how to rebuild a script type,
+/// since the type information it is rebuilt out of travels with the unit.
+#[test]
+#[cfg(all(not(miri), feature = "byte-code"))]
+fn initializer_of_a_script_type_survives_byte_code() {
+    with(
+        r#"
+        struct Point { x, y }
+        static P = Point { y: 2, x: 1 };
+        pub fn main() { P.x * 10 + P.y }
+        "#,
+        |unit, runtime| {
+            let bytes = musli::storage::to_vec(&*unit)?;
+            let unit = Arc::try_new(musli::storage::from_slice::<Unit>(&bytes)?)?;
+
+            let globals = Globals::new(unit.clone())?;
+            let mut vm = Vm::new(runtime, unit).with_globals(globals);
+            let output: i64 = from_value(vm.call(["main"], ())?)?;
+            assert_eq!(output, 12);
+            Ok(())
+        },
+    );
+}
+
 #[test]
 #[cfg(not(miri))]
 fn assignment_from_script() {

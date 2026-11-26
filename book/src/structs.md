@@ -29,11 +29,12 @@ script is compiled, and they may be made `pub`.
 
 ```text
 $> cargo run -- run scripts/book/structs/associated_constants.rn
-max: 255, grey: 127
+max: 255, grey: 127, black: 0
 ```
 
-A constant cannot yet hold an instance of a struct or enum defined in a script,
-so `const BLACK = Self { r: 0, g: 0, b: 0 }` is a compile error.
+A constant can hold an instance of a struct or enum defined in the script, like
+`BLACK` above. Each use of it is a fresh value, so changing a field of one does
+not change the constant.
 
 Structs can also be pattern matched, like most types.
 

@@ -27,7 +27,7 @@ use crate::macros::Storage;
 use crate::parse::{NonZeroId, Resolve};
 #[cfg(feature = "doc")]
 use crate::runtime::Call;
-use crate::runtime::{ConstValue, ConstValueBuf};
+use crate::runtime::{ConstValue, ConstValueBuf, UnitConstContext};
 use crate::shared::{Consts, Gen};
 use crate::{Context, Diagnostics, Hash, Item, ItemBuf, Options, SourceId, Sources};
 
@@ -1051,7 +1051,12 @@ impl<'a, 'arena> Query<'a, 'arena> {
         let mut values = Vec::try_with_capacity(args.len())?;
 
         for arg in args {
-            values.try_push(arg.to_value_with(self.context).with_span(span)?)?;
+            let cx = UnitConstContext {
+                context: self.context,
+                unit: &*self.unit,
+            };
+
+            values.try_push(arg.to_value_with(&cx).with_span(span)?)?;
         }
 
         let value = const_eval::eval(self, location, span, Entry::Call(id), values)?;
