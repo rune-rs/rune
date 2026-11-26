@@ -225,7 +225,15 @@ where
                     tracing::trace!(?incoming);
 
                     // If server is not initialized, reject incoming requests.
+                    // A notification has nothing to reject it with, so the
+                    // protocol has it dropped.
                     if !state.is_initialized() && incoming.method != lsp::request::Initialize::METHOD {
+                        if incoming.id.is_none() {
+                            tracing::debug!(method = incoming.method, "Dropping notification before initialization");
+                            content.clear();
+                            continue;
+                        }
+
                         state.out
                             .error(
                                 incoming.id,
@@ -288,13 +296,28 @@ where
                                         )?;
                                     }
                                 })*
-                                _ => {
-                                    state.out.log(
-                                        lsp::MessageType::INFO,
-                                        format!("Unhandled method `{}`", incoming.method),
-                                    )?;
-                                    state.out.method_not_found(incoming.id)?;
-                                }
+                                // Only a request is answered. A notification
+                                // has no id to put in a response, and one
+                                // with an id of `null` is not a reply to
+                                // anything. The protocol says a `$/`
+                                // notification the server does not know is
+                                // ignored, and a client sends those
+                                // routinely.
+                                method => match incoming.id {
+                                    Some(id) => {
+                                        state.out.log(
+                                            lsp::MessageType::INFO,
+                                            format!("Unhandled method `{method}`"),
+                                        )?;
+                                        state.out.method_not_found(Some(id))?;
+                                    }
+                                    None if method.starts_with("$/") => {
+                                        tracing::trace!(method, "Ignoring notification");
+                                    }
+                                    None => {
+                                        tracing::debug!(method, "Unhandled notification");
+                                    }
+                                },
                             }
                         }
                     }
@@ -311,6 +334,7 @@ where
                         notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
                         notif(lsp::notification::DidSaveTextDocument, did_save_text_document),
                         notif(lsp::notification::Initialized, initialized),
+                        notif(lsp::notification::Cancel, cancel_request),
                     }
 
                     content.clear();
@@ -428,6 +452,16 @@ fn shutdown(s: &mut State<'_>, _: ()) -> Result<()> {
 /// Handle initialized notification.
 fn initialized(_: &mut State<'_>, _: lsp::InitializedParams) -> Result<()> {
     tracing::info!("Initialized");
+    Ok(())
+}
+
+/// Handle a request being cancelled.
+///
+/// Requests are served one at a time to completion, so by the time this is
+/// read the request it names has already been answered or was never seen, and
+/// there is nothing left to cancel.
+fn cancel_request(_: &mut State<'_>, params: lsp::CancelParams) -> Result<()> {
+    tracing::trace!(id = ?params.id, "Cancel request");
     Ok(())
 }
 

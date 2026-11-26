@@ -747,3 +747,111 @@ fn a_completion_lands_in_the_same_place_in_either_encoding() {
         );
     }
 }
+
+/// Every message which answers a request, whatever its id.
+fn responses(messages: &[serde_json::Value]) -> impl Iterator<Item = &serde_json::Value> {
+    messages
+        .iter()
+        .filter(|m| m.get("result").is_some() || m.get("error").is_some())
+}
+
+/// A cancelled request is not answered a second time, and the cancellation is
+/// not answered at all.
+///
+/// Clients send `$/cancelRequest` routinely. It used to fall through to the
+/// catch-all, which answered it with a `MethodNotFound` error carrying an id of
+/// `null` - a response to nothing, written for every cancellation.
+#[test]
+fn a_cancellation_is_not_answered() {
+    let uri = "file:///tmp/cancelled.rn";
+
+    let mut s = Session::new();
+    s.open(uri, "let a = 1;\n");
+
+    let finished = s.request(
+        "textDocument/formatting",
+        serde_json::json!({
+            "textDocument": {"uri": uri},
+            "options": {"tabSize": 4, "insertSpaces": true},
+        }),
+    );
+
+    // One for a request which has been served, and one for an id the server
+    // has never seen.
+    s.notify("$/cancelRequest", serde_json::json!({"id": finished}));
+    s.notify("$/cancelRequest", serde_json::json!({"id": 9999}));
+    s.notify("$/cancelRequest", serde_json::json!({"id": "unknown"}));
+
+    let served = s.request(
+        "textDocument/formatting",
+        serde_json::json!({
+            "textDocument": {"uri": uri},
+            "options": {"tabSize": 4, "insertSpaces": true},
+        }),
+    );
+
+    let messages = s.run(|m| answered(m, served));
+
+    let m = response(&messages, served);
+    assert!(m.get("error").is_none(), "{served}: {m}");
+
+    // The initialize request and the two formatting requests, once each.
+    let ids = responses(&messages)
+        .map(|m| m["id"].clone())
+        .collect::<rust_alloc::vec::Vec<_>>();
+
+    assert_eq!(ids, [1, finished, served], "{messages:?}");
+
+    // And nothing was logged about it either.
+    assert!(
+        !notifications(&messages, "window/logMessage").any(|m| m["params"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("cancelRequest"))),
+        "{messages:?}"
+    );
+}
+
+/// A notification the server does not know is not answered.
+///
+/// A notification has no id, so an error for one is a response to nothing.
+/// The protocol has a `$/` notification ignored, and any other is at most
+/// something to log.
+#[test]
+fn an_unknown_notification_is_not_answered() {
+    let mut s = Session::new();
+
+    s.notify("$/setTrace", serde_json::json!({"value": "verbose"}));
+    s.notify("$/somethingNew", serde_json::json!({}));
+    s.notify("custom/notification", serde_json::json!({"a": 1}));
+
+    let served = s.request("shutdown", serde_json::Value::Null);
+
+    let messages = s.run(|m| answered(m, served));
+
+    let m = response(&messages, served);
+    assert!(m.get("error").is_none(), "{served}: {m}");
+
+    assert!(
+        responses(&messages).all(|m| !m["id"].is_null()),
+        "{messages:?}"
+    );
+
+    assert_eq!(responses(&messages).count(), 2, "{messages:?}");
+}
+
+/// A request the server does not know is still answered, with
+/// `MethodNotFound`, since a client waits on every request it sends.
+#[test]
+fn an_unknown_request_is_answered_with_method_not_found() {
+    let mut s = Session::new();
+
+    let unknown = s.request("custom/request", serde_json::json!({}));
+    let dollar = s.request("$/unknownRequest", serde_json::json!({}));
+
+    let messages = s.run(|m| answered(m, unknown) && answered(m, dollar));
+
+    for id in [unknown, dollar] {
+        let m = response(&messages, id);
+        assert_eq!(m["error"]["code"], -32601, "{id}: {m}");
+    }
+}
