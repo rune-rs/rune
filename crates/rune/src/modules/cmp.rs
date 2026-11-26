@@ -87,7 +87,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// This trait allows for comparisons using the equality operator, for
         /// types that do not have a full equivalence relation. For example, in
         /// floating point numbers `NaN != NaN`, so floating point types
-        /// implement `PartialEq` but not [`trait@Eq`]. Formally speaking, when
+        /// implement [`PartialEq`] but not [`trait@Eq`]. Formally speaking, when
         /// `Rhs == Self`, this trait corresponds to a [partial equivalence
         /// relation].
         ///
@@ -104,7 +104,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// good reason.
         ///
         /// If [`PartialOrd`] or [`Ord`] are also implemented for `Self` and
-        /// `Rhs`, their methods must also be consistent with `PartialEq` (see
+        /// `Rhs`, their methods must also be consistent with [`PartialEq`] (see
         /// the documentation of those traits for the exact requirements). It's
         /// easy to accidentally make them disagree by deriving some of the
         /// traits and manually implementing others.
@@ -134,7 +134,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// ## Cross-crate considerations
         ///
         /// Upholding the requirements stated above can become tricky when one
-        /// crate implements `PartialEq` for a type of another crate (i.e., to
+        /// crate implements [`PartialEq`] for a type of another crate (i.e., to
         /// allow comparing one of its own types with a type from the standard
         /// library). The recommendation is to never implement this trait for a
         /// foreign type. In other words, such a crate should do `impl
@@ -152,7 +152,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// comparisons of foreign types in ways that violate transitivity.
         ///
         /// Not having such foreign `impl`s also avoids forward compatibility
-        /// issues where one crate adding more `PartialEq` implementations can
+        /// issues where one crate adding more [`PartialEq`] implementations can
         /// cause build failures in downstream crates.
         ///
         /// # Examples
@@ -223,12 +223,12 @@ pub fn module() -> Result<Module, ContextError> {
         /// inverses, the relation must be (for all `a`, `b` and `c`):
         ///
         /// - reflexive: `a == a`;
-        /// - symmetric: `a == b` implies `b == a` (required by `PartialEq` as
+        /// - symmetric: `a == b` implies `b == a` (required by [`PartialEq`] as
         ///   well); and
         /// - transitive: `a == b` and `b == c` implies `a == c` (required by
         ///   `PartialEq` as well).
         ///
-        /// This property cannot be checked by the compiler, and therefore `Eq`
+        /// This property cannot be checked by the compiler, and therefore [`Eq`]
         /// implies [`PartialEq`], and has no extra methods.
         ///
         /// Violating this property is a logic error. The behavior resulting
@@ -237,7 +237,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// This means that `unsafe` code **must not** rely on the correctness
         /// of these methods.
         ///
-        /// Implement `Eq` in addition to `PartialEq` if it's guaranteed that
+        /// Implement [`Eq`] in addition to [`PartialEq`] if it's guaranteed that
         /// `PartialEq::eq(a, a)` always returns `true` (reflexivity), in
         /// addition to the symmetric and transitive properties already required
         /// by `PartialEq`.
@@ -317,7 +317,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// ## Cross-crate considerations
         ///
         /// Upholding the requirements stated above can become tricky when one
-        /// crate implements `PartialOrd` for a type of another crate (i.e., to
+        /// crate implements [`PartialOrd`] for a type of another crate (i.e., to
         /// allow comparing one of its own types with a type from the standard
         /// library). The recommendation is to never implement this trait for a
         /// foreign type. In other words, such a crate should do `impl
@@ -335,7 +335,7 @@ pub fn module() -> Result<Module, ContextError> {
         /// foreign types in ways that violate transitivity.
         ///
         /// Not having such foreign `impl`s also avoids forward compatibility
-        /// issues where one crate adding more `PartialOrd` implementations can
+        /// issues where one crate adding more [`PartialOrd`] implementations can
         /// cause build failures in downstream crates.
         ///
         /// ## Corollaries
@@ -354,16 +354,16 @@ pub fn module() -> Result<Module, ContextError> {
         /// *non-strict* partial order. That is because mathematically, a
         /// non-strict partial order would require reflexivity, i.e. `a <= a`
         /// would need to be true for every `a`. This isn't always the case for
-        /// types that implement `PartialOrd`, for example:
+        /// types that implement [`PartialOrd`], for example:
         ///
         /// ```
         /// let a = f64::sqrt(-1.0);
         /// assert_eq!(a <= a, false);
         /// ```
         ///
-        /// ## How can I implement `PartialOrd`?
+        /// ## How can I implement [`PartialOrd`]?
         ///
-        /// `PartialOrd` only requires implementation of the `PARTIAL_CMP`
+        /// [`PartialOrd`] only requires implementation of the `PARTIAL_CMP`
         /// protocol, with the others generated from default implementations.
         ///
         /// However it remains possible to implement the others separately for
@@ -557,7 +557,7 @@ pub fn module() -> Result<Module, ContextError> {
         ///
         /// ## Corollaries
         ///
-        /// From the above and the requirements of `PartialOrd`, it follows that
+        /// From the above and the requirements of [`PartialOrd`], it follows that
         /// for all `a`, `b` and `c`:
         ///
         /// - exactly one of `a < b`, `a == b` or `a > b` is true; and
@@ -586,9 +586,9 @@ pub fn module() -> Result<Module, ContextError> {
         ///    sequence.
         ///  - Two empty sequences are lexicographically equal.
         ///
-        /// ## How can I implement `Ord`?
+        /// ## How can I implement [`Ord`]?
         ///
-        /// `Ord` requires that the type also be [`PartialOrd`] and [`Eq`]
+        /// [`Ord`] requires that the type also be [`PartialOrd`] and [`Eq`]
         /// (which requires [`PartialEq`]).
         ///
         /// Then you must define an implementation for `CMP`. You may find it
