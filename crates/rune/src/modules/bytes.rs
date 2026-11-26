@@ -351,7 +351,7 @@ fn clear(this: &mut Bytes) {
 
 /// Reserves capacity for at least `additional` more elements to be inserted in
 /// the given [`Bytes`]. The collection may reserve more space to speculatively
-/// avoid frequent reallocations. After calling `reserve`, capacity will be
+/// avoid frequent reallocations. After calling [`reserve`], capacity will be
 /// greater than or equal to `self.len() + additional`. Does nothing if capacity
 /// is already sufficient.
 ///
@@ -375,7 +375,7 @@ fn reserve(this: &mut Bytes, additional: usize) -> Result<(), VmError> {
 /// Reserves the minimum capacity for at least `additional` more elements to be
 /// inserted in the given [`Bytes`]. Unlike [`reserve`], this will not
 /// deliberately over-allocate to speculatively avoid frequent allocations.
-/// After calling `reserve_exact`, capacity will be greater than or equal to
+/// After calling [`reserve_exact`], capacity will be greater than or equal to
 /// `self.len() + additional`. Does nothing if the capacity is already
 /// sufficient.
 ///
