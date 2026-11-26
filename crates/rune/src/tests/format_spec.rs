@@ -310,3 +310,54 @@ fn a_width_or_precision_which_is_too_large_is_reported() {
     let out: String = eval(r#"format!("{:.65535}", 1.0)"#);
     assert_eq!(out.len(), 65537);
 }
+
+/// A format specification which is not a constant expression is reported as
+/// such, against the whole of it, with what made it not constant kept as the
+/// cause.
+///
+/// Only the cause was reported, so `println!(x + 7)` said that there was no
+/// local variable `x` - when there is one - and nothing said that the macro
+/// asked for a constant.
+#[test]
+fn a_format_specification_must_be_a_constant_expression() {
+    let source = "let x = 1; println!(x + 7);";
+
+    assert_errors! {
+        source,
+        span!(20, 25),
+        ErrorKind::NotConstExpr { what: "Format specification", cause } => {
+            assert_eq!(crate::ast::Spanned::span(&*cause), span!(20, 21));
+            assert!(matches!(cause.into_kind(), ErrorKind::MissingLocal { ref name } if &**name == "x"));
+        }
+    };
+
+    let mut sources = crate::tests::sources(source);
+    let mut diagnostics = Diagnostics::new();
+    let context = Context::with_default_modules().expect("Failed to build context");
+
+    let mut options = Options::default();
+    options.script(true);
+
+    let _ = crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .with_options(&options)
+        .build();
+
+    let mut buffer = crate::termcolor::Buffer::no_color();
+
+    diagnostics
+        .emit(&mut buffer, &sources)
+        .expect("Failed to emit");
+
+    let out = rust_alloc::string::String::from_utf8(buffer.into_inner()).expect("utf-8");
+    assert!(
+        out.contains("error: Format specification must be a constant expression"),
+        "{out}"
+    );
+    assert!(out.contains("No local variable `x`"), "{out}");
+
+    // A constant specification may still format a variable.
+    let out: String = eval(r#"let x = 1; format!("{}", x + 7)"#);
+    assert_eq!(out, "8");
+}

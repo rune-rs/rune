@@ -61,7 +61,6 @@ impl Error {
     }
 
     /// Get the kind of the error.
-    #[cfg(feature = "emit")]
     pub(crate) fn kind(&self) -> &ErrorKind {
         &self.kind
     }
@@ -346,6 +345,15 @@ pub(crate) enum ErrorKind {
     UnsupportedRef,
     NotConstFn {
         item: ItemBuf,
+    },
+    /// An expression which a macro evaluates as a constant could not be
+    /// evaluated, because something in it is not constant.
+    NotConstExpr {
+        /// What the expression is, as it is described in the message.
+        what: &'static str,
+        /// Why it is not constant, which is reported against the part of the
+        /// expression responsible.
+        cause: rust_alloc::boxed::Box<Error>,
     },
     StaticInConstContext {
         item: ItemBuf,
@@ -673,6 +681,7 @@ impl core::error::Error for ErrorKind {
             ErrorKind::UnescapeError(source) => Some(source),
             #[cfg(feature = "std")]
             ErrorKind::SourceError { error, .. } => Some(error),
+            ErrorKind::NotConstExpr { cause, .. } => Some(&**cause),
             _ => None,
         }
     }
@@ -836,6 +845,9 @@ impl fmt::Display for ErrorKind {
                     f,
                     "The function `{item}` cannot be called in a constant context, since it is not a `const fn`"
                 )?;
+            }
+            ErrorKind::NotConstExpr { what, .. } => {
+                write!(f, "{what} must be a constant expression")?;
             }
             ErrorKind::StaticInConstContext { item } => {
                 write!(

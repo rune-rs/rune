@@ -779,6 +779,21 @@ where
                         .with_message("Existing branch here"),
                 );
             }
+            ErrorKind::NotConstExpr { cause, .. } => {
+                // The cause is what is actually wrong, so it is reported where
+                // it is unless that is the whole expression, in which case a
+                // second label on the same span would only repeat it.
+                if cause.span() == span {
+                    notes.push(format!("Because: {cause}"));
+                } else {
+                    labels.push(
+                        d::Label::secondary(this.source_id(), cause.span().range())
+                            .with_message(cause.try_to_string()?.into_std()),
+                    );
+                }
+
+                format_compile_error(this, sources, cause.span(), cause.kind(), labels, notes)?;
+            }
             _ => (),
         }
 

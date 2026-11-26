@@ -84,7 +84,7 @@ impl FormatArgs {
 
     /// Expand the format specification.
     pub fn expand(&self, cx: &mut MacroContext<'_, '_, '_>) -> compile::Result<Quote<'_>> {
-        let format = cx.eval_stream(&self.format)?;
+        let format = cx.eval_stream_as(&self.format, "Format specification")?;
 
         let mut pos = Vec::new();
         let mut named = HashMap::<Box<str>, _>::new();
@@ -658,7 +658,7 @@ fn expand_format_spec<'a>(
 
             unused_pos.remove(count);
 
-            let value = cx.eval_stream(&arg.value)?;
+            let value = cx.eval_stream_as(&arg.value, "Precision argument")?;
             let precision = value.as_usize().with_span(span)?;
 
             *count += 1;
