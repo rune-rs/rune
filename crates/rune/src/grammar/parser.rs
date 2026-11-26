@@ -37,6 +37,8 @@ pub(super) struct Parser<'a> {
     nesting: usize,
     /// How deeply the parser is allowed to nest.
     max_nesting: usize,
+    /// Whether a declaration source (`.d.rn`) is being parsed.
+    declaration: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -57,7 +59,18 @@ impl<'a> Parser<'a> {
             include_whitespace: false,
             nesting: 0,
             max_nesting: usize::MAX,
+            declaration: false,
         }
+    }
+
+    /// Configure whether a declaration source is being parsed.
+    pub(super) fn declaration(&mut self, declaration: bool) {
+        self.declaration = declaration;
+    }
+
+    /// Test whether a declaration source is being parsed.
+    pub(super) fn is_declaration(&self) -> bool {
+        self.declaration
     }
 
     /// Configure whether whitespace should be ignored.

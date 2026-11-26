@@ -1,3 +1,4 @@
+pub(crate) mod declarations;
 pub(crate) mod index2;
 mod indexer;
 pub(crate) mod items;

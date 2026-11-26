@@ -17,6 +17,18 @@ The format is based on [Keep a Changelog], and this project adheres to
 The standard library documentation links to the types it mentions (`Option`,
 `Result`, `Vec`, `String`, `HashMap`, ...) instead of only naming them.
 
+#### Declaration sources (`.d.rn`)
+
+A source whose name ends in `.d.rn` (`Source::is_declaration`) is a declaration
+source. It is parsed with the same grammar as any other source but may only hold
+declarations: functions without bodies (`fn hello(value: u64) -> u64;`),
+structs, enums, inline `mod` blocks, `impl` blocks of signatures, `use`, docs
+and attributes. Unlike an ordinary source it may put types on arguments, return
+values and fields. Anything else is reported where it was written, `rune fmt`
+lays declarations out, and nothing in a declaration source is compiled into a
+unit yet. A function without a body in an ordinary source is now an error that
+says so.
+
 #### `rune::highlight`
 
 A public `highlight` function splits source into classified byte spans (keyword,

@@ -196,9 +196,30 @@ impl<'a, 'arena> Worker<'a, 'arena> {
 
         let as_function_body = !kind.is_module() && self.q.options.script;
 
+        let declaration = source.is_declaration();
+
         let tree = crate::grammar::text(source_id, source.as_str())
+            .declaration(declaration)
             .max_nesting(self.q.options.max_depth)
             .root()?;
+
+        // A declaration source describes what a host provides natively, so
+        // nothing in it is indexed or compiled. Registering what it declares
+        // as items the compiler resolves against is still to come; for now
+        // they are only extracted, which diagnoses whatever is not a
+        // declaration.
+        if declaration {
+            #[cfg_attr(not(feature = "tracing"), allow(unused))]
+            let declarations = crate::indexing::declarations::file(
+                resolve_context!(self.q),
+                source_id,
+                &tree,
+                self.q.diagnostics,
+            )?;
+
+            tracing::trace!(?declarations, "declarations: {source_id}");
+            return Ok(());
+        }
 
         let tree = Rc::new(tree);
 

@@ -8501,6 +8501,8 @@ pub enum Kind {
     TokenStream,
     /// a raw token stream
     TemplateString,
+    /// a type annotation
+    Type,
 }
 
 impl From<ast::Token> for Kind {
@@ -8660,6 +8662,7 @@ impl Kind {
             Self::ModifierIn => true,
             Self::TokenStream => true,
             Self::TemplateString => true,
+            Self::Type => true,
             _ => false,
         }
     }
@@ -8997,6 +9000,7 @@ impl parse::IntoExpectation for Kind {
             Self::ModifierIn => parse::Expectation::Syntax("the `(in <path>)` modifier"),
             Self::TokenStream => parse::Expectation::Syntax("a raw token stream"),
             Self::TemplateString => parse::Expectation::Syntax("a raw token stream"),
+            Self::Type => parse::Expectation::Syntax("a type annotation"),
         }
     }
 }

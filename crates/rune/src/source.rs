@@ -196,6 +196,37 @@ impl Source {
         }
     }
 
+    /// Test if this is a declaration source.
+    ///
+    /// A declaration source is one whose path, or failing that whose name,
+    /// ends in `.d.rn`. It holds only signatures, type definitions and their
+    /// documentation, the way a host describes what it provides natively, and
+    /// none of what is declared in it is compiled into a unit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rune::Source;
+    ///
+    /// let source = Source::new("host.d.rn", "fn hello(value: u64) -> u64;")?;
+    /// assert!(source.is_declaration());
+    ///
+    /// let source = Source::new("host.rn", "fn hello(value) { value }")?;
+    /// assert!(!source.is_declaration());
+    /// # Ok::<_, rune::support::Error>(())
+    /// ```
+    pub fn is_declaration(&self) -> bool {
+        #[cfg(feature = "std")]
+        if let Some(path) = &self.path {
+            return path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(is_declaration_name);
+        }
+
+        is_declaration_name(self.name())
+    }
+
     ///  et the given range from the source.
     pub(crate) fn get<I>(&self, i: I) -> Option<&I::Output>
     where
@@ -474,4 +505,9 @@ fn line_for(source: &Source, span: Span) -> Option<(usize, usize, &str, Span)> {
             span.end.saturating_sub(start),
         ),
     ))
+}
+
+/// Test if a file name is that of a declaration source.
+pub(crate) fn is_declaration_name(name: &str) -> bool {
+    name.ends_with(".d.rn")
 }

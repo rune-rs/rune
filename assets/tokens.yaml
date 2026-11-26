@@ -476,3 +476,4 @@
 - {kind: "syntax", variant: "ModifierIn", doc: "the `(in <path>)` modifier"}
 - {kind: "syntax", variant: "TokenStream", doc: "a raw token stream"}
 - {kind: "syntax", variant: "TemplateString", doc: "a raw token stream"}
+- {kind: "syntax", variant: "Type", doc: "a type annotation"}
