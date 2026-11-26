@@ -2123,9 +2123,30 @@ impl Vm {
         Ok(exit.then_some(out))
     }
 
+    /// The error for calling a function which neither the unit nor the
+    /// context has, naming it when a declaration source declared it.
+    #[cold]
+    fn missing_function(&self, hash: Hash) -> VmError {
+        let Some(item) = self.unit.debug_info().and_then(|d| d.declared(hash)) else {
+            return VmError::new(VmErrorKind::MissingFunction { hash });
+        };
+
+        match item.try_clone() {
+            Ok(item) => VmError::new(VmErrorKind::MissingDeclaredFunction { item, hash }),
+            Err(error) => VmError::from(error),
+        }
+    }
+
     fn lookup_function_by_hash(&self, hash: Hash) -> Result<Function, VmErrorKind> {
         let Some(info) = self.unit.function(&hash) else {
             let Some(handler) = self.context.function(&hash) else {
+                if let Some(item) = self.unit.debug_info().and_then(|d| d.declared(hash)) {
+                    return Err(VmErrorKind::MissingDeclaredFunction {
+                        item: item.try_clone()?,
+                        hash,
+                    });
+                }
+
                 return Err(VmErrorKind::MissingContextFunction { hash });
             };
 
@@ -2953,7 +2974,7 @@ impl Vm {
     ) -> Result<(), VmError> {
         let Some(info) = self.unit.function(&hash) else {
             let Some(handler) = self.context.function(&hash) else {
-                return Err(VmError::new(VmErrorKind::MissingFunction { hash }));
+                return Err(self.missing_function(hash));
             };
 
             handler.call(&mut self.stack, addr, args, out)?;

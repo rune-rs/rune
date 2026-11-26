@@ -26,8 +26,16 @@ structs, enums, inline `mod` blocks, `impl` blocks of signatures, `use`, docs
 and attributes. Unlike an ordinary source it may put types on arguments, return
 values and fields. Anything else is reported where it was written, `rune fmt`
 lays declarations out, and nothing in a declaration source is compiled into a
-unit yet. A function without a body in an ordinary source is now an error that
+unit. A function without a body in an ordinary source is now an error that
 says so.
+
+What a declaration source declares is resolved by the compiler the way a
+natively installed item is: a script beside it can call its functions
+(including those in its `mod` and `impl` blocks) and name its types without
+the host being present. A native item of the same name wins over the
+declaration. Calling a declared function which the host does not provide at
+run time fails at the call with `VmErrorKind::MissingDeclaredFunction`, which
+names it, and the unit's `DebugInfo::declared` records which those are.
 
 #### `rune::highlight`
 

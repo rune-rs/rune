@@ -26,6 +26,7 @@
   - [Structs](./structs.md)
   - [Enums](./enums.md)
 - [External types](./external_types.md)
+  - [Declaration sources](./declarations.md)
 - [Try operator](./try_operator.md)
 - [Generators](./generators.md)
 - [Closures](./closures.md)

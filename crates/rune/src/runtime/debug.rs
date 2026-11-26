@@ -33,6 +33,9 @@ pub struct DebugInfo {
     /// This is empty if debug information has been disabled, in which case
     /// diagnostics have to refer to a static by its slot index.
     pub globals: Vec<DebugGlobal>,
+    /// Functions which a declaration source (`.d.rn`) declared and a script
+    /// calls, so that calling one the host does not provide can name it.
+    pub declared: HashMap<Hash, ItemBuf>,
 }
 
 impl DebugInfo {
@@ -51,6 +54,12 @@ impl DebugInfo {
     /// Access an identifier for the given hash - if it exists.
     pub fn ident_for_hash(&self, hash: Hash) -> Option<&str> {
         Some(self.hash_to_ident.get(&hash)?)
+    }
+
+    /// The item of a function a declaration source declared, if `hash` is
+    /// one.
+    pub fn declared(&self, hash: Hash) -> Option<&ItemBuf> {
+        self.declared.get(&hash)
     }
 
     /// Access debug information for the given static slot - if it exists.

@@ -7,23 +7,28 @@
 //! resulting tree is all that is taken from it. Nothing in it is compiled into
 //! a unit.
 //!
-//! The declarations are not yet registered as items which the compiler
-//! resolves against. That is what [`file`]'s caller is expected to do with
-//! what it returns.
+//! [`register`] turns what [`file`] extracts into items the compiler resolves
+//! against, the same way it resolves against what a host installed natively.
 
+use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-use crate::alloc::{String, Vec};
+use crate::alloc::{Box, String, Vec};
 use crate::ast::{self, Kind, Span};
-use crate::compile::{Error, Result, WithSpan};
+use crate::compile::{meta, Error, ItemMeta, Location, ModId, Result, Visibility, WithSpan};
 use crate::grammar::{ws, Node, Tree};
 use crate::parse::ResolveContext;
+use crate::query::Query;
 use crate::{Diagnostics, SourceId};
+use crate::{Hash, Item};
 
 use Kind::*;
 
 /// A declaration extracted from a declaration source.
 #[derive(Debug)]
-#[allow(dead_code, reason = "read once declarations are registered as items")]
+#[allow(
+    dead_code,
+    reason = "not all of a declaration is registered as item metadata yet"
+)]
 pub(crate) struct Declaration {
     /// The span of the whole declaration, attributes included.
     pub(crate) span: Span,
@@ -41,7 +46,10 @@ pub(crate) struct Declaration {
 
 /// What a [`Declaration`] declares.
 #[derive(Debug)]
-#[allow(dead_code, reason = "read once declarations are registered as items")]
+#[allow(
+    dead_code,
+    reason = "not all of a declaration is registered as item metadata yet"
+)]
 pub(crate) enum DeclarationKind {
     /// A function signature.
     Fn(Signature),
@@ -60,7 +68,10 @@ pub(crate) enum DeclarationKind {
 
 /// A function signature.
 #[derive(Debug)]
-#[allow(dead_code, reason = "read once declarations are registered as items")]
+#[allow(
+    dead_code,
+    reason = "not all of a declaration is registered as item metadata yet"
+)]
 pub(crate) struct Signature {
     /// The name of the function.
     pub(crate) name: String,
@@ -76,7 +87,6 @@ pub(crate) struct Signature {
 
 /// An argument in a [`Signature`].
 #[derive(Debug)]
-#[allow(dead_code, reason = "read once declarations are registered as items")]
 pub(crate) struct Arg {
     /// The pattern of the argument, as written.
     pub(crate) pat: String,
@@ -86,7 +96,10 @@ pub(crate) struct Arg {
 
 /// A struct or a variant.
 #[derive(Debug)]
-#[allow(dead_code, reason = "read once declarations are registered as items")]
+#[allow(
+    dead_code,
+    reason = "not all of a declaration is registered as item metadata yet"
+)]
 pub(crate) struct TypeDef {
     /// The name of the type or variant.
     pub(crate) name: String,
@@ -96,7 +109,10 @@ pub(crate) struct TypeDef {
 
 /// A field of a [`TypeDef`].
 #[derive(Debug)]
-#[allow(dead_code, reason = "read once declarations are registered as items")]
+#[allow(
+    dead_code,
+    reason = "not all of a declaration is registered as item metadata yet"
+)]
 pub(crate) struct Field {
     /// The name of the field, or its position in a tuple body.
     pub(crate) name: String,
@@ -565,4 +581,189 @@ fn clone_module(module: &[String], span: Span) -> Result<Vec<String>> {
     }
 
     Ok(out)
+}
+
+/// Register what a declaration source declares as items the compiler
+/// resolves against, as if a host had installed them natively.
+///
+/// A declaration describes something the host provides, so an item of the
+/// same name which the native context already has wins and the declaration
+/// is skipped rather than reported as a conflict: the context is what will
+/// be called at run time, and a declaration source written for an older
+/// version of the host should not stop a script compiling against a newer
+/// one.
+///
+/// Every declaration is public. It stands for a native item, and native
+/// items have no visibility of their own.
+pub(crate) fn register(
+    q: &mut Query<'_, '_>,
+    mod_item: ModId,
+    source_id: SourceId,
+    declarations: &[Declaration],
+) -> Result<()> {
+    for d in declarations {
+        let span = d.span;
+
+        let mut base = q
+            .pool
+            .module_item(mod_item)
+            .try_to_owned()
+            .with_span(span)?;
+
+        for m in &d.module {
+            base.push(m.as_str()).with_span(span)?;
+        }
+
+        match &d.kind {
+            DeclarationKind::Fn(f) => {
+                let mut item = base;
+                let mut container = None;
+
+                if let Some(impl_of) = &f.impl_of {
+                    for part in impl_of.split("::").map(str::trim) {
+                        item.push(part).with_span(span)?;
+                    }
+
+                    container = Some(Hash::type_hash(&item));
+                }
+
+                item.push(f.name.as_str()).with_span(span)?;
+
+                let is_instance = f
+                    .args
+                    .first()
+                    .is_some_and(|a| a.pat == "self" || a.pat == "mut self");
+
+                let kind = meta::Kind::Function {
+                    associated: match is_instance {
+                        true => Some(meta::AssociatedKind::Instance(Cow::Owned(
+                            f.name.try_clone().with_span(span)?,
+                        ))),
+                        false => None,
+                    },
+                    trait_hash: None,
+                    signature: signature(f, span)?,
+                    is_test: false,
+                    is_bench: false,
+                    parameters: Hash::EMPTY,
+                    #[cfg(feature = "doc")]
+                    container,
+                    #[cfg(feature = "doc")]
+                    parameter_types: Vec::new(),
+                };
+
+                #[cfg(not(feature = "doc"))]
+                let _ = container;
+
+                insert(q, mod_item, source_id, d, &item, kind)?;
+            }
+            DeclarationKind::Struct(st) => {
+                let mut item = base;
+                item.push(st.name.as_str()).with_span(span)?;
+                let kind = meta::Kind::Type {
+                    parameters: Hash::EMPTY,
+                };
+                insert(q, mod_item, source_id, d, &item, kind)?;
+            }
+            DeclarationKind::Enum { name, .. } => {
+                let mut item = base;
+                item.push(name.as_str()).with_span(span)?;
+                let kind = meta::Kind::Enum {
+                    parameters: Hash::EMPTY,
+                };
+                insert(q, mod_item, source_id, d, &item, kind)?;
+            }
+            // Imports in a declaration source only matter to the
+            // declarations they would let refer to each other, which have
+            // no types the compiler checks.
+            DeclarationKind::Use(..) => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn signature(f: &Signature, span: Span) -> Result<meta::Signature> {
+    #[cfg(not(feature = "doc"))]
+    let _ = (f, span);
+
+    Ok(meta::Signature {
+        #[cfg(feature = "doc")]
+        is_async: f.is_async,
+        #[cfg(feature = "doc")]
+        arguments: {
+            let mut args = Vec::new();
+
+            for a in &f.args {
+                args.try_push(meta::DocArgument {
+                    name: meta::DocName::Name(Box::try_from(a.pat.as_str()).with_span(span)?),
+                    base: Hash::EMPTY,
+                    generics: Box::default(),
+                })
+                .with_span(span)?;
+            }
+
+            Some(Box::try_from(args).with_span(span)?)
+        },
+        #[cfg(feature = "doc")]
+        return_type: meta::DocType::empty(),
+    })
+}
+
+fn insert(
+    q: &mut Query<'_, '_>,
+    mod_item: ModId,
+    source_id: SourceId,
+    d: &Declaration,
+    item: &Item,
+    kind: meta::Kind,
+) -> Result<()> {
+    let span = d.span;
+
+    if q.context.lookup_meta(item).is_some() {
+        return Ok(());
+    }
+
+    let is_fn = matches!(kind, meta::Kind::Function { .. });
+    let hash = Hash::type_hash(item);
+    let id = q.pool.alloc_item(item).with_span(span)?;
+    let location = Location::new(source_id, span);
+
+    let meta = meta::Meta {
+        context: false,
+        hash,
+        item_meta: ItemMeta {
+            location,
+            item: id,
+            visibility: Visibility::Public,
+            module: mod_item,
+            impl_item: None,
+        },
+        kind,
+        source: Some(meta::SourceMeta {
+            location,
+            #[cfg(feature = "std")]
+            path: q
+                .sources
+                .path(source_id)
+                .map(|p| p.try_into())
+                .transpose()
+                .with_span(span)?,
+        }),
+        parameters: Hash::EMPTY,
+    };
+
+    q.insert_meta(meta).with_span(span)?;
+
+    for line in &d.docs {
+        q.visitor
+            .visit_doc_comment(&location, item, hash, line.as_str())
+            .with_span(span)?;
+    }
+
+    if is_fn {
+        q.unit.insert_declared(hash, item).with_span(span)?;
+    }
+
+    Ok(())
 }

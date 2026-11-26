@@ -204,12 +204,10 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             .root()?;
 
         // A declaration source describes what a host provides natively, so
-        // nothing in it is indexed or compiled. Registering what it declares
-        // as items the compiler resolves against is still to come; for now
-        // they are only extracted, which diagnoses whatever is not a
-        // declaration.
+        // nothing in it is indexed or compiled. What it declares is
+        // registered as items the compiler resolves against instead, the way
+        // natively installed items are.
         if declaration {
-            #[cfg_attr(not(feature = "tracing"), allow(unused))]
             let declarations = crate::indexing::declarations::file(
                 resolve_context!(self.q),
                 source_id,
@@ -218,6 +216,14 @@ impl<'a, 'arena> Worker<'a, 'arena> {
             )?;
 
             tracing::trace!(?declarations, "declarations: {source_id}");
+
+            crate::indexing::declarations::register(
+                &mut self.q,
+                mod_item,
+                source_id,
+                &declarations,
+            )?;
+
             return Ok(());
         }
 

@@ -55,6 +55,9 @@ pub(crate) struct UnitBuilder {
     functions: hash::Map<UnitFn>,
     /// Function by address.
     functions_rev: HashMap<usize, Hash>,
+    /// Functions declared by a declaration source, which the host is expected
+    /// to provide at run time and which the linker therefore does not require.
+    declared: HashMap<Hash, ItemBuf>,
     /// A static string.
     static_strings: Vec<Arc<StaticString>>,
     /// Reverse lookup for static strings.
@@ -111,6 +114,13 @@ impl UnitBuilder {
         }
     }
 
+    /// Record a function which a declaration source declared, so that calling
+    /// it without the host providing it can name it at run time.
+    pub(crate) fn insert_declared(&mut self, hash: Hash, item: &Item) -> alloc::Result<()> {
+        self.declared.try_insert(hash, item.try_to_owned()?)?;
+        Ok(())
+    }
+
     /// Insert an identifier for debug purposes.
     pub(crate) fn insert_debug_ident(&mut self, ident: &str) -> alloc::Result<()> {
         self.hash_to_ident
@@ -125,6 +135,7 @@ impl UnitBuilder {
         if let Some(debug) = &mut self.debug {
             debug.functions_rev = self.functions_rev;
             debug.hash_to_ident = self.hash_to_ident;
+            debug.declared = self.declared;
         }
 
         for (from, to) in self.reexports {
@@ -917,7 +928,13 @@ impl UnitBuilder {
         diagnostics: &mut Diagnostics,
     ) -> alloc::Result<()> {
         for (hash, spans) in &self.required_functions {
-            if self.functions.get(hash).is_none() && context.lookup_function(*hash).is_none() {
+            // A declared function is provided by the host, which is not
+            // necessarily the context being compiled against: a language
+            // server or `rune check` has only the declarations to go by.
+            if self.functions.get(hash).is_none()
+                && context.lookup_function(*hash).is_none()
+                && !self.declared.contains_key(hash)
+            {
                 diagnostics.error(
                     SourceId::empty(),
                     LinkerError::MissingFunction {
