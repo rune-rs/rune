@@ -520,6 +520,8 @@ mod getter_setter;
 #[cfg(not(miri))]
 mod grammar_rejects;
 #[cfg(not(miri))]
+mod impl_consts;
+#[cfg(not(miri))]
 mod iterator;
 #[cfg(not(miri))]
 mod labels;

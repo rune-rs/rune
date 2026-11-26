@@ -292,7 +292,8 @@ fn deny_malformed_imports() {
     );
 }
 
-/// The body of an `impl` is parsed as a plain block.
+/// The body of an `impl` is parsed as a plain block, of which only functions
+/// and constants are kept.
 #[test]
 fn deny_non_functions_in_impl() {
     denied(
@@ -301,7 +302,7 @@ fn deny_non_functions_in_impl() {
     );
     denied(
         "struct S; impl S { struct T; }",
-        "Expected a function declaration but got a struct declaration",
+        "Expected function or constant but got a struct declaration",
     );
     denied(
         "struct S; impl S { 1 + 1 }",

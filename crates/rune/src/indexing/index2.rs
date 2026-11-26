@@ -995,42 +995,57 @@ fn item_impl(
 
     node.replace(IndexedPath(idx.item.id));
 
-    let mut functions = Vec::new();
+    let mut items = Vec::new();
 
     p.eat(Block).parse(|p| {
         p.eat(K!['{']);
 
-        p.expect(BlockBody)?.parse(|p| {
-            while let MaybeNode::Some(item) = p.eat(Item) {
-                item.parse(|p| {
-                    let attrs = attributes(idx, p)?;
+        p.expect(BlockBody)?.parse(|p| loop {
+            // The grammar leaves the `;` which ends a constant beside the item
+            // rather than inside it, the same way it does in any other block.
+            if p.eat(K![;]).is_some() {
+                continue;
+            }
 
-                    p.pump()?.parse(|p| {
-                        let mods = p
-                            .eat(Modifiers)
-                            .parse(|p| Mods::parse(idx, p))?
-                            .unwrap_or_default();
+            let MaybeNode::Some(item) = p.eat(Item) else {
+                return Ok(());
+            };
 
-                        mods.deny_all(idx)?;
+            item.parse(|p| {
+                let attrs = attributes(idx, p)?;
 
-                        match p.kind() {
-                            ItemFn => {
-                                functions.try_push((p.id(), attrs)).with_span(&*p)?;
-                                p.ignore();
-                            }
-                            _ => {
-                                idx.error(p.expected(ItemFn)).with_span(&*p)?;
-                            }
+                p.pump()?.parse(|p| {
+                    let mods = p
+                        .eat(Modifiers)
+                        .parse(|p| Mods::parse(idx, p))?
+                        .unwrap_or_default();
+
+                    match p.kind() {
+                        ItemFn => {
+                            mods.deny_all(idx)?;
+                            items.try_push((p.id(), attrs)).with_span(&*p)?;
+                            p.ignore();
                         }
-
-                        Ok(())
-                    })?;
+                        // An associated constant is indexed like any other
+                        // constant once the impl is expanded, which is also
+                        // where its modifiers are checked: it takes `const`
+                        // and a visibility the way a top-level one does.
+                        ItemConst => {
+                            items.try_push((p.id(), attrs)).with_span(&*p)?;
+                            p.ignore();
+                        }
+                        _ => {
+                            mods.deny_all(idx)?;
+                            idx.error(p.expected("function or constant"))
+                                .with_span(&*p)?;
+                        }
+                    }
 
                     Ok(())
                 })?;
-            }
 
-            Ok(())
+                Ok(())
+            })?;
         })?;
 
         p.eat(K!['}']);
@@ -1045,7 +1060,7 @@ fn item_impl(
         .try_push_back(DeferEntry::ImplItem(ImplItem {
             kind: ImplItemKind::Node {
                 path: node.node_at(idx.source_id, idx.tree.clone()),
-                functions,
+                items,
             },
             location,
             root: idx.root,

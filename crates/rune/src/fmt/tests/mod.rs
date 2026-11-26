@@ -1853,3 +1853,52 @@ fn balanced_delimiters_still_format() {
         "#
     );
 }
+
+/// Constants in an impl block are laid out like the items around them, with
+/// their visibility, attributes and doc comments kept where they were. The
+/// formatted output is formatted once more to show that it is left alone.
+#[test]
+fn fmt_impl_constants() {
+    assert_format!(
+        r#"
+        pub struct Color(a, b, c, d);
+        impl Color {
+          /// Red.
+          pub const RED=Color(255,0,0,255);
+            const   X = 1  ;
+          #[doc = "y"]
+          const Y = Self::X+1;
+          fn red() { Self::RED }
+        }
+        "#,
+        r#"
+        pub struct Color(a, b, c, d);
+        impl Color {
+            /// Red.
+            pub const RED = Color(255, 0, 0, 255);
+            const X = 1;
+            #[doc = "y"]
+            const Y = Self::X + 1;
+            fn red() {
+                Self::RED
+            }
+        }
+        "#
+    );
+
+    assert_format!(
+        r#"
+        pub struct Color(a, b, c, d);
+        impl Color {
+            /// Red.
+            pub const RED = Color(255, 0, 0, 255);
+            const X = 1;
+            #[doc = "y"]
+            const Y = Self::X + 1;
+            fn red() {
+                Self::RED
+            }
+        }
+        "#
+    );
+}
