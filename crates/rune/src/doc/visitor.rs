@@ -85,8 +85,17 @@ impl Visitor {
     }
 
     /// Get meta by hash.
+    ///
+    /// A hash the compiler knows an item by, without the base, finds what it
+    /// is documented under too. That is how a declaration names a type
+    /// declared beside it, and without it a signature returning one linked
+    /// nowhere whenever there was a base.
     pub(crate) fn get_by_hash(&self, hash: Hash) -> Option<&VisitorData> {
-        self.data.get(&hash)
+        if let Some(data) = self.data.get(&hash) {
+            return Some(data);
+        }
+
+        self.data.get(self.rebased.get(&hash)?)
     }
 
     fn get_or_insert(&mut self, item: &Item) -> Result<&mut VisitorData, MetaError> {

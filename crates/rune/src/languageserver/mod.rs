@@ -350,6 +350,7 @@ where
                         req(lsp::request::Shutdown, shutdown),
                         req(lsp::request::GotoDefinition, goto_definition),
                         req(lsp::request::Completion, completion),
+                        req(lsp::request::HoverRequest, hover),
                         req(lsp::request::Formatting, formatting),
                         req(lsp::request::RangeFormatting, range_formatting),
                         notif(lsp::notification::DidOpenTextDocument, did_open_text_document),
@@ -418,6 +419,7 @@ fn initialize(s: &mut State<'_>, params: lsp::InitializeParams) -> Result<lsp::I
             lsp::TextDocumentSyncKind::INCREMENTAL,
         )),
         definition_provider: Some(lsp::OneOf::Left(true)),
+        hover_provider: Some(lsp::HoverProviderCapability::Simple(true)),
         completion_provider: Some(lsp::CompletionOptions {
             all_commit_characters: None,
             resolve_provider: Some(false),
@@ -503,6 +505,14 @@ fn goto_definition(
     )?;
 
     Ok(position.map(lsp::GotoDefinitionResponse::Scalar))
+}
+
+/// Handle a hover request.
+fn hover(s: &mut State<'_>, params: lsp::HoverParams) -> Result<Option<lsp::Hover>> {
+    s.hover(
+        &params.text_document_position_params.text_document.uri,
+        params.text_document_position_params.position,
+    )
 }
 
 /// Handle initialized notification.

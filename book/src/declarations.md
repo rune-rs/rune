@@ -55,6 +55,11 @@ have.
 
 ## Documentation
 
-`rune doc` documents what a declaration source declares: its functions, types,
-methods and variants, with their documentation and the types written on their
-arguments and return values.
+`rune doc` documents what a declaration source declares: its modules,
+functions, types, methods and variants, with their documentation and the types
+written on their arguments and return values. A type declared in the same
+source links to its own page.
+
+The language server shows the same: hovering a call to a declared function
+shows its signature and documentation, going to its definition opens the
+declaration source, and completion offers declared functions and types.
