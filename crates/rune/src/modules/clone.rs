@@ -18,7 +18,7 @@ pub fn module() -> Result<Module, ContextError> {
     let mut t = m.define_trait(["Clone"])?;
 
     t.docs(docstring! {
-        /// The `Clone` trait is used to explicitly clone values.
+        /// The [`Clone`] trait is used to explicitly clone values.
         ///
         /// # Examples
         ///

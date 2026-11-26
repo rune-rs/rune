@@ -96,7 +96,7 @@ fn generator_next(this: &mut Generator) -> Result<Option<Value>, VmError> {
 /// This function may panic if it is called after the `Complete` variant has
 /// been returned previously. While generator literals in the language are
 /// guaranteed to panic on resuming after `Complete`, this is not guaranteed for
-/// all implementations of the `Generator`.
+/// all implementations of the [`Generator`].
 ///
 /// # Examples
 ///
