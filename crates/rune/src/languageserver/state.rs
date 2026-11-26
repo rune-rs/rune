@@ -1340,7 +1340,7 @@ pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(S
             .trim(),
     )?;
 
-    Ok(Some((symbol, start_byte + found)))
+    Ok(Some((symbol, start_byte.saturating_add(found))))
 }
 
 /// Test if the document at `uri` is a declaration source (`.d.rn`).
