@@ -121,7 +121,7 @@ pub(crate) fn is_variant(this: &Option<Value>, variant_hash: Hash) -> bool {
 /// # Recommended Message Style
 ///
 /// We recommend that `expect` messages are used to describe the reason you
-/// _expect_ the `Option` should be `Some`.
+/// _expect_ the [`Option`] should be [`Some`].
 ///
 /// ```rune,should_panic
 /// # let slice = [];
@@ -260,7 +260,7 @@ fn and_then(option: &Option<Value>, then: Function) -> Result<Option<Value>, VmE
 }
 
 /// Maps an `Option<T>` to `Option<U>` by applying a function to a contained
-/// value (if `Some`) or returns `None` (if `None`).
+/// value (if [`Some`]) or returns [`None`] (if [`None`]).
 ///
 /// # Examples
 ///
@@ -307,7 +307,7 @@ fn take(option: &mut Option<Value>) -> Option<Value> {
     option.take()
 }
 
-/// Transposes an `Option` of a [`Result`] into a [`Result`] of an `Option`.
+/// Transposes an [`Option`] of a [`Result`] into a [`Result`] of an [`Option`].
 ///
 /// [`None`] will be mapped to `[Ok]\([None])`. `[Some]\([Ok]\(\_))` and
 /// `[Some]\([Err]\(\_))` will be mapped to `[Ok]\([Some]\(\_))` and

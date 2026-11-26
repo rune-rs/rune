@@ -192,7 +192,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.constant("EPSILON", f64::EPSILON)
         .build()?
         .docs(docstring!(
-            /// [Machine epsilon] value for `f64`.
+            /// [Machine epsilon] value for [`f64`].
             ///
             /// This is the difference between `1.0` and the next larger representable number.
             ///
@@ -201,14 +201,14 @@ pub fn module() -> Result<Module, ContextError> {
             /// [Machine epsilon]: https://en.wikipedia.org/wiki/Machine_epsilon
         ))?;
     m.constant("MIN", f64::MIN).build()?.docs(docstring!(
-        /// The smallest finite `f64` value.
+        /// The smallest finite [`f64`] value.
         ///
         /// Equal to -[`MAX`].
         ///
         /// [`MAX`]: f64::MAX
     ))?;
     m.constant("MAX", f64::MAX).build()?.docs(docstring!(
-        /// Largest finite `f64` value.
+        /// Largest finite [`f64`] value.
         ///
         /// Equal to
         /// (1 - 2<sup>-MANTISSA_DIGITS</sup>) 2<sup>[`MAX_EXP`]</sup>.
@@ -218,7 +218,7 @@ pub fn module() -> Result<Module, ContextError> {
     m.constant("MIN_POSITIVE", f64::MIN_POSITIVE)
         .build()?
         .docs(docstring!(
-            /// Smallest positive normal `f64` value.
+            /// Smallest positive normal [`f64`] value.
             ///
             /// Equal to 2<sup>[`MIN_EXP`] - 1</sup>.
             ///
@@ -631,7 +631,7 @@ fn round(this: f64) -> f64 {
     this.round()
 }
 
-/// Clone a `f64`.
+/// Clone a [`f64`].
 ///
 /// Note that since the type is copy, cloning has the same effect as assigning
 /// it.

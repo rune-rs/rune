@@ -17,7 +17,7 @@ pub fn module() -> Result<Module, ContextError> {
 
     {
         let ty = m.ty::<Ordering>()?.docs(docstring! {
-            /// An `Ordering` is the result of a comparison between two values.
+            /// An [`Ordering`] is the result of a comparison between two values.
             ///
             /// # Examples
             ///

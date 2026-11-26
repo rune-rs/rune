@@ -103,7 +103,7 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(m)
 }
 
-/// Constructs a new, empty dynamic `Vec`.
+/// Constructs a new, empty dynamic [`Vec`].
 ///
 /// The vector will not allocate until elements are pushed onto it.
 ///
@@ -117,7 +117,7 @@ fn vec_new() -> Vec {
     Vec::new()
 }
 
-/// Constructs a new, empty dynamic `Vec` with at least the specified capacity.
+/// Constructs a new, empty dynamic [`Vec`] with at least the specified capacity.
 ///
 /// The vector will be able to hold at least `capacity` elements without
 /// reallocating. This method is allowed to allocate for more elements than
@@ -128,7 +128,7 @@ fn vec_new() -> Vec {
 /// explanation of the difference between length and capacity, see *[Capacity
 /// and reallocation]*.
 ///
-/// If it is important to know the exact allocated capacity of a `Vec`, always
+/// If it is important to know the exact allocated capacity of a [`Vec`], always
 /// use the [`capacity`] method after construction.
 ///
 /// [Capacity and reallocation]: #capacity-and-reallocation
@@ -214,9 +214,9 @@ fn capacity(vec: &Vec) -> usize {
 /// index.
 ///
 /// - If given a position, returns a reference to the element at that position
-///   or `None` if out of bounds.
+///   or [`None`] if out of bounds.
 /// - If given a range, returns the subslice corresponding to that range, or
-///   `None` if out of bounds.
+///   [`None`] if out of bounds.
 ///
 /// # Examples
 ///
@@ -409,7 +409,7 @@ fn push(this: &mut Vec, value: Value) -> Result<(), VmError> {
 /// Note: Because this shifts over the remaining elements, it has a worst-case
 /// performance of *O*(*n*). If you don't need the order of elements to be
 /// preserved, use `swap_remove` instead. If you'd like to remove elements
-/// from the beginning of the `Vec`, consider using [`VecDeque::pop_front`]
+/// from the beginning of the [`Vec`], consider using [`VecDeque::pop_front`]
 /// instead.
 ///
 /// [`VecDeque::pop_front`]: std::collections::vec_deque::VecDeque::pop_front
@@ -513,9 +513,9 @@ fn into_iter(this: Ref<Vec>) -> Iter {
 /// index.
 ///
 /// - If given a position, returns a reference to the element at that position
-///   or `None` if out of bounds.
+///   or [`None`] if out of bounds.
 /// - If given a range, returns the subslice corresponding to that range, or
-///   `None` if out of bounds.
+///   [`None`] if out of bounds.
 ///
 /// # Panics
 ///
@@ -563,11 +563,11 @@ fn index_set(this: &mut Vec, index: usize, value: Value) -> Result<(), VmError> 
     Vec::set(this, index, value)
 }
 
-/// Resizes the `Vec` in-place so that `len` is equal to `new_len`.
+/// Resizes the [`Vec`] in-place so that `len` is equal to `new_len`.
 ///
-/// If `new_len` is greater than `len`, the `Vec` is extended by the difference,
+/// If `new_len` is greater than `len`, the [`Vec`] is extended by the difference,
 /// with each additional slot filled with `value`. If `new_len` is less than
-/// `len`, the `Vec` is simply truncated.
+/// `len`, the [`Vec`] is simply truncated.
 ///
 /// This method requires `T` to implement [`Clone`], in order to be able to
 /// clone the passed value. If you need more flexibility (or want to rely on

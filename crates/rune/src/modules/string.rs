@@ -113,11 +113,11 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(m)
 }
 
-/// Converts a vector of bytes to a `String`.
+/// Converts a vector of bytes to a [`String`].
 ///
 /// A string ([`String`]) is made of bytes (`u8`), and a vector of bytes
 /// ([`Vec<u8>`]) is made of bytes, so this function converts between the two.
-/// Not all byte slices are valid `String`s, however: `String` requires that it
+/// Not all byte slices are valid [`String`]s, however: [`String`] requires that it
 /// is valid UTF-8. `from_utf8()` checks to ensure that the bytes are valid
 /// UTF-8, and then does the conversion.
 ///
@@ -168,7 +168,7 @@ fn from_utf8(bytes: &[u8]) -> Result<Result<String, FromUtf8Error>, VmError> {
     Ok(String::from_utf8(vec))
 }
 
-/// Returns a byte slice of this `String`'s contents.
+/// Returns a byte slice of this [`String`]'s contents.
 ///
 /// The inverse of this method is [`from_utf8`].
 ///
@@ -208,12 +208,12 @@ fn string_from_str(value: &str) -> Result<String, VmError> {
     Ok(String::try_from(value)?)
 }
 
-/// Creates a new empty `String`.
+/// Creates a new empty [`String`].
 ///
-/// Given that the `String` is empty, this will not allocate any initial buffer.
+/// Given that the [`String`] is empty, this will not allocate any initial buffer.
 /// While that means that this initial operation is very inexpensive, it may
 /// cause excessive allocation later when you add data. If you have an idea of
-/// how much data the `String` will hold, consider the [`with_capacity`] method
+/// how much data the [`String`] will hold, consider the [`with_capacity`] method
 /// to prevent excessive re-allocation.
 ///
 /// [`with_capacity`]: String::with_capacity
@@ -230,13 +230,13 @@ fn string_new() -> String {
     String::new()
 }
 
-/// Creates a new empty `String` with at least the specified capacity.
+/// Creates a new empty [`String`] with at least the specified capacity.
 ///
-/// `String`s have an internal buffer to hold their data. The capacity is the
+/// [`String`]s have an internal buffer to hold their data. The capacity is the
 /// length of that buffer, and can be queried with the [`capacity`] method. This
-/// method creates an empty `String`, but one with an initial buffer that can
+/// method creates an empty [`String`], but one with an initial buffer that can
 /// hold at least `capacity` bytes. This is useful when you may be appending a
-/// bunch of data to the `String`, reducing the number of reallocations it needs
+/// bunch of data to the [`String`], reducing the number of reallocations it needs
 /// to do.
 ///
 /// [`capacity`]: String::capacity
@@ -344,7 +344,7 @@ fn ends_with(this: &str, other: &str) -> bool {
     this.ends_with(other)
 }
 
-/// Returns this `String`'s capacity, in bytes.
+/// Returns this [`String`]'s capacity, in bytes.
 ///
 /// # Examples
 ///
@@ -360,9 +360,9 @@ fn capacity(this: &String) -> usize {
     this.capacity()
 }
 
-/// Truncates this `String`, removing all contents.
+/// Truncates this [`String`], removing all contents.
 ///
-/// While this means the `String` will have a length of zero, it does not touch
+/// While this means the [`String`] will have a length of zero, it does not touch
 /// its capacity.
 ///
 /// # Examples
@@ -388,7 +388,7 @@ fn clear(this: &mut String) {
 ///
 /// Returns `false` if it does not.
 ///
-/// The pattern can be a `String`, [`char`], or a function or closure that
+/// The pattern can be a [`String`], [`char`], or a function or closure that
 /// determines if a character matches.
 ///
 /// [`char`]: prim@char
@@ -408,7 +408,7 @@ fn contains(this: &str, other: &str) -> bool {
     this.contains(other)
 }
 
-/// Appends the given [`char`] to the end of this `String`.
+/// Appends the given [`char`] to the end of this [`String`].
 ///
 /// # Examples
 ///
@@ -429,7 +429,7 @@ fn push(this: &mut String, c: char) -> Result<(), VmError> {
     Ok(())
 }
 
-/// Appends a given string slice onto the end of this `String`.
+/// Appends a given string slice onto the end of this [`String`].
 ///
 /// # Examples
 ///
@@ -541,7 +541,7 @@ fn reserve_exact(this: &mut String, additional: usize) -> alloc::Result<()> {
     this.try_reserve_exact(additional)
 }
 
-/// Returns a byte slice of this `String`'s contents while moving the string.
+/// Returns a byte slice of this [`String`]'s contents while moving the string.
 ///
 /// The inverse of this method is [`from_utf8`].
 ///
@@ -591,7 +591,7 @@ fn is_char_boundary(s: &str, index: usize) -> bool {
 
 /// Access the character at the given byte index.
 ///
-/// Returns `None` if the index is out of bounds or not a character boundary.
+/// Returns [`None`] if the index is out of bounds or not a character boundary.
 ///
 /// # Examples
 ///
@@ -755,7 +755,7 @@ fn debug_fmt(this: &str, f: &mut Formatter) -> alloc::Result<()> {
     write!(f, "{this:?}")
 }
 
-/// Shrinks the capacity of this `String` to match its length.
+/// Shrinks the capacity of this [`String`] to match its length.
 ///
 /// # Examples
 ///

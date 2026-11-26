@@ -69,9 +69,9 @@ pub fn module() -> Result<Module, ContextError> {
     Ok(m)
 }
 
-/// A [hash set] implemented as a `HashMap` where the value is `()`.
+/// A [hash set] implemented as a [`HashMap`] where the value is `()`.
 ///
-/// As with the [`HashMap`] type, a `HashSet` requires that the elements
+/// As with the [`HashMap`] type, a [`HashSet`] requires that the elements
 /// implement the `EQ` and `HASH` protocols. If you implement these
 /// yourself, it is important that the following property holds:
 ///
@@ -89,7 +89,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// unsafe code.
 ///
 /// The behavior resulting from either logic error is not specified, but will be
-/// encapsulated to the `HashSet` that observed the logic error and not result
+/// encapsulated to the [`HashSet`] that observed the logic error and not result
 /// in undefined behavior. This could include panics, incorrect results, aborts,
 /// memory leaks, and non-termination.
 ///
@@ -119,7 +119,7 @@ pub(crate) struct HashSet {
 }
 
 impl HashSet {
-    /// Creates an empty `HashSet`.
+    /// Creates an empty [`HashSet`].
     ///
     /// The hash set is initially created with a capacity of 0, so it will not
     /// allocate until it is first inserted into.
@@ -138,7 +138,7 @@ impl HashSet {
         }
     }
 
-    /// Creates an empty `HashSet` with at least the specified capacity.
+    /// Creates an empty [`HashSet`] with at least the specified capacity.
     ///
     /// The hash set will be able to hold at least `capacity` elements without
     /// reallocating. This method is allowed to allocate for more elements than

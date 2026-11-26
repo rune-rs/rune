@@ -106,9 +106,9 @@ fn is_empty(this: &Tuple) -> bool {
 /// index.
 ///
 /// - If given a position, returns a reference to the element at that position
-///   or `None` if out of bounds.
+///   or [`None`] if out of bounds.
 /// - If given a range, returns the subslice corresponding to that range, or
-///   `None` if out of bounds.
+///   [`None`] if out of bounds.
 ///
 /// # Examples
 ///

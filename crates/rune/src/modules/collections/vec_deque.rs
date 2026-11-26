@@ -75,10 +75,10 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// The "default" usage of this type as a queue is to use [`push_back`] to add
 /// to the queue, and [`pop_front`] to remove from the queue. [`extend`] and
-/// `append` push onto the back in this manner, and iterating over `VecDeque`
+/// `append` push onto the back in this manner, and iterating over [`VecDeque`]
 /// goes front to back.
 ///
-/// A `VecDeque` with a known list of items can be initialized from an array:
+/// A [`VecDeque`] with a known list of items can be initialized from an array:
 ///
 /// ```rune
 /// use std::collections::VecDeque;
@@ -154,7 +154,7 @@ impl VecDeque {
         Ok(())
     }
 
-    /// Provides a reference to the front element, or `None` if the deque is
+    /// Provides a reference to the front element, or [`None`] if the deque is
     /// empty.
     ///
     /// # Examples
@@ -174,7 +174,7 @@ impl VecDeque {
         self.inner.front().cloned()
     }
 
-    /// Provides a reference to the back element, or `None` if the deque is
+    /// Provides a reference to the back element, or [`None`] if the deque is
     /// empty.
     ///
     /// # Examples
@@ -228,7 +228,7 @@ impl VecDeque {
         self.inner.try_push_front(value)
     }
 
-    /// Removes the first element and returns it, or `None` if the deque is
+    /// Removes the first element and returns it, or [`None`] if the deque is
     /// empty.
     ///
     /// # Examples
@@ -249,7 +249,7 @@ impl VecDeque {
         self.inner.pop_front()
     }
 
-    /// Removes the last element from the deque and returns it, or `None` if it
+    /// Removes the last element from the deque and returns it, or [`None`] if it
     /// is empty.
     ///
     /// # Examples
@@ -361,7 +361,7 @@ impl VecDeque {
     /// Removes and returns the element at `index` from the deque.
     /// Whichever end is closer to the removal point will be moved to make
     /// room, and all the affected elements will be moved to new positions.
-    /// Returns `None` if `index` is out of bounds.
+    /// Returns [`None`] if `index` is out of bounds.
     ///
     /// Element at index 0 is the front of the queue.
     ///
