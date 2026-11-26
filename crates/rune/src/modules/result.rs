@@ -141,11 +141,10 @@ fn is_err(result: &Result<Value, Value>) -> bool {
 ///
 /// Because this function may panic, its use is generally discouraged. Instead,
 /// prefer to use pattern matching and handle the [`Err`] case explicitly, or
-/// call [`unwrap_or`], [`unwrap_or_else`], or [`unwrap_or_default`].
+/// call [`unwrap_or`], [`unwrap_or_else`], or `unwrap_or_default`.
 ///
 /// [`unwrap_or`]: Result::unwrap_or
 /// [`unwrap_or_else`]: Result::unwrap_or_else
-/// [`unwrap_or_default`]: Result::unwrap_or_default
 ///
 /// # Panics
 ///
@@ -229,11 +228,10 @@ fn unwrap_or_else(this: &Result<Value, Value>, default: Function) -> Result<Valu
 ///
 /// Because this function may panic, its use is generally discouraged. Instead,
 /// prefer to use pattern matching and handle the [`Err`] case explicitly, or
-/// call [`unwrap_or`], [`unwrap_or_else`], or [`unwrap_or_default`].
+/// call [`unwrap_or`], [`unwrap_or_else`], or `unwrap_or_default`.
 ///
 /// [`unwrap_or`]: Result::unwrap_or
 /// [`unwrap_or_else`]: Result::unwrap_or_else
-/// [`unwrap_or_default`]: Result::unwrap_or_default
 ///
 /// # Panics
 ///

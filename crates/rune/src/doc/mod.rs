@@ -17,6 +17,13 @@ mod templating;
 mod build;
 #[cfg(feature = "cli")]
 pub(crate) use self::build::build;
+#[cfg(all(test, feature = "cli"))]
+pub(crate) use self::build::ItemKind;
+
+#[cfg(feature = "cli")]
+mod link;
+#[cfg(all(test, feature = "cli"))]
+pub(crate) use self::link::{resolve as resolve_link, Link};
 
 #[cfg(feature = "languageserver")]
 mod visitor;

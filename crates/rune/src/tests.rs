@@ -491,6 +491,8 @@ mod deprecation;
 mod derive_constructor;
 #[cfg(not(miri))]
 mod destructuring;
+#[cfg(all(not(miri), feature = "cli", feature = "languageserver"))]
+mod doc_links;
 #[cfg(all(not(miri), feature = "doc"))]
 mod doc_visitor;
 #[cfg(not(miri))]

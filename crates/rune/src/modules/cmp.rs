@@ -363,7 +363,7 @@ pub fn module() -> Result<Module, ContextError> {
         ///
         /// ## How can I implement `PartialOrd`?
         ///
-        /// `PartialOrd` only requires implementation of the [`PARTIAL_CMP`]
+        /// `PartialOrd` only requires implementation of the `PARTIAL_CMP`
         /// protocol, with the others generated from default implementations.
         ///
         /// However it remains possible to implement the others separately for
@@ -371,12 +371,12 @@ pub fn module() -> Result<Module, ContextError> {
         /// point numbers, `NaN < 0 == false` and `NaN >= 0 == false` (cf. IEEE
         /// 754-2008 section 5.11).
         ///
-        /// `PARTIAL_CMP` requires your type to be [`PARTIAL_EQ`].
+        /// `PARTIAL_CMP` requires your type to be [`PartialEq`].
         ///
-        /// If your type is [`ORD`], you can implement [`PARTIAL_CMP`] by using
-        /// [`CMP`].
+        /// If your type is [`Ord`], you can implement `PARTIAL_CMP` by using
+        /// `CMP`.
         ///
-        /// You may also find it useful to use [`PARTIAL_CMP`] on your type's
+        /// You may also find it useful to use `PARTIAL_CMP` on your type's
         /// fields.
         ///
         /// # Examples
@@ -588,11 +588,11 @@ pub fn module() -> Result<Module, ContextError> {
         ///
         /// ## How can I implement `Ord`?
         ///
-        /// `Ord` requires that the type also be [`PARTIAL_RD`] and [`EQ`]
-        /// (which requires [`PARTIAL_EQ`]).
+        /// `Ord` requires that the type also be [`PartialOrd`] and [`Eq`]
+        /// (which requires [`PartialEq`]).
         ///
-        /// Then you must define an implementation for [`CMP`]. You may find it
-        /// useful to use [`CMP`] on your type's fields.
+        /// Then you must define an implementation for `CMP`. You may find it
+        /// useful to use `CMP` on your type's fields.
     })?;
 
     t.handler(|cx| {
@@ -689,7 +689,7 @@ pub(crate) fn ordering_is_variant(this: Ordering, hash: Hash) -> bool {
 ///
 /// Returns the second argument if the comparison determines them to be equal.
 ///
-/// Internally uses the [`CMP`] protocol.
+/// Internally uses the `CMP` protocol.
 ///
 /// # Examples
 ///
@@ -711,7 +711,7 @@ fn max(v1: Value, v2: Value) -> Result<Value, VmError> {
 ///
 /// Returns the first argument if the comparison determines them to be equal.
 ///
-/// Internally uses the [`CMP`] protocol.
+/// Internally uses the `CMP` protocol.
 ///
 /// # Examples
 ///

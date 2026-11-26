@@ -115,7 +115,7 @@ pub fn module() -> Result<Module, ContextError> {
 
 /// Converts a vector of bytes to a `String`.
 ///
-/// A string ([`String`]) is made of bytes ([`u8`]), and a vector of bytes
+/// A string ([`String`]) is made of bytes (`u8`), and a vector of bytes
 /// ([`Vec<u8>`]) is made of bytes, so this function converts between the two.
 /// Not all byte slices are valid `String`s, however: `String` requires that it
 /// is valid UTF-8. `from_utf8()` checks to ensure that the bytes are valid
@@ -123,7 +123,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// If you are sure that the byte slice is valid UTF-8, and you don't want to
 /// incur the overhead of the validity check, there is an unsafe version of this
-/// function, [`from_utf8_unchecked`], which has the same behavior but skips the
+/// function, `from_utf8_unchecked`, which has the same behavior but skips the
 /// check.
 ///
 /// The inverse of this method is [`into_bytes`].
@@ -156,10 +156,9 @@ pub fn module() -> Result<Module, ContextError> {
 /// assert!(String::from_utf8(sparkle_heart).is_err());
 /// ```
 ///
-/// See the docs for [`FromUtf8Error`] for more details on what you can do with
+/// See the docs for `FromUtf8Error` for more details on what you can do with
 /// this error.
 ///
-/// [`from_utf8_unchecked`]: String::from_utf8_unchecked
 /// [`Vec<u8>`]: crate::vec::Vec "Vec"
 /// [`&str`]: prim@str "&str"
 /// [`into_bytes`]: String::into_bytes
@@ -301,11 +300,10 @@ fn len(this: &str) -> usize {
 ///
 /// Returns `false` if it does not.
 ///
-/// The [pattern] can be a `&str`, [`char`], a slice of [`char`]s, or a function
+/// The pattern can be a `&str`, [`char`], a slice of [`char`]s, or a function
 /// or closure that determines if a character matches.
 ///
 /// [`char`]: prim@char
-/// [pattern]: self::pattern
 ///
 /// # Examples
 ///
@@ -326,11 +324,10 @@ fn starts_with(this: &str, other: &str) -> bool {
 ///
 /// Returns `false` if it does not.
 ///
-/// The [pattern] can be a `&str`, [`char`], a slice of [`char`]s, or a function
+/// The pattern can be a `&str`, [`char`], a slice of [`char`]s, or a function
 /// or closure that determines if a character matches.
 ///
 /// [`char`]: prim@char
-/// [pattern]: self::pattern
 ///
 /// # Examples
 ///
@@ -391,11 +388,10 @@ fn clear(this: &mut String) {
 ///
 /// Returns `false` if it does not.
 ///
-/// The [pattern] can be a `String`, [`char`], or a function or closure that
+/// The pattern can be a `String`, [`char`], or a function or closure that
 /// determines if a character matches.
 ///
 /// [`char`]: prim@char
-/// [pattern]: self::pattern
 ///
 /// # Examples
 ///
@@ -460,7 +456,7 @@ fn push_str(this: &mut String, other: &str) -> Result<(), VmError> {
 ///
 /// # Panics
 ///
-/// Panics if the new capacity overflows [`usize`].
+/// Panics if the new capacity overflows `usize`.
 ///
 /// # Examples
 ///
@@ -508,7 +504,7 @@ fn reserve(this: &mut String, additional: usize) -> Result<(), VmError> {
 ///
 /// # Panics
 ///
-/// Panics if the new capacity overflows [`usize`].
+/// Panics if the new capacity overflows `usize`.
 ///
 /// # Examples
 ///
@@ -782,11 +778,10 @@ fn shrink_to_fit(s: &mut String) -> alloc::Result<()> {
 /// An iterator over substrings of this string slice, separated by
 /// characters matched by a pattern.
 ///
-/// The [pattern] can be a `&str`, [`char`], a slice of [`char`]s, or a
+/// The pattern can be a `&str`, [`char`], a slice of [`char`]s, or a
 /// function or closure that determines if a character matches.
 ///
 /// [`char`]: prim@char
-/// [pattern]: self::pattern
 ///
 /// # Iterator behavior
 ///
@@ -794,10 +789,10 @@ fn shrink_to_fit(s: &mut String) -> alloc::Result<()> {
 /// allows a reverse search and forward/reverse search yields the same
 /// elements. This is true for, e.g., [`char`], but not for `&str`.
 ///
-/// If the pattern allows a reverse search but its results might differ
-/// from a forward search, the [`rsplit`] method can be used.
+/// [`DoubleEndedIterator`]: std::iter::DoubleEndedIterator
 ///
-/// [`rsplit`]: str::rsplit
+/// If the pattern allows a reverse search but its results might differ
+/// from a forward search, the `rsplit` method can be used.
 ///
 /// # Examples
 ///
@@ -882,9 +877,7 @@ fn shrink_to_fit(s: &mut String) -> alloc::Result<()> {
 /// assert_eq!(d, ["a", "b", "c"]);
 /// ```
 ///
-/// Use [`split_whitespace`] for this behavior.
-///
-/// [`split_whitespace`]: str::split_whitespace
+/// Use `split_whitespace` for this behavior.
 #[rune::function(instance, deprecated = "Use String::split instead")]
 fn split(this: Ref<str>, value: Value) -> Result<Value, VmError> {
     match value.as_ref() {

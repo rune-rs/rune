@@ -113,8 +113,7 @@ pub fn module(_stdio: bool) -> Result<Module, ContextError> {
 /// This structure mimics the API of [`std::process::Command`] found in the
 /// standard library, but replaces functions that create a process with an
 /// asynchronous variant. The main provided asynchronous functions are
-/// [spawn](Command::spawn), [status](Command::status), and
-/// [output](Command::output).
+/// [spawn](Command::spawn), `status`, and `output`.
 ///
 /// `Command` uses asynchronous versions of some `std` types (for example
 /// [`Child`]).
@@ -408,9 +407,9 @@ impl Command {
     /// It is recommended to avoid dropping a [`Child`] process handle before it
     /// has been fully `await`ed if stricter cleanup guarantees are required.
     ///
-    /// [`Command`]: crate::process::Command
-    /// [`Command::kill_on_drop`]: crate::process::Command::kill_on_drop
-    /// [`Child`]: crate::process::Child
+    /// [`Command`]: Command
+    /// [`Command::kill_on_drop`]: Command::kill_on_drop
+    /// [`Child`]: Child
     ///
     /// # Errors
     ///
@@ -624,10 +623,9 @@ impl Child {
 
 /// The output of a finished process.
 ///
-/// This is returned in a Result by either the [`output`] method of a
+/// This is returned in a Result by either the `output` method of a
 /// [`Command`], or the [`wait_with_output`] method of a [`Child`] process.
 ///
-/// [`output`]: Command::output
 /// [`wait_with_output`]: Child::wait_with_output
 #[derive(Debug, Any)]
 #[rune(item = ::process)]
@@ -690,7 +688,7 @@ impl ExitStatus {
     /// runtime system (often, for example, 255, 254, 127 or 126).
     ///
     /// On Unix, this will return `None` if the process was terminated by a signal.
-    /// [`ExitStatusExt`](crate::os::unix::process::ExitStatusExt) is an
+    /// `ExitStatusExt` is an
     /// extension trait for extracting any such signal, and other details, from the `ExitStatus`.
     ///
     /// # Examples

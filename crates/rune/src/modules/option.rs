@@ -135,8 +135,8 @@ pub(crate) fn is_variant(this: &Option<Value>, variant_hash: Hash) -> bool {
 ///
 /// For more detail on expect message styles and the reasoning behind our
 /// recommendation please refer to the section on ["Common Message
-/// Styles"](../../std/error/index.html#common-message-styles) in the
-/// [`std::error`](../../std/error/index.html) module docs.
+/// Styles"](https://doc.rust-lang.org/std/error/index.html#common-message-styles) in the
+/// [`std::error`](https://doc.rust-lang.org/std/error/index.html) module docs.
 #[rune::function(instance)]
 fn expect(option: &Option<Value>, message: Value) -> Result<Value, VmError> {
     match option {
@@ -348,11 +348,10 @@ fn transpose(this: &Option<Value>) -> Result<Value, VmError> {
 ///
 /// Because this function may panic, its use is generally discouraged. Instead,
 /// prefer to use pattern matching and handle the [`None`] case explicitly, or
-/// call [`unwrap_or`], [`unwrap_or_else`], or [`unwrap_or_default`].
+/// call [`unwrap_or`], [`unwrap_or_else`], or `unwrap_or_default`.
 ///
 /// [`unwrap_or`]: Option::unwrap_or
 /// [`unwrap_or_else`]: Option::unwrap_or_else
-/// [`unwrap_or_default`]: Option::unwrap_or_default
 ///
 /// # Panics
 ///

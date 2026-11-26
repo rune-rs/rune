@@ -1399,7 +1399,7 @@ struct Client {
     client: reqwest::Client,
 }
 
-/// A Response to a submitted [`Request`].
+/// A Response to a submitted `Request`.
 #[derive(Debug, Any)]
 #[rune(item = ::http)]
 pub struct Response {

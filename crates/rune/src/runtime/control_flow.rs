@@ -12,9 +12,7 @@ use super::{
 
 /// Used to tell an operation whether it should exit early or go on as usual.
 ///
-/// This acts as the basis of the [`TRY`] protocol in Rune.
-///
-/// [`TRY`]: crate::runtime::Protocol::TRY
+/// This acts as the basis of the `TRY` protocol in Rune.
 ///
 /// # Examples
 ///
