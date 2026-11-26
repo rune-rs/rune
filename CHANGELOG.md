@@ -22,8 +22,8 @@ The standard library documentation links to the types it mentions (`Option`,
 A source whose name ends in `.d.rn` (`Source::is_declaration`) is a declaration
 source. It is parsed with the same grammar as any other source but may only hold
 declarations: functions without bodies (`fn hello(value: u64) -> u64;`),
-structs, enums, inline `mod` blocks, `impl` blocks of signatures, `use`, docs
-and attributes. Unlike an ordinary source it may put types on arguments, return
+structs, enums, inline `mod` blocks, `impl` blocks of signatures, docs and
+attributes; `use` is rejected. Unlike an ordinary source it may put types on arguments, return
 values and fields. Anything else is reported where it was written, `rune fmt`
 lays declarations out, and nothing in a declaration source is compiled into a
 unit. A function without a body in an ordinary source is now an error that
@@ -36,6 +36,9 @@ the host being present. A native item of the same name wins over the
 declaration. Calling a declared function which the host does not provide at
 run time fails at the call with `VmErrorKind::MissingDeclaredFunction`, which
 names it, and the unit's `DebugInfo::declared` records which those are.
+The variants of a declared enum can be constructed and matched on; constructing
+one without the host fails the same way. `rune doc` documents declared items
+with their docs and the types written on them.
 
 #### `rune::highlight`
 
@@ -194,6 +197,9 @@ is. `rune doc` over the standard library now gives no warnings, down from 1524.
 
 ### Changed
 
+- `rune doc` lists the methods of a script's types and the variants of its
+  enums on their pages. They were missing whenever the documentation had a
+  base, which is always the case from the command line.
 - `ast::ItemImpl::functions` is replaced by `ast::ItemImpl::items`, a list of
   the new `ast::ImplItem` (a function or a constant) in source order, each with
   the semicolon which followed it. This breaks code which walks the syntax tree

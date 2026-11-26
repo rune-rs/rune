@@ -45,3 +45,16 @@ have.
   time.
 - Declarations are public, since what they stand for are native items. The
   types written in them are documentation; the compiler does not check them.
+- The variants of a declared enum can be constructed and matched on like those
+  of a native enum. Constructing one without the host fails at run time,
+  the way calling a declared function the host does not provide does.
+- `use` is not allowed in a declaration source. Since types in it are only
+  documentation there is nothing for an import to resolve. A type is looked up
+  among the types the same source declares, then the prelude, then the native
+  context.
+
+## Documentation
+
+`rune doc` documents what a declaration source declares: its functions, types,
+methods and variants, with their documentation and the types written on their
+arguments and return values.
