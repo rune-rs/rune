@@ -460,6 +460,7 @@ fn initialized(_: &mut State<'_>, _: lsp::InitializedParams) -> Result<()> {
 /// Requests are served one at a time to completion, so by the time this is
 /// read the request it names has already been answered or was never seen, and
 /// there is nothing left to cancel.
+#[cfg_attr(not(feature = "tracing"), allow(unused))]
 fn cancel_request(_: &mut State<'_>, params: lsp::CancelParams) -> Result<()> {
     tracing::trace!(id = ?params.id, "Cancel request");
     Ok(())
