@@ -494,9 +494,9 @@ impl<'a> State<'a> {
         let source = slice.try_to_string()?;
 
         let trimmed = source.trim_start();
-        let leading = &source[..source.len() - trimmed.len()];
+        let leading = source.strip_suffix(trimmed).unwrap_or_default();
         let inner = trimmed.trim_end();
-        let trailing = &trimmed[inner.len()..];
+        let trailing = trimmed.strip_prefix(inner).unwrap_or_default();
 
         if inner.is_empty() {
             return Ok(None);
@@ -505,15 +505,26 @@ impl<'a> State<'a> {
         // The indentation of the line the formatted text starts on, which is
         // the whitespace it follows on that line - either the end of what the
         // range starts with, or what is before the range on its first line.
-        let indent = match leading.rfind('\n') {
-            Some(n) => leading[n + 1..].try_to_owned()?,
+        let indent = match leading.rsplit_once('\n') {
+            Some((_, after)) => after.try_to_owned()?,
             None => {
                 let line = s.content.try_char_to_line(start)?;
                 let line_start = s.content.try_line_to_char(line)?;
-                let mut indent = s.content.slice(line_start..start).try_to_string()?;
-                indent.try_push_str(leading)?;
-                let len = indent.len() - indent.trim_start().len();
-                indent.truncate(len);
+
+                let Some(before) = s.content.get_slice(line_start..start) else {
+                    return Ok(None);
+                };
+
+                let mut indent = String::new();
+
+                for c in before
+                    .chars()
+                    .chain(leading.chars())
+                    .take_while(|c| c.is_whitespace())
+                {
+                    indent.try_push(c)?;
+                }
+
                 indent
             }
         };
@@ -1101,7 +1112,6 @@ pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(S
     )))
 }
 
-/// Convert formatting options from a client request into an indentation style.
 /// Lay out `source` with the in-process formatter.
 ///
 /// An error says where in `source` it is, since the person who asked for the
@@ -1114,13 +1124,18 @@ fn layout(source: &str, options: &Options) -> Result<String> {
         Err(error) => {
             let at = error.span().start.into_usize();
             let before = source.get(..at).unwrap_or(source);
-            let line = before.matches('\n').count() + 1;
-            let column = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+            let line = before.matches('\n').count().saturating_add(1);
+            let column = before
+                .rsplit('\n')
+                .next()
+                .map_or(0, |l| l.chars().count())
+                .saturating_add(1);
             Err(anyhow::anyhow!("{line}:{column}: {error}"))
         }
     }
 }
 
+/// Convert formatting options from a client request into an indentation style.
 fn indent_style(options: &lsp::FormattingOptions) -> IndentStyle {
     if options.insert_spaces {
         // NB: Explicitly saturate to usize::MAX.
