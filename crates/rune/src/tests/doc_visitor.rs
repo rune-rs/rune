@@ -54,3 +54,60 @@ fn a_script_leaves_its_module_a_module() {
         data.kind
     );
 }
+
+/// What an `impl` block declares is documented on the page of its type when
+/// the visitor has a base, which every documented script has. The compiler
+/// names the container of an associated item without the base, so the methods
+/// were left off the page.
+#[test]
+fn methods_are_documented_on_their_type() {
+    use crate::doc::Artifacts;
+
+    let context = Context::with_default_modules().expect("Failed to build context");
+
+    let mut sources = crate::tests::sources(
+        r#"
+        pub struct Point {}
+
+        impl Point {
+            /// The length.
+            fn len(self) {}
+        }
+
+        pub enum Shape {
+            /// A circle.
+            Circle,
+        }
+        "#,
+    );
+
+    let mut diagnostics = Diagnostics::new();
+    let base = ItemBuf::with_crate("script").expect("Failed to build item");
+    let mut visitor = Visitor::new(&base).expect("Failed to build visitor");
+
+    crate::prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .with_visitor(&mut visitor)
+        .expect("Failed to install visitor")
+        .build()
+        .expect("Source should compile");
+
+    let mut artifacts = Artifacts::new();
+
+    crate::doc::build("root", &mut artifacts, Some(&context), &[visitor])
+        .expect("Failed to build documentation");
+
+    let page = |path: &str| {
+        let html = artifacts.content(path).expect("Missing page");
+        core::str::from_utf8(html).expect("Page is not UTF-8")
+    };
+
+    let html = page("script/Point.struct.html");
+    assert!(html.contains("method.len"), "{html}");
+    assert!(html.contains("The length."), "{html}");
+
+    let html = page("script/Shape.enum.html");
+    assert!(html.contains("variant.Circle"), "{html}");
+    assert!(html.contains("A circle."), "{html}");
+}

@@ -40,6 +40,9 @@ pub struct Visitor {
     pub(crate) item_to_hash: HashMap<ItemBuf, Hash>,
     /// Associated items.
     pub(crate) associated: HashMap<Hash, Vec<Hash>>,
+    /// The hash of each visited item as the compiler knows it, without the
+    /// base, to the hash it is documented under.
+    rebased: HashMap<Hash, Hash>,
 }
 
 impl Visitor {
@@ -51,6 +54,7 @@ impl Visitor {
             data: HashMap::default(),
             item_to_hash: HashMap::new(),
             associated: HashMap::new(),
+            rebased: HashMap::new(),
         };
 
         this.names.insert(&this.base)?;
@@ -137,7 +141,27 @@ impl CompileVisitor for Visitor {
             }
         }
 
+        // The compiler names the container of an associated item by its
+        // hash without the base, which is what the container is documented
+        // under only when the base is empty. A container visited later picks
+        // up what was associated with it before.
+        let raw = Hash::type_hash(meta.item);
+
+        if raw != hash {
+            self.rebased.try_insert(raw, hash)?;
+
+            if let Some(early) = self.associated.remove(&raw) {
+                let associated = self.associated.entry(hash).or_try_default()?;
+
+                for h in early {
+                    associated.try_push(h)?;
+                }
+            }
+        }
+
         if let Some(container) = meta.kind.associated_container() {
+            let container = self.rebased.get(&container).copied().unwrap_or(container);
+
             self.associated
                 .entry(container)
                 .or_try_default()?

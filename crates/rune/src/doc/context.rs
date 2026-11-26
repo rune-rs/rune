@@ -296,53 +296,45 @@ impl<'a> Context<'a> {
     }
 }
 
-fn visitor_to_associated(visitor: &Visitor, hash: Hash) -> impl Iterator<Item = Assoc<'_>> + '_ {
-    let associated = visitor.associated.get(&hash).into_iter();
+/// The associated item `hash` as a visitor saw it. Like
+/// [`context_to_associated`], `hash` is the item itself and not its container.
+fn visitor_to_associated(visitor: &Visitor, hash: Hash) -> Option<Assoc<'_>> {
+    let data = visitor.data.get(&hash)?;
 
-    associated.flat_map(move |a| {
-        a.iter().flat_map(move |hash| {
-            let data = visitor.data.get(hash)?;
-
-            let (associated, trait_hash, signature) = match data.kind.as_ref()? {
-                meta::Kind::Function {
-                    associated,
-                    trait_hash,
-                    signature,
-                    ..
-                } => (associated, trait_hash, signature),
-                meta::Kind::Struct { enum_hash, .. } if *enum_hash != Hash::EMPTY => {
-                    return Some(Assoc::Variant(AssocVariant {
-                        name: data.item.last()?.as_str()?,
-                        docs: &data.docs,
-                    }));
-                }
-                _ => return None,
-            };
-
-            let kind = match associated {
-                Some(meta::AssociatedKind::Instance(name)) => {
-                    AssocFnKind::Method(&data.item, name.as_ref(), Signature::Instance)
-                }
-                None => AssocFnKind::Method(
-                    &data.item,
-                    data.item.last()?.as_str()?,
-                    Signature::Function,
-                ),
-                _ => return None,
-            };
-
-            Some(Assoc::Fn(AssocFn {
-                kind,
-                trait_hash: *trait_hash,
-                is_async: signature.is_async,
-                arguments: signature.arguments.as_deref(),
-                return_type: &signature.return_type,
-                parameter_types: &[],
-                deprecated: data.deprecated.as_deref(),
+    let (associated, trait_hash, signature) = match data.kind.as_ref()? {
+        meta::Kind::Function {
+            associated,
+            trait_hash,
+            signature,
+            ..
+        } => (associated, trait_hash, signature),
+        meta::Kind::Struct { enum_hash, .. } if *enum_hash != Hash::EMPTY => {
+            return Some(Assoc::Variant(AssocVariant {
+                name: data.item.last()?.as_str()?,
                 docs: &data.docs,
-            }))
-        })
-    })
+            }));
+        }
+        _ => return None,
+    };
+
+    let kind = match associated {
+        Some(meta::AssociatedKind::Instance(name)) => {
+            AssocFnKind::Method(&data.item, name.as_ref(), Signature::Instance)
+        }
+        None => AssocFnKind::Method(&data.item, data.item.last()?.as_str()?, Signature::Function),
+        _ => return None,
+    };
+
+    Some(Assoc::Fn(AssocFn {
+        kind,
+        trait_hash: *trait_hash,
+        is_async: signature.is_async,
+        arguments: signature.arguments.as_deref(),
+        return_type: &signature.return_type,
+        parameter_types: &[],
+        deprecated: data.deprecated.as_deref(),
+        docs: &data.docs,
+    }))
 }
 
 fn context_to_associated(context: &crate::Context, hash: Hash) -> Option<Assoc<'_>> {
