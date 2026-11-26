@@ -511,6 +511,8 @@ mod f64;
 mod format_spec;
 #[cfg(not(miri))]
 mod highlight;
+#[cfg(not(miri))]
+mod syntax_tree;
 // Deliberately not excluded from miri, unlike the rest of this module: passing
 // a reference into the machine goes through `UnsafeToRef`, and whether that is
 // sound is exactly what miri is here to say.

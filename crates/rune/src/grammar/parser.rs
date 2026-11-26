@@ -132,6 +132,14 @@ impl<'a> Parser<'a> {
         Ok(Tree::new(tree))
     }
 
+    /// Construct whatever syntax tree has been built so far, closing every
+    /// node which a failed parse left open.
+    pub(crate) fn build_partial(mut self) -> Result<Tree> {
+        // Closing fails once nothing is left open, which is where we stop.
+        while self.tree.close().is_ok() {}
+        self.build()
+    }
+
     #[tracing::instrument(skip_all)]
     pub(super) fn checkpoint(&mut self) -> Result<Checkpoint> {
         let span = self.flush_ws()?;

@@ -1,6 +1,8 @@
 //! The playground editor.
 
+use rune::ast::Spanned;
 use rune::highlight::{highlight, Class};
+use rune::syntax_tree;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -88,6 +90,94 @@ pub struct Tip {
     top: f64,
 }
 
+/// What the pane beside the editor shows.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Instructions,
+    SyntaxTree,
+}
+
+/// The syntax tree of the shown source, as rows for the side pane.
+struct TreeRows {
+    rows: Vec<TreeRow>,
+    error: Option<(String, (usize, usize))>,
+}
+
+struct TreeRow {
+    depth: usize,
+    kind: String,
+    span: (usize, usize),
+    /// The source text of a token, as a literal.
+    text: Option<String>,
+}
+
+/// Longest token text shown in the syntax tree, in characters.
+const TREE_TEXT_TRIM: usize = 40;
+
+impl TreeRows {
+    fn parse(text: &str) -> Self {
+        let tree = match syntax_tree::parse(text) {
+            Ok(tree) => tree,
+            Err(error) => {
+                return Self {
+                    rows: Vec::new(),
+                    error: Some((error.to_string(), span_of(&error))),
+                };
+            }
+        };
+
+        let rows = tree
+            .nodes
+            .iter()
+            .map(|node| {
+                let span = (node.span.start.into_usize(), node.span.end.into_usize());
+
+                let text = node
+                    .is_token
+                    .then(|| text.get(span.0..span.1))
+                    .flatten()
+                    .map(|text| {
+                        let trimmed = text.chars().take(TREE_TEXT_TRIM).collect::<String>();
+
+                        if trimmed.len() < text.len() {
+                            format!("{trimmed:?}...")
+                        } else {
+                            format!("{trimmed:?}")
+                        }
+                    });
+
+                // Only the variant's name, since what a token carries
+                // (`Ident(Text(..))`) refers to the lexer's internals and the
+                // token's text is shown beside it.
+                let kind = format!("{:?}", node.kind);
+                let kind = match kind.split_once('(') {
+                    Some((name, _)) => name.to_owned(),
+                    None => kind,
+                };
+
+                TreeRow {
+                    depth: node.depth,
+                    kind,
+                    span,
+                    text,
+                }
+            })
+            .collect();
+
+        let error = tree
+            .error
+            .as_ref()
+            .map(|error| (error.to_string(), span_of(error)));
+
+        Self { rows, error }
+    }
+}
+
+fn span_of(error: &rune::compile::Error) -> (usize, usize) {
+    let span = error.span();
+    (span.start.into_usize(), span.end.into_usize())
+}
+
 pub enum Msg {
     Refresh,
     /// The textarea scrolled itself, which it must not since the editor
@@ -96,13 +186,14 @@ pub enum Msg {
     Tip(Option<Tip>),
     Share,
     Reset,
-    /// The instruction row under the pointer.
+    /// The row of the side pane under the pointer.
     Hover(Option<usize>),
     Input,
     Key(KeyboardEvent),
     Caret,
     Run,
-    Instructions(bool),
+    /// Show or hide a side pane, which replaces whichever was shown.
+    Side(Side, bool),
     RunOnChange(bool),
     Done(u64, Box<WasmCompileResult>),
 }
@@ -119,7 +210,9 @@ pub struct Editor {
     editor: NodeRef,
     text: String,
     caret: usize,
-    instructions: bool,
+    side: Option<Side>,
+    /// Parsed while the syntax tree is shown, and again on every edit.
+    tree: Option<TreeRows>,
     run_on_change: bool,
     running: bool,
     generation: u64,
@@ -151,7 +244,8 @@ impl Component for Editor {
             editor: NodeRef::default(),
             text: props.source.clone(),
             caret: 0,
-            instructions: false,
+            side: None,
+            tree: None,
             run_on_change: props.run_on_change,
             running: false,
             generation: 0,
@@ -197,6 +291,7 @@ impl Component for Editor {
 
         if let Some(text) = loaded.filter(|text| *text != self.text) {
             self.text = text;
+            self.refresh_tree();
             changed = true;
         }
 
@@ -255,6 +350,7 @@ impl Component for Editor {
                 self.marks.clear();
                 self.hover = None;
                 self.stale = true;
+                self.refresh_tree();
                 self.run(ctx);
                 true
             }
@@ -276,6 +372,7 @@ impl Component for Editor {
                 self.stale = true;
                 self.shared = false;
                 self.follow = true;
+                self.refresh_tree();
 
                 if let Some(key) = &ctx.props().storage_key {
                     storage::set(key, &self.text);
@@ -317,12 +414,20 @@ impl Component for Editor {
                 self.run(ctx);
                 true
             }
-            Msg::Instructions(value) => {
-                self.instructions = value;
+            Msg::Side(side, value) => {
+                self.hover = None;
+
+                if value {
+                    self.side = Some(side);
+                } else if self.side == Some(side) {
+                    self.side = None;
+                }
+
+                self.refresh_tree();
 
                 let listed = self.result.as_ref().is_some_and(|r| !r.listing.is_empty());
 
-                if value && !listed {
+                if self.side == Some(Side::Instructions) && !listed {
                     self.run(ctx);
                 }
 
@@ -339,7 +444,11 @@ impl Component for Editor {
 
                 self.running = false;
                 self.stale = false;
-                self.hover = None;
+
+                if self.side == Some(Side::Instructions) {
+                    self.hover = None;
+                }
+
                 self.marks = marks(&result, &self.text);
                 self.result = Some(result);
                 true
@@ -351,6 +460,11 @@ impl Component for Editor {
         let link = ctx.link();
         let props = ctx.props();
 
+        let side_title = match self.side {
+            Some(Side::SyntaxTree) => "Syntax tree",
+            _ => "Instructions",
+        };
+
         let at_caret = self
             .marks
             .iter()
@@ -359,7 +473,7 @@ impl Component for Editor {
 
         html! {
             <>
-            <div class={classes!("rune-workspace", self.instructions.then_some("with-side"))}>
+            <div class={classes!("rune-workspace", self.side.is_some().then_some("with-side"))}>
             <div class="rune-editor" ref={self.editor.clone()}>
                 <div class="rune-gutter" aria-hidden="true">{self.view_gutter(ctx)}</div>
                 // The spare line keeps the textarea's text inside its box, so
@@ -384,13 +498,14 @@ impl Component for Editor {
             {self.view_tip()}
             // Always present and hidden instead, so that showing it does not
             // shift the editor among its siblings.
-            <aside class="rune-side" aria-label="Instructions" hidden={!self.instructions}>
+            <aside class="rune-side" aria-label={side_title} hidden={self.side.is_none()}>
                 <div class="rune-side-head">
-                    <span class="rune-side-title">{"Instructions"}</span>
+                    <span class="rune-side-title">{side_title}</span>
                     <span class="rune-side-hint">{"Hover one to see its code"}</span>
                 </div>
+                {self.view_tree_error()}
                 <div class="rune-listing" onmouseleave={link.callback(|_| Msg::Hover(None))}>
-                    {self.view_listing(ctx)}
+                    {self.view_side(ctx)}
                 </div>
             </aside>
             </div>
@@ -402,9 +517,15 @@ impl Component for Editor {
                     <button class="rune-button" disabled={self.running} onclick={link.callback(|_| Msg::Run)}>{"Run"}</button>
                     <label class="rune-option">
                         <input class="rune-checkbox" type="checkbox" title="Show compiled instructions"
-                            checked={self.instructions}
-                            onchange={link.callback(|e: Event| Msg::Instructions(checked(&e)))} />
+                            checked={self.side == Some(Side::Instructions)}
+                            onchange={link.callback(|e: Event| Msg::Side(Side::Instructions, checked(&e)))} />
                         {"Instructions"}
+                    </label>
+                    <label class="rune-option">
+                        <input class="rune-checkbox" type="checkbox" title="Show the syntax tree the source parses into"
+                            checked={self.side == Some(Side::SyntaxTree)}
+                            onchange={link.callback(|e: Event| Msg::Side(Side::SyntaxTree, checked(&e)))} />
+                        {"Syntax tree"}
                     </label>
                     <label class="rune-option">
                         <input class="rune-checkbox" type="checkbox" title="Run the code while typing"
@@ -444,7 +565,7 @@ impl Editor {
             input.push_str(&props.prelude);
         }
 
-        let config = props.config(self.instructions);
+        let config = props.config(self.side == Some(Side::Instructions));
 
         self.generation += 1;
         self.running = true;
@@ -582,9 +703,22 @@ impl Editor {
         }
     }
 
-    /// The span of code the hovered instruction was compiled from, within
-    /// what is shown rather than the hidden prelude.
+    fn refresh_tree(&mut self) {
+        self.tree = match self.side {
+            Some(Side::SyntaxTree) => Some(TreeRows::parse(&self.text)),
+            _ => None,
+        };
+    }
+
+    /// The span of code the hovered row is for, within what is shown rather
+    /// than the hidden prelude.
     fn hover_span(&self) -> Option<(usize, usize)> {
+        if self.side == Some(Side::SyntaxTree) {
+            let row = self.tree.as_ref()?.rows.get(self.hover?)?;
+            let (start, end) = row.span;
+            return (start < self.text.len()).then(|| (start, end.min(self.text.len())));
+        }
+
         if self.stale {
             return None;
         }
@@ -596,6 +730,64 @@ impl Editor {
             } if *start < self.text.len() => Some((*start, (*end).min(self.text.len()))),
             _ => None,
         }
+    }
+
+    fn view_side(&self, ctx: &Context<Self>) -> Html {
+        match self.side {
+            Some(Side::SyntaxTree) => self.view_tree(ctx),
+            _ => self.view_listing(ctx),
+        }
+    }
+
+    fn view_tree_error(&self) -> Html {
+        if self.side != Some(Side::SyntaxTree) {
+            return Html::default();
+        }
+
+        match self.tree.as_ref().and_then(|tree| tree.error.as_ref()) {
+            Some((message, _)) => html! { <div class="rune-diagnostic error">{message}</div> },
+            None => Html::default(),
+        }
+    }
+
+    fn view_tree(&self, ctx: &Context<Self>) -> Html {
+        let Some(tree) = &self.tree else {
+            return Html::default();
+        };
+
+        let hovered = self
+            .hover
+            .and_then(|i| tree.rows.get(i))
+            .map(|row| row.span);
+
+        let rows = tree.rows.iter().enumerate().map(|(index, row)| {
+            let current = self.hover == Some(index);
+            let related = !current && hovered == Some(row.span);
+
+            let indent = "  ".repeat(row.depth);
+            let span = format!("@{}..{}", row.span.0, row.span.1);
+
+            let class = classes!(
+                "rune-listing-row",
+                "node",
+                current.then_some("hovered"),
+                related.then_some("related"),
+            );
+
+            html! {
+                <div {class} onmouseenter={ctx.link().callback(move |_| Msg::Hover(Some(index)))}>
+                    {indent}
+                    <span class={classes!("rune-node-kind", row.text.is_some().then_some("token"))}>{&row.kind}</span>
+                    <span class="rune-node-span">{span}</span>
+                    if let Some(text) = &row.text {
+                        {" "}
+                        <span class="rune-node-text">{text}</span>
+                    }
+                </div>
+            }
+        });
+
+        html! { <>{for rows}</> }
     }
 
     fn view_listing(&self, ctx: &Context<Self>) -> Html {

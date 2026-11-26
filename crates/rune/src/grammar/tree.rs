@@ -5,7 +5,7 @@ use rust_alloc::rc::Rc;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::ast::{Kind, Span, Spanned, ToAst, Token};
+use crate::ast::{ByteIndex, Kind, Span, Spanned, ToAst, Token};
 use crate::compile::{Error, ErrorKind, Result, WithSpan};
 #[cfg(feature = "fmt")]
 use crate::fmt::Formatter;
@@ -100,6 +100,20 @@ impl Tree {
     #[cfg(feature = "fmt")]
     pub(crate) fn walk(&self) -> impl Iterator<Item = Node<'_>> {
         self.inner.walk().map(Node::new)
+    }
+
+    /// Walk the tree in order, with how deeply each node is nested and
+    /// whether it is a token.
+    pub(crate) fn walk_with_depths(&self) -> impl Iterator<Item = (usize, Kind, Span, bool)> + '_ {
+        self.inner.walk().with_depths().map(|(depth, node)| {
+            let span = node.span();
+            let span = Span {
+                start: ByteIndex(span.start),
+                end: ByteIndex(span.end),
+            };
+            let depth = usize::try_from(depth).unwrap_or_default();
+            (depth, node.value(), span, !node.has_children())
+        })
     }
 
     /// Print the tree to the given writer.

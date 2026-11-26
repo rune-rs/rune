@@ -95,6 +95,19 @@ impl<'a> Prepare<'a> {
         p.build()
     }
 
+    /// Parse the prepared input, keeping the tree built up to an error.
+    ///
+    /// The tree is what had been parsed when the error was raised, with
+    /// every node which was still open closed where it stood.
+    pub(crate) fn root_partial(self) -> compile::Result<(Tree, Option<compile::Error>)> {
+        let mut p = self.into_parser();
+
+        match self::grammar::root(&mut p) {
+            Ok(()) => Ok((p.build()?, None)),
+            Err(error) => Ok((p.build_partial()?, Some(error))),
+        }
+    }
+
     /// Parse a sequence of expressions.
     pub(crate) fn exprs(self, separator: Kind) -> compile::Result<Tree> {
         let mut p = self.into_parser();

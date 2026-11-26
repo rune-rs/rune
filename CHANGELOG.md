@@ -20,6 +20,15 @@ whitespace and comments and copes with source that does not compile. It adds
 public API (`rune::highlight::{highlight, Class, Token}`), which embedders may
 want to be aware of, and `rune-wasm` exports it as `highlight`.
 
+#### `rune::syntax_tree`
+
+A hidden (`#[doc(hidden)]`) `rune::syntax_tree::parse` function parses source
+the way the compiler does and returns its syntax tree flattened into nodes with
+their depth, kind and span, keeping the tree as far as it got when the source
+does not parse. The playground uses it for its "Syntax tree" pane. It adds
+public API (`rune::syntax_tree::{parse, Node, SyntaxTree}`), which is not
+stable: it exposes the parser's own node kinds, which change with the grammar.
+
 #### `static` items
 
 Scripts can declare `static` items, which are named pieces of mutable state that
