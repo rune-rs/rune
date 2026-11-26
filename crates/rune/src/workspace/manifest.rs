@@ -1,5 +1,6 @@
 use std::ffi::OsStr;
 use std::fmt;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
@@ -11,8 +12,9 @@ use serde_hashkey as key;
 
 use crate as rune;
 use crate::alloc::prelude::*;
-use crate::alloc::{self, String, Vec};
+use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
+use crate::source::is_declaration_name;
 use crate::workspace::spanned_value::{Array, SpannedValue, Table, Value};
 use crate::workspace::{
     glob, Diagnostics, SourceLoader, WorkspaceError, WorkspaceErrorKind, MANIFEST_FILE,
@@ -167,6 +169,22 @@ pub struct Package {
     pub auto_examples: bool,
     /// Automatically detect benches.
     pub auto_benches: bool,
+    /// The packages named in `[dependencies]`.
+    pub dependencies: Vec<Dependency>,
+    /// The declaration sources (`*.d.rn`) of every package this one depends
+    /// on, directly or not, each once. These are compiled beside each of the
+    /// package's entry points.
+    pub declarations: Vec<PathBuf>,
+}
+
+/// A dependency of a package, as named in its `[dependencies]`.
+#[derive(Debug, TryClone)]
+#[non_exhaustive]
+pub struct Dependency {
+    /// The name the dependency is given in the manifest.
+    pub name: String,
+    /// The directory of the dependency, holding its `Rune.toml`.
+    pub root: PathBuf,
 }
 
 impl Package {
@@ -323,6 +341,12 @@ pub struct Loader<'a> {
     diagnostics: &'a mut Diagnostics,
     source_loader: &'a mut dyn SourceLoader,
     manifest: &'a mut Manifest,
+    /// The roots of the packages whose dependencies are being loaded, from
+    /// the outermost in, which is what a cycle is noticed by.
+    loading: Vec<PathBuf>,
+    /// The declaration sources a dependency was found to bring, by its root,
+    /// so that a package several others depend on is loaded once.
+    resolved: HashMap<PathBuf, Vec<PathBuf>>,
 }
 
 impl<'a> Loader<'a> {
@@ -339,17 +363,20 @@ impl<'a> Loader<'a> {
             diagnostics,
             source_loader,
             manifest,
+            loading: Vec::new(),
+            resolved: HashMap::new(),
         }
     }
 
-    /// Load a manifest.
-    pub(crate) fn load_manifest(&mut self) -> Result<()> {
+    /// Parse the current source as a table, along with the directory it is
+    /// in if it has a path.
+    fn parse(&mut self) -> Result<Option<(Table, Option<PathBuf>)>> {
         let Some(source) = self.sources.get(self.id) else {
             self.fatal(WorkspaceError::new(
                 Span::empty(),
                 WorkspaceErrorKind::MissingSourceId { source_id: self.id },
             ))?;
-            return Ok(());
+            return Ok(None);
         };
 
         let value: SpannedValue = match toml::from_str(source.as_str()) {
@@ -361,7 +388,7 @@ impl<'a> Loader<'a> {
                 };
 
                 self.fatal(WorkspaceError::new(span, e))?;
-                return Ok(());
+                return Ok(None);
             }
         };
 
@@ -369,22 +396,62 @@ impl<'a> Loader<'a> {
             .path()
             .and_then(|p| p.parent().map(TryToOwned::try_to_owned))
             .transpose()?;
-        let root = root.as_deref();
 
-        let Some((mut table, _)) = self.ensure_table(value)? else {
+        let Some((table, _)) = self.ensure_table(value)? else {
+            return Ok(None);
+        };
+
+        Ok(Some((table, root)))
+    }
+
+    /// Load a manifest.
+    pub(crate) fn load_manifest(&mut self) -> Result<()> {
+        let Some((mut table, root)) = self.parse()? else {
             return Ok(());
         };
 
+        let root = root.as_deref();
+        let has_package = table.contains_key("package");
+
         // If manifest is a package, add it here.
-        if let Some((package, span)) = table
+        let mut package = match table
             .remove("package")
             .map(|value| self.ensure_table(value))
             .transpose()?
             .flatten()
         {
-            if let Some(package) = self.load_package(package, span, root)? {
-                self.manifest.packages.try_push(package)?;
+            Some((package, span)) => self.load_package(package, span, root)?,
+            None => None,
+        };
+
+        if let Some(value) = table.remove("dependencies") {
+            let span = Spanned::span(&value);
+
+            match (&mut package, root) {
+                (Some(package), Some(root)) => {
+                    let (dependencies, declarations) = self.load_dependencies(value, root)?;
+                    package.dependencies = dependencies;
+                    package.declarations = declarations;
+                }
+                // The package itself is broken, which has been reported.
+                (None, _) if has_package => {}
+                (None, _) => {
+                    self.fatal(WorkspaceError::new(
+                        span,
+                        WorkspaceErrorKind::DependenciesWithoutPackage,
+                    ))?;
+                }
+                (Some(..), None) => {
+                    self.fatal(WorkspaceError::new(
+                        span,
+                        WorkspaceErrorKind::MissingManifestPath,
+                    ))?;
+                }
             }
+        }
+
+        if let Some(package) = package {
+            self.manifest.packages.try_push(package)?;
         }
 
         // Load the [workspace] section.
@@ -519,6 +586,188 @@ impl<'a> Loader<'a> {
         Ok(())
     }
 
+    /// Load the `[dependencies]` of the package rooted at `root`, returning
+    /// the dependencies and the declaration sources they bring between them.
+    fn load_dependencies(
+        &mut self,
+        value: SpannedValue,
+        root: &Path,
+    ) -> Result<(Vec<Dependency>, Vec<PathBuf>)> {
+        let mut dependencies = Vec::new();
+        let mut declarations = Vec::new();
+
+        let Some((table, _)) = self.ensure_table(value)? else {
+            return Ok((dependencies, declarations));
+        };
+
+        self.loading.try_push(canonical(root)?)?;
+
+        for (key, value) in table {
+            let name = String::try_from(key.get_ref().as_str())?;
+            let span = Spanned::span(&value);
+
+            let Some(path) = self.dependency_path(&name, value)? else {
+                continue;
+            };
+
+            let dir = path.to_path(root);
+            let manifest = dir.join(MANIFEST_FILE);
+
+            if !manifest.is_file() {
+                self.fatal(WorkspaceError::new(
+                    span,
+                    WorkspaceErrorKind::MissingDependency {
+                        name,
+                        path: manifest.as_path().try_into()?,
+                    },
+                ))?;
+                continue;
+            }
+
+            let dir = canonical(&dir)?;
+
+            if self.loading.contains(&dir) {
+                self.fatal(WorkspaceError::new(
+                    span,
+                    WorkspaceErrorKind::DependencyCycle { name },
+                ))?;
+                continue;
+            }
+
+            let found = match self.resolved.get(&dir) {
+                Some(found) => found.try_clone()?,
+                None => {
+                    let found = self.load_dependency(span, &manifest, &dir)?;
+                    self.resolved
+                        .try_insert(dir.try_clone()?, found.try_clone()?)?;
+                    found
+                }
+            };
+
+            for path in found {
+                if !declarations.contains(&path) {
+                    declarations.try_push(path)?;
+                }
+            }
+
+            dependencies.try_push(Dependency { name, root: dir })?;
+        }
+
+        self.loading.pop();
+        Ok((dependencies, declarations))
+    }
+
+    /// The path of a dependency, which is the only kind there is.
+    fn dependency_path(
+        &mut self,
+        name: &str,
+        value: SpannedValue,
+    ) -> alloc::Result<Option<RelativePathBuf>> {
+        let span = Spanned::span(&value);
+
+        let path = match value.into_inner() {
+            Value::Table(mut table) => match table.remove("path") {
+                Some(path) => {
+                    self.ensure_empty(table)?;
+                    Some(path)
+                }
+                None => None,
+            },
+            _ => None,
+        };
+
+        let Some(path) = path else {
+            self.fatal(WorkspaceError::new(
+                span,
+                WorkspaceErrorKind::UnsupportedDependency {
+                    name: name.try_to_owned()?,
+                },
+            ))?;
+            return Ok(None);
+        };
+
+        match deserialize::<RelativePathBuf>(path) {
+            Ok(path) => Ok(Some(path)),
+            Err(error) => {
+                self.fatal(error)?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// Load the dependency whose manifest is at `path` and whose root is
+    /// `root`, returning the declaration sources it brings: its own and those
+    /// of its dependencies.
+    fn load_dependency(&mut self, span: Span, path: &Path, root: &Path) -> Result<Vec<PathBuf>> {
+        let source = match self.source_loader.load(span, path) {
+            Ok(source) => source,
+            Err(error) => {
+                self.fatal(error)?;
+                return Ok(Vec::new());
+            }
+        };
+
+        let id = self.sources.insert(source)?;
+        let old = std::mem::replace(&mut self.id, id);
+        let result = self.load_dependency_manifest(root);
+        self.id = old;
+        result
+    }
+
+    fn load_dependency_manifest(&mut self, root: &Path) -> Result<Vec<PathBuf>> {
+        let Some((mut table, _)) = self.parse()? else {
+            return Ok(Vec::new());
+        };
+
+        // A dependency is still checked for being a valid package, but it is
+        // not a member of the workspace being loaded, so none of its entry
+        // points are, and a `[workspace]` it has is its own business.
+        match table
+            .remove("package")
+            .map(|value| self.ensure_table(value))
+            .transpose()?
+            .flatten()
+        {
+            Some((package, span)) => {
+                self.load_package(package, span, Some(root))?;
+            }
+            None => {
+                self.fatal(WorkspaceError::missing_field(Span::empty(), "package"))?;
+            }
+        }
+
+        _ = table.remove("workspace");
+
+        let transitive = match table.remove("dependencies") {
+            Some(value) => self.load_dependencies(value, root)?.1,
+            None => Vec::new(),
+        };
+
+        self.ensure_empty(table)?;
+
+        let mut declarations = match find_declarations(root) {
+            Ok(declarations) => declarations,
+            Err(error) => {
+                self.fatal(WorkspaceError::new(
+                    Span::empty(),
+                    WorkspaceErrorKind::ReadDeclarations {
+                        path: root.try_into()?,
+                        error,
+                    },
+                ))?;
+                Vec::new()
+            }
+        };
+
+        for path in transitive {
+            if !declarations.contains(&path) {
+                declarations.try_push(path)?;
+            }
+        }
+
+        Ok(declarations)
+    }
+
     /// Load a package from a value.
     fn load_package(
         &mut self,
@@ -543,6 +792,8 @@ impl<'a> Loader<'a> {
             auto_tests: true,
             auto_examples: true,
             auto_benches: true,
+            dependencies: Vec::new(),
+            declarations: Vec::new(),
         }))
     }
 
@@ -672,4 +923,58 @@ fn find_binary_entry_points(path: &Path) -> Result<Vec<(PathBuf, String)>> {
     }
 
     Ok(entry_points)
+}
+
+/// The canonical form of `path`, so that two ways of naming one package are
+/// noticed as the same, or `path` itself if it cannot be resolved.
+fn canonical(path: &Path) -> alloc::Result<PathBuf> {
+    // A manifest loaded as `Rune.toml` has an empty directory, which is the
+    // current one.
+    let path = if path.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        path
+    };
+
+    match path.canonicalize() {
+        Ok(path) => Ok(path),
+        Err(..) => path.try_to_owned(),
+    }
+}
+
+/// Find the declaration sources (`*.d.rn`) in the package rooted at `root`,
+/// in a stable order.
+///
+/// Hidden directories, `target` and directories holding a package of their own
+/// are not looked in, and symbolic links are not followed, so that a link back
+/// up the tree does not make the walk endless.
+fn find_declarations(root: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut output = Vec::new();
+    let mut queue = Vec::new();
+    queue
+        .try_push(root.to_path_buf())
+        .map_err(io::Error::other)?;
+
+    while let Some(dir) = queue.pop() {
+        for entry in dir.read_dir()? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            let path = entry.path();
+
+            if file_type.is_dir() {
+                if name.starts_with('.') || name == "target" || path.join(MANIFEST_FILE).is_file() {
+                    continue;
+                }
+
+                queue.try_push(path).map_err(io::Error::other)?;
+            } else if file_type.is_file() && is_declaration_name(&name) {
+                output.try_push(path).map_err(io::Error::other)?;
+            }
+        }
+    }
+
+    output.sort();
+    Ok(output)
 }

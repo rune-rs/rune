@@ -155,6 +155,7 @@ where
         };
 
         sources.insert(source)?;
+        super::insert_declarations(&mut sources, e.declarations())?;
 
         let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
             Diagnostics::new()

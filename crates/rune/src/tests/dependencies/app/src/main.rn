@@ -1,0 +1,3 @@
+pub fn main() {
+    greet(base_value())
+}

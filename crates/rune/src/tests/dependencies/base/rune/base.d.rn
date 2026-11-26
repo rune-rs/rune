@@ -1,0 +1,2 @@
+/// A value the host provides.
+pub fn base_value() -> u64;

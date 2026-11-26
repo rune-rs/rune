@@ -57,6 +57,7 @@ pub(super) fn run(
     shared: &SharedFlags,
     options: &Options,
     path: &Path,
+    declarations: &[PathBuf],
 ) -> Result<ExitCode> {
     writeln!(io.stdout, "Checking: {}", path.display())?;
 
@@ -68,6 +69,7 @@ pub(super) fn run(
     let mut sources = Sources::new();
 
     sources.insert(source)?;
+    super::insert_declarations(&mut sources, declarations)?;
 
     let mut diagnostics = if shared.warnings || flags.warnings_are_errors {
         Diagnostics::new()

@@ -1,0 +1,6 @@
+[package]
+name = "cycle-a"
+version = "0.0.0"
+
+[dependencies]
+b = { path = "../cycle-b" }

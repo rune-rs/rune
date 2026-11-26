@@ -24,6 +24,7 @@ pub(super) fn load(
     shared: &SharedFlags,
     options: &Options,
     path: &Path,
+    declarations: &[PathBuf],
     attribute: visitor::Attribute,
 ) -> Result<Load> {
     let bytecode_path = path.with_extension("rnc");
@@ -33,6 +34,7 @@ pub(super) fn load(
 
     let mut sources = Sources::new();
     sources.insert(source)?;
+    super::insert_declarations(&mut sources, declarations)?;
 
     let use_cache = options.bytecode && should_cache_be_used(path, &bytecode_path)?;
 

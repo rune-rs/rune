@@ -786,6 +786,30 @@ impl<'a> State<'a> {
                 .sources
                 .insert(Source::with_path(url.as_str(), source, p.found.path)?)?;
 
+            // The declaration sources of the package's dependencies are
+            // compiled beside each entry point, so that what they declare
+            // resolves. One that is open is taken as the editor has it.
+            for path in &p.package.declarations {
+                let Ok(url) = crate::languageserver::url::from_file_path(path) else {
+                    continue;
+                };
+
+                let source = match workspace.sources.get(&url) {
+                    Some(source) => source.chunks().try_collect::<String>()?,
+                    None => match std::fs::read_to_string(path) {
+                        Ok(string) => String::try_from(string)?,
+                        Err(error) => {
+                            tracing::warn!(path = ?path, "reading declaration source: {error}");
+                            continue;
+                        }
+                    },
+                };
+
+                build
+                    .sources
+                    .insert(Source::with_path(url.as_str(), source, path)?)?;
+            }
+
             script_builds.try_push(build)?;
         }
 
@@ -943,7 +967,16 @@ impl<'a> State<'a> {
 
         let range = self.encoding.source_range(source, span)?;
 
-        reporter.entry(url).try_push(report(range, error)?)?;
+        let diagnostic = report(range, error)?;
+        let diagnostics = reporter.entry(url);
+
+        // A source shared between builds, like the declaration sources of a
+        // dependency, is compiled once per entry point and would otherwise
+        // have what is wrong with it said as many times.
+        if !diagnostics.contains(&diagnostic) {
+            diagnostics.try_push(diagnostic)?;
+        }
+
         Ok(())
     }
 }

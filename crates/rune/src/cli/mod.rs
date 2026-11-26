@@ -39,7 +39,7 @@ use tracing_subscriber::filter::EnvFilter;
 use crate::compile::ParseOptionError;
 use crate::modules::capture_io::CaptureIo;
 use crate::termcolor::{ColorChoice, StandardStream};
-use crate::{Context, ContextError, Hash, ItemBuf, Options};
+use crate::{Context, ContextError, Hash, ItemBuf, Options, Source, Sources};
 
 use self::out::{Color, Io, Stream};
 
@@ -290,6 +290,15 @@ impl EntryPoint<'_> {
         match self {
             EntryPoint::Path(path, _) => path,
             EntryPoint::Package(p) => &p.found.path,
+        }
+    }
+
+    /// The declaration sources compiled beside the entrypoint, which are those
+    /// of its package's dependencies.
+    pub(crate) fn declarations(&self) -> &[PathBuf] {
+        match self {
+            EntryPoint::Path(..) => &[],
+            EntryPoint::Package(p) => &p.package.declarations,
         }
     }
 
@@ -996,7 +1005,16 @@ where
                     options.script = true;
                 }
 
-                match check::run(io, entry, c, &f.command, &f.shared, &options, e.path())? {
+                match check::run(
+                    io,
+                    entry,
+                    c,
+                    &f.command,
+                    &f.shared,
+                    &options,
+                    e.path(),
+                    e.declarations(),
+                )? {
                     ExitCode::Success => (),
                     other => return Ok(other),
                 }
@@ -1041,6 +1059,7 @@ where
                     &f.shared,
                     &options,
                     e.path(),
+                    e.declarations(),
                     visitor::Attribute::Bench,
                 )?;
 
@@ -1077,6 +1096,7 @@ where
                     &f.shared,
                     &options,
                     e.path(),
+                    e.declarations(),
                     visitor::Attribute::None,
                 )?;
 
@@ -1128,4 +1148,15 @@ where
     }
 
     Ok(ExitCode::Success)
+}
+
+/// Insert the declaration sources at `paths` into `sources`.
+fn insert_declarations(sources: &mut Sources, paths: &[PathBuf]) -> Result<()> {
+    for path in paths {
+        let source = Source::from_path(path)
+            .with_context(|| format!("reading declaration source: {}", path.display()))?;
+        sources.insert(source)?;
+    }
+
+    Ok(())
 }

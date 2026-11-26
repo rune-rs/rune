@@ -1,0 +1,9 @@
+[package]
+name = "bad"
+version = "0.0.0"
+
+[dependencies]
+versioned = "1.0"
+git = { git = "https://example.com/repo" }
+missing = { path = "../nowhere" }
+extra = { path = "../base", version = "1.0" }

@@ -488,6 +488,8 @@ mod debug_fmt;
 #[cfg(not(miri))]
 mod declarations;
 #[cfg(not(miri))]
+mod dependencies;
+#[cfg(not(miri))]
 mod deprecation;
 #[cfg(not(miri))]
 mod derive_constructor;
