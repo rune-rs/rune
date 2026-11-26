@@ -1172,6 +1172,16 @@ impl<'a> Remaining<'a> {
 
     #[cfg(feature = "fmt")]
     fn lit(&self) -> Result<&'static str> {
+        // A closing delimiter which is not in the source is never made up: the
+        // one it closes is unbalanced, and writing it would change what the
+        // source says.
+        if let Kind::Close(delimiter) = self.expected {
+            return Err(Error::msg(
+                self.span,
+                format_args!("Unclosed delimiter, expected `{}`", delimiter.close()),
+            ));
+        }
+
         let lit = match self.expected.into_expectation() {
             Expectation::Keyword(lit) => lit,
             Expectation::Delimiter(lit) => lit,

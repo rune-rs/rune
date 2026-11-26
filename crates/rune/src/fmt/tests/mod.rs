@@ -1804,3 +1804,52 @@ fn spacing_is_decided_by_the_layout() {
         "#,
     );
 }
+
+/// A delimiter which is never closed, or one which closes nothing, is reported
+/// rather than formatted.
+///
+/// The grammar recovers from these, and the formatter wrote out the closing
+/// delimiter each node expects whether or not it was there, so `(((` came back
+/// as `((()))` and `let a = (1;` as `let a = (1);` - reporting success, and
+/// saying something the source did not.
+#[test]
+fn unbalanced_delimiters_are_reported() {
+    for source in [
+        "(((",
+        "let a = (1;",
+        "let a = (1;\n",
+        "let a = [1, 2;\n",
+        "fn f() {\n",
+        "fn f() { let a = (1; }\n",
+        "let a = 1);\n",
+        "}\n",
+        "let a = (1];\n",
+    ] {
+        let options =
+            crate::compile::Options::from_default_env().expect("constructing options from env");
+
+        let mut diagnostics = crate::Diagnostics::new();
+
+        let result =
+            super::layout_source_with(source, crate::SourceId::EMPTY, &options, &mut diagnostics);
+
+        assert!(result.is_err(), "{source:?}: formatted as {result:?}");
+    }
+}
+
+/// Balanced delimiters, including ones which are only there inside strings,
+/// comments and template literals, still format.
+#[test]
+fn balanced_delimiters_still_format() {
+    assert_format!(
+        r#"
+        let a = ((1 + 2) * [3, 4][0]);
+        let b = "(((";
+        let c = `{(}`;
+        // ((
+        fn f() {
+            g(#{ x: 1 })
+        }
+        "#
+    );
+}

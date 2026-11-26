@@ -10,8 +10,8 @@ use core::fmt;
 
 use crate::alloc;
 use crate::alloc::prelude::*;
-use crate::ast::Span;
-use crate::compile::{ParseOptionError, Result, WithSpan};
+use crate::ast::{Delimiter, Kind, Span};
+use crate::compile::{Error, ParseOptionError, Result, WithSpan};
 use crate::grammar::{Node, Remaining, Stream, Tree};
 use crate::{Diagnostics, Options, SourceId, Sources};
 
@@ -165,6 +165,8 @@ pub(crate) fn layout_source_with(
         .max_nesting(options.max_depth)
         .root()?;
 
+    check_delimiters(&tree)?;
+
     #[cfg(feature = "std")]
     if options.print_tree {
         tree.print_with_source(
@@ -198,4 +200,53 @@ pub(crate) fn layout_source_with(
     }
 
     Ok(o)
+}
+
+/// Require that every delimiter in the parsed source is matched.
+///
+/// The grammar recovers from a delimiter which is never closed by closing it
+/// where the input ends, and the formatter writes out the delimiters a node
+/// expects whether or not they were there. Formatting `(((` would then produce
+/// `((()))`, which says something the source did not. So the source is refused
+/// instead, the way the compiler refuses it.
+fn check_delimiters(tree: &Tree) -> Result<()> {
+    let mut stack = Vec::<(Delimiter, Span)>::new();
+
+    for node in tree.walk().filter(|node| node.is_token()) {
+        match node.kind() {
+            Kind::Open(delimiter) if delimiter != Delimiter::Empty => {
+                stack.try_push((delimiter, node.span()))?;
+            }
+            Kind::Close(delimiter) if delimiter != Delimiter::Empty => match stack.pop() {
+                Some((open, _)) if open == delimiter => {}
+                Some((open, span)) => {
+                    return Err(Error::msg(
+                        span.join(node.span()),
+                        format_args!(
+                            "Mismatched delimiter `{}`, expected `{}` to close `{}`",
+                            delimiter.close(),
+                            open.close(),
+                            open.open()
+                        ),
+                    ));
+                }
+                None => {
+                    return Err(Error::msg(
+                        node.span(),
+                        format_args!("Unexpected closing delimiter `{}`", delimiter.close()),
+                    ));
+                }
+            },
+            _ => {}
+        }
+    }
+
+    if let Some((open, span)) = stack.pop() {
+        return Err(Error::msg(
+            span,
+            format_args!("Unclosed delimiter `{}`", open.open()),
+        ));
+    }
+
+    Ok(())
 }
