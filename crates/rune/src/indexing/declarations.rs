@@ -12,14 +12,14 @@
 
 use crate::alloc::borrow::Cow;
 use crate::alloc::prelude::*;
-use crate::alloc::{Box, String, Vec};
+use crate::alloc::{Box, HashSet, String, Vec};
 use crate::ast::{self, Kind, Span};
 use crate::compile::{meta, Error, ItemMeta, Location, ModId, Result, Visibility, WithSpan};
 use crate::grammar::{ws, Node, Tree};
 use crate::parse::ResolveContext;
 use crate::query::Query;
 use crate::{Diagnostics, SourceId};
-use crate::{Hash, Item};
+use crate::{Hash, Item, ItemBuf};
 
 use Kind::*;
 
@@ -103,6 +103,9 @@ pub(crate) struct Arg {
 pub(crate) struct TypeDef {
     /// The name of the type or variant.
     pub(crate) name: String,
+    /// The documentation of a variant; that of a struct is on its
+    /// declaration.
+    pub(crate) docs: Vec<String>,
     /// Its fields, by name for a struct body and by position for a tuple body.
     pub(crate) fields: Vec<Field>,
 }
@@ -465,12 +468,18 @@ impl<'a> Extract<'a, '_, '_> {
     fn type_def(&mut self, node: Node<'a>) -> Result<TypeDef> {
         let span = node.span();
         let mut name = String::new();
+        let mut docs = Vec::new();
         let mut fields = Vec::new();
 
         for n in node.children() {
             match n.kind() {
                 K![ident] => {
                     name = self.text(n.span())?;
+                }
+                Attribute => {
+                    if let Some(doc) = self.doc(&n)? {
+                        docs.try_push(doc).with_span(span)?;
+                    }
                 }
                 StructBody | TupleBody => {
                     let tuple = n.kind() == TupleBody;
@@ -503,7 +512,7 @@ impl<'a> Extract<'a, '_, '_> {
             }
         }
 
-        Ok(TypeDef { name, fields })
+        Ok(TypeDef { name, docs, fields })
     }
 
     fn item_enum(&mut self, node: Node<'a>) -> Result<DeclarationKind> {
@@ -601,6 +610,8 @@ pub(crate) fn register(
     source_id: SourceId,
     declarations: &[Declaration],
 ) -> Result<()> {
+    let types = types(q, mod_item, declarations)?;
+
     for d in declarations {
         let span = d.span;
 
@@ -613,6 +624,11 @@ pub(crate) fn register(
         for m in &d.module {
             base.push(m.as_str()).with_span(span)?;
         }
+
+        let types = Types {
+            hashes: types.hashes.try_clone().with_span(span)?,
+            modules: modules(q, mod_item, &d.module, span)?,
+        };
 
         match &d.kind {
             DeclarationKind::Fn(f) => {
@@ -642,7 +658,7 @@ pub(crate) fn register(
                         false => None,
                     },
                     trait_hash: None,
-                    signature: signature(f, span)?,
+                    signature: signature(q, &types, f, span)?,
                     is_test: false,
                     is_bench: false,
                     parameters: Hash::EMPTY,
@@ -655,7 +671,7 @@ pub(crate) fn register(
                 #[cfg(not(feature = "doc"))]
                 let _ = container;
 
-                insert(q, mod_item, source_id, d, &item, kind)?;
+                insert(q, mod_item, source_id, d, &d.docs, &item, kind, true)?;
             }
             DeclarationKind::Struct(st) => {
                 let mut item = base;
@@ -663,15 +679,61 @@ pub(crate) fn register(
                 let kind = meta::Kind::Type {
                     parameters: Hash::EMPTY,
                 };
-                insert(q, mod_item, source_id, d, &item, kind)?;
+                insert(q, mod_item, source_id, d, &d.docs, &item, kind, false)?;
             }
-            DeclarationKind::Enum { name, .. } => {
+            DeclarationKind::Enum { name, variants } => {
                 let mut item = base;
                 item.push(name.as_str()).with_span(span)?;
+                let enum_hash = Hash::type_hash(&item);
                 let kind = meta::Kind::Enum {
                     parameters: Hash::EMPTY,
                 };
-                insert(q, mod_item, source_id, d, &item, kind)?;
+
+                if !insert(q, mod_item, source_id, d, &d.docs, &item, kind, false)? {
+                    continue;
+                }
+
+                // Variants are installed the way a native enum's are: as
+                // structs belonging to the enum, constructed by a function
+                // the host provides.
+                for v in variants {
+                    let mut variant = item.try_to_owned().with_span(span)?;
+                    variant.push(v.name.as_str()).with_span(span)?;
+
+                    let named = v
+                        .fields
+                        .first()
+                        .is_some_and(|f| f.name.as_str().parse::<usize>().is_err());
+
+                    let fields = if v.fields.is_empty() {
+                        meta::Fields::Empty
+                    } else if named {
+                        let mut fields = Vec::new();
+
+                        for (position, f) in v.fields.iter().enumerate() {
+                            fields
+                                .try_push(meta::FieldMeta {
+                                    name: Box::try_from(f.name.as_str()).with_span(span)?,
+                                    position,
+                                })
+                                .with_span(span)?;
+                        }
+
+                        let fields = Box::try_from(fields).with_span(span)?;
+                        meta::Fields::Named(meta::FieldsNamed { fields })
+                    } else {
+                        meta::Fields::Unnamed(v.fields.len())
+                    };
+
+                    let kind = meta::Kind::Struct {
+                        fields,
+                        constructor: Some(constructor(q, &types, &v.fields, enum_hash, span)?),
+                        parameters: Hash::EMPTY,
+                        enum_hash,
+                    };
+
+                    insert(q, mod_item, source_id, d, &v.docs, &variant, kind, true)?;
+                }
             }
             // Imports in a declaration source only matter to the
             // declarations they would let refer to each other, which have
@@ -683,9 +745,148 @@ pub(crate) fn register(
     Ok(())
 }
 
-fn signature(f: &Signature, span: Span) -> Result<meta::Signature> {
+/// The types declared by `declarations`.
+fn types(q: &Query<'_, '_>, mod_item: ModId, declarations: &[Declaration]) -> Result<Types> {
+    let mut hashes = HashSet::new();
+
+    for d in declarations {
+        let span = d.span;
+
+        let name = match &d.kind {
+            DeclarationKind::Struct(st) => st.name.as_str(),
+            DeclarationKind::Enum { name, .. } => name.as_str(),
+            _ => continue,
+        };
+
+        let mut item = q
+            .pool
+            .module_item(mod_item)
+            .try_to_owned()
+            .with_span(span)?;
+
+        for m in &d.module {
+            item.push(m.as_str()).with_span(span)?;
+        }
+
+        item.push(name).with_span(span)?;
+        hashes.try_insert(Hash::type_hash(&item)).with_span(span)?;
+    }
+
+    Ok(Types {
+        hashes,
+        modules: Vec::new(),
+    })
+}
+
+/// The module a declaration is in, and every module enclosing it, outermost
+/// first.
+fn modules(
+    q: &Query<'_, '_>,
+    mod_item: ModId,
+    module: &[String],
+    span: Span,
+) -> Result<Vec<ItemBuf>> {
+    let mut item = q
+        .pool
+        .module_item(mod_item)
+        .try_to_owned()
+        .with_span(span)?;
+    let mut out = Vec::new();
+    out.try_push(item.try_clone().with_span(span)?)
+        .with_span(span)?;
+
+    for m in module {
+        item.push(m.as_str()).with_span(span)?;
+        out.try_push(item.try_clone().with_span(span)?)
+            .with_span(span)?;
+    }
+
+    Ok(out)
+}
+
+/// Resolve a type as written in a declaration to the hash documentation
+/// refers to it by: a declared type of the same source, a prelude name, or an
+/// item of the native context. Anything else, a tuple or a type nobody
+/// declared, is left unknown; types are documentation only and not checked.
+#[cfg(feature = "doc")]
+fn type_hash(q: &Query<'_, '_>, types: &Types, ty: &str) -> Result<Hash, crate::alloc::Error> {
+    let ty = ty.trim();
+
+    // Generic parameters are not part of the base type.
+    let base = match ty.find("::<").or_else(|| ty.find('<')) {
+        Some(n) => ty[..n].trim(),
+        None => ty,
+    };
+
+    if base.is_empty() || !base.split("::").all(|p| is_ident(p.trim())) {
+        return Ok(Hash::EMPTY);
+    }
+
+    let mut path = ItemBuf::new();
+
+    for part in base.split("::").map(str::trim) {
+        path.push(part)?;
+    }
+
+    for module in types.modules.iter().rev() {
+        let mut item = module.try_clone()?;
+
+        for part in base.split("::").map(str::trim) {
+            item.push(part)?;
+        }
+
+        let hash = Hash::type_hash(&item);
+
+        if types.hashes.contains(&hash) {
+            return Ok(hash);
+        }
+    }
+
+    if !base.contains("::") {
+        if let Some(item) = q.prelude.get(base) {
+            return Ok(Hash::type_hash(item));
+        }
+    }
+
+    if q.context.lookup_meta(&path).is_some() {
+        return Ok(Hash::type_hash(&path));
+    }
+
+    Ok(Hash::EMPTY)
+}
+
+#[cfg(feature = "doc")]
+fn is_ident(s: &str) -> bool {
+    let mut chars = s.chars();
+
+    chars.next().is_some_and(|c| c.is_alphabetic() || c == '_')
+        && chars.all(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// The types a declaration source declares, and the modules the type of an
+/// argument is looked up in, innermost last.
+#[cfg_attr(not(feature = "doc"), allow(dead_code))]
+struct Types {
+    hashes: HashSet<Hash>,
+    modules: Vec<ItemBuf>,
+}
+
+#[cfg(feature = "doc")]
+fn doc_type(q: &Query<'_, '_>, types: &Types, ty: Option<&String>, span: Span) -> Result<Hash> {
+    match ty {
+        Some(ty) => Ok(type_hash(q, types, ty.as_str()).with_span(span)?),
+        None => Ok(Hash::EMPTY),
+    }
+}
+
+fn signature(
+    q: &Query<'_, '_>,
+    types: &Types,
+    f: &Signature,
+    span: Span,
+) -> Result<meta::Signature> {
     #[cfg(not(feature = "doc"))]
-    let _ = (f, span);
+    let _ = (q, types, f, span);
 
     Ok(meta::Signature {
         #[cfg(feature = "doc")]
@@ -697,7 +898,7 @@ fn signature(f: &Signature, span: Span) -> Result<meta::Signature> {
             for a in &f.args {
                 args.try_push(meta::DocArgument {
                     name: meta::DocName::Name(Box::try_from(a.pat.as_str()).with_span(span)?),
-                    base: Hash::EMPTY,
+                    base: doc_type(q, types, a.ty.as_ref(), span)?,
                     generics: Box::default(),
                 })
                 .with_span(span)?;
@@ -706,25 +907,70 @@ fn signature(f: &Signature, span: Span) -> Result<meta::Signature> {
             Some(Box::try_from(args).with_span(span)?)
         },
         #[cfg(feature = "doc")]
-        return_type: meta::DocType::empty(),
+        return_type: meta::DocType::new(doc_type(q, types, f.output.as_ref(), span)?),
     })
 }
 
+/// The signature of the constructor of a variant, which returns its enum.
+fn constructor(
+    q: &Query<'_, '_>,
+    types: &Types,
+    fields: &[Field],
+    enum_hash: Hash,
+    span: Span,
+) -> Result<meta::Signature> {
+    #[cfg(not(feature = "doc"))]
+    let _ = (q, types, fields, enum_hash, span);
+
+    Ok(meta::Signature {
+        #[cfg(feature = "doc")]
+        is_async: false,
+        #[cfg(feature = "doc")]
+        arguments: {
+            let mut args = Vec::new();
+
+            for (n, f) in fields.iter().enumerate() {
+                let name = match f.name.as_str().parse::<usize>() {
+                    Ok(..) => meta::DocName::Index(n),
+                    Err(..) => meta::DocName::Name(Box::try_from(f.name.as_str()).with_span(span)?),
+                };
+
+                args.try_push(meta::DocArgument {
+                    name,
+                    base: doc_type(q, types, f.ty.as_ref(), span)?,
+                    generics: Box::default(),
+                })
+                .with_span(span)?;
+            }
+
+            Some(Box::try_from(args).with_span(span)?)
+        },
+        #[cfg(feature = "doc")]
+        return_type: meta::DocType::new(enum_hash),
+    })
+}
+
+/// Insert the metadata of a declared item, unless the native context already
+/// has an item of the same name. Returns whether it was inserted.
+///
+/// A `callable` item is called by hash at run time, so the host is expected to
+/// provide a function for it.
+#[allow(clippy::too_many_arguments)]
 fn insert(
     q: &mut Query<'_, '_>,
     mod_item: ModId,
     source_id: SourceId,
     d: &Declaration,
+    docs: &[String],
     item: &Item,
     kind: meta::Kind,
-) -> Result<()> {
+    callable: bool,
+) -> Result<bool> {
     let span = d.span;
 
     if q.context.lookup_meta(item).is_some() {
-        return Ok(());
+        return Ok(false);
     }
-
-    let is_fn = matches!(kind, meta::Kind::Function { .. });
     let hash = Hash::type_hash(item);
     let id = q.pool.alloc_item(item).with_span(span)?;
     let location = Location::new(source_id, span);
@@ -755,15 +1001,15 @@ fn insert(
 
     q.insert_meta(meta).with_span(span)?;
 
-    for line in &d.docs {
+    for line in docs {
         q.visitor
             .visit_doc_comment(&location, item, hash, line.as_str())
             .with_span(span)?;
     }
 
-    if is_fn {
+    if callable {
         q.unit.insert_declared(hash, item).with_span(span)?;
     }
 
-    Ok(())
+    Ok(true)
 }
