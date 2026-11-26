@@ -17,6 +17,23 @@ The format is based on [Keep a Changelog], and this project adheres to
 The standard library documentation links to the types it mentions (`Option`,
 `Result`, `Vec`, `String`, `HashMap`, ...) instead of only naming them.
 
+#### Declarations bundled by cargo crates
+
+The language server runs `cargo metadata` for the cargo project it is opened
+in, and compiles the declaration sources each crate names in
+`[package.metadata.rune] declarations = ["rune/*.d.rn"]` beside every script it
+builds. It does so at startup and when a `Cargo.toml` is saved or changes; a
+missing or failing `cargo` is a logged warning.
+
+#### A package's own declaration sources
+
+The `*.d.rn` files of a package are compiled beside its own entry points, not
+only beside those of packages depending on it, and one under `src/bin` is no
+longer taken for a binary. A language server given no root finds the package of
+an open file by the nearest `Rune.toml` above it, rather than the outermost, and
+builds it with its declarations instead of replacing the open documents with
+what is on disk.
+
 #### Path dependencies in `Rune.toml`
 
 A package may name path dependencies in a `[dependencies]` section of its

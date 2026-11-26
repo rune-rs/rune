@@ -1,0 +1,2 @@
+/// A value the package describes for itself.
+pub fn own_value() -> u64;

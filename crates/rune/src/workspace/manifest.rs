@@ -171,9 +171,9 @@ pub struct Package {
     pub auto_benches: bool,
     /// The packages named in `[dependencies]`.
     pub dependencies: Vec<Dependency>,
-    /// The declaration sources (`*.d.rn`) of every package this one depends
-    /// on, directly or not, each once. These are compiled beside each of the
-    /// package's entry points.
+    /// The declaration sources (`*.d.rn`) of the package itself and of every
+    /// package it depends on, directly or not, each once. These are compiled
+    /// beside each of the package's entry points.
     pub declarations: Vec<PathBuf>,
 }
 
@@ -424,6 +424,12 @@ impl<'a> Loader<'a> {
             None => None,
         };
 
+        // A package's own declaration sources come first, the common case
+        // being a project describing the host it is run in.
+        if let (Some(package), Some(root)) = (&mut package, root) {
+            package.declarations = self.find_declarations(root)?;
+        }
+
         if let Some(value) = table.remove("dependencies") {
             let span = Spanned::span(&value);
 
@@ -431,7 +437,12 @@ impl<'a> Loader<'a> {
                 (Some(package), Some(root)) => {
                     let (dependencies, declarations) = self.load_dependencies(value, root)?;
                     package.dependencies = dependencies;
-                    package.declarations = declarations;
+
+                    for path in declarations {
+                        if !package.declarations.contains(&path) {
+                            package.declarations.try_push(path)?;
+                        }
+                    }
                 }
                 // The package itself is broken, which has been reported.
                 (None, _) if has_package => {}
@@ -745,19 +756,7 @@ impl<'a> Loader<'a> {
 
         self.ensure_empty(table)?;
 
-        let mut declarations = match find_declarations(root) {
-            Ok(declarations) => declarations,
-            Err(error) => {
-                self.fatal(WorkspaceError::new(
-                    Span::empty(),
-                    WorkspaceErrorKind::ReadDeclarations {
-                        path: root.try_into()?,
-                        error,
-                    },
-                ))?;
-                Vec::new()
-            }
-        };
+        let mut declarations = self.find_declarations(root)?;
 
         for path in transitive {
             if !declarations.contains(&path) {
@@ -766,6 +765,32 @@ impl<'a> Loader<'a> {
         }
 
         Ok(declarations)
+    }
+
+    /// The declaration sources in the package rooted at `root`, reporting a
+    /// directory which cannot be read as a manifest diagnostic.
+    fn find_declarations(&mut self, root: &Path) -> Result<Vec<PathBuf>> {
+        // A manifest loaded as `Rune.toml` has an empty directory, which is
+        // the current one.
+        let dir = if root.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            root
+        };
+
+        match find_declarations(dir) {
+            Ok(declarations) => Ok(declarations),
+            Err(error) => {
+                self.fatal(WorkspaceError::new(
+                    Span::empty(),
+                    WorkspaceErrorKind::ReadDeclarations {
+                        path: root.try_into()?,
+                        error,
+                    },
+                ))?;
+                Ok(Vec::new())
+            }
+        }
     }
 
     /// Load a package from a value.
@@ -891,7 +916,12 @@ fn find_binary_entry_points(path: &Path) -> Result<Vec<(PathBuf, String)>> {
     for entry in path.read_dir()? {
         let entry = entry?;
         let file_type = entry.file_type()?;
-        if file_type.is_file() && entry.path().extension() == Some(OsStr::new("rn")) {
+        // A declaration source is compiled beside the entry points rather
+        // than being one.
+        if file_type.is_file()
+            && entry.path().extension() == Some(OsStr::new("rn"))
+            && !is_declaration_name(&entry.file_name().to_string_lossy())
+        {
             entry_points.try_push((
                 entry.path(),
                 entry

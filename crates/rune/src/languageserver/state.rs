@@ -19,9 +19,10 @@ use crate::compile::{
 use crate::diagnostics::{Diagnostic, FatalDiagnosticKind};
 use crate::doc::VisitorData;
 use crate::item::ComponentRef;
+use crate::languageserver::cargo::{self, Metadata};
 use crate::languageserver::connection::Outbound;
 use crate::languageserver::Language;
-use crate::workspace::{self, FileSourceLoader, Manifest, WorkspaceError, MANIFEST_FILE};
+use crate::workspace::{self, WorkspaceError, MANIFEST_FILE};
 use crate::{self as rune, Diagnostics};
 use crate::{BuildError, Context, Hash, Item, Options, Source, SourceId, Sources, Unit};
 
@@ -257,11 +258,30 @@ pub(super) struct State<'a> {
     stopped: bool,
     /// Sources used in the project.
     pub(super) workspace: Workspace,
+    /// The declaration sources bundled by cargo crates.
+    pub(super) cargo: Cargo,
+}
+
+/// The declaration sources named by the cargo project the server was opened
+/// in, through `[package.metadata.rune]`.
+pub(super) struct Cargo {
+    /// What asks cargo for its metadata.
+    metadata: Metadata,
+    /// Whether cargo is to be asked again before the next build, which is
+    /// the case at startup and when a `Cargo.toml` changes.
+    pub(super) stale: bool,
+    /// The declaration sources found when cargo was last asked.
+    declarations: Vec<PathBuf>,
 }
 
 impl<'a> State<'a> {
     /// Construct a new state.
-    pub(super) fn new(rebuild_notify: &'a Notify, context: Context, options: Options) -> Self {
+    pub(super) fn new(
+        rebuild_notify: &'a Notify,
+        context: Context,
+        options: Options,
+        metadata: Metadata,
+    ) -> Self {
         Self {
             encoding: StateEncoding::Utf16,
             out: Outbound::new(),
@@ -271,6 +291,11 @@ impl<'a> State<'a> {
             initialized: bool::default(),
             stopped: bool::default(),
             workspace: Workspace::default(),
+            cargo: Cargo {
+                metadata,
+                stale: true,
+                declarations: Vec::new(),
+            },
         }
     }
 
@@ -573,7 +598,14 @@ impl<'a> State<'a> {
         // Emitted diagnostics, grouped by URL.
         let mut reporter = Reporter::default();
 
-        if let Some((workspace_url, workspace_path)) = &self.workspace.manifest_path {
+        self.refresh_cargo()?;
+
+        let manifest_path = match &self.workspace.manifest_path {
+            Some((url, path)) => Some((url.clone(), path.try_clone()?)),
+            None => self.find_manifest()?,
+        };
+
+        if let Some((workspace_url, workspace_path)) = &manifest_path {
             let mut diagnostics = workspace::Diagnostics::default();
             let mut build = Build::from_workspace();
 
@@ -602,52 +634,6 @@ impl<'a> State<'a> {
             };
 
             workspace_results.try_push((diagnostics, build))?;
-        } else if let Some((url, _)) = &self.workspace.sources.iter().next() {
-            let mut workspace_manifest = None;
-
-            if let Ok(mut path) = crate::languageserver::url::to_file_path(url) {
-                path.pop();
-
-                while path.parent().is_some() {
-                    let candidate = path.join(MANIFEST_FILE);
-                    if candidate.exists() {
-                        workspace_manifest = Some(candidate);
-                    }
-
-                    path.pop();
-                }
-            }
-
-            if let Some(workspace_manifest) = workspace_manifest {
-                let source = Source::from_path(&workspace_manifest)?;
-                let mut sources = Sources::new();
-                let id = sources.insert(source)?;
-
-                let mut diagnostics = workspace::Diagnostics::default();
-                let mut source_loader = FileSourceLoader::new();
-                let mut manifest = Manifest::default();
-
-                let mut loader = workspace::ManifestLoader::new(
-                    id,
-                    &mut sources,
-                    &mut diagnostics,
-                    &mut source_loader,
-                    &mut manifest,
-                );
-                loader.load_manifest()?;
-
-                self.workspace.sources.clear();
-
-                for package in manifest.find_all(workspace::WorkspaceFilter::All)? {
-                    for source in package.package.find_all(workspace::WorkspaceFilter::All)? {
-                        self.workspace.insert_source(
-                            crate::languageserver::url::from_file_path(source.path.clone())?,
-                            String::try_from(std::fs::read_to_string(source.path)?)?,
-                            Language::Rune,
-                        )?;
-                    }
-                }
-            }
         }
 
         for (url, source) in &self.workspace.sources {
@@ -670,6 +656,14 @@ impl<'a> State<'a> {
             };
 
             build.sources.insert(input)?;
+
+            // What the cargo project declares is compiled beside a loose
+            // script too, since a host's scripts are rarely a package of
+            // their own.
+            for path in &self.cargo.declarations {
+                self.insert_declaration(&mut build, path, Some(url))?;
+            }
+
             script_results.try_push(self.build_scripts(build, None)?)?;
         }
 
@@ -786,34 +780,127 @@ impl<'a> State<'a> {
                 .sources
                 .insert(Source::with_path(url.as_str(), source, p.found.path)?)?;
 
-            // The declaration sources of the package's dependencies are
-            // compiled beside each entry point, so that what they declare
-            // resolves. One that is open is taken as the editor has it.
+            // The declaration sources of the package and its dependencies,
+            // and those the cargo project bundles, are compiled beside each
+            // entry point so that what they declare resolves.
             for path in &p.package.declarations {
-                let Ok(url) = crate::languageserver::url::from_file_path(path) else {
-                    continue;
-                };
+                self.insert_declaration(&mut build, path, None)?;
+            }
 
-                let source = match workspace.sources.get(&url) {
-                    Some(source) => source.chunks().try_collect::<String>()?,
-                    None => match std::fs::read_to_string(path) {
-                        Ok(string) => String::try_from(string)?,
-                        Err(_error) => {
-                            tracing::warn!(path = ?path, "reading declaration source: {_error}");
-                            continue;
-                        }
-                    },
-                };
-
-                build
-                    .sources
-                    .insert(Source::with_path(url.as_str(), source, path)?)?;
+            for path in &self.cargo.declarations {
+                if !p.package.declarations.contains(path) {
+                    self.insert_declaration(&mut build, path, None)?;
+                }
             }
 
             script_builds.try_push(build)?;
         }
 
         Ok(script_builds)
+    }
+
+    /// Insert the declaration source at `path` into `build`, unless it is
+    /// `skip`, which is the source the build is for. One that is open is taken
+    /// as the editor has it, and one that cannot be read is logged and left
+    /// out.
+    fn insert_declaration(&self, build: &mut Build, path: &Path, skip: Option<&Uri>) -> Result<()> {
+        let Ok(url) = crate::languageserver::url::from_file_path(path) else {
+            return Ok(());
+        };
+
+        if skip == Some(&url) {
+            return Ok(());
+        }
+
+        let source = match self.workspace.sources.get(&url) {
+            Some(source) => source.chunks().try_collect::<String>()?,
+            None => match std::fs::read_to_string(path) {
+                Ok(string) => String::try_from(string)?,
+                Err(_error) => {
+                    tracing::warn!(path = ?path, "reading declaration source: {_error}");
+                    return Ok(());
+                }
+            },
+        };
+
+        build
+            .sources
+            .insert(Source::with_path(url.as_str(), source, path)?)?;
+        Ok(())
+    }
+
+    /// Find the manifest of the package an open source is in when the client
+    /// named no root holding one, which is the nearest `Rune.toml` above it.
+    fn find_manifest(&self) -> Result<Option<(Uri, PathBuf)>> {
+        let Some((url, _)) = self.workspace.sources.iter().next() else {
+            return Ok(None);
+        };
+
+        let Ok(path) = crate::languageserver::url::to_file_path(url) else {
+            return Ok(None);
+        };
+
+        for dir in path.ancestors().skip(1) {
+            let candidate = dir.join(MANIFEST_FILE);
+
+            if candidate.is_file() {
+                let url = crate::languageserver::url::from_file_path(&candidate)?;
+                return Ok(Some((url, candidate)));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Ask cargo again for the declaration sources its packages name, if
+    /// that is due. A cargo which is missing or fails is a warning, since a
+    /// server which cannot use it is still a server.
+    fn refresh_cargo(&mut self) -> Result<()> {
+        if !self.cargo.stale || !self.initialized {
+            return Ok(());
+        }
+
+        let dir = match (&self.workspace.root, self.workspace.sources.keys().next()) {
+            (Some(root), _) => root.try_clone()?,
+            (None, Some(url)) => match crate::languageserver::url::to_file_path(url) {
+                Ok(mut path) => {
+                    path.pop();
+                    path
+                }
+                Err(..) => return Ok(()),
+            },
+            // Nowhere to look from yet, so look again once a source is open.
+            (None, None) => return Ok(()),
+        };
+
+        self.cargo.stale = false;
+
+        let mut warnings = Vec::new();
+
+        let result = match (self.cargo.metadata)(&dir) {
+            Ok(Some(metadata)) => cargo::declarations(&metadata, &mut warnings),
+            Ok(None) => Ok(Vec::new()),
+            Err(error) => Err(error),
+        };
+
+        match result {
+            Ok(declarations) => {
+                tracing::info!(?declarations, "cargo declarations");
+                self.cargo.declarations = declarations;
+            }
+            Err(error) => {
+                self.out.log(
+                    lsp::MessageType::WARNING,
+                    format_args!("cargo metadata: {error:#}"),
+                )?;
+            }
+        }
+
+        for warning in warnings {
+            self.out.log(lsp::MessageType::WARNING, warning)?;
+        }
+
+        Ok(())
     }
 
     fn build_scripts(
@@ -986,6 +1073,8 @@ impl<'a> State<'a> {
 pub(super) struct Workspace {
     /// Found workspace root.
     pub(super) manifest_path: Option<(Uri, PathBuf)>,
+    /// The directory the client opened, if it named one.
+    pub(super) root: Option<PathBuf>,
     /// Sources that might be modified.
     sources: HashMap<Uri, ServerSource>,
     /// A source that has been removed.
