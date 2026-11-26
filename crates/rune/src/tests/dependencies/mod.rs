@@ -188,3 +188,40 @@ fn only_path_dependencies_are_supported() {
         [canonical(fixture("base/rune/base.d.rn"))]
     );
 }
+
+/// A package's own declaration sources are compiled beside its entry points
+/// ahead of those its dependencies bring, which is how a project describes the
+/// host it is run in. One under `src/bin` is not mistaken for a binary.
+#[test]
+fn a_package_brings_its_own_declarations() {
+    let (manifest, messages) = load("own");
+    assert_eq!(messages, Vec::<String>::new());
+
+    let [package] = &manifest.packages[..] else {
+        panic!("Expected one package: {manifest:?}");
+    };
+
+    let declarations = package
+        .declarations
+        .iter()
+        .map(canonical)
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        declarations,
+        [
+            canonical(fixture("own/rune/own.d.rn")),
+            canonical(fixture("own/src/bin/tool.d.rn")),
+            canonical(fixture("base/rune/base.d.rn")),
+        ]
+    );
+
+    let found = package
+        .find_all(workspace::WorkspaceFilter::All)
+        .unwrap()
+        .into_iter()
+        .map(|f| canonical(f.path))
+        .collect::<Vec<_>>();
+
+    assert_eq!(found, [canonical(fixture("own/src/main.rn"))]);
+}

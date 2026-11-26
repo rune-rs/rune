@@ -1,0 +1,2 @@
+/// A value the host crate installs.
+pub fn host_value() -> u64;

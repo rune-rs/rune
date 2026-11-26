@@ -1,0 +1,4 @@
+# Keeps the fixtures of the cargo tests out of the `rune` package, which
+# would otherwise compile their declaration sources beside its own entry
+# points.
+[workspace]

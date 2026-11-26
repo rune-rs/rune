@@ -25,6 +25,32 @@ version = "0.0.0"
 
 Within a package, Rune will automatically detect different types of compilation
 targets based on the directory structure of the package. This is similar to the
+## Declarations bundled by cargo crates
+
+A Rust crate which embeds Rune, or provides modules for it, can ship
+declaration sources describing what it installs and name them in its
+`Cargo.toml`:
+
+```toml
+[package.metadata.rune]
+declarations = ["rune/*.d.rn"]
+```
+
+Each entry is a path relative to the crate's manifest directory, in which `*`
+matches any part of a file or directory name. The language server finds the
+cargo project it was opened in by the nearest `Cargo.toml` at or above the
+directory the editor opened, runs `cargo metadata --offline` for it, and
+compiles what every package in it names beside each script it builds - those of
+a workspace and loose scripts alike. Only crates that cargo knows about are
+looked at, so a dependency fetched from a registry has to include the files in
+what it publishes.
+
+Cargo is asked once when the server starts and again whenever a `Cargo.toml` is
+saved or reported changed by the editor. If its dependencies cannot be resolved
+offline it is asked about the workspace alone. A missing or failing `cargo`, one
+which takes longer than ten seconds, or a malformed `[package.metadata.rune]`
+is logged as a warning and does not stop the server.
+
 [Rust package layout]:
 
 - Source code goes in the `src` directory.
@@ -191,6 +217,13 @@ error: Missing macro module::printline
 2 │     printline!("running a/multi-file-executable")
   │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Missing macro module::printline
 ```
+
+## Declarations
+
+A package's own [declaration sources](./declarations.md), every `*.d.rn` file
+under its directory, are compiled beside each of its entry points, which is how
+a project describes the host its scripts are run in. A `.d.rn` file is never an
+entry point itself, even under `src/bin`.
 
 ## Dependencies
 

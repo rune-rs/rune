@@ -1,0 +1,3 @@
+pub fn main() {
+    own_value() + base_value()
+}

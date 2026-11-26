@@ -230,6 +230,8 @@ struct Session {
     /// it can sensibly say the next thing.
     stages: rust_alloc::vec::Vec<(rust_alloc::vec::Vec<u8>, Option<rust_alloc::string::String>)>,
     id: i64,
+    /// What stands in for `cargo metadata`, which the tests never run.
+    cargo: Option<super::cargo::Metadata>,
 }
 
 impl Session {
@@ -247,6 +249,7 @@ impl Session {
         let mut this = Session {
             stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
             id: 0,
+            cargo: None,
         };
 
         this.request(
@@ -264,6 +267,7 @@ impl Session {
         let mut this = Session {
             stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
             id: 0,
+            cargo: None,
         };
 
         this.request(
@@ -389,9 +393,16 @@ impl Session {
             let (mut client, server) = tokio::io::duplex(1 << 20);
             let (input, output) = tokio::io::split(server);
 
+            // Nothing a test does is about the cargo project it happens to be
+            // run in, so unless it describes one there is none.
+            let cargo = self
+                .cargo
+                .unwrap_or_else(|| rust_alloc::boxed::Box::new(|_: &std::path::Path| Ok(None)));
+
             let server = super::builder()
                 .with_input(input)
                 .with_output(output)
+                .with_cargo_metadata(cargo)
                 .build()
                 .expect("Should build");
 
@@ -1141,6 +1152,7 @@ fn dependency_session(name: &str) -> (Session, rust_alloc::string::String) {
     let mut this = Session {
         stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
         id: 0,
+        cargo: None,
     };
 
     this.request(
@@ -1228,4 +1240,246 @@ fn a_dependency_cycle_is_reported_and_survived() {
         }),
         "{messages:?}"
     );
+}
+
+/// The fixture directory of the cargo tests.
+fn cargo_fixture(name: &str) -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/tests/cargo")
+        .join(name)
+        .canonicalize()
+        .expect("Fixture should exist")
+}
+
+/// What `cargo metadata` says about a project with the fixture crate `host`,
+/// which names its declarations in `[package.metadata.rune]` when `declares`,
+/// and a crate which says nothing of rune.
+fn cargo_metadata(declares: bool) -> rust_alloc::vec::Vec<u8> {
+    let host = cargo_fixture("host").join("Cargo.toml");
+
+    let metadata = if declares {
+        serde_json::json!({"rune": {"declarations": ["rune/*.d.rn"]}})
+    } else {
+        serde_json::Value::Null
+    };
+
+    serde_json::to_vec(&serde_json::json!({
+        "packages": [
+            {"name": "host", "manifest_path": host, "metadata": metadata},
+            {"name": "other", "manifest_path": "/nowhere/Cargo.toml", "metadata": null},
+        ],
+        "workspace_root": cargo_fixture("host"),
+    }))
+    .expect("Should serialize")
+}
+
+/// The root a cargo session is opened in, which holds nothing: what the
+/// session knows of cargo is what the test says, and the script is only ever
+/// open in the editor.
+const CARGO_ROOT: &str = "file:///tmp/rune-languageserver-cargo";
+const CARGO_SCRIPT: &str = "file:///tmp/rune-languageserver-cargo/script.rn";
+
+/// Start a session in [`CARGO_ROOT`] whose cargo metadata is what `metadata`
+/// produces.
+fn cargo_session(metadata: super::cargo::Metadata) -> Session {
+    let mut this = Session {
+        stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
+        id: 0,
+        cargo: Some(metadata),
+    };
+
+    this.request(
+        "initialize",
+        serde_json::json!({"capabilities": {}, "processId": null, "rootUri": CARGO_ROOT}),
+    );
+
+    this.notify("initialized", serde_json::json!({}));
+    this
+}
+
+fn diagnosed(uri: &str) -> impl Fn(&[serde_json::Value]) -> bool + '_ {
+    move |m| notifications(m, "textDocument/publishDiagnostics").any(|m| m["params"]["uri"] == uri)
+}
+
+/// A script calling what a cargo crate declares through
+/// `[package.metadata.rune]` is not reported, which is what lets a host crate
+/// describe what it installs. Cargo is asked about the directory the client
+/// opened.
+#[test]
+fn what_a_cargo_crate_declares_is_not_reported() {
+    let asked = std::sync::Arc::new(std::sync::Mutex::new(rust_alloc::vec::Vec::new()));
+    let record = asked.clone();
+
+    let mut s = cargo_session(rust_alloc::boxed::Box::new(move |dir: &std::path::Path| {
+        record.lock().unwrap().push(dir.to_path_buf());
+        Ok(Some(cargo_metadata(true)))
+    }));
+
+    s.open(CARGO_SCRIPT, "pub fn main() {\n    host_value()\n}\n");
+    let messages = s.run(diagnosed(CARGO_SCRIPT));
+
+    let diagnostics = published(&messages, CARGO_SCRIPT);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+    assert_eq!(
+        *asked.lock().unwrap(),
+        [std::path::PathBuf::from("/tmp/rune-languageserver-cargo")]
+    );
+}
+
+/// Without the metadata naming them, the same script is reported, so that the
+/// test above is not passing because nothing is.
+#[test]
+fn what_no_cargo_crate_declares_is_reported() {
+    let mut s = cargo_session(rust_alloc::boxed::Box::new(|_: &std::path::Path| {
+        Ok(Some(cargo_metadata(false)))
+    }));
+
+    s.open(CARGO_SCRIPT, "pub fn main() {\n    host_value()\n}\n");
+    let messages = s.run(diagnosed(CARGO_SCRIPT));
+
+    let diagnostics = published(&messages, CARGO_SCRIPT);
+
+    assert!(
+        diagnostics.iter().any(|d| d["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("host_value"))),
+        "{diagnostics:?}"
+    );
+}
+
+/// A cargo which is missing or fails is said as a warning, and the session
+/// goes on to diagnose what is open, since a server which cannot use cargo is
+/// still a server.
+#[test]
+fn a_failing_cargo_is_a_warning() {
+    let mut s = cargo_session(rust_alloc::boxed::Box::new(|_: &std::path::Path| {
+        Err(anyhow::anyhow!("no cargo here"))
+    }));
+
+    s.open(CARGO_SCRIPT, "pub fn main() {\n    1\n}\n");
+    let messages = s.run(diagnosed(CARGO_SCRIPT));
+
+    assert!(
+        notifications(&messages, "window/logMessage").any(|m| m["params"]["type"] == 2
+            && m["params"]["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("no cargo here"))),
+        "{messages:?}"
+    );
+
+    let diagnostics = published(&messages, CARGO_SCRIPT);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Cargo is asked again when a `Cargo.toml` is saved, so that what a changed
+/// manifest names is picked up, and not otherwise, since running it is slow.
+#[test]
+fn a_saved_cargo_manifest_is_looked_at_again() {
+    let count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = count.clone();
+
+    let mut s = cargo_session(rust_alloc::boxed::Box::new(move |_: &std::path::Path| {
+        // The manifest only names the declarations once it has been edited.
+        let n = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(Some(cargo_metadata(n > 0)))
+    }));
+
+    s.open(CARGO_SCRIPT, "pub fn main() {\n    host_value()\n}\n");
+    s.after_diagnostics(CARGO_SCRIPT);
+
+    s.notify(
+        "textDocument/didSave",
+        serde_json::json!({"textDocument": {"uri": "file:///tmp/rune-languageserver-cargo/Cargo.toml"}}),
+    );
+
+    // The server may rebuild more than once before the save reaches it, so
+    // what is waited for is the script no longer being reported.
+    let messages = s.run(|m| {
+        notifications(m, "textDocument/publishDiagnostics").any(|m| {
+            m["params"]["uri"] == CARGO_SCRIPT
+                && m["params"]["diagnostics"]
+                    .as_array()
+                    .is_some_and(|d| d.is_empty())
+        })
+    });
+
+    let diagnostics = published(&messages, CARGO_SCRIPT);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+    let first = notifications(&messages, "textDocument/publishDiagnostics")
+        .find(|m| m["params"]["uri"] == CARGO_SCRIPT)
+        .expect("Should have diagnosed the script");
+
+    assert_eq!(
+        first["params"]["diagnostics"].as_array().map(|d| d.len()),
+        Some(1)
+    );
+
+    // However many times it rebuilt, cargo was asked at startup and on the
+    // save alone.
+    assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 2);
+}
+
+/// A malformed `[package.metadata.rune]` is a warning which costs only the
+/// crate it is in what it names.
+#[test]
+fn a_malformed_cargo_declaration_is_a_warning() {
+    let host = cargo_fixture("host").join("Cargo.toml");
+
+    let metadata = serde_json::to_vec(&serde_json::json!({
+        "packages": [
+            {"name": "bad", "manifest_path": host, "metadata": {"rune": {"declarations": "rune/*.d.rn"}}},
+            {"name": "host", "manifest_path": host, "metadata": {"rune": {"declarations": ["rune/*.d.rn", 1]}}},
+        ],
+    }))
+    .unwrap();
+
+    let mut warnings = crate::alloc::Vec::new();
+    let declarations = super::cargo::declarations(&metadata, &mut warnings).unwrap();
+
+    assert_eq!(
+        declarations
+            .iter()
+            .cloned()
+            .collect::<rust_alloc::vec::Vec<_>>(),
+        [cargo_fixture("host/rune/host.d.rn")]
+    );
+
+    let warnings = warnings
+        .iter()
+        .map(|w| w.as_str())
+        .collect::<rust_alloc::vec::Vec<_>>();
+    assert_eq!(warnings.len(), 2, "{warnings:?}");
+    assert!(warnings[0].contains("`bad`"), "{warnings:?}");
+    assert!(warnings[1].contains("`host`"), "{warnings:?}");
+}
+
+/// Only a file named `Cargo.toml` is a cargo manifest.
+#[test]
+fn a_cargo_manifest_is_named_cargo_toml() {
+    assert!(super::cargo::is_manifest("file:///project/Cargo.toml"));
+    assert!(!super::cargo::is_manifest("file:///project/NotCargo.toml"));
+    assert!(!super::cargo::is_manifest("file:///project/Rune.toml"));
+}
+
+/// Opened on a file of a package without being told where its root is, the
+/// server finds the package by the nearest `Rune.toml` above the file and
+/// compiles the package's own declarations and its dependencies' beside it.
+#[test]
+fn a_package_found_from_an_open_file_brings_its_declarations() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/tests/dependencies/own")
+        .canonicalize()
+        .expect("Fixture should exist");
+
+    let uri = super::url::from_file_path(root.join("src/main.rn")).expect("Should be a url");
+    let uri = uri.as_str();
+
+    let mut s = Session::new();
+    s.open(uri, "pub fn main() {\n    own_value() + base_value()\n}\n");
+    let messages = s.run(diagnosed(uri));
+
+    let diagnostics = published(&messages, uri);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }

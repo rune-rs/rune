@@ -9,6 +9,7 @@
 #[cfg(all(test, not(miri)))]
 mod tests;
 
+mod cargo;
 mod completion;
 mod connection;
 pub mod envelope;
@@ -66,6 +67,7 @@ pub fn builder() -> Builder<Unset, Unset> {
         output: Unset,
         context: None,
         options: None,
+        metadata: None,
     }
 }
 
@@ -77,6 +79,7 @@ pub struct Builder<I, O> {
     output: O,
     context: Option<Context>,
     options: Option<Options>,
+    metadata: Option<cargo::Metadata>,
 }
 
 /// Unset placeholder I/O types for language server.
@@ -97,6 +100,7 @@ impl<I, O> Builder<I, O> {
             output: self.output,
             context: self.context,
             options: self.options,
+            metadata: self.metadata,
         }
     }
 
@@ -110,6 +114,7 @@ impl<I, O> Builder<I, O> {
             output,
             context: self.context,
             options: self.options,
+            metadata: self.metadata,
         }
     }
 
@@ -130,6 +135,7 @@ impl<I, O> Builder<I, O> {
             output: self.output,
             context: Some(context),
             options: self.options,
+            metadata: self.metadata,
         }
     }
 
@@ -140,7 +146,17 @@ impl<I, O> Builder<I, O> {
             output: self.output,
             context: self.context,
             options: Some(options),
+            metadata: self.metadata,
         }
+    }
+
+    /// Have the output of `cargo metadata` produced by `metadata` rather than
+    /// by running cargo, which is what lets a test describe a cargo project
+    /// without one being there.
+    #[cfg(test)]
+    pub(crate) fn with_cargo_metadata(mut self, metadata: cargo::Metadata) -> Self {
+        self.metadata = Some(metadata);
+        self
     }
 
     /// Build a new language server using the provided options.
@@ -159,11 +175,17 @@ impl<I, O> Builder<I, O> {
             None => Options::from_default_env()?,
         };
 
+        let metadata = match self.metadata {
+            Some(metadata) => metadata,
+            None => rust_alloc::boxed::Box::new(cargo::spawn),
+        };
+
         Ok(LanguageServer {
             input: self.input,
             output: self.output,
             context,
             options,
+            metadata,
         })
     }
 }
@@ -179,6 +201,7 @@ pub struct LanguageServer<I, O> {
     output: O,
     context: Context,
     options: Options,
+    metadata: cargo::Metadata,
 }
 
 impl<I, O> LanguageServer<I, O>
@@ -195,7 +218,7 @@ where
         let rebuild = rebuild_notify.notified();
         tokio::pin!(rebuild);
 
-        let mut state = State::new(&rebuild_notify, self.context, self.options);
+        let mut state = State::new(&rebuild_notify, self.context, self.options, self.metadata);
         tracing::info!("Starting server");
         state.rebuild()?;
 
@@ -333,6 +356,7 @@ where
                         notif(lsp::notification::DidChangeTextDocument, did_change_text_document),
                         notif(lsp::notification::DidCloseTextDocument, did_close_text_document),
                         notif(lsp::notification::DidSaveTextDocument, did_save_text_document),
+                        notif(lsp::notification::DidChangeWatchedFiles, did_change_watched_files),
                         notif(lsp::notification::Initialized, initialized),
                         notif(lsp::notification::Cancel, cancel_request),
                     }
@@ -419,6 +443,9 @@ fn initialize(s: &mut State<'_>, params: lsp::InitializeParams) -> Result<lsp::I
 
     #[allow(deprecated)]
     if let Some(root_uri) = &params.root_uri {
+        s.workspace.root = url::to_file_path(root_uri).ok();
+        rebuild = true;
+
         let manifest_uri = url::join(root_uri, MANIFEST_FILE);
         let manifest_path = manifest_uri
             .as_ref()
@@ -429,7 +456,6 @@ fn initialize(s: &mut State<'_>, params: lsp::InitializeParams) -> Result<lsp::I
             if fs::is_file(&manifest_path)? {
                 tracing::trace!(?manifest_uri, ?manifest_path, "Activating workspace");
                 s.workspace.manifest_path = Some((manifest_uri, manifest_path));
-                rebuild = true;
             }
         }
     }
@@ -602,7 +628,29 @@ fn did_close_text_document(
 }
 
 /// Handle saving of text documents.
-fn did_save_text_document(s: &mut State<'_>, _: lsp::DidSaveTextDocumentParams) -> Result<()> {
+fn did_save_text_document(s: &mut State<'_>, params: lsp::DidSaveTextDocumentParams) -> Result<()> {
+    if cargo::is_manifest(params.text_document.uri.as_str()) {
+        s.cargo.stale = true;
+    }
+
     s.rebuild_interest();
+    Ok(())
+}
+
+/// Handle files changing which the client watches, of which a `Cargo.toml`
+/// is what makes the declarations cargo packages name worth looking up again.
+fn did_change_watched_files(
+    s: &mut State<'_>,
+    params: lsp::DidChangeWatchedFilesParams,
+) -> Result<()> {
+    if params
+        .changes
+        .iter()
+        .any(|change| cargo::is_manifest(change.uri.as_str()))
+    {
+        s.cargo.stale = true;
+        s.rebuild_interest();
+    }
+
     Ok(())
 }
