@@ -21,7 +21,7 @@ use rune::Any;
 ///
 /// ## Seeding (construction)
 ///
-/// This generator implements the [`SeedableRng`] trait. All methods are
+/// This generator implements the `SeedableRng` trait. All methods are
 /// suitable for seeding, but note that, even with a fixed seed, output is not
 /// [portable]. Some suggestions:
 ///
@@ -57,7 +57,7 @@ use rune::Any;
 /// [portable]: https://rust-random.github.io/book/crate-reprod.html
 /// [Seeding RNGs]: https://rust-random.github.io/book/guide-seeding.html
 /// [Quality]: https://rust-random.github.io/book/guide-rngs.html#quality
-/// [`StdRng`]: crate::rngs::StdRng
+/// [`StdRng`]: StdRng
 /// [rand_pcg]: https://crates.io/crates/rand_pcg
 /// [rand_xoshiro]: https://crates.io/crates/rand_xoshiro
 /// [`rand_chacha::ChaCha8Rng`]: https://docs.rs/rand_chacha/latest/rand_chacha/struct.ChaCha8Rng.html

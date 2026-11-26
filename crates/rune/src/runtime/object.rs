@@ -277,7 +277,7 @@ impl Object {
     /// memory for reuse.
     ///
     /// The values are taken apart rather than dropped where they are - see
-    /// [`Object::dismantle`].
+    /// `Object::dismantle`.
     #[inline]
     #[rune::function(keep, path = Self::clear)]
     pub(crate) fn rune_clear(&mut self) {

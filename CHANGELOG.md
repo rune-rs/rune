@@ -136,6 +136,26 @@ starts out uninitialized just like a `static REGISTRY;` in a script does, so the
 caller has to assign it before anything reads it. A source which declares an
 item of the same name is a compile error. See the `declared_statics` example.
 
+#### Intra-doc links in `rune doc`
+
+A link in documentation, like ``[`Option::map`]`` or `[u64]`, resolves the way
+the name would in the module of the documented item: through the items of its
+type, the module and the modules above it, the prelude, and the known crates.
+`crate::`, `self::`, `super::`, `Self::` and absolute `::std::...` paths work, as
+do `[text][path]`, `[text](path)` and `[text]: path` with a path for a
+destination. Every kind of item is linkable: types, structs, enums and traits,
+variants and associated functions (an anchor on the page of their type),
+functions, macros, modules, and constants (the page of what holds them). As in
+rustdoc, `x!`, `x()` and prefixes like `struct@` say what kind of item is meant,
+and generic parameters like `<T, E>` and a `#fragment` are allowed.
+
+Brackets around text which is not a path, like `[-1, 1]`, are left alone, and a
+link which does not resolve is rendered as its text with a warning which names
+the link and the item it is in. The summary line of an item now sees the
+reference definitions further down its documentation, enums list their
+variants, and the documentation of a trait's methods resolves where the trait
+is. `rune doc` over the standard library now gives no warnings, down from 1524.
+
 #### New API
 
 - `rune::Statics` and `Build::with_statics`.

@@ -29,7 +29,7 @@ fn rng() -> ThreadRng {
 ///
 /// This type is a reference to a lazily-initialized thread-local generator. An
 /// instance can be obtained via [`rand::rng()`][crate::rng()] or via
-/// [`ThreadRng::default()`]. The handle cannot be passed between threads (is
+/// `ThreadRng::default()`. The handle cannot be passed between threads (is
 /// not `Send` or `Sync`).
 ///
 /// # Security
@@ -39,14 +39,14 @@ fn rng() -> ThreadRng {
 /// purpose. The design criteria for `ThreadRng` are as follows:
 ///
 /// - Automatic seeding via [`SysRng`] and periodically thereafter (see
-///   ([`ReseedingRng`] documentation). Limitation: there is no automatic
+///   (`ReseedingRng` documentation). Limitation: there is no automatic
 ///   reseeding on process fork (see [below](#fork)).
 /// - A rigorusly analyzed, unpredictable (cryptographic) pseudo-random
 ///   generator (see [the book on
 ///   security](https://rust-random.github.io/book/guide-rngs.html#security)).
 ///   The currently selected algorithm is ChaCha (12-rounds). See also
 ///   [`StdRng`] documentation.
-/// - Not to leak internal state through [`Debug`] or serialization
+/// - Not to leak internal state through `Debug` or serialization
 ///   implementations.
 /// - No further protections exist to in-memory state. In particular, the
 ///   implementation is not required to zero memory on exit (of the process or
@@ -77,8 +77,7 @@ fn rng() -> ThreadRng {
 /// from an interrupt (e.g. a fork handler) unless it can be guaranteed that no
 /// other method on the same `ThreadRng` is currently executing.
 ///
-/// [`ReseedingRng`]: crate::rngs::ReseedingRng
-/// [`StdRng`]: crate::rngs::StdRng
+/// [`StdRng`]: StdRng
 #[derive(Any)]
 #[rune(item = ::rand)]
 pub(super) struct ThreadRng {

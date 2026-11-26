@@ -159,7 +159,7 @@ fn into_iter(this: Ref<Tuple>) -> Iter {
 /// Perform a partial equality check with this tuple.
 ///
 /// This can take any argument which can be converted into an iterator using
-/// [`INTO_ITER`].
+/// `INTO_ITER`.
 ///
 /// # Examples
 ///

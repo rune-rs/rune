@@ -127,7 +127,7 @@ pub fn module() -> Result<Module, ContextError> {
             /// Note that this trait is a safe trait and as such does *not* and *cannot*
             /// guarantee that the returned length is correct. This means that `unsafe`
             /// code **must not** rely on the correctness of [`Iterator::size_hint`]. The
-            /// unstable and unsafe [`TrustedLen`](super::marker::TrustedLen) trait gives
+            /// unstable and unsafe `TrustedLen` trait gives
             /// this additional guarantee.
             ///
             /// [`len`]: ExactSizeIterator::len
@@ -823,7 +823,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// associative operators like `+`, the order the elements are combined in is
                 /// not important, but for non-associative operators like `-` the order will
                 /// affect the final result. For a *right-associative* version of `fold()`, see
-                /// [`DoubleEndedIterator::rfold()`].
+                /// `DoubleEndedIterator::rfold()`.
                 ///
                 /// # Note to Implementors
                 ///
@@ -943,10 +943,9 @@ pub fn module() -> Result<Module, ContextError> {
                 /// `find()` is short-circuiting; in other words, it will stop processing as
                 /// soon as the closure returns `true`.
                 ///
-                /// If you need the index of the element, see [`position()`].
+                /// If you need the index of the element, see `position()`.
                 ///
                 /// [`Some(element)`]: Some
-                /// [`position()`]: Iterator::position
                 ///
                 /// # Examples
                 ///
@@ -1097,9 +1096,9 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.next(), None);
                 /// ```
                 ///
-                /// Since the argument to `chain()` uses [`INTO_ITER`], we can pass anything
+                /// Since the argument to `chain()` uses `INTO_ITER`, we can pass anything
                 /// that can be converted into an [`Iterator`], not just an [`Iterator`] itself.
-                /// For example, slices (`[T]`) implement [`INTO_ITER`], and so can be passed to
+                /// For example, slices (`[T]`) implement `INTO_ITER`, and so can be passed to
                 /// `chain()` directly:
                 ///
                 /// ```rune
@@ -1116,8 +1115,6 @@ pub fn module() -> Result<Module, ContextError> {
                 /// assert_eq!(iter.next(), Some(6));
                 /// assert_eq!(iter.next(), None);
                 /// ```
-                ///
-                /// [`INTO_ITER`]: protocol@INTO_ITER
             })?;
 
         t.function("enumerate")?
@@ -1279,7 +1276,7 @@ pub fn module() -> Result<Module, ContextError> {
                 /// will remove this extra layer on its own.
                 ///
                 /// You can think of `flat_map(f)` as the semantic equivalent of
-                /// [`map`]ping, and then [`flatten`]ing as in
+                /// [`map`]ping, and then `flatten`ing as in
                 /// `map(f).flatten()`.
                 ///
                 /// Another way of thinking about `flat_map()`: [`map`]'s
@@ -1287,7 +1284,6 @@ pub fn module() -> Result<Module, ContextError> {
                 /// `flat_map()`'s closure returns an iterator for each element.
                 ///
                 /// [`map`]: Iterator::map
-                /// [`flatten`]: Iterator::flatten
                 ///
                 /// # Examples
                 ///
@@ -1530,7 +1526,7 @@ pub fn module() -> Result<Module, ContextError> {
             .argument_names(["self"])?
             .return_type::<VecDeque>()?
             .docs(docstring! {
-                /// Collect the iterator as a [`VecDeque`].
+                /// Collect the iterator as a [`VecDeque`][std::collections::vec_deque::VecDeque].
                 ///
                 /// # Examples
                 ///
@@ -1546,7 +1542,7 @@ pub fn module() -> Result<Module, ContextError> {
             .argument_names(["self"])?
             .return_type::<HashSet>()?
             .docs(docstring! {
-                /// Collect the iterator as a [`HashSet`].
+                /// Collect the iterator as a [`HashSet`][std::collections::hash_set::HashSet].
                 ///
                 /// # Examples
                 ///
@@ -1565,7 +1561,7 @@ pub fn module() -> Result<Module, ContextError> {
             .argument_names(["self"])?
             .return_type::<HashMap>()?
             .docs(docstring! {
-                /// Collect the iterator as a [`HashMap`].
+                /// Collect the iterator as a [`HashMap`][std::collections::hash_map::HashMap].
                 ///
                 /// # Examples
                 ///

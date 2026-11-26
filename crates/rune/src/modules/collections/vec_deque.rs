@@ -75,7 +75,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// The "default" usage of this type as a queue is to use [`push_back`] to add
 /// to the queue, and [`pop_front`] to remove from the queue. [`extend`] and
-/// [`append`] push onto the back in this manner, and iterating over `VecDeque`
+/// `append` push onto the back in this manner, and iterating over `VecDeque`
 /// goes front to back.
 ///
 /// A `VecDeque` with a known list of items can be initialized from an array:
@@ -89,7 +89,6 @@ pub fn module() -> Result<Module, ContextError> {
 /// [`push_back`]: VecDeque::push_back
 /// [`pop_front`]: VecDeque::pop_front
 /// [`extend`]: VecDeque::extend
-/// [`append`]: VecDeque::append
 #[derive(Any, Default)]
 #[rune(module = crate, item = ::std::collections::vec_deque, dismantle)]
 pub(crate) struct VecDeque {
@@ -130,7 +129,7 @@ impl VecDeque {
         })
     }
 
-    /// Extend this VecDeque with something that implements the [`INTO_ITER`]
+    /// Extend this VecDeque with something that implements the `INTO_ITER`
     /// protocol.
     ///
     /// # Examples
@@ -509,7 +508,7 @@ impl VecDeque {
     /// Build a [`VecDeque`] from an iterator.
     ///
     /// The vecdeque can be converted from anything that implements the
-    /// [`INTO_ITER`] protocol.
+    /// `INTO_ITER` protocol.
     ///
     /// # Examples
     ///
@@ -559,7 +558,7 @@ impl VecDeque {
 
     /// Write a debug representation to a string.
     ///
-    /// This calls the [`DEBUG_FMT`] protocol over all elements of the
+    /// This calls the `DEBUG_FMT` protocol over all elements of the
     /// collection.
     ///
     /// # Examples
@@ -600,7 +599,7 @@ impl VecDeque {
     /// Perform a partial equality check with this deque.
     ///
     /// This can take any argument which can be converted into an iterator using
-    /// [`INTO_ITER`].
+    /// `INTO_ITER`.
     ///
     /// # Examples
     ///

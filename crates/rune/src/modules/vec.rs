@@ -271,7 +271,7 @@ fn sort_by(vec: &mut Vec, comparator: &Function) -> Result<(), VmError> {
 /// Sort the vector.
 ///
 /// This require all elements to be of the same type, and implement total
-/// ordering per the [`CMP`] protocol.
+/// ordering per the `CMP` protocol.
 ///
 /// # Panics
 ///
@@ -370,7 +370,7 @@ fn extend(this: &mut Vec, value: Value) -> Result<(), VmError> {
 /// If you'd like to pop the first element, consider using
 /// [`VecDeque::pop_front`] instead.
 ///
-/// [`VecDeque::pop_front`]: crate::collections::VecDeque::pop_front
+/// [`VecDeque::pop_front`]: std::collections::vec_deque::VecDeque::pop_front
 ///
 /// # Examples
 ///
@@ -408,12 +408,11 @@ fn push(this: &mut Vec, value: Value) -> Result<(), VmError> {
 ///
 /// Note: Because this shifts over the remaining elements, it has a worst-case
 /// performance of *O*(*n*). If you don't need the order of elements to be
-/// preserved, use [`swap_remove`] instead. If you'd like to remove elements
+/// preserved, use `swap_remove` instead. If you'd like to remove elements
 /// from the beginning of the `Vec`, consider using [`VecDeque::pop_front`]
 /// instead.
 ///
-/// [`swap_remove`]: Vec::swap_remove
-/// [`VecDeque::pop_front`]: crate::collections::VecDeque::pop_front
+/// [`VecDeque::pop_front`]: std::collections::vec_deque::VecDeque::pop_front
 ///
 /// # Panics
 ///
@@ -572,8 +571,10 @@ fn index_set(this: &mut Vec, index: usize, value: Value) -> Result<(), VmError> 
 ///
 /// This method requires `T` to implement [`Clone`], in order to be able to
 /// clone the passed value. If you need more flexibility (or want to rely on
-/// [`Default`] instead of [`Clone`]), use [`Vec::resize_with`]. If you only
-/// need to resize to a smaller size, use [`Vec::truncate`].
+/// `Default` instead of [`Clone`]), use `Vec::resize_with`. If you only
+/// need to resize to a smaller size, use `Vec::truncate`.
+///
+/// [`Clone`]: std::clone::Clone
 ///
 /// # Examples
 ///
@@ -607,7 +608,7 @@ fn resize(this: &mut Vec, new_len: usize, value: Value) -> Result<(), VmError> {
 
 /// Write a debug representation to a string.
 ///
-/// This calls the [`DEBUG_FMT`] protocol over all elements of the
+/// This calls the `DEBUG_FMT` protocol over all elements of the
 /// collection.
 ///
 /// # Examples
@@ -624,7 +625,7 @@ fn debug_fmt(this: &Vec, f: &mut Formatter) -> Result<(), VmError> {
 /// Perform a partial equality check with this vector.
 ///
 /// This can take any argument which can be converted into an iterator using
-/// [`INTO_ITER`].
+/// `INTO_ITER`.
 ///
 /// # Examples
 ///

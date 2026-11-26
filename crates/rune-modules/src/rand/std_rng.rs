@@ -18,7 +18,7 @@ use rune::Any;
 ///
 /// ## Seeding (construction)
 ///
-/// This generator implements the [`SeedableRng`] trait. Any method may be used,
+/// This generator implements the `SeedableRng` trait. Any method may be used,
 /// but note that `seed_from_u64` is not suitable for usage where security is
 /// important. Also note that, even with a fixed seed, output is not [portable].
 ///
@@ -39,7 +39,7 @@ use rune::Any;
 /// let rng = StdRng::from_rng(rng);
 /// ```
 ///
-/// Any [`SeedableRng`] method may be used, but note that `seed_from_u64` is not
+/// Any `SeedableRng` method may be used, but note that `seed_from_u64` is not
 /// suitable where security is required. See also [Seeding RNGs] in the book.
 ///
 /// [portable]: https://rust-random.github.io/book/crate-reprod.html

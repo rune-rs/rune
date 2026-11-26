@@ -8,12 +8,12 @@ use crate::alloc::prelude::*;
 use crate::runtime::{VmError, VmErrorKind};
 use crate::{docstring, ContextError, Module};
 
-/// Mathematical constants mirroring Rust's [core::f64::consts].
+/// Mathematical constants mirroring Rust's [`core::f64::consts`](https://doc.rust-lang.org/core/f64/consts/index.html).
 pub mod consts {
     use crate as rune;
     use crate::{docstring, ContextError, Module};
 
-    /// Mathematical constants mirroring Rust's [core::f64::consts].
+    /// Mathematical constants mirroring Rust's [`core::f64::consts`](https://doc.rust-lang.org/core/f64/consts/index.html).
     #[rune::module(::std::f64::consts)]
     pub fn module() -> Result<Module, ContextError> {
         let mut m = Module::from_meta(self::module__meta)?;

@@ -4,8 +4,6 @@ mod type_;
 use core::fmt;
 use core::str;
 
-use rust_alloc::string::ToString;
-
 use anyhow::{anyhow, bail, Context as _, Result};
 use relative_path::{RelativePath, RelativePathBuf};
 use serde::{Serialize, Serializer};
@@ -18,7 +16,7 @@ use crate::alloc::borrow::Cow;
 use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashSet, VecDeque};
-use crate::compile::meta;
+use crate::compile::{meta, Prelude};
 use crate::doc::artifacts::{Test, TestKind};
 use crate::doc::context::{Function, Kind, Meta, Signature};
 use crate::doc::templating;
@@ -28,6 +26,7 @@ use crate::runtime::OwnedTuple;
 use crate::std::borrow::ToOwned;
 use crate::{Hash, Item, TypeHash};
 
+use super::link::{self, Link};
 use super::markdown;
 
 // InspiredGitHub
@@ -169,6 +168,8 @@ pub(crate) fn build(
         function_template: compile(&templating, "function.html.hbs")?,
         syntax_set: artifacts.enabled.then(SyntaxSet::load_defaults_newlines),
         tests: Vec::new(),
+        prelude: Prelude::with_default_prelude()?,
+        warned: HashSet::new(),
     };
 
     let mut queue = initial.into_iter().try_collect::<VecDeque<_>>()?;
@@ -358,6 +359,11 @@ pub(crate) struct Ctxt<'a, 'm> {
     function_template: templating::Template,
     syntax_set: Option<SyntaxSet>,
     tests: Vec<Test>,
+    /// The prelude, which is in scope for links.
+    prelude: Prelude,
+    /// Unresolved links which have been warned about, by the item whose
+    /// documentation they are in.
+    warned: HashSet<(Hash, String)>,
 }
 
 impl<'m> Ctxt<'_, 'm> {
@@ -379,7 +385,7 @@ impl<'m> Ctxt<'_, 'm> {
 
         build_item_path(self.name, meta.item, item_kind, &mut self.state.path)?;
 
-        let doc = self.render_line_docs(meta, meta.docs.get(..1).unwrap_or_default())?;
+        let doc = self.render_line_docs(meta, meta.docs)?;
 
         self.index.try_push(IndexEntry {
             path: self.state.path.clone(),
@@ -444,12 +450,45 @@ impl<'m> Ctxt<'_, 'm> {
         }
     }
 
-    /// Render line docs.
+    /// Render the first line of documentation, as a summary.
+    ///
+    /// Reference definitions further down are kept, since the first line is
+    /// where they are most often used, as in ``[`peek`]`` with a `[`peek`]:
+    /// Peekable::peek` at the bottom.
     fn render_line_docs<S>(&mut self, meta: Meta<'_>, docs: &[S]) -> Result<Option<String>>
     where
         S: AsRef<str>,
     {
-        self.render_docs(meta, docs, false)
+        let Some((first, rest)) = docs.split_first() else {
+            return Ok(None);
+        };
+
+        let mut input = String::new();
+        push_doc_line(&mut input, first.as_ref())?;
+
+        // A definition cannot interrupt a paragraph, so the summary is ended
+        // before them.
+        input.try_push('\n')?;
+
+        // A definition may continue on the lines which follow it, as long as
+        // they are indented.
+        let mut in_definition = false;
+
+        for line in rest {
+            let line = line.as_ref();
+
+            in_definition = if is_reference_definition(line) {
+                true
+            } else {
+                in_definition && is_continuation(line)
+            };
+
+            if in_definition {
+                push_doc_line(&mut input, line)?;
+            }
+        }
+
+        self.render_markdown(meta, &input, false)
     }
 
     /// Render documentation.
@@ -462,8 +501,6 @@ impl<'m> Ctxt<'_, 'm> {
     where
         S: AsRef<str>,
     {
-        use pulldown_cmark::{BrokenLink, Options, Parser};
-
         if docs.is_empty() {
             return Ok(None);
         }
@@ -471,11 +508,20 @@ impl<'m> Ctxt<'_, 'm> {
         let mut input = String::new();
 
         for line in docs {
-            let line = line.as_ref();
-            let line = line.strip_prefix(' ').unwrap_or(line);
-            input.try_push_str(line)?;
-            input.try_push('\n')?;
+            push_doc_line(&mut input, line.as_ref())?;
         }
+
+        self.render_markdown(meta, &input, capture_tests)
+    }
+
+    /// Render markdown written in the documentation of `meta`.
+    fn render_markdown(
+        &mut self,
+        meta: Meta<'_>,
+        input: &str,
+        capture_tests: bool,
+    ) -> Result<Option<String>> {
+        use pulldown_cmark::{BrokenLink, CowStr, Event, LinkType, Options, Parser, Tag};
 
         let mut o = String::new();
         write!(o, "<div class=\"docs\">")?;
@@ -483,20 +529,70 @@ impl<'m> Ctxt<'_, 'm> {
         options.insert(Options::ENABLE_STRIKETHROUGH);
 
         let mut link_error = None;
+        let mut unresolved = Vec::new();
+
+        let this = &*self;
 
         let mut callback = |link: BrokenLink<'_>| {
-            let (path, title) = match self.link_callback(meta, link.reference.as_ref()) {
-                Ok(out) => out?,
+            let (path, title) =
+                match this.link_callback(meta, link.reference.as_ref(), &mut unresolved) {
+                    Ok(out) => out?,
+                    Err(error) => {
+                        link_error = Some(error);
+                        return None;
+                    }
+                };
+
+            Some((path.into_std().into(), title.into_std().into()))
+        };
+
+        let parser = Parser::new_with_broken_link_callback(input, options, Some(&mut callback));
+
+        // A link with a destination, as in `[text](Option::map)` or a
+        // reference definition `[text]: Option::map`, is resolved too if the
+        // destination is a path rather than a URL.
+        let mut explicit_error = None;
+        let mut explicit_unresolved = Vec::new();
+
+        let iter = parser.map(|event| {
+            let Event::Start(Tag::Link {
+                link_type:
+                    link_type @ (LinkType::Inline
+                    | LinkType::Reference
+                    | LinkType::Collapsed
+                    | LinkType::Shortcut),
+                dest_url,
+                title,
+                id,
+            }) = event
+            else {
+                return event;
+            };
+
+            let resolved = match this.link_callback(meta, &dest_url, &mut explicit_unresolved) {
+                Ok(resolved) => resolved,
                 Err(error) => {
-                    link_error = Some(error);
-                    return None;
+                    explicit_error = Some(error);
+                    None
                 }
             };
 
-            Some((path.to_string().into(), title.into_std().into()))
-        };
+            let (dest_url, title) = match resolved {
+                Some((path, link_title)) if title.is_empty() => (
+                    CowStr::from(path.into_std()),
+                    CowStr::from(link_title.into_std()),
+                ),
+                Some((path, _)) => (CowStr::from(path.into_std()), title),
+                None => (dest_url, title),
+            };
 
-        let iter = Parser::new_with_broken_link_callback(&input, options, Some(&mut callback));
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                title,
+                id,
+            })
+        });
 
         let mut tests = Vec::new();
 
@@ -507,8 +603,14 @@ impl<'m> Ctxt<'_, 'm> {
             capture_tests.then_some(&mut tests),
         )?;
 
-        if let Some(error) = link_error {
+        if let Some(error) = link_error.or(explicit_error) {
             return Err(error);
+        }
+
+        for link in unresolved.into_iter().chain(explicit_unresolved) {
+            if self.warned.try_insert((meta.hash, link.try_clone()?))? {
+                tracing::warn!(%link, item = %meta.item, "Unresolved link");
+            }
         }
 
         for (content, params) in tests {
@@ -730,90 +832,36 @@ impl<'m> Ctxt<'_, 'm> {
         Ok(string)
     }
 
+    /// Resolve a link written in the documentation of `meta` into the path
+    /// it points to and its title.
+    ///
+    /// Links which do not resolve are added to `unresolved`, so that they can
+    /// be warned about once rather than every time the same documentation is
+    /// rendered.
     fn link_callback(
         &self,
         meta: Meta<'_>,
         link: &str,
-    ) -> Result<Option<(RelativePathBuf, String)>> {
-        enum Flavor {
-            Any,
-            Macro,
-            Function,
-        }
-
-        impl Flavor {
-            fn is_struct(&self) -> bool {
-                matches!(self, Flavor::Any)
-            }
-
-            fn is_enum(&self) -> bool {
-                matches!(self, Flavor::Any)
-            }
-
-            fn is_macro(&self) -> bool {
-                matches!(self, Flavor::Any | Flavor::Macro)
-            }
-
-            fn is_function(&self) -> bool {
-                matches!(self, Flavor::Any | Flavor::Function)
-            }
-        }
-
-        fn flavor(link: &str) -> (&str, Flavor) {
-            if let Some(link) = link.strip_suffix('!') {
-                return (link, Flavor::Macro);
-            }
-
-            if let Some(link) = link.strip_suffix("()") {
-                return (link, Flavor::Function);
-            }
-
-            (link, Flavor::Any)
-        }
-
-        let link = link.trim_matches(|c| matches!(c, '`'));
-        let (link, flavor) = flavor(link);
-
-        let item = if matches!(meta.kind, Kind::Module) {
-            meta.item.join([link])?
-        } else {
-            let Some(parent) = meta.item.parent() else {
+        unresolved: &mut Vec<String>,
+    ) -> Result<Option<(String, String)>> {
+        let target = match link::resolve(self.context, &self.prelude, meta, link)? {
+            Link::Found(target) => target,
+            Link::Unresolved => {
+                unresolved.try_push(link.try_to_owned()?)?;
                 return Ok(None);
-            };
-
-            parent.join([link])?
+            }
+            Link::NotAPath => return Ok(None),
         };
 
-        let item_path = 'out: {
-            let mut alts = Vec::new();
+        let path = self.item_path(&target.item, target.kind)?;
 
-            for meta in self.context.meta(&item)? {
-                alts.try_push(match meta.kind {
-                    Kind::Struct if flavor.is_struct() => ItemKind::Struct,
-                    Kind::Enum if flavor.is_enum() => ItemKind::Enum,
-                    Kind::Macro if flavor.is_macro() => ItemKind::Macro,
-                    Kind::Function(_) if flavor.is_function() => ItemKind::Function,
-                    _ => {
-                        continue;
-                    }
-                })?;
-            }
-
-            match &alts[..] {
-                [] => {
-                    tracing::warn!(?link, "Bad link, no items found");
-                }
-                [out] => break 'out *out,
-                _items => {
-                    tracing::warn!(?link, items = ?_items, "Bad link, got multiple items");
-                }
-            }
-
-            return Ok(None);
+        let path = match &target.fragment {
+            Some(fragment) => try_format!("{path}#{fragment}"),
+            None => try_format!("{path}"),
         };
 
-        let path = self.item_path(&item, item_path)?;
-        let title = try_format!("{item_path} {link}");
+        let link = link.trim().trim_matches('`');
+        let title = try_format!("{} {link}", target.what);
         Ok(Some((path, title)))
     }
 }
@@ -827,6 +875,34 @@ enum Build {
     Function,
     Module,
     Trait,
+}
+
+/// Push a line of documentation, without the space which follows `///`.
+fn push_doc_line(input: &mut String, line: &str) -> alloc::Result<()> {
+    let line = line.strip_prefix(' ').unwrap_or(line);
+    input.try_push_str(line)?;
+    input.try_push('\n')?;
+    Ok(())
+}
+
+/// Test if a line of documentation is a link reference definition, like
+/// `[peek]: Peekable::peek`.
+fn is_reference_definition(line: &str) -> bool {
+    let Some(rest) = line.trim_start().strip_prefix('[') else {
+        return false;
+    };
+
+    match rest.split_once("]:") {
+        Some((label, _)) => !label.is_empty() && !label.contains(']'),
+        None => false,
+    }
+}
+
+/// Test if a line of documentation continues what is on the line before it,
+/// as the destination of a definition may.
+fn is_continuation(line: &str) -> bool {
+    let line = line.strip_prefix(' ').unwrap_or(line);
+    line.starts_with(char::is_whitespace) && !line.trim().is_empty()
 }
 
 /// Get an asset as a string.
@@ -1019,7 +1095,7 @@ fn module<'m>(
                         path: cx.item_path(m.item, ItemKind::Type)?,
                         item: m.item,
                         name,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 Kind::Struct { .. } => {
@@ -1029,7 +1105,7 @@ fn module<'m>(
                         path: cx.item_path(m.item, ItemKind::Struct)?,
                         item: m.item,
                         name,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 Kind::Enum { .. } => {
@@ -1039,7 +1115,7 @@ fn module<'m>(
                         path: cx.item_path(m.item, ItemKind::Enum)?,
                         item: m.item,
                         name,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 Kind::Macro => {
@@ -1049,7 +1125,7 @@ fn module<'m>(
                         path: cx.item_path(m.item, ItemKind::Macro)?,
                         item: m.item,
                         name,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 Kind::Function(f) => {
@@ -1066,7 +1142,7 @@ fn module<'m>(
                         item: m.item,
                         name,
                         args: cx.args_to_string(f.signature, f.arguments)?,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 Kind::Module => {
@@ -1089,7 +1165,7 @@ fn module<'m>(
                         item: m.item,
                         name,
                         path,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 Kind::Trait { .. } => {
@@ -1099,7 +1175,7 @@ fn module<'m>(
                         path: cx.item_path(m.item, ItemKind::Trait)?,
                         item: m.item,
                         name,
-                        doc: cx.render_line_docs(m, m.docs.get(..1).unwrap_or_default())?,
+                        doc: cx.render_line_docs(m, m.docs)?,
                     })?;
                 }
                 _ => {

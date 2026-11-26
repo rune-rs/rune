@@ -80,10 +80,10 @@ pub fn module() -> Result<Module, ContextError> {
 /// attacks such as HashDoS.
 ///
 /// The hashing algorithm can be replaced on a per-`HashMap` basis using the
-/// [`default`], [`with_hasher`], and [`with_capacity_and_hasher`] methods.
+/// `default`, `with_hasher`, and `with_capacity_and_hasher` methods.
 /// There are many alternative [hashing algorithms available on crates.io].
 ///
-/// It is required that the keys implement the [`EQ`] and [`HASH`] protocols. If
+/// It is required that the keys implement the `EQ` and `HASH` protocols. If
 /// you implement these yourself, it is important that the following property
 /// holds:
 ///
@@ -95,9 +95,9 @@ pub fn module() -> Result<Module, ContextError> {
 /// this property is a logic error.
 ///
 /// It is also a logic error for a key to be modified in such a way that the
-/// key's hash, as determined by the [`HASH`] protocol, or its equality, as
-/// determined by the [`EQ`] protocol, changes while it is in the map. This is
-/// normally only possible through [`Cell`], [`RefCell`], global state, I/O, or
+/// key's hash, as determined by the `HASH` protocol, or its equality, as
+/// determined by the `EQ` protocol, changes while it is in the map. This is
+/// normally only possible through `Cell`, `RefCell`, global state, I/O, or
 /// unsafe code.
 ///
 /// The behavior resulting from either logic error is not specified, but will be
@@ -257,7 +257,7 @@ impl HashMap {
         self.table.insert_with(key, value, &mut EnvProtocolCaller)
     }
 
-    /// Returns the value corresponding to the [`Key`].
+    /// Returns the value corresponding to the key.
     ///
     /// # Examples
     ///
@@ -277,7 +277,7 @@ impl HashMap {
             .map(|(_, v)| v.clone()))
     }
 
-    /// Returns `true` if the map contains a value for the specified [`Key`].
+    /// Returns `true` if the map contains a value for the specified key.
     ///
     /// # Examples
     ///
@@ -294,7 +294,7 @@ impl HashMap {
         Ok(self.table.get(&key, &mut EnvProtocolCaller)?.is_some())
     }
 
-    /// Removes a key from the map, returning the value at the [`Key`] if the
+    /// Removes a key from the map, returning the value at the key if the
     /// key was previously in the map.
     ///
     /// # Examples
@@ -472,7 +472,7 @@ impl HashMap {
     /// Convert a hashmap from a value convert into an iterator.
     ///
     /// The hashmap can be converted from anything that implements the
-    /// [`INTO_ITER`] protocol, and each item produces should be a tuple pair.
+    /// `INTO_ITER` protocol, and each item produces should be a tuple pair.
     ///
     /// # Examples
     ///

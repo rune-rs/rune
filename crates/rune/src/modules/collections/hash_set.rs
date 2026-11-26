@@ -72,7 +72,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// A [hash set] implemented as a `HashMap` where the value is `()`.
 ///
 /// As with the [`HashMap`] type, a `HashSet` requires that the elements
-/// implement the [`EQ`] and [`HASH`] protocols. If you implement these
+/// implement the `EQ` and `HASH` protocols. If you implement these
 /// yourself, it is important that the following property holds:
 ///
 /// ```text
@@ -83,9 +83,9 @@ pub fn module() -> Result<Module, ContextError> {
 /// this property is a logic error.
 ///
 /// It is also a logic error for a key to be modified in such a way that the
-/// key's hash, as determined by the [`HASH`] protocol, or its equality, as
-/// determined by the [`EQ`] protocol, changes while it is in the map. This is
-/// normally only possible through [`Cell`], [`RefCell`], global state, I/O, or
+/// key's hash, as determined by the `HASH` protocol, or its equality, as
+/// determined by the `EQ` protocol, changes while it is in the map. This is
+/// normally only possible through `Cell`, `RefCell`, global state, I/O, or
 /// unsafe code.
 ///
 /// The behavior resulting from either logic error is not specified, but will be
@@ -94,7 +94,7 @@ pub fn module() -> Result<Module, ContextError> {
 /// memory leaks, and non-termination.
 ///
 /// [hash set]: crate::collections#use-the-set-variant-of-any-of-these-maps-when
-/// [`HashMap`]: crate::collections::HashMap
+/// [`HashMap`]: std::collections::hash_map::HashMap
 ///
 /// # Examples
 ///
@@ -460,7 +460,7 @@ impl HashSet {
 
     /// Write a debug representation to a string.
     ///
-    /// This calls the [`DEBUG_FMT`] protocol over all elements of the
+    /// This calls the `DEBUG_FMT` protocol over all elements of the
     /// collection.
     ///
     /// # Examples
@@ -496,7 +496,7 @@ impl HashSet {
     /// Convert a [`HashSet`] from an iterator.
     ///
     /// The hashset can be converted from anything that implements the
-    /// [`INTO_ITER`] protocol.
+    /// `INTO_ITER` protocol.
     ///
     /// # Examples
     ///

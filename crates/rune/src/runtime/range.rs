@@ -263,7 +263,7 @@ impl Range {
 
     /// Test if the range contains the given value.
     ///
-    /// The check is performed using the [`PARTIAL_CMP`] protocol.
+    /// The check is performed using the `PARTIAL_CMP` protocol.
     ///
     /// # Examples
     ///

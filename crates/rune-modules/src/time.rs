@@ -504,10 +504,9 @@ impl Duration {
     /// ```
     ///
     /// To determine the total number of seconds represented by the `Duration`
-    /// including the fractional part, use [`as_secs_f64`] or [`as_secs_f32`]
+    /// including the fractional part, use [`as_secs_f64`] or `as_secs_f32`
     ///
     /// [`as_secs_f64`]: Duration::as_secs_f64
-    /// [`as_secs_f32`]: Duration::as_secs_f32
     /// [`subsec_nanos`]: Duration::subsec_nanos
     #[rune::function(keep)]
     #[inline]

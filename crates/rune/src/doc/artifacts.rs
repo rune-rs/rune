@@ -97,6 +97,13 @@ impl Artifacts {
         self.tests.iter()
     }
 
+    /// The content of the asset at `path`, if one was built.
+    #[cfg(test)]
+    pub(crate) fn content(&self, path: &str) -> Option<&[u8]> {
+        let asset = self.assets.iter().find(|a| a.path.as_str() == path)?;
+        Some(asset.content.as_ref())
+    }
+
     /// Define an asset artifact.
     pub(crate) fn asset<P, F>(
         &mut self,

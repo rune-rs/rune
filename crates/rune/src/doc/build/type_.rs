@@ -99,10 +99,10 @@ pub(super) fn build_assoc_fns<'m>(
     let mut traits = Vec::new();
 
     'outer: for hash in cx.context.traits(meta.hash) {
-        let item = 'item: {
+        let trait_meta = 'item: {
             for meta in cx.context.meta_by_hash(hash)? {
                 match meta.kind {
-                    Kind::Trait => break 'item meta.item,
+                    Kind::Trait => break 'item meta,
                     _ => continue,
                 }
             }
@@ -110,7 +110,11 @@ pub(super) fn build_assoc_fns<'m>(
             continue 'outer;
         };
 
-        let (_, protocols, methods) = associated_for_hash(cx, hash, meta, false)?;
+        let item = trait_meta.item;
+
+        // What is documented here was written on the trait, so links in it
+        // are resolved where the trait is rather than where the type is.
+        let (_, protocols, methods) = associated_for_hash(cx, hash, trait_meta, false)?;
 
         let name = item
             .last()
@@ -146,8 +150,7 @@ fn associated_for_hash<'m>(
         for assoc in cx.context.associated_meta(hash) {
             match assoc {
                 Assoc::Variant(variant) => {
-                    let line_doc =
-                        cx.render_line_docs(meta, variant.docs.get(..1).unwrap_or_default())?;
+                    let line_doc = cx.render_line_docs(meta, variant.docs)?;
 
                     let doc = cx.render_docs(meta, variant.docs, capture_tests)?;
 
@@ -176,8 +179,7 @@ fn associated_for_hash<'m>(
                                 continue;
                             }
 
-                            let line_doc =
-                                cx.render_line_docs(meta, assoc.docs.get(..1).unwrap_or_default())?;
+                            let line_doc = cx.render_line_docs(meta, assoc.docs)?;
 
                             let old = replace(&mut cx.state.item, item);
                             let doc = cx.render_docs(meta, assoc.docs, capture_tests)?;
@@ -260,6 +262,7 @@ struct Params<'a> {
     name: ComponentRef<'a>,
     #[serde(serialize_with = "super::serialize_item")]
     item: &'a Item,
+    variants: Vec<Variant<'a>>,
     methods: Vec<Method<'a>>,
     protocols: Vec<Protocol<'a>>,
     traits: Vec<Trait<'a>>,
@@ -276,7 +279,7 @@ pub(crate) fn build<'m>(
 ) -> Result<(Builder<'m>, Vec<IndexEntry<'m>>)> {
     let module = cx.module_path_html(meta, false)?;
 
-    let (protocols, methods, _, index, traits) = build_assoc_fns(cx, meta)?;
+    let (protocols, methods, variants, index, traits) = build_assoc_fns(cx, meta)?;
     let name = meta.item.last().context("Missing module name")?;
 
     let doc = cx.render_docs(meta, meta.docs, true)?;
@@ -289,6 +292,7 @@ pub(crate) fn build<'m>(
             module,
             name,
             item: meta.item,
+            variants,
             methods,
             protocols,
             traits,

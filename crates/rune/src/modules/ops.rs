@@ -217,7 +217,7 @@ pub fn module() -> Result<Module, ContextError> {
 ///
 /// This produces the same behavior as the equality operator (`==`).
 ///
-/// For non-builtin types this leans on the behavior of the [`PARTIAL_EQ`]
+/// For non-builtin types this leans on the behavior of the `PARTIAL_EQ`
 /// protocol.
 ///
 /// # Panics
@@ -241,7 +241,7 @@ fn partial_eq(lhs: Value, rhs: Value) -> Result<bool, VmError> {
 ///
 /// This produces the same behavior as the equality operator (`==`).
 ///
-/// For non-builtin types this leans on the behavior of the [`EQ`] protocol.
+/// For non-builtin types this leans on the behavior of the `EQ` protocol.
 ///
 /// # Panics
 ///
@@ -265,7 +265,7 @@ fn eq(lhs: Value, rhs: Value) -> Result<bool, VmError> {
 /// This produces the same behavior as when comparison operators like less than
 /// (`<`) is used.
 ///
-/// For non-builtin types this leans on the behavior of the [`PARTIAL_CMP`]
+/// For non-builtin types this leans on the behavior of the `PARTIAL_CMP`
 /// protocol.
 ///
 /// # Panics
@@ -289,7 +289,7 @@ fn partial_cmp(lhs: Value, rhs: Value) -> Result<Option<Ordering>, VmError> {
 
 /// Perform a total comparison over two values.
 ///
-/// For non-builtin types this leans on the behavior of the [`CMP`] protocol.
+/// For non-builtin types this leans on the behavior of the `CMP` protocol.
 ///
 /// # Panics
 ///
@@ -317,7 +317,7 @@ fn cmp(lhs: Value, rhs: Value) -> Result<Ordering, VmError> {
 
 /// Hashes the given function.
 ///
-/// For non-builtin types this uses the [`HASH`] protocol.
+/// For non-builtin types this uses the `HASH` protocol.
 ///
 /// # Hash stability
 ///
