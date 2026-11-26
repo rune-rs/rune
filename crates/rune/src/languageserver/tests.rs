@@ -258,6 +258,54 @@ impl Session {
         this
     }
 
+    /// Start a session whose root has no `Rune.toml` in it, which is what an
+    /// editor opened on a loose folder of scripts sends.
+    fn without_manifest() -> Self {
+        let mut this = Session {
+            stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
+            id: 0,
+        };
+
+        this.request(
+            "initialize",
+            serde_json::json!({
+                "capabilities": {},
+                "processId": null,
+                "rootUri": "file:///tmp/rune-languageserver-no-manifest-here",
+            }),
+        );
+
+        this.notify("initialized", serde_json::json!({}));
+        this
+    }
+
+    /// Ask for `uri` to be formatted, returning the id it was asked with.
+    fn format(&mut self, uri: &str) -> i64 {
+        self.request(
+            "textDocument/formatting",
+            serde_json::json!({
+                "textDocument": {"uri": uri},
+                "options": {"tabSize": 4, "insertSpaces": true},
+            }),
+        )
+    }
+
+    /// Ask for part of `uri` to be formatted, returning the id it was asked
+    /// with.
+    fn format_range(&mut self, uri: &str, start: (u32, u32), end: (u32, u32)) -> i64 {
+        self.request(
+            "textDocument/rangeFormatting",
+            serde_json::json!({
+                "textDocument": {"uri": uri},
+                "range": {
+                    "start": {"line": start.0, "character": start.1},
+                    "end": {"line": end.0, "character": end.1},
+                },
+                "options": {"tabSize": 4, "insertSpaces": true},
+            }),
+        )
+    }
+
     /// Frame a message the way the protocol does.
     fn frame(&mut self, message: &serde_json::Value) {
         use std::io::Write;
@@ -854,4 +902,226 @@ fn an_unknown_request_is_answered_with_method_not_found() {
         let m = response(&messages, id);
         assert_eq!(m["error"]["code"], -32601, "{id}: {m}");
     }
+}
+
+/// Apply the edits a formatting request was answered with to `text`, the way
+/// a client does, counting positions in UTF-16 code units.
+#[track_caller]
+fn apply_edits(text: &str, result: &serde_json::Value) -> rust_alloc::string::String {
+    /// The byte offset of a position, clamped to the line the way the
+    /// protocol says a client clamps it.
+    fn offset(text: &str, position: &serde_json::Value) -> usize {
+        let line = position["line"].as_u64().expect("A line") as usize;
+        let character = position["character"].as_u64().expect("A character") as usize;
+
+        let mut at = 0;
+
+        for _ in 0..line {
+            at += text[at..].find('\n').expect("The line should exist") + 1;
+        }
+
+        let end = text[at..].find('\n').map_or(text.len(), |n| at + n);
+        let mut units = 0;
+
+        for (n, c) in text[at..end].char_indices() {
+            if units >= character {
+                return at + n;
+            }
+
+            units += c.len_utf16();
+        }
+
+        end
+    }
+
+    let edits = result
+        .as_array()
+        .unwrap_or_else(|| panic!("Formatting should produce edits: {result}"));
+
+    let mut text = rust_alloc::string::String::from(text);
+
+    // Edits do not overlap, so applying them back to front keeps the positions
+    // of the ones still to apply where they were.
+    for edit in edits.iter().rev() {
+        let start = offset(&text, &edit["range"]["start"]);
+        let end = offset(&text, &edit["range"]["end"]);
+        let new = edit["newText"].as_str().expect("An edit is text");
+        text.replace_range(start..end, new);
+    }
+
+    text
+}
+
+/// What `rune fmt` makes of `text`.
+fn rune_fmt(text: &str) -> rust_alloc::string::String {
+    let options = crate::Options::default();
+    let mut diagnostics = crate::Diagnostics::new();
+
+    crate::fmt::layout_source_with(text, crate::SourceId::EMPTY, &options, &mut diagnostics)
+        .expect("Should format")
+        .into_std()
+}
+
+/// Formatting a document gives what `rune fmt` gives, with or without a
+/// `Rune.toml` around it.
+///
+/// A loose script is the first thing most people open, and the edit covers
+/// the document up to where it really ends rather than a position past it,
+/// which not every client clamps.
+#[test]
+fn a_document_is_formatted_the_way_rune_fmt_formats_it() {
+    let text = "pub fn main(){let e=\"\u{1F600}\";\nlet a   =  1;a}";
+    let want = rune_fmt(text);
+    assert_ne!(want, text, "The test needs something to format");
+
+    for manifest in [false, true] {
+        let uri = "file:///tmp/formatted.rn";
+
+        let mut s = if manifest {
+            Session::new()
+        } else {
+            Session::without_manifest()
+        };
+
+        s.open(uri, text);
+        let formatted = s.format(uri);
+
+        let messages = s.run(|m| answered(m, formatted));
+        let result = &response(&messages, formatted)["result"];
+
+        assert_eq!(apply_edits(text, result), want, "manifest={manifest}");
+
+        // The last line holds `let a   =  1;a}`.
+        let end = &result[0]["range"]["end"];
+        assert_eq!(end["line"], 1, "{result}");
+        assert_eq!(end["character"], 15, "{result}");
+    }
+}
+
+/// Formatting a document which the formatter cannot lay out is an error.
+///
+/// Answering with nothing looked, to the person who asked, like the formatter
+/// had run and found nothing to change. And whatever the formatter makes of
+/// its input, the session carries on: there is no supervisor to start another.
+#[test]
+fn a_document_which_cannot_be_formatted_is_an_error() {
+    // Nested deeper than `max-depth`, which is a limit rather than a stack the
+    // formatter could overflow.
+    let deep = "(".repeat(70_000);
+
+    let cases = [
+        (
+            "file:///tmp/unparseable.rn",
+            "pub fn main() { let a = ; }\n",
+        ),
+        ("file:///tmp/unterminated.rn", "pub fn main() { \"abc }\n"),
+        ("file:///tmp/deep.rn", deep.as_str()),
+    ];
+
+    let mut s = Session::new();
+    let mut failing = rust_alloc::vec::Vec::new();
+
+    for (uri, text) in cases {
+        s.open(uri, text);
+        failing.push(s.format(uri));
+    }
+
+    // The same as a selection, all of it.
+    for (uri, _) in &cases[..2] {
+        failing.push(s.format_range(uri, (0, 0), (1, 0)));
+    }
+
+    let deep_range = "file:///tmp/deep-range.rn";
+    s.open(deep_range, &format!("{deep}\n"));
+    failing.push(s.format_range(deep_range, (0, 0), (1, 0)));
+
+    // A range which cuts a string in half.
+    let cut = "file:///tmp/cut.rn";
+    s.open(cut, "let a = \"hello world\";\n");
+    failing.push(s.format_range(cut, (0, 0), (0, 13)));
+
+    // And something which should still be served afterwards.
+    let ok = "file:///tmp/still-served.rn";
+    s.open(ok, "let a=1;\n");
+    let served = s.format(ok);
+
+    let messages = s.run(|m| answered(m, served));
+
+    for id in failing {
+        let m = response(&messages, id);
+
+        let message = m["error"]["message"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{id}: should be an error: {m}"));
+
+        assert!(message.starts_with("textDocument/"), "{id}: {m}");
+    }
+
+    let m = response(&messages, served);
+    assert_eq!(
+        apply_edits("let a=1;\n", &m["result"]),
+        "let a = 1;\n",
+        "{m}"
+    );
+}
+
+/// An error says where in the document the formatter gave up.
+#[test]
+fn a_formatting_error_says_where_it_is() {
+    let uri = "file:///tmp/located.rn";
+
+    let mut s = Session::new();
+    s.open(uri, "pub fn main() {\n    let a = ;\n}\n");
+    let formatted = s.format(uri);
+
+    let messages = s.run(|m| answered(m, formatted));
+    let m = response(&messages, formatted);
+    let message = m["error"]["message"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{m}"));
+
+    assert!(message.contains(": 2:"), "{message}");
+}
+
+/// Formatting a selection replaces what was selected and leaves it where it
+/// was.
+///
+/// What is selected is laid out as though it were a file of its own, which put
+/// lines selected inside a function at the left margin and joined the last of
+/// them onto the line after the selection.
+#[test]
+fn a_selection_is_formatted_in_place() {
+    let text = "pub fn main() {\n    let a   =  1;\n    if a {\n    let b=2;\n    }\n    a\n}\n";
+
+    // From the start of the second line to the start of the sixth, so the
+    // selection ends with the line ending before `a`.
+    let mut s = Session::new();
+    let uri = "file:///tmp/selected.rn";
+    s.open(uri, text);
+    let whole_lines = s.format_range(uri, (1, 0), (5, 0));
+
+    // A selection which starts and ends partway along a line.
+    let mid = "file:///tmp/mid-line.rn";
+    let mid_text = "pub fn main() {\n    let a = 1+2  ; a\n}\n";
+    s.open(mid, mid_text);
+    let mid_line = s.format_range(mid, (1, 12), (1, 15));
+
+    let messages = s.run(|m| answered(m, whole_lines) && answered(m, mid_line));
+
+    let result = &response(&messages, whole_lines)["result"];
+    assert_eq!(result[0]["range"]["start"]["line"], 1, "{result}");
+    assert_eq!(result[0]["range"]["end"]["line"], 5, "{result}");
+
+    assert_eq!(
+        apply_edits(text, result),
+        "pub fn main() {\n    let a = 1;\n    if a {\n        let b = 2;\n    }\n    a\n}\n",
+    );
+
+    let result = &response(&messages, mid_line)["result"];
+    assert_eq!(result[0]["range"]["start"]["character"], 12, "{result}");
+    assert_eq!(result[0]["range"]["end"]["character"], 15, "{result}");
+    assert_eq!(
+        apply_edits(mid_text, result),
+        "pub fn main() {\n    let a = 1 + 2  ; a\n}\n",
+    );
 }

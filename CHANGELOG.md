@@ -133,6 +133,14 @@ item of the same name is a compile error. See the `declared_statics` example.
   `musli02` and now implements the traits of `musli-core` 0.2 rather than 0.1.
   The version is part of the name so that support for later versions of musli
   can sit beside it. The `byte-code` feature uses musli 0.2 as well.
+- The language server answers a formatting request it cannot serve (a document
+  which does not parse, or nests deeper than `max-depth`) with an error saying
+  where the problem is, rather than with no edits. Formatting a selection keeps
+  it at its indentation and leaves the whitespace around it alone, and a
+  whole-document edit ends at the end of the document rather than at
+  `u32::MAX`.
+- The VS Code extension activates on any `.rn` file, not only in a folder with a
+  `Rune.toml`, and is the default formatter for Rune.
 
 <!--
 TODO: The entries above cover statics only. The rest of 0.15.0 is still to be

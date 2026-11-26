@@ -24,10 +24,16 @@
     "vscode": "^1.91.0"
   },
   "activationEvents": [
+    "onLanguage:rune",
     "workspaceContains:**/Rune.toml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configurationDefaults": {
+      "[rune]": {
+        "editor.defaultFormatter": "udoprog.rune-vscode"
+      }
+    },
     "languages": [
       {
         "id": "rune",

@@ -149,6 +149,24 @@ impl StateEncoding {
         }
     }
 
+    /// The position just past the last character of `rope`.
+    pub(super) fn rope_end(&self, rope: &Rope) -> Result<lsp::Position> {
+        let line = rope.len_lines().saturating_sub(1);
+
+        let character = match rope.get_line(line) {
+            Some(last) => match self {
+                StateEncoding::Utf16 => last.len_utf16_cu(),
+                StateEncoding::Utf8 => last.len_bytes(),
+            },
+            None => 0,
+        };
+
+        Ok(lsp::Position {
+            line: u32::try_from(line)?,
+            character: u32::try_from(character)?,
+        })
+    }
+
     pub(super) fn rope_position(&self, rope: &Rope, pos: lsp::Position) -> Result<usize> {
         /// How much of the line the character counts, not counting whatever
         /// ends it.
@@ -399,6 +417,13 @@ impl<'a> State<'a> {
         Ok(Some(results))
     }
 
+    /// Format a whole document.
+    ///
+    /// A document which the formatter cannot lay out - one which does not
+    /// parse, or which nests deeper than `max-depth` - is an error, which the
+    /// handler answers the request with. Answering with nothing instead looked
+    /// to the person asking like the formatter had been run and found nothing
+    /// to change.
     pub(super) fn format(
         &mut self,
         uri: &Uri,
@@ -416,24 +441,20 @@ impl<'a> State<'a> {
         let mut options = self.options.clone();
         options.fmt.indent = indent_style(format);
 
-        let mut diagnostics = Diagnostics::new();
-
-        let Ok(formatted) =
-            crate::fmt::layout_source_with(&source, SourceId::EMPTY, &options, &mut diagnostics)
-        else {
-            return Ok(None);
-        };
+        let formatted = layout(&source, &options)?;
 
         // Only modify if changed
         if source == formatted {
             return Ok(None);
         }
 
+        // The range covers the whole document, ending where it really ends. A
+        // position past the end is clamped by most clients, but the protocol
+        // does not promise that it is.
         let edit = lsp::TextEdit::new(
-            // Range over full document
             lsp::Range::new(
                 lsp::Position::new(0, 0),
-                lsp::Position::new(u32::MAX, u32::MAX),
+                self.encoding.rope_end(&s.content)?,
             ),
             formatted.into_std(),
         );
@@ -441,6 +462,15 @@ impl<'a> State<'a> {
         Ok(Some(edit))
     }
 
+    /// Format the part of a document which `range` covers.
+    ///
+    /// What is formatted is what the range holds, so the formatter sees it as
+    /// though it were a file of its own and lays it out at the left margin.
+    /// Putting it back where it came from therefore keeps the whitespace either
+    /// side of it as it was, and indents every line after the first to the
+    /// indentation of the line it starts on. Without that, formatting the body
+    /// of a function pulled it out to the margin and joined its last line onto
+    /// whatever followed the selection.
     pub(super) fn range_format(
         &mut self,
         uri: &Uri,
@@ -457,30 +487,66 @@ impl<'a> State<'a> {
         let start = self.encoding.rope_position(&s.content, range.start)?;
         let end = self.encoding.rope_position(&s.content, range.end)?;
 
-        let Some(source) = s.content.get_slice(start..end) else {
+        let Some(slice) = s.content.get_slice(start..end) else {
             return Ok(None);
         };
 
-        let source = source.try_to_string()?;
+        let source = slice.try_to_string()?;
+
+        let trimmed = source.trim_start();
+        let leading = &source[..source.len() - trimmed.len()];
+        let inner = trimmed.trim_end();
+        let trailing = &trimmed[inner.len()..];
+
+        if inner.is_empty() {
+            return Ok(None);
+        }
+
+        // The indentation of the line the formatted text starts on, which is
+        // the whitespace it follows on that line - either the end of what the
+        // range starts with, or what is before the range on its first line.
+        let indent = match leading.rfind('\n') {
+            Some(n) => leading[n + 1..].try_to_owned()?,
+            None => {
+                let line = s.content.try_char_to_line(start)?;
+                let line_start = s.content.try_line_to_char(line)?;
+                let mut indent = s.content.slice(line_start..start).try_to_string()?;
+                indent.try_push_str(leading)?;
+                let len = indent.len() - indent.trim_start().len();
+                indent.truncate(len);
+                indent
+            }
+        };
 
         let mut options = self.options.clone();
         options.fmt.force_newline = false;
         options.fmt.indent = indent_style(format);
 
-        let mut diagnostics = Diagnostics::new();
+        let formatted = layout(inner, &options)?;
 
-        let Ok(formatted) =
-            crate::fmt::layout_source_with(&source, SourceId::EMPTY, &options, &mut diagnostics)
-        else {
-            return Ok(None);
-        };
+        let mut out = String::new();
+        out.try_push_str(leading)?;
+
+        for (n, line) in formatted.split('\n').enumerate() {
+            if n > 0 {
+                out.try_push('\n')?;
+
+                if !line.is_empty() {
+                    out.try_push_str(&indent)?;
+                }
+            }
+
+            out.try_push_str(line)?;
+        }
+
+        out.try_push_str(trailing)?;
 
         // Only modify if changed
-        if source == formatted {
+        if source == out {
             return Ok(None);
         }
 
-        let edit = lsp::TextEdit::new(*range, formatted.into_std());
+        let edit = lsp::TextEdit::new(*range, out.into_std());
         Ok(Some(edit))
     }
 
@@ -1036,6 +1102,25 @@ pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(S
 }
 
 /// Convert formatting options from a client request into an indentation style.
+/// Lay out `source` with the in-process formatter.
+///
+/// An error says where in `source` it is, since the person who asked for the
+/// document to be formatted sees nothing else of it.
+fn layout(source: &str, options: &Options) -> Result<String> {
+    let mut diagnostics = Diagnostics::new();
+
+    match crate::fmt::layout_source_with(source, SourceId::EMPTY, options, &mut diagnostics) {
+        Ok(formatted) => Ok(formatted),
+        Err(error) => {
+            let at = error.span().start.into_usize();
+            let before = source.get(..at).unwrap_or(source);
+            let line = before.matches('\n').count() + 1;
+            let column = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+            Err(anyhow::anyhow!("{line}:{column}: {error}"))
+        }
+    }
+}
+
 fn indent_style(options: &lsp::FormattingOptions) -> IndentStyle {
     if options.insert_spaces {
         // NB: Explicitly saturate to usize::MAX.
