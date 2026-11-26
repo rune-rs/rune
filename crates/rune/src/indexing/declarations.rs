@@ -25,10 +25,6 @@ use Kind::*;
 
 /// A declaration extracted from a declaration source.
 #[derive(Debug)]
-#[allow(
-    dead_code,
-    reason = "not all of a declaration is registered as item metadata yet"
-)]
 pub(crate) struct Declaration {
     /// The span of the whole declaration, attributes included.
     pub(crate) span: Span,
@@ -36,20 +32,12 @@ pub(crate) struct Declaration {
     pub(crate) module: Vec<String>,
     /// The lines of documentation, from doc comments and `#[doc = ..]`.
     pub(crate) docs: Vec<String>,
-    /// Attributes other than documentation, as written.
-    pub(crate) attributes: Vec<String>,
-    /// Whether the declaration is `pub`.
-    pub(crate) is_pub: bool,
     /// What is declared.
     pub(crate) kind: DeclarationKind,
 }
 
 /// What a [`Declaration`] declares.
 #[derive(Debug)]
-#[allow(
-    dead_code,
-    reason = "not all of a declaration is registered as item metadata yet"
-)]
 pub(crate) enum DeclarationKind {
     /// A function signature.
     Fn(Signature),
@@ -62,15 +50,13 @@ pub(crate) enum DeclarationKind {
         /// The variants of the enum.
         variants: Vec<TypeDef>,
     },
-    /// A `use` declaration, as written.
-    Use(String),
 }
 
 /// A function signature.
 #[derive(Debug)]
-#[allow(
-    dead_code,
-    reason = "not all of a declaration is registered as item metadata yet"
+#[cfg_attr(
+    not(feature = "doc"),
+    allow(dead_code, reason = "types and asyncness only reach documentation")
 )]
 pub(crate) struct Signature {
     /// The name of the function.
@@ -87,6 +73,10 @@ pub(crate) struct Signature {
 
 /// An argument in a [`Signature`].
 #[derive(Debug)]
+#[cfg_attr(
+    not(feature = "doc"),
+    allow(dead_code, reason = "types only reach documentation")
+)]
 pub(crate) struct Arg {
     /// The pattern of the argument, as written.
     pub(crate) pat: String,
@@ -96,10 +86,6 @@ pub(crate) struct Arg {
 
 /// A struct or a variant.
 #[derive(Debug)]
-#[allow(
-    dead_code,
-    reason = "not all of a declaration is registered as item metadata yet"
-)]
 pub(crate) struct TypeDef {
     /// The name of the type or variant.
     pub(crate) name: String,
@@ -112,9 +98,9 @@ pub(crate) struct TypeDef {
 
 /// A field of a [`TypeDef`].
 #[derive(Debug)]
-#[allow(
-    dead_code,
-    reason = "not all of a declaration is registered as item metadata yet"
+#[cfg_attr(
+    not(feature = "doc"),
+    allow(dead_code, reason = "types only reach documentation")
 )]
 pub(crate) struct Field {
     /// The name of the field, or its position in a tuple body.
@@ -221,17 +207,14 @@ impl<'a> Extract<'a, '_, '_> {
     fn item(&mut self, item: Node<'a>, pending: &Pending<'a>) -> Result<()> {
         let span = item.span();
         let mut docs = Vec::new();
-        let mut attributes = Vec::new();
         for node in item.children() {
             match node.kind() {
                 ws!() => {}
                 Attribute => {
+                    // Attributes other than documentation mean nothing to a
+                    // declaration.
                     if let Some(doc) = self.doc(&node)? {
                         docs.try_push(doc).with_span(span)?;
-                    } else {
-                        attributes
-                            .try_push(self.text(node.span())?)
-                            .with_span(span)?;
                     }
                 }
                 kind => {
@@ -246,8 +229,8 @@ impl<'a> Extract<'a, '_, '_> {
                     // The grammar puts the modifiers inside the item they
                     // modify. Those of an item which is rejected outright are
                     // not worth reporting as well.
-                    let (is_pub, is_async) = match kind {
-                        ItemConst | ItemStatic | ItemFileMod => (false, false),
+                    let is_async = match kind {
+                        ItemConst | ItemStatic | ItemFileMod | ItemUse => false,
                         _ => self.modifiers(&node)?,
                     };
 
@@ -261,7 +244,15 @@ impl<'a> Extract<'a, '_, '_> {
                         }
                         ItemStruct => DeclarationKind::Struct(self.type_def(node)?),
                         ItemEnum => self.item_enum(node)?,
-                        ItemUse => DeclarationKind::Use(self.text(node.span())?),
+                        // Declarations name types only as documentation,
+                        // so an import would have nothing to resolve.
+                        ItemUse => {
+                            self.error(
+                                node.span(),
+                                "`use` is not allowed in a declaration source",
+                            )?;
+                            continue;
+                        }
                         ItemMod => {
                             self.nested(node, pending, None)?;
                             continue;
@@ -309,8 +300,6 @@ impl<'a> Extract<'a, '_, '_> {
                             span,
                             module,
                             docs,
-                            attributes,
-                            is_pub,
                             kind,
                         })
                         .with_span(span)?;
@@ -323,22 +312,19 @@ impl<'a> Extract<'a, '_, '_> {
         Ok(())
     }
 
-    /// Whether an item is `pub` and whether it is `async`, reporting any
-    /// other modifier.
-    fn modifiers(&mut self, node: &Node<'a>) -> Result<(bool, bool)> {
-        let mut is_pub = false;
+    /// Whether an item is `async`, reporting any modifier other than `pub`
+    /// and `async`. Every declaration is public whether it says so or not.
+    fn modifiers(&mut self, node: &Node<'a>) -> Result<bool> {
         let mut is_async = false;
 
         let Some(mods) = node.children().find(|n| n.kind() == Modifiers) else {
-            return Ok((is_pub, is_async));
+            return Ok(is_async);
         };
 
         for m in mods.children() {
             match m.kind() {
                 ws!() => {}
-                K![pub] | ModifierSuper | ModifierSelf | ModifierCrate | ModifierIn => {
-                    is_pub = true;
-                }
+                K![pub] | ModifierSuper | ModifierSelf | ModifierCrate | ModifierIn => {}
                 K![async] => {
                     is_async = true;
                 }
@@ -351,7 +337,7 @@ impl<'a> Extract<'a, '_, '_> {
             }
         }
 
-        Ok((is_pub, is_async))
+        Ok(is_async)
     }
 
     /// Queue the block body of a `mod` or `impl` item to be walked.
@@ -611,9 +597,34 @@ pub(crate) fn register(
     declarations: &[Declaration],
 ) -> Result<()> {
     let types = types(q, mod_item, declarations)?;
+    let origin = Origin {
+        mod_item,
+        source_id,
+    };
+
+    let mut modules_seen = HashSet::new();
 
     for d in declarations {
         let span = d.span;
+
+        // The modules a declaration is nested in are items of their own, so
+        // that what is in them is documented under them.
+        let mut module = q
+            .pool
+            .module_item(mod_item)
+            .try_to_owned()
+            .with_span(span)?;
+
+        for m in &d.module {
+            module.push(m.as_str()).with_span(span)?;
+
+            if modules_seen
+                .try_insert(Hash::type_hash(&module))
+                .with_span(span)?
+            {
+                insert(q, origin, d, &[], &module, meta::Kind::Module, false)?;
+            }
+        }
 
         let mut base = q
             .pool
@@ -671,7 +682,7 @@ pub(crate) fn register(
                 #[cfg(not(feature = "doc"))]
                 let _ = container;
 
-                insert(q, mod_item, source_id, d, &d.docs, &item, kind, true)?;
+                insert(q, origin, d, &d.docs, &item, kind, true)?;
             }
             DeclarationKind::Struct(st) => {
                 let mut item = base;
@@ -679,7 +690,7 @@ pub(crate) fn register(
                 let kind = meta::Kind::Type {
                     parameters: Hash::EMPTY,
                 };
-                insert(q, mod_item, source_id, d, &d.docs, &item, kind, false)?;
+                insert(q, origin, d, &d.docs, &item, kind, false)?;
             }
             DeclarationKind::Enum { name, variants } => {
                 let mut item = base;
@@ -689,7 +700,7 @@ pub(crate) fn register(
                     parameters: Hash::EMPTY,
                 };
 
-                if !insert(q, mod_item, source_id, d, &d.docs, &item, kind, false)? {
+                if !insert(q, origin, d, &d.docs, &item, kind, false)? {
                     continue;
                 }
 
@@ -732,13 +743,9 @@ pub(crate) fn register(
                         enum_hash,
                     };
 
-                    insert(q, mod_item, source_id, d, &v.docs, &variant, kind, true)?;
+                    insert(q, origin, d, &v.docs, &variant, kind, true)?;
                 }
             }
-            // Imports in a declaration source only matter to the
-            // declarations they would let refer to each other, which have
-            // no types the compiler checks.
-            DeclarationKind::Use(..) => {}
         }
     }
 
@@ -814,7 +821,7 @@ fn type_hash(q: &Query<'_, '_>, types: &Types, ty: &str) -> Result<Hash, crate::
 
     // Generic parameters are not part of the base type.
     let base = match ty.find("::<").or_else(|| ty.find('<')) {
-        Some(n) => ty[..n].trim(),
+        Some(n) => ty.get(..n).unwrap_or(ty).trim(),
         None => ty,
     };
 
@@ -950,16 +957,22 @@ fn constructor(
     })
 }
 
+/// Where declared items come from: the module and the source the declaration
+/// source was loaded as.
+#[derive(Clone, Copy)]
+struct Origin {
+    mod_item: ModId,
+    source_id: SourceId,
+}
+
 /// Insert the metadata of a declared item, unless the native context already
 /// has an item of the same name. Returns whether it was inserted.
 ///
 /// A `callable` item is called by hash at run time, so the host is expected to
 /// provide a function for it.
-#[allow(clippy::too_many_arguments)]
 fn insert(
     q: &mut Query<'_, '_>,
-    mod_item: ModId,
-    source_id: SourceId,
+    origin: Origin,
     d: &Declaration,
     docs: &[String],
     item: &Item,
@@ -967,6 +980,10 @@ fn insert(
     callable: bool,
 ) -> Result<bool> {
     let span = d.span;
+    let Origin {
+        mod_item,
+        source_id,
+    } = origin;
 
     if q.context.lookup_meta(item).is_some() {
         return Ok(false);

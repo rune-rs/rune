@@ -76,7 +76,7 @@ fn text(s: &crate::alloc::String) -> &str {
 
 /// What the language server and `rune doc` are to be given out of a
 /// declaration: the name, the arguments with their types, the return type,
-/// the documentation and the other attributes. Losing any of these would leave
+/// and the documentation. Losing any of these would leave
 /// hover and documentation with less than the declaration says.
 #[test]
 fn a_declaration_source_extracts_signatures() {
@@ -116,14 +116,11 @@ fn a_declaration_source_extracts_signatures() {
     assert_eq!(decls.len(), 7, "{decls:#?}");
 
     let hello = &decls[0];
-    assert!(hello.is_pub);
     assert_eq!(hello.docs.len(), 1);
     assert_eq!(
         text(&hello.docs[0]),
         " This is a documentation comment that will be rendered."
     );
-    assert_eq!(hello.attributes.len(), 1);
-    assert_eq!(text(&hello.attributes[0]), "#[deprecated = \"use hello2\"]");
 
     let DeclarationKind::Fn(f) = &hello.kind else {
         panic!("expected function: {hello:?}");
@@ -209,7 +206,6 @@ fn a_declaration_source_builds() {
         "host.d.rn",
         r#"
         //! The host's API.
-        use std::string::String;
 
         /// Say hello.
         pub fn hello(value: u64) -> u64;
@@ -248,6 +244,10 @@ fn a_declaration_source_rejects_what_is_not_a_declaration() {
         (
             "println!(\"hello\");",
             "only declarations are allowed in a declaration source",
+        ),
+        (
+            "use std::string::String;",
+            "`use` is not allowed in a declaration source",
         ),
         (
             "mod other;",
@@ -569,4 +569,61 @@ fn a_declared_variant_checks_its_argument_count() {
     };
 
     assert!(errors.iter().any(|e| e.contains("argument")), "{errors:?}");
+}
+
+/// `rune doc` documents what a declaration source declares, with the
+/// documentation and the types written in it, the way it documents what a
+/// script defines.
+#[test]
+#[cfg(feature = "doc")]
+fn declared_items_are_documented() {
+    use crate::doc::{Artifacts, Visitor};
+
+    let context = Context::with_default_modules().unwrap();
+
+    let mut sources = Sources::new();
+    sources
+        .insert(Source::new("host.d.rn", HOST).unwrap())
+        .unwrap();
+
+    let mut diagnostics = Diagnostics::new();
+    let base = ItemBuf::with_crate("host").unwrap();
+    let mut visitor = Visitor::new(&base).unwrap();
+
+    prepare(&mut sources)
+        .with_context(&context)
+        .with_diagnostics(&mut diagnostics)
+        .with_visitor(&mut visitor)
+        .unwrap()
+        .build()
+        .unwrap();
+
+    assert!(!diagnostics.has_error());
+
+    let mut artifacts = Artifacts::new();
+    crate::doc::build("root", &mut artifacts, Some(&context), &[visitor]).unwrap();
+
+    let page = |path: &str| {
+        let html = artifacts
+            .content(path)
+            .unwrap_or_else(|| panic!("missing page {path}"));
+        core::str::from_utf8(html).unwrap().try_to_owned().unwrap()
+    };
+
+    let html = page("host/hello.fn.html");
+    assert!(html.contains("Say hello."), "{html}");
+    assert!(
+        html.contains(r#"(value: <a class="type" href="../std/u64.type.html">u64</a>) -&gt; <a class="type" href="../std/u64.type.html">u64</a>"#),
+        "{html}"
+    );
+
+    // A declared struct is opaque, as a native type is.
+    let html = page("host/Point.type.html");
+    assert!(html.contains("method.len"), "{html}");
+    assert!(html.contains("method.new"), "{html}");
+    assert!(html.contains(r#"href="../std/f64.type.html""#), "{html}");
+
+    page("host/net/fetch.fn.html");
+    let html = page("host/Shape.enum.html");
+    assert!(html.contains("variant.Circle"), "{html}");
 }
