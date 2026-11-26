@@ -486,6 +486,10 @@ pub(crate) enum VmErrorKind {
     MissingFunction {
         hash: Hash,
     },
+    MissingDeclaredFunction {
+        item: ItemBuf,
+        hash: Hash,
+    },
     MissingContextFunction {
         hash: Hash,
     },
@@ -778,6 +782,12 @@ impl fmt::Display for VmErrorKind {
             }
             VmErrorKind::MissingFunction { hash } => {
                 write!(f, "Missing function with hash `{hash}`")
+            }
+            VmErrorKind::MissingDeclaredFunction { item, hash } => {
+                write!(
+                    f,
+                    "Function `{item}` (hash `{hash}`) is declared but not provided by the host"
+                )
             }
             VmErrorKind::MissingContextFunction { hash } => {
                 write!(f, "Missing context function with hash `{hash}`")

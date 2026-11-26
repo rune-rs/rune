@@ -347,3 +347,159 @@ fn the_formatter_lays_out_declarations() {
     assert_eq!(output, expected);
     assert_eq!(layout(&output), output);
 }
+
+/// Compile `script` as `main.rn` beside `declarations` as `host.d.rn` against
+/// `context`, returning a machine running it against `runtime` or the
+/// diagnostics of what failed.
+fn compile_with(
+    context: &Context,
+    runtime: &Context,
+    declarations: &str,
+    script: &str,
+) -> Result<crate::Vm, Vec<String>> {
+    let mut sources = Sources::new();
+    sources
+        .insert(Source::new("host.d.rn", declarations).unwrap())
+        .unwrap();
+    sources
+        .insert(Source::new("main.rn", script).unwrap())
+        .unwrap();
+
+    let mut diagnostics = Diagnostics::new();
+
+    let result = prepare(&mut sources)
+        .with_context(context)
+        .with_diagnostics(&mut diagnostics)
+        .build();
+
+    if diagnostics.has_error() || result.is_err() {
+        let mut buffer = crate::termcolor::Buffer::no_color();
+        diagnostics.emit(&mut buffer, &sources).unwrap();
+        let output = String::from_utf8(buffer.into_inner()).unwrap();
+        return Err(vec![output]);
+    }
+
+    let unit = result.unwrap();
+
+    let runtime = Arc::try_new(runtime.runtime().unwrap()).unwrap();
+    Ok(crate::Vm::new(runtime, Arc::try_new(unit).unwrap()))
+}
+
+const HOST: &str = r#"
+/// Say hello.
+pub fn hello(value: u64) -> u64;
+
+pub mod net {
+    pub fn fetch(url: String) -> String;
+}
+
+pub struct Point { x: f64, y: f64 }
+
+impl Point {
+    fn new(x: f64, y: f64) -> Point;
+    fn len(self) -> f64;
+}
+
+pub enum Shape { Circle(f64), Square(f64) }
+"#;
+
+/// A script calling what a declaration source declares compiles without the
+/// host being present, which is what lets a language server or `rune check`
+/// work on scripts written against a host they do not have.
+#[test]
+fn a_script_calling_declared_functions_compiles() {
+    let context = Context::new();
+
+    let script = r#"
+    pub fn main(p) {
+        hello(1);
+        net::fetch("x");
+        let p = Point::new(1.0, 2.0);
+        Point::len(p);
+        p.len();
+        p is Point
+    }
+    "#;
+
+    if let Err(errors) = compile_with(&context, &context, HOST, script) {
+        panic!("{errors:?}");
+    }
+}
+
+/// Declarations only add what they declare: a function nobody declared is
+/// still missing.
+#[test]
+fn an_undeclared_function_is_still_missing() {
+    let context = Context::new();
+
+    let Err(errors) = compile_with(&context, &context, HOST, "pub fn main() { goodbye(1) }") else {
+        panic!("compiled a call to an undeclared function");
+    };
+
+    assert!(errors.iter().any(|e| e.contains("goodbye")), "{errors:?}");
+}
+
+/// A declared function the host does not provide fails where it is called,
+/// naming the function, rather than with a bare hash or at compile time.
+#[test]
+fn calling_a_declared_function_without_the_host_is_a_runtime_error() {
+    let context = Context::new();
+
+    let mut vm = compile_with(
+        &context,
+        &context,
+        HOST,
+        "pub fn main() { net::fetch(\"x\") }",
+    )
+    .unwrap();
+
+    let error = vm.call(["main"], ()).unwrap_err();
+
+    match error.into_kind() {
+        VmErrorKind::MissingDeclaredFunction { item, .. } => {
+            assert_eq!(item.try_to_string().unwrap(), "net::fetch");
+        }
+        kind => panic!("unexpected error: {kind}"),
+    }
+}
+
+/// A native item of the same name wins over a declaration without a conflict
+/// being reported, so a declaration source written for a host keeps working
+/// when compiled against that host.
+#[test]
+fn a_native_item_wins_over_its_declaration() {
+    let mut m = Module::new();
+    m.function("hello", |value: u64| value + 1).build().unwrap();
+
+    let mut context = Context::new();
+    context.install(m).unwrap();
+
+    let mut vm = compile_with(&context, &context, HOST, "pub fn main() { hello(41) }").unwrap();
+    let value: u64 = crate::from_value(vm.call(["main"], ()).unwrap()).unwrap();
+    assert_eq!(value, 42);
+}
+
+/// What a script is compiled against need not be what it runs against: the
+/// declarations stand in for the host at compile time, and the host's own
+/// function is what is called at run time.
+#[test]
+fn a_declared_function_calls_what_the_host_provides_at_run_time() {
+    let mut m = Module::with_item(["net"]).unwrap();
+    m.function("fetch", |url: &str| url.len() as u64)
+        .build()
+        .unwrap();
+
+    let mut runtime = Context::new();
+    runtime.install(m).unwrap();
+
+    let mut vm = compile_with(
+        &Context::new(),
+        &runtime,
+        HOST,
+        "pub fn main() { net::fetch(\"four\") }",
+    )
+    .unwrap();
+
+    let value: u64 = crate::from_value(vm.call(["main"], ()).unwrap()).unwrap();
+    assert_eq!(value, 4);
+}
