@@ -503,3 +503,70 @@ fn a_declared_function_calls_what_the_host_provides_at_run_time() {
     let value: u64 = crate::from_value(vm.call(["main"], ()).unwrap()).unwrap();
     assert_eq!(value, 4);
 }
+
+/// Variants of a declared enum resolve the way those of a native enum do, in
+/// calls and in patterns.
+#[test]
+fn declared_enum_variants_resolve() {
+    let context = Context::new();
+
+    let script = r#"
+    pub fn main(s) {
+        match s {
+            Shape::Circle(r) => r,
+            Shape::Square(side) => side,
+            _ => 0.0,
+        }
+    }
+
+    pub fn make() {
+        Shape::Circle(1.0)
+    }
+    "#;
+
+    if let Err(errors) = compile_with(&context, &context, HOST, script) {
+        panic!("{errors:?}");
+    }
+}
+
+/// Constructing a variant is a call to what the host provides, so without the
+/// host it fails at run time naming the variant.
+#[test]
+fn constructing_a_declared_variant_without_the_host_is_a_runtime_error() {
+    let context = Context::new();
+
+    let mut vm = compile_with(
+        &context,
+        &context,
+        HOST,
+        "pub fn main() { Shape::Circle(1.0) }",
+    )
+    .unwrap();
+
+    let error = vm.call(["main"], ()).unwrap_err();
+
+    match error.into_kind() {
+        VmErrorKind::MissingDeclaredFunction { item, .. } => {
+            assert_eq!(item.try_to_string().unwrap(), "Shape::Circle");
+        }
+        kind => panic!("unexpected error: {kind}"),
+    }
+}
+
+/// A variant with the wrong number of arguments is reported at compile time,
+/// since the declaration says how many it takes.
+#[test]
+fn a_declared_variant_checks_its_argument_count() {
+    let context = Context::new();
+
+    let Err(errors) = compile_with(
+        &context,
+        &context,
+        HOST,
+        "pub fn main() { Shape::Circle(1.0, 2.0) }",
+    ) else {
+        panic!("compiled a variant with too many arguments");
+    };
+
+    assert!(errors.iter().any(|e| e.contains("argument")), "{errors:?}");
+}

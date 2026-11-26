@@ -167,7 +167,7 @@ pub(crate) struct Query<'a, 'arena> {
     /// The current unit being built.
     pub(crate) unit: &'a mut UnitBuilder,
     /// The prelude in effect.
-    prelude: &'a Prelude,
+    pub(crate) prelude: &'a Prelude,
     /// Arena used for constant contexts.
     pub(crate) const_arena: &'arena hir::Arena,
     /// Cache of constants that have been expanded.
