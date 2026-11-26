@@ -144,7 +144,7 @@ impl<'a> Matcher<'a> {
             match fs::metadata(io_path) {
                 Ok(m) => {
                     if !m.is_dir() {
-                        return Ok(());
+                        continue;
                     }
                 }
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
