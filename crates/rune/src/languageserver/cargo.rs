@@ -42,11 +42,11 @@ pub(crate) type Metadata =
 /// Whether `path` names a cargo manifest, whose change is what makes the
 /// declarations it names worth looking up again.
 pub(super) fn is_manifest(path: &str) -> bool {
-    path.ends_with(CARGO_MANIFEST)
-        && path[..path.len() - CARGO_MANIFEST.len()]
-            .chars()
+    path.strip_suffix(CARGO_MANIFEST).is_some_and(|dir| {
+        dir.chars()
             .next_back()
             .is_none_or(|c| c == '/' || c == '\\')
+    })
 }
 
 /// The default [`Metadata`], which runs `cargo metadata` for the nearest
@@ -94,14 +94,14 @@ fn run(manifest: &Path, extra: &[&str]) -> Result<rust_alloc::vec::Vec<u8>> {
     let stdout = child.stdout.take().map(drain);
     let stderr = child.stderr.take().map(drain);
 
-    let deadline = Instant::now() + TIMEOUT;
+    let started = Instant::now();
 
     let status = loop {
         if let Some(status) = child.try_wait()? {
             break status;
         }
 
-        if Instant::now() >= deadline {
+        if started.elapsed() >= TIMEOUT {
             _ = child.kill();
             _ = child.wait();
             bail!("timed out after {}s", TIMEOUT.as_secs());
