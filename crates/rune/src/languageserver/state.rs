@@ -8,6 +8,7 @@ use lsp::Uri;
 use ropey::{Rope, RopeSlice};
 use tokio::sync::Notify;
 
+use crate::alloc::fmt::TryWrite;
 use crate::alloc::prelude::*;
 use crate::alloc::{self, HashMap, String, Vec};
 use crate::ast::{Span, Spanned};
@@ -363,6 +364,76 @@ impl<'a> State<'a> {
         Ok(Some(location))
     }
 
+    /// Describe what is at the given uri and LSP position: the signature of
+    /// what it names and its documentation, which for a declared item is all
+    /// there is of it.
+    pub(super) fn hover(&self, uri: &Uri, position: lsp::Position) -> Result<Option<lsp::Hover>> {
+        let Some(source) = self.workspace.get(uri) else {
+            return Ok(None);
+        };
+
+        let offset = self.encoding.rope_position(&source.content, position)?;
+
+        let Some(hash) = source
+            .find_definition_at(Span::point(offset))
+            .and_then(|def| def.hash)
+        else {
+            return Ok(None);
+        };
+
+        let (Some(docs), Some(data)) = (source.docs.as_deref(), source.get_docs_by_hash(hash))
+        else {
+            return Ok(None);
+        };
+
+        let mut value = String::new();
+
+        let header = match &data.kind {
+            Some(meta::Kind::Function { signature, .. }) => Some((
+                "fn",
+                Some(super::completion::signature_detail(
+                    docs,
+                    &self.context,
+                    signature,
+                )?),
+            )),
+            Some(meta::Kind::Struct { .. } | meta::Kind::Type { .. }) => Some(("struct", None)),
+            Some(meta::Kind::Enum { .. }) => Some(("enum", None)),
+            Some(meta::Kind::Module) => Some(("mod", None)),
+            _ => None,
+        };
+
+        if let Some((keyword, signature)) = header {
+            write!(value, "```rune\n{keyword} {}", data.item)?;
+
+            if let Some(signature) = signature {
+                value.try_push_str(&signature)?;
+            }
+
+            value.try_push_str("\n```")?;
+        }
+
+        if let Some(docs) = super::completion::doc_lines(&data.docs)? {
+            if !value.is_empty() {
+                value.try_push_str("\n\n")?;
+            }
+
+            value.try_push_str(&docs)?;
+        }
+
+        if value.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(lsp::Hover {
+            contents: lsp::HoverContents::Markup(lsp::MarkupContent {
+                kind: lsp::MarkupKind::Markdown,
+                value: value.into_std(),
+            }),
+            range: None,
+        }))
+    }
+
     /// Find definition at the given uri and LSP position.
     #[tracing::instrument(skip_all)]
     pub(super) fn complete(
@@ -414,6 +485,18 @@ impl<'a> State<'a> {
             super::completion::complete_for_unit(
                 workspace_source,
                 unit,
+                symbol,
+                start,
+                position,
+                &mut results,
+            )?;
+        }
+
+        if let Some(docs) = workspace_source.docs.as_deref() {
+            super::completion::complete_for_docs(
+                docs,
+                workspace_source.unit.as_ref(),
+                &self.context,
                 symbol,
                 start,
                 position,
@@ -1224,14 +1307,40 @@ pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(S
     let end = content.char_to_byte(at.saturating_add(1).min(len));
     let end_search = end.saturating_sub(start_byte).min(chunk.len());
 
-    let Some(found) = chunk[..end_search].rfind(x) else {
+    let mut search = chunk.get(..end_search).unwrap_or_default();
+
+    // A cursor at the end of a line is on the line ending, which ends the
+    // line rather than delimiting what was typed on it. Taken as a delimiter,
+    // the symbol was always empty and nothing typed last on a line was ever
+    // completed.
+    if let Some(rest) = search.strip_suffix('\n') {
+        search = rest.strip_suffix('\r').unwrap_or(rest);
+    }
+
+    let Some(found) = search.rfind(x) else {
         return Ok(None);
     };
 
-    Ok(Some((
-        chunk[found..end_search].trim().try_to_owned()?,
-        start_byte + found,
-    )))
+    let found_str = search.get(found..).unwrap_or_default();
+
+    let Some(delimiter) = found_str.chars().next() else {
+        return Ok(None);
+    };
+
+    // The delimiter is kept, since what asks says what to complete by it, and
+    // only what is between it and the symbol is trimmed. Trimming the whole of
+    // it lost a line ending, and the first character of the symbol was then
+    // taken for the delimiter.
+    let mut symbol = String::new();
+    symbol.try_push(delimiter)?;
+    symbol.try_push_str(
+        found_str
+            .get(delimiter.len_utf8()..)
+            .unwrap_or_default()
+            .trim(),
+    )?;
+
+    Ok(Some((symbol, start_byte + found)))
 }
 
 /// Test if the document at `uri` is a declaration source (`.d.rn`).
@@ -1387,6 +1496,9 @@ pub(super) struct Definition {
     pub(super) kind: DefinitionKind,
     /// The id of the source id the definition corresponds to.
     pub(super) source: DefinitionSource,
+    /// The hash of the item defined, which is what its documentation is
+    /// found by. A local or a module has none.
+    pub(super) hash: Option<Hash>,
 }
 
 #[derive(Debug, TryClone, Clone, Copy)]
@@ -1476,6 +1588,7 @@ impl CompileVisitor for Visitor {
         let definition = Definition {
             kind,
             source: DefinitionSource::SourceMeta(source.try_clone()?),
+            hash: Some(meta.hash),
         };
 
         let location = location.location();
@@ -1498,6 +1611,7 @@ impl CompileVisitor for Visitor {
         let definition = Definition {
             kind: DefinitionKind::Local,
             source: DefinitionSource::Location(Location::new(source_id, var_span.span())),
+            hash: None,
         };
 
         let index = self.indexes.entry(source_id).or_try_default()?;
@@ -1515,6 +1629,7 @@ impl CompileVisitor for Visitor {
         let definition = Definition {
             kind: DefinitionKind::Module,
             source: DefinitionSource::Source(location.source_id),
+            hash: None,
         };
 
         let index = self.indexes.entry(location.source_id).or_try_default()?;

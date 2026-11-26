@@ -50,6 +50,9 @@ pub(crate) enum DeclarationKind {
         /// The variants of the enum.
         variants: Vec<TypeDef>,
     },
+    /// A `mod` block, whose path is the declaration's `module`. What is in it
+    /// are declarations of their own; this is what carries its documentation.
+    Mod,
 }
 
 /// A function signature.
@@ -254,8 +257,18 @@ impl<'a> Extract<'a, '_, '_> {
                             continue;
                         }
                         ItemMod => {
-                            self.nested(node, pending, None)?;
-                            continue;
+                            let module = self.nested(node, pending, None)?;
+
+                            self.out
+                                .try_push(Declaration {
+                                    span,
+                                    module,
+                                    docs,
+                                    kind: DeclarationKind::Mod,
+                                })
+                                .with_span(span)?;
+
+                            return Ok(());
                         }
                         ItemImpl => {
                             let path = node
@@ -340,13 +353,14 @@ impl<'a> Extract<'a, '_, '_> {
         Ok(is_async)
     }
 
-    /// Queue the block body of a `mod` or `impl` item to be walked.
+    /// Queue the block body of a `mod` or `impl` item to be walked, returning
+    /// the modules what is in it is nested in.
     fn nested(
         &mut self,
         node: Node<'a>,
         pending: &Pending<'a>,
         impl_of: Option<String>,
-    ) -> Result<()> {
+    ) -> Result<Vec<String>> {
         let span = node.span();
         let mut module = clone_module(&pending.module, span)?;
 
@@ -365,13 +379,13 @@ impl<'a> Extract<'a, '_, '_> {
             self.stack
                 .try_push(Pending {
                     body,
-                    module,
+                    module: clone_module(&module, span)?,
                     impl_of,
                 })
                 .with_span(span)?;
         }
 
-        Ok(())
+        Ok(module)
     }
 
     fn item_fn(
@@ -642,6 +656,18 @@ pub(crate) fn register(
         };
 
         match &d.kind {
+            // The module itself was inserted with the modules above, so only
+            // its documentation is left.
+            DeclarationKind::Mod => {
+                let location = Location::new(source_id, span);
+                let hash = Hash::type_hash(&base);
+
+                for line in &d.docs {
+                    q.visitor
+                        .visit_doc_comment(&location, &base, hash, line.as_str())
+                        .with_span(span)?;
+                }
+            }
             DeclarationKind::Fn(f) => {
                 let mut item = base;
                 let mut container = None;

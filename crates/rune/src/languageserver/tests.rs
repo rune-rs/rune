@@ -185,6 +185,36 @@ fn looking_back_stops_at_the_line() {
     assert_eq!(symbol.trim_start_matches('\n'), "bar");
 }
 
+/// A cursor at the end of a line looks back over what was typed on it.
+///
+/// The cursor is then on the line ending, which was taken to delimit the
+/// symbol, so the symbol was always empty and a name typed last on a line was
+/// never completed - which is where a name being typed usually is.
+#[test]
+fn looking_back_from_the_end_of_a_line_finds_what_is_on_it() {
+    use ropey::Rope;
+
+    for text in [
+        "let a = 1;
+    bas
+}
+",
+        "let a = 1;
+    bas
+}
+",
+    ] {
+        let content = Rope::from_str(text);
+        let at = content.line_to_char(1) + "    bas".len();
+
+        let (symbol, _) = super::state::looking_back(&content, at)
+            .expect("Should not fail")
+            .expect("Should find something");
+
+        assert_eq!(symbol, "\nbas", "{text:?}");
+    }
+}
+
 /// A path with something awkward in it survives the trip to a URL and back.
 ///
 /// This is how a file the editor names is found on disk, so a path which does
@@ -1482,4 +1512,104 @@ fn a_package_found_from_an_open_file_brings_its_declarations() {
 
     let diagnostics = published(&messages, uri);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Ask about the position `(line, character)` of `uri` with `method`,
+/// returning the id it was asked with.
+fn at(s: &mut Session, method: &str, uri: &str, (line, character): (u32, u32)) -> i64 {
+    s.request(
+        method,
+        serde_json::json!({
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+        }),
+    )
+}
+
+/// What the `app` fixture calls, which its dependencies declare.
+const DECLARED_CALLS: &str = "pub fn main() {\n    greet(base_value())\n}\n";
+
+/// Hovering a call to a declared function shows what its declaration says of
+/// it: its documentation and its signature, types and all. Without it nothing
+/// but the `.d.rn` itself says what the host provides.
+#[test]
+fn hovering_a_declared_function_shows_its_docs_and_signature() {
+    let (mut s, uri) = dependency_session("app");
+    s.open(&uri, DECLARED_CALLS);
+    s.after_diagnostics(&uri);
+
+    // The `greet` on the second line.
+    let hovered = at(&mut s, "textDocument/hover", &uri, (1, 6));
+
+    let messages = s.run(|m| answered(m, hovered));
+    let result = &response(&messages, hovered)["result"];
+    let value = result["contents"]["value"]
+        .as_str()
+        .unwrap_or_else(|| panic!("Hover should be markup: {result}"));
+
+    assert!(value.contains("Greet the given value."), "{value}");
+    assert!(value.contains("fn greet(value: u64) -> u64"), "{value}");
+}
+
+/// Going to the definition of a declared function lands in the declaration
+/// source which declares it, which is where its documentation is.
+#[test]
+fn a_declared_function_is_defined_in_its_declaration_source() {
+    let (mut s, uri) = dependency_session("app");
+    s.open(&uri, DECLARED_CALLS);
+    s.after_diagnostics(&uri);
+
+    // The `base_value` on the second line.
+    let defined = at(&mut s, "textDocument/definition", &uri, (1, 12));
+
+    let messages = s.run(|m| answered(m, defined));
+    let result = &response(&messages, defined)["result"];
+
+    assert!(
+        result["uri"]
+            .as_str()
+            .is_some_and(|u| u.ends_with("base/rune/base.d.rn")),
+        "{result}"
+    );
+
+    // The declaration is on the line after its documentation.
+    assert_eq!(result["range"]["end"]["line"], 1, "{result}");
+}
+
+/// Completion offers what a declaration source declares, with its signature,
+/// even while the name being typed does not compile, which is whenever a
+/// completion is asked for.
+#[test]
+fn a_completion_offers_declared_items() {
+    let (mut s, uri) = dependency_session("app");
+    let text = "pub fn main() {\n    greet(base_value());\n    bas\n}\n";
+    s.open(&uri, text);
+    s.after_diagnostics(&uri);
+
+    // Just past the `bas`.
+    let completed = at(&mut s, "textDocument/completion", &uri, (2, 7));
+
+    let messages = s.run(|m| answered(m, completed));
+    let result = &response(&messages, completed)["result"];
+
+    let items = result
+        .as_array()
+        .unwrap_or_else(|| panic!("Completion should produce a list: {result}"));
+
+    let item = items
+        .iter()
+        .find(|i| i["label"] == "base_value")
+        .unwrap_or_else(|| panic!("Should offer `base_value`: {result}"));
+
+    assert_eq!(item["detail"], "() -> u64", "{item}");
+    assert_eq!(
+        item["documentation"]["value"], "A value the host provides.",
+        "{item}"
+    );
+    assert_eq!(item["textEdit"]["range"]["start"]["character"], 4, "{item}");
+
+    assert!(
+        !items.iter().any(|i| i["label"] == "greet"),
+        "Only what the prefix names is offered: {result}"
+    );
 }

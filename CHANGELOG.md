@@ -64,8 +64,11 @@ declaration. Calling a declared function which the host does not provide at
 run time fails at the call with `VmErrorKind::MissingDeclaredFunction`, which
 names it, and the unit's `DebugInfo::declared` records which those are.
 The variants of a declared enum can be constructed and matched on; constructing
-one without the host fails the same way. `rune doc` documents declared items
-with their docs and the types written on them.
+one without the host fails the same way. `rune doc` documents declared items,
+`mod` blocks included, with their docs and the types written on them. The
+language server answers hover requests (signature and docs of what is under
+the cursor), and completion offers declared functions and types and completes a
+name typed last on a line, which it previously never did.
 
 #### `rune::highlight`
 

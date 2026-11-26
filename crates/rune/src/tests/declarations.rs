@@ -99,6 +99,7 @@ fn a_declaration_source_extracts_signatures() {
             Empty,
         }
 
+        /// Nested things.
         mod nested {
             mod deeper {
                 fn inner() -> !;
@@ -113,7 +114,7 @@ fn a_declaration_source_extracts_signatures() {
     );
 
     assert!(errors.is_empty(), "{errors:?}");
-    assert_eq!(decls.len(), 7, "{decls:#?}");
+    assert_eq!(decls.len(), 9, "{decls:#?}");
 
     let hello = &decls[0];
     assert_eq!(hello.docs.len(), 1);
@@ -174,18 +175,39 @@ fn a_declaration_source_extracts_signatures() {
     assert_eq!(text(&variants[1].fields[0].name), "0");
     assert!(variants[2].fields.is_empty());
 
-    // Bodies are walked last-in first-out, so the `impl` comes before the
-    // `mod` which was written ahead of it.
-    let DeclarationKind::Fn(len) = &decls[5].kind else {
+    // A module is a declaration of its own, which is what carries its
+    // documentation.
+    let nested = &decls[5];
+    assert!(matches!(nested.kind, DeclarationKind::Mod), "{nested:?}");
+    assert_eq!(
+        nested.module.iter().map(text).collect::<Vec<_>>(),
+        ["nested"]
+    );
+    assert_eq!(
+        nested.docs.iter().map(text).collect::<Vec<_>>(),
+        [" Nested things."]
+    );
+
+    // Bodies are walked last-in first-out, so the `impl` comes before what is
+    // in the `mod` which was written ahead of it.
+    let DeclarationKind::Fn(len) = &decls[6].kind else {
         panic!("expected function");
     };
 
     assert_eq!(text(&len.name), "len");
     assert_eq!(len.impl_of.as_ref().map(text), Some("Point"));
     assert_eq!(len.output.as_ref().map(text), Some("f64"));
-    assert_eq!(decls[5].docs.len(), 1);
+    assert_eq!(decls[6].docs.len(), 1);
 
-    let inner = &decls[6];
+    let deeper = &decls[7];
+    assert!(matches!(deeper.kind, DeclarationKind::Mod), "{deeper:?}");
+    assert_eq!(
+        deeper.module.iter().map(text).collect::<Vec<_>>(),
+        ["nested", "deeper"]
+    );
+    assert!(deeper.docs.is_empty());
+
+    let inner = &decls[8];
     let DeclarationKind::Fn(f) = &inner.kind else {
         panic!("expected function");
     };
@@ -389,6 +411,7 @@ const HOST: &str = r#"
 /// Say hello.
 pub fn hello(value: u64) -> u64;
 
+/// Talking to the network.
 pub mod net {
     pub fn fetch(url: String) -> String;
 }
@@ -622,6 +645,16 @@ fn declared_items_are_documented() {
     assert!(html.contains("method.len"), "{html}");
     assert!(html.contains("method.new"), "{html}");
     assert!(html.contains(r#"href="../std/f64.type.html""#), "{html}");
+
+    // A type declared beside the function returning it is linked under the
+    // base it is documented under.
+    assert!(
+        html.contains(r#"-&gt; <a class="type" href="Point.type.html">Point</a>"#),
+        "{html}"
+    );
+
+    let html = page("host/net.module.html");
+    assert!(html.contains("Talking to the network."), "{html}");
 
     page("host/net/fetch.fn.html");
     let html = page("host/Shape.enum.html");
