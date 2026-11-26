@@ -798,8 +798,8 @@ impl<'a> State<'a> {
                     Some(source) => source.chunks().try_collect::<String>()?,
                     None => match std::fs::read_to_string(path) {
                         Ok(string) => String::try_from(string)?,
-                        Err(error) => {
-                            tracing::warn!(path = ?path, "reading declaration source: {error}");
+                        Err(_error) => {
+                            tracing::warn!(path = ?path, "reading declaration source: {_error}");
                             continue;
                         }
                     },
