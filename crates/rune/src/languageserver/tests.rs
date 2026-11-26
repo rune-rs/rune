@@ -1125,3 +1125,107 @@ fn a_selection_is_formatted_in_place() {
         "pub fn main() {\n    let a = 1 + 2  ; a\n}\n",
     );
 }
+
+/// Start a session rooted in the fixture package `name` of the dependency
+/// tests, returning it along with the URL of the package's `src/main.rn`.
+fn dependency_session(name: &str) -> (Session, rust_alloc::string::String) {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/tests/dependencies")
+        .join(name)
+        .canonicalize()
+        .expect("Fixture should exist");
+
+    let root_uri = super::url::from_file_path(&root).expect("Should be a url");
+    let main_uri = super::url::from_file_path(root.join("src/main.rn")).expect("Should be a url");
+
+    let mut this = Session {
+        stages: rust_alloc::vec![(rust_alloc::vec::Vec::new(), None)],
+        id: 0,
+    };
+
+    this.request(
+        "initialize",
+        serde_json::json!({
+            "capabilities": {},
+            "processId": null,
+            "rootUri": root_uri.as_str(),
+        }),
+    );
+
+    this.notify("initialized", serde_json::json!({}));
+    (this, main_uri.as_str().into())
+}
+
+/// The diagnostics last published for `uri`.
+fn published<'a>(messages: &'a [serde_json::Value], uri: &str) -> &'a [serde_json::Value] {
+    notifications(messages, "textDocument/publishDiagnostics")
+        .filter(|m| m["params"]["uri"] == uri)
+        .last()
+        .unwrap_or_else(|| panic!("Should have diagnosed {uri}: {messages:?}"))["params"]
+        ["diagnostics"]
+        .as_array()
+        .expect("Diagnostics should be a list")
+}
+
+/// A workspace package calling what a `[dependencies]` entry declares in its
+/// `.d.rn` sources - directly or through a dependency of its own - is not
+/// reported, since the server compiles those declarations beside it.
+#[test]
+fn what_a_dependency_declares_is_not_reported() {
+    let (mut s, uri) = dependency_session("app");
+    s.open(&uri, "pub fn main() {\n    greet(base_value())\n}\n");
+
+    let messages = s.run(|m| {
+        notifications(m, "textDocument/publishDiagnostics").any(|m| m["params"]["uri"] == uri)
+    });
+
+    let diagnostics = published(&messages, &uri);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// What no dependency declares is still reported, so that the test above is
+/// not passing because nothing is.
+#[test]
+fn what_no_dependency_declares_is_reported() {
+    let (mut s, uri) = dependency_session("app");
+    s.open(&uri, "pub fn main() {\n    greet(undeclared())\n}\n");
+
+    let messages = s.run(|m| {
+        notifications(m, "textDocument/publishDiagnostics").any(|m| m["params"]["uri"] == uri)
+    });
+
+    let diagnostics = published(&messages, &uri);
+
+    assert!(
+        diagnostics.iter().any(|d| d["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("undeclared"))),
+        "{diagnostics:?}"
+    );
+}
+
+/// A dependency cycle is reported on the manifest which closes it, and does
+/// not stop the server.
+#[test]
+fn a_dependency_cycle_is_reported_and_survived() {
+    let (s, _) = dependency_session("cycle-a");
+
+    let messages = s.run(|m| {
+        notifications(m, "textDocument/publishDiagnostics").any(|m| {
+            m["params"]["diagnostics"]
+                .as_array()
+                .is_some_and(|d| !d.is_empty())
+        })
+    });
+
+    assert!(
+        notifications(&messages, "textDocument/publishDiagnostics").any(|m| {
+            m["params"]["uri"]
+                .as_str()
+                .is_some_and(|u| u.ends_with("cycle-b/Rune.toml"))
+                && serde_json::to_string(&m["params"]["diagnostics"])
+                    .is_ok_and(|d| d.contains("depends on"))
+        }),
+        "{messages:?}"
+    );
+}

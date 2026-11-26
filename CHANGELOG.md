@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog], and this project adheres to
 The standard library documentation links to the types it mentions (`Option`,
 `Result`, `Vec`, `String`, `HashMap`, ...) instead of only naming them.
 
+#### Path dependencies in `Rune.toml`
+
+A package may name path dependencies in a `[dependencies]` section of its
+`Rune.toml` (`host = { path = "../host" }`). The declaration sources (`*.d.rn`)
+of each dependency, and of what it depends on, are compiled beside the package's
+entry points by `rune check`, `run`, `test` and `bench` and by the language
+server. Any other kind of dependency, a path without a manifest, and dependency
+cycles are manifest diagnostics. `Package` has new `dependencies` and
+`declarations` fields.
+
 #### Declaration sources (`.d.rn`)
 
 A source whose name ends in `.d.rn` (`Source::is_declaration`) is a declaration

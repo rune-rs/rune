@@ -1,0 +1,6 @@
+[package]
+name = "host"
+version = "0.0.0"
+
+[dependencies]
+base = { path = "../base" }

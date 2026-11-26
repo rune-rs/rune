@@ -127,6 +127,21 @@ pub(crate) enum WorkspaceErrorKind {
     AllocError {
         error: alloc::Error,
     },
+    UnsupportedDependency {
+        name: String,
+    },
+    DependenciesWithoutPackage,
+    MissingDependency {
+        name: String,
+        path: Box<Path>,
+    },
+    DependencyCycle {
+        name: String,
+    },
+    ReadDeclarations {
+        path: Box<Path>,
+        error: std::io::Error,
+    },
 }
 
 impl core::error::Error for WorkspaceErrorKind {
@@ -137,6 +152,7 @@ impl core::error::Error for WorkspaceErrorKind {
             WorkspaceErrorKind::Source { error, .. } => Some(error),
             WorkspaceErrorKind::Toml { error, .. } => Some(error),
             WorkspaceErrorKind::Key { error, .. } => Some(error),
+            WorkspaceErrorKind::ReadDeclarations { error, .. } => Some(error),
             _ => None,
         }
     }
@@ -177,6 +193,28 @@ impl fmt::Display for WorkspaceErrorKind {
             WorkspaceErrorKind::ExpectedTable => write!(f, "Expected table"),
             WorkspaceErrorKind::UnsupportedKey { key } => write!(f, "Key `{key}` not supported",),
             WorkspaceErrorKind::AllocError { error } => error.fmt(f),
+            WorkspaceErrorKind::UnsupportedDependency { name } => write!(
+                f,
+                "Dependency `{name}` is not supported, only path dependencies like `{name} = {{ path = \"..\" }}` are"
+            ),
+            WorkspaceErrorKind::DependenciesWithoutPackage => write!(
+                f,
+                "Element `[dependencies]` can only be used in a manifest with a `[package]`"
+            ),
+            WorkspaceErrorKind::MissingDependency { name, path } => write!(
+                f,
+                "Dependency `{name}` has no manifest at `{path}`",
+                path = path.display()
+            ),
+            WorkspaceErrorKind::DependencyCycle { name } => write!(
+                f,
+                "Dependency `{name}` depends on a package which depends on it"
+            ),
+            WorkspaceErrorKind::ReadDeclarations { path, error } => write!(
+                f,
+                "Failed to look for declaration sources in `{path}`: {error}",
+                path = path.display()
+            ),
         }
     }
 }

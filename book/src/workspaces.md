@@ -192,4 +192,34 @@ error: Missing macro module::printline
   │     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Missing macro module::printline
 ```
 
+## Dependencies
+
+A package can name other packages it depends on in a `[dependencies]` section
+of its manifest. The only kind of dependency there is a path dependency: a
+directory, relative to the manifest, which holds a `Rune.toml` of its own with a
+`[package]` in it.
+
+```toml
+[package]
+name = "app"
+version = "0.0.0"
+
+[dependencies]
+host = { path = "../host" }
+```
+
+What a dependency brings is its [declaration sources](./declarations.md): every
+`*.d.rn` file under its directory, along with those of whatever it depends on in
+turn. Directories whose names start with `.`, `target`, and directories holding
+a package of their own are not looked in. These are compiled beside each entry
+point of the depending package by `rune check`, `rune run`, `rune test` and
+`rune bench`, and by the language server, so a script can call what a host
+library declares without the host being there.
+
+A dependency is not a member of the workspace: none of its entry points are
+checked or run, and a `[workspace]` in its manifest is left alone. Anything
+other than a path dependency - a version, a `git` source, a key beside `path` -
+is reported in the manifest where it is written, as is a path without a
+`Rune.toml` and a package which ends up depending on itself.
+
 [Rust package layout]: https://doc.rust-lang.org/cargo/guide/project-layout.html
