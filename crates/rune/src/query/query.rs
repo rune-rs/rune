@@ -1494,7 +1494,16 @@ impl<'a, 'arena> Query<'a, 'arena> {
                 // resolving to itself and stop here, so that resolution can
                 // fall through to other sources of meta (like the context)
                 // instead of looping and reporting a bogus import cycle.
+                //
+                // Only the context can be what it refers to: the import is
+                // indexed under its own name, so checking the query for the
+                // name afterwards would find the import itself and let an
+                // import of something which does not exist through.
                 if import.target == cur {
+                    if !self.context.contains_prefix(self.pool.item(cur))? {
+                        return Ok(None);
+                    }
+
                     any_matched = true;
                     break 'outer;
                 }
