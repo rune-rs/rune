@@ -275,8 +275,19 @@ impl<'a, 'b, 'arena> MacroContext<'a, 'b, 'arena> {
     /// # Ok::<_, rune::support::Error>(())
     /// ```
     pub fn eval_stream(&mut self, stream: &TokenStream) -> compile::Result<Value> {
+        self.eval_stream_as(stream, "Expression")
+    }
+
+    /// Evaluate a token stream as a constant expression, as
+    /// [`MacroContext::eval_stream`] does, describing it as `what` if it turns
+    /// out not to be constant.
+    pub(crate) fn eval_stream_as(
+        &mut self,
+        stream: &TokenStream,
+        what: &'static str,
+    ) -> compile::Result<Value> {
         let span = self.stream_span(stream);
-        crate::compile::const_eval::eval_stream(self, stream, span)
+        crate::compile::const_eval::eval_stream(self, stream, span, what)
     }
 
     /// The span of a token stream, which is the span of the input the macro

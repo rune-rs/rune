@@ -118,6 +118,13 @@ item of the same name is a compile error. See the `declared_statics` example.
 
 ### Changed
 
+- An expression which a macro evaluates as a constant - the format
+  specification of `format!` and `println!`, or one passed to
+  `MacroContext::eval` - and which turns out not to be constant is reported as
+  having to be a constant expression, against the whole expression, with what
+  made it not constant (such as a local variable it names) as a label on the part
+  responsible. Only that cause was reported before, so `println!(x + 7)` said
+  there was no local `x` even when there was one.
 - The minimum supported Rust version (`rust-version`) is raised from 1.95 to
   1.100 for every crate in the workspace, and CI checks it on that toolchain.
 - Two instructions were added, `GlobalGet` and `GlobalSet`. These are internal,

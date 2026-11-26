@@ -111,7 +111,7 @@ pub(crate) fn eval_ast(
 ) -> compile::Result<Value> {
     let mut stream = TokenStream::new();
     ast.to_tokens(cx, &mut stream)?;
-    eval_stream(cx, &stream, ast.span())
+    eval_stream(cx, &stream, ast.span(), "Expression")
 }
 
 /// Evaluate an expression from within a macro, as `cx.eval_stream(..)` does.
@@ -121,10 +121,18 @@ pub(crate) fn eval_ast(
 /// [`crate::worker`] parses the output of a macro, so that everything
 /// downstream of it walks a tree over an explicit stack rather than recursing
 /// over a syntax tree.
+///
+/// An expression which turns out not to be constant - it names a local
+/// variable, or calls a function which is not a `const fn` - is reported as
+/// `what` having to be a constant expression, against the whole of it, with
+/// what made it not constant kept as the cause. Without it the error is only
+/// about the part of the expression responsible, as if it had been an ordinary
+/// expression, and nothing says that the macro asked for a constant.
 pub(crate) fn eval_stream(
     cx: &mut MacroContext<'_, '_, '_>,
     stream: &TokenStream,
     span: Span,
+    what: &'static str,
 ) -> compile::Result<Value> {
     let location = cx.item_meta.location;
 
@@ -184,19 +192,62 @@ pub(crate) fn eval_stream(
 
     let arena = hir::Arena::new();
 
-    let (hir, exprs) = {
-        let mut hir_cx = hir::Ctxt::with_const(&arena, cx.idx.q.borrow(), location.source_id)?;
-        let hir = node.parse(|p| hir::lowering2::expr(&mut hir_cx, p))?;
-        (hir, hir_cx.take_exprs())
+    let result = 'eval: {
+        let (hir, exprs) = {
+            let mut hir_cx = hir::Ctxt::with_const(&arena, cx.idx.q.borrow(), location.source_id)?;
+
+            let hir = match node.parse(|p| hir::lowering2::expr(&mut hir_cx, p)) {
+                Ok(hir) => hir,
+                Err(error) => break 'eval Err(error),
+            };
+
+            (hir, hir_cx.take_exprs())
+        };
+
+        let mut q = cx.idx.q.borrow();
+
+        eval(
+            &mut q,
+            location,
+            &hir,
+            Entry::Expr(&exprs, &hir),
+            Vec::new(),
+        )
     };
 
-    let mut q = cx.idx.q.borrow();
-    eval(
-        &mut q,
-        location,
-        &hir,
-        Entry::Expr(&exprs, &hir),
-        Vec::new(),
+    // Only what goes wrong once the expression has been parsed can be because
+    // it is not constant.
+    match result {
+        Err(error) if is_not_const(error.kind()) => Err(compile::Error::new(
+            span,
+            ErrorKind::NotConstExpr {
+                what,
+                cause: rust_alloc::boxed::Box::new(error),
+            },
+        )),
+        result => result,
+    }
+}
+
+/// Test if an error raised while lowering or evaluating an expression is
+/// because the expression is not constant, rather than because evaluating it
+/// failed the way it would have at runtime too, or because the compiler ran out
+/// of something.
+fn is_not_const(kind: &ErrorKind) -> bool {
+    !matches!(
+        kind,
+        ErrorKind::AllocError { .. }
+            | ErrorKind::MaxMacroRecursion { .. }
+            | ErrorKind::MaxDepth { .. }
+            | ErrorKind::MaxNesting { .. }
+            | ErrorKind::MaxItemDepth { .. }
+            | ErrorKind::MaxConstDepth { .. }
+            | ErrorKind::MaxGenericsDepth { .. }
+            | ErrorKind::MaxAstDepth { .. }
+            | ErrorKind::ConstBudgetExceeded { .. }
+            | ErrorKind::ConstCycle
+            | ErrorKind::Vm(..)
+            | ErrorKind::NotConstExpr { .. }
     )
 }
 
