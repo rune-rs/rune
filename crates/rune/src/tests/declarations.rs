@@ -370,6 +370,33 @@ fn the_formatter_lays_out_declarations() {
     assert_eq!(layout(&output), output);
 }
 
+/// Outside a declaration source the formatter refuses a function without a
+/// body rather than laying it out as a declaration. Otherwise `fn` would be
+/// formatted into `fn();`, which the formatter then refuses when run again.
+#[test]
+fn the_formatter_refuses_a_function_without_a_body_in_an_ordinary_source() {
+    let options = Options::default();
+
+    let layout = |source: &str, declaration: bool| {
+        let mut diagnostics = Diagnostics::new();
+        crate::fmt::layout_source_as(
+            source,
+            crate::SourceId::EMPTY,
+            declaration,
+            &options,
+            &mut diagnostics,
+        )
+        .map(|output| output.into_std())
+    };
+
+    for source in ["fn\n", "fn foo\n", "fn foo(a)\n", "fn foo();\n"] {
+        assert!(layout(source, false).is_err(), "{source:?}");
+    }
+
+    assert_eq!(layout("fn foo(a) {}\n", false).unwrap(), "fn foo(a) {\n}\n");
+    assert_eq!(layout("fn foo(a);\n", true).unwrap(), "fn foo(a);\n");
+}
+
 /// Compile `script` as `main.rn` beside `declarations` as `host.d.rn` against
 /// `context`, returning a machine running it against `runtime` or the
 /// diagnostics of what failed.

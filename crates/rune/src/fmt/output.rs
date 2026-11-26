@@ -216,6 +216,9 @@ pub(crate) struct Formatter<'a> {
     source_id: SourceId,
     o: &'a mut Buffer,
     pub(super) options: &'a FmtOptions,
+    /// Whether this is a declaration source (`.d.rn`), the only kind of source
+    /// in which a function may go without a body.
+    pub(super) declaration: bool,
     diagnostics: &'a mut Diagnostics,
     comments: VecDeque<Comment>,
     lines: usize,
@@ -232,6 +235,7 @@ impl<'a> Formatter<'a> {
         source_id: SourceId,
         o: &'a mut String,
         options: &'a FmtOptions,
+        declaration: bool,
         diagnostics: &'a mut Diagnostics,
     ) -> Self {
         Self {
@@ -240,6 +244,7 @@ impl<'a> Formatter<'a> {
             source_id,
             o: Buffer::new(o),
             options,
+            declaration,
             diagnostics,
             comments: VecDeque::new(),
             lines: 0,

@@ -201,6 +201,7 @@ pub(crate) fn layout_source_as(
             source_id,
             &mut o,
             &options.fmt,
+            declaration,
             diagnostics,
         );
 
