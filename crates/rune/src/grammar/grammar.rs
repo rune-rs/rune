@@ -453,10 +453,16 @@ fn struct_body(p: &mut Parser<'_>) -> Result<()> {
         p.bump()?;
 
         // Rune has no field types, so an annotation is reported as the thing it
-        // is rather than as a missing `}`.
+        // is rather than as a missing `}`. A declaration may carry one, since
+        // it documents what the host provides.
         if p.peek()? == K![:] {
             p.bump()?;
-            return Err(p.error(field.span, ErrorKind::msg(STATIC_TYPING_FIELD))?);
+
+            if !p.is_declaration() {
+                return Err(p.error(field.span, ErrorKind::msg(STATIC_TYPING_FIELD))?);
+            }
+
+            ty(p)?;
         }
 
         p.close_at(&c, Field)?;
@@ -466,6 +472,59 @@ fn struct_body(p: &mut Parser<'_>) -> Result<()> {
     p.bump_if(K!['}'])?;
     p.close_at(&c, StructBody)?;
     Ok(())
+}
+
+/// Parse a type annotation, which only a declaration source may carry: a
+/// path, `!`, or a tuple of types such as `(u64, String)` or `()`.
+///
+/// Tuples nest, so the nesting is tracked as a count rather than by recursing.
+#[tracing::instrument(skip_all)]
+fn ty(p: &mut Parser<'_>) -> Result<()> {
+    let c = p.checkpoint()?;
+    let mut depth = 0usize;
+
+    loop {
+        match p.peek()? {
+            K!['('] => {
+                p.bump()?;
+                depth = depth.saturating_add(1);
+
+                if p.peek()? != K![')'] {
+                    continue;
+                }
+            }
+            K![!] => {
+                p.bump()?;
+            }
+            path_component!() => {
+                path(p)?;
+            }
+            _ => return Err(p.expected_at(0, Type)?),
+        }
+
+        // Close every tuple which ends here.
+        loop {
+            if depth == 0 {
+                p.close_at(&c, Type)?;
+                return Ok(());
+            }
+
+            match p.peek()? {
+                K![,] => {
+                    p.bump()?;
+
+                    if p.peek()? != K![')'] {
+                        break;
+                    }
+                }
+                K![')'] => {
+                    p.bump()?;
+                    depth = depth.saturating_sub(1);
+                }
+                _ => return Err(p.expected_at(0, K![')'])?),
+            }
+        }
+    }
 }
 
 #[tracing::instrument(skip_all)]
@@ -1501,6 +1560,10 @@ const UNSUPPORTED_RANGE: &str = "Unsupported range, you probably want `..` inste
 /// Reported for a type annotation on a struct field.
 const STATIC_TYPING_FIELD: &str = "Static typing on fields is not supported";
 
+/// Reported for a function without a body outside of a declaration source.
+const BODYLESS_FUNCTION: &str =
+    "A function without a body is only allowed in a declaration source (`.d.rn`)";
+
 /// Reported for a return type annotation on a function.
 const STATIC_TYPING_RETURN: &str = "Adding a return type in functions is not supported";
 
@@ -1925,6 +1988,7 @@ fn stmt_start(p: &mut Parser<'_>, stack: &mut Vec<Step>, span: Span) -> Result<O
             Ok(None)
         }
         K![fn] => {
+            let fn_token = p.nth_token(0)?;
             p.bump()?;
 
             if matches!(p.peek()?, K![ident]) {
@@ -1939,6 +2003,11 @@ fn stmt_start(p: &mut Parser<'_>, stack: &mut Vec<Step>, span: Span) -> Result<O
 
                 while is_pat(p)? {
                     pat(p)?;
+
+                    if p.is_declaration() && p.bump_if(K![:])? {
+                        ty(p)?;
+                    }
+
                     p.bump_while(K![,])?;
                 }
 
@@ -1947,11 +2016,17 @@ fn stmt_start(p: &mut Parser<'_>, stack: &mut Vec<Step>, span: Span) -> Result<O
             }
 
             // Rune has no return types, so an annotation is reported as the
-            // thing it is rather than as a missing body.
+            // thing it is rather than as a missing body. A declaration may
+            // carry one.
             if p.peek()? == K![->] {
                 let arrow = p.nth_token(0)?;
                 p.bump()?;
-                return Err(p.error(arrow.span, ErrorKind::msg(STATIC_TYPING_RETURN))?);
+
+                if !p.is_declaration() {
+                    return Err(p.error(arrow.span, ErrorKind::msg(STATIC_TYPING_RETURN))?);
+                }
+
+                ty(p)?;
             }
 
             push(stack, span, Step::StmtEnd { c, kind: Item })?;
@@ -1966,6 +2041,12 @@ fn stmt_start(p: &mut Parser<'_>, stack: &mut Vec<Step>, span: Span) -> Result<O
 
             if p.peek()? == K!['{'] {
                 return Ok(Some(Task::Block));
+            }
+
+            // A signature without a body only means something in a
+            // declaration source.
+            if p.peek()? == K![;] && !p.is_declaration() {
+                return Err(p.error(fn_token.span, ErrorKind::msg(BODYLESS_FUNCTION))?);
             }
 
             Ok(None)

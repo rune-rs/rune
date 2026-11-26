@@ -22,7 +22,10 @@ pub(crate) fn classify(node: &Node<'_>) -> (bool, NodeClass) {
                         .children()
                         .rev()
                         .any(|n| matches!(n.kind(), TupleBody | EmptyBody)),
-                    ItemEnum | ItemFn | ItemImpl | ItemMod => false,
+                    // A function without a body is a declaration, which
+                    // ends in a `;` the way a file module does.
+                    ItemFn => !node.children().rev().any(|n| matches!(n.kind(), Block)),
+                    ItemEnum | ItemImpl | ItemMod => false,
                     ItemFileMod => true,
                     _ => continue,
                 };

@@ -437,6 +437,32 @@ fn variant<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     Ok(())
 }
 
+/// Lay out a type annotation, which only a declaration source carries.
+///
+/// A tuple type nests only as tokens inside the one node, so this is a flat
+/// walk.
+fn ty<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
+    while !p.is_eof() {
+        match p.peek() {
+            Path => {
+                p.pump()?.parse(|p| path(fmt, p))?;
+            }
+            K![,] => {
+                p.pump()?.fmt(fmt)?;
+
+                if !matches!(p.peek(), K![')'] | Eof) {
+                    fmt.ws()?;
+                }
+            }
+            _ => {
+                p.pump()?.fmt(fmt)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn struct_body<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     p.expect(K!['{'])?.fmt(fmt)?;
     fmt.indent(1)?;
@@ -447,7 +473,17 @@ fn struct_body<'a>(fmt: &mut Formatter<'a>, p: &mut Stream<'a>) -> Result<()> {
     while let MaybeNode::Some(field) = p.eat(Field) {
         fmt.nl(1)?;
         fmt.comments(Line)?;
-        field.parse(|p| p.pump()?.fmt(fmt))?;
+        field.parse(|p| {
+            p.pump()?.fmt(fmt)?;
+
+            if let MaybeNode::Some(colon) = p.eat(K![:]) {
+                colon.fmt(fmt)?;
+                fmt.ws()?;
+                p.expect(Type)?.parse(|p| ty(fmt, p))?;
+            }
+
+            Ok(())
+        })?;
         p.remaining(fmt, K![,])?.fmt(fmt)?;
         empty = false;
     }
@@ -1230,21 +1266,29 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
                 Ok(())
             }
             1 => {
-                fmt.ws()?;
-                let block = buf.stream().eat(Block);
+                let p = buf.stream();
+
+                if let MaybeNode::Some(arrow) = p.eat(K![->]) {
+                    fmt.ws()?;
+                    arrow.fmt(fmt)?;
+                    fmt.ws()?;
+                    p.expect(Type)?.parse(|p| ty(fmt, p))?;
+                }
+
+                let block = p.eat(Block);
 
                 cx.push(Step::ItemFn { buf, at: 2 })?;
 
+                // A function without a body is a declaration, whose `;` is
+                // written by the statement it ends.
                 if let MaybeNode::Some(node) = block {
+                    fmt.ws()?;
+
                     cx.push(Step::Block {
                         buf: node.into_stream(),
                         compact: false,
                         at: 0,
                     })?;
-                } else {
-                    fmt.lit("{")?;
-                    fmt.nl(1)?;
-                    fmt.lit("}")?;
                 }
 
                 Ok(())
@@ -1264,6 +1308,13 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
 
             if at == 2 {
                 let p = buf.stream();
+
+                if let MaybeNode::Some(colon) = p.eat(K![:]) {
+                    colon.fmt(fmt)?;
+                    fmt.ws()?;
+                    p.expect(Type)?.parse(|p| ty(fmt, p))?;
+                }
+
                 comma = p.remaining(fmt, K![,])?;
                 fmt.comments(Suffix)?;
             }
@@ -2645,6 +2696,13 @@ fn step<'a>(fmt: &mut Formatter<'a>, cx: &mut Cx<'a>, step: Step<'a>) -> Result<
 
             if at == 2 {
                 let p = buf.stream();
+
+                if let MaybeNode::Some(colon) = p.eat(K![:]) {
+                    colon.fmt(fmt)?;
+                    fmt.ws()?;
+                    p.expect(Type)?.parse(|p| ty(fmt, p))?;
+                }
+
                 comma = p.remaining(fmt, K![,])?;
                 fmt.comments(Suffix)?;
             }

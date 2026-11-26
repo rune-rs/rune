@@ -55,6 +55,7 @@ pub(crate) struct Prepare<'a> {
     include_whitespace: bool,
     shebang: bool,
     max_nesting: usize,
+    declaration: bool,
 }
 
 impl<'a> Prepare<'a> {
@@ -65,7 +66,18 @@ impl<'a> Prepare<'a> {
             include_whitespace: false,
             shebang: true,
             max_nesting: usize::MAX,
+            declaration: false,
         }
+    }
+
+    /// Configure whether the input is a declaration source (`.d.rn`).
+    ///
+    /// Declarations are signatures without bodies, and they may annotate
+    /// arguments, return values and fields with types, which ordinary sources
+    /// may not.
+    pub(crate) fn declaration(mut self, declaration: bool) -> Self {
+        self.declaration = declaration;
+        self
     }
 
     /// Configure how deeply the parsed input is allowed to nest.
@@ -147,6 +159,7 @@ impl<'a> Prepare<'a> {
         let mut p = Parser::new(source);
         p.include_whitespace(self.include_whitespace);
         p.max_nesting(self.max_nesting);
+        p.declaration(self.declaration);
         p
     }
 }

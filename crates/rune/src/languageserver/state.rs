@@ -441,7 +441,7 @@ impl<'a> State<'a> {
         let mut options = self.options.clone();
         options.fmt.indent = indent_style(format);
 
-        let formatted = layout(&source, &options)?;
+        let formatted = layout(&source, is_declaration(uri), &options)?;
 
         // Only modify if changed
         if source == formatted {
@@ -533,7 +533,7 @@ impl<'a> State<'a> {
         options.fmt.force_newline = false;
         options.fmt.indent = indent_style(format);
 
-        let formatted = layout(inner, &options)?;
+        let formatted = layout(inner, is_declaration(uri), &options)?;
 
         let mut out = String::new();
         out.try_push_str(leading)?;
@@ -1112,14 +1112,25 @@ pub(super) fn looking_back(content: &Rope, at: usize) -> alloc::Result<Option<(S
     )))
 }
 
+/// Test if the document at `uri` is a declaration source (`.d.rn`).
+fn is_declaration(uri: &Uri) -> bool {
+    crate::source::is_declaration_name(uri.path().as_str())
+}
+
 /// Lay out `source` with the in-process formatter.
 ///
 /// An error says where in `source` it is, since the person who asked for the
 /// document to be formatted sees nothing else of it.
-fn layout(source: &str, options: &Options) -> Result<String> {
+fn layout(source: &str, declaration: bool, options: &Options) -> Result<String> {
     let mut diagnostics = Diagnostics::new();
 
-    match crate::fmt::layout_source_with(source, SourceId::EMPTY, options, &mut diagnostics) {
+    match crate::fmt::layout_source_as(
+        source,
+        SourceId::EMPTY,
+        declaration,
+        options,
+        &mut diagnostics,
+    ) {
         Ok(formatted) => Ok(formatted),
         Err(error) => {
             let at = error.span().start.into_usize();

@@ -132,7 +132,9 @@ impl<'a> Prepare<'a> {
                 continue;
             };
 
-            match layout_source_with(source.as_str(), id, options, diagnostics) {
+            let declaration = source.is_declaration();
+
+            match layout_source_as(source.as_str(), id, declaration, options, diagnostics) {
                 Ok(output) => {
                     files.try_push((id, output))?;
                 }
@@ -153,13 +155,27 @@ impl<'a> Prepare<'a> {
 }
 
 /// Format the given source with the specified options.
+#[cfg(test)]
 pub(crate) fn layout_source_with(
     source: &str,
     source_id: SourceId,
     options: &Options,
     diagnostics: &mut Diagnostics,
 ) -> Result<String> {
+    layout_source_as(source, source_id, false, options, diagnostics)
+}
+
+/// Format the given source with the specified options, as a declaration
+/// source (`.d.rn`) if `declaration` is set.
+pub(crate) fn layout_source_as(
+    source: &str,
+    source_id: SourceId,
+    declaration: bool,
+    options: &Options,
+    diagnostics: &mut Diagnostics,
+) -> Result<String> {
     let tree = crate::grammar::text(source_id, source)
+        .declaration(declaration)
         .without_processing()
         .include_whitespace()
         .max_nesting(options.max_depth)
