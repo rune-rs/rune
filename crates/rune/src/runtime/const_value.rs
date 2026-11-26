@@ -14,9 +14,11 @@ use crate::alloc::prelude::*;
 use crate::runtime;
 use crate::{declare_dyn_trait, hash_in, Hash, TypeHash};
 
+use crate::sync::Arc;
+
 use super::{
-    Bytes, ExpectedType, FromValue, Inline, Object, OwnedTuple, Repr, RuntimeError, ToValue, Tuple,
-    Type, Value, VmErrorKind, VmIntegerRepr,
+    AnySequence, Bytes, ExpectedType, FromValue, Inline, Object, OwnedTuple, Repr, Rtti, RttiKind,
+    RuntimeError, ToValue, Tuple, Type, Value, VmErrorKind, VmIntegerRepr,
 };
 
 /// How deeply a [`ConstValue`] is allowed to nest.
@@ -306,9 +308,25 @@ fn from_value_ref_at(
             builder.leaf(ConstNodeKind::Inline(*value))?;
         }
         Repr::Dynamic(value) => {
-            return Err(RuntimeError::from(VmErrorKind::ConstNotSupported {
-                actual: value.type_info(),
-            }));
+            // A script-defined struct, tuple struct or variant is stored as an
+            // instance of its type with its fields in declaration order, which is
+            // the order the value keeps them in. The names of the fields are not
+            // stored: they are the unit's, and are looked up in its type
+            // information wherever the constant is turned back into something.
+            let rtti = value.rtti();
+            let fields = value.borrow_ref()?;
+
+            let at = builder.open(ConstNodeKind::Instance {
+                hash: rtti.hash,
+                variant_hash: rtti.variant_hash,
+                fields: fields.len() as u32,
+            })?;
+
+            for value in fields.iter() {
+                from_value_ref_at(value, depth, builder)?;
+            }
+
+            builder.close(at);
         }
         Repr::Any(value) => match value.type_hash() {
             alloc::String::HASH => {
@@ -503,6 +521,7 @@ impl ConstValue {
             Vec,
             Object(&'a [alloc::Box<str>]),
             Some,
+            Dynamic(&'a Arc<Rtti>),
         }
 
         fn close(frame: Frame<'_>) -> Result<Value, RuntimeError> {
@@ -526,6 +545,9 @@ impl ConstValue {
                     };
 
                     Ok(Value::try_from(Some(value))?)
+                }
+                FrameKind::Dynamic(rtti) => {
+                    Ok(Value::from(AnySequence::new(rtti.clone(), frame.values)?))
                 }
             }
         }
@@ -599,25 +621,45 @@ impl ConstValue {
 
                             index += 1;
                         }
-                        (hash, _) => {
-                            // A type which is only known to whoever declared it
-                            // builds itself out of the constants it is made of,
-                            // so its subtree is handed over whole rather than
-                            // walked into here.
-                            let Some(constructor) = cx.get(hash) else {
-                                return Err(RuntimeError::missing_constant_constructor(hash));
-                            };
+                        (hash, variant_hash) => {
+                            // A type declared in a script is rebuilt out of the
+                            // type information of the unit which declared it.
+                            if let Some(rtti) = cx.script_rtti(hash, variant_hash) {
+                                if matches!(rtti.kind, RttiKind::Struct)
+                                    && rtti.fields.len() != fields
+                                {
+                                    return Err(RuntimeError::new(
+                                        VmErrorKind::MalformedConstValue,
+                                    ));
+                                }
 
-                            let size = node.size as usize;
+                                // A container with no fields is closed as soon
+                                // as it is opened, like an empty tuple.
+                                frames.try_push(open(FrameKind::Dynamic(rtti), fields)?)?;
+                                index += 1;
+                            } else {
+                                // A type which is only known to whoever declared
+                                // it builds itself out of the constants it is
+                                // made of, so its subtree is handed over whole
+                                // rather than walked into here.
+                                let Some(constructor) = cx.get(hash) else {
+                                    return Err(RuntimeError::missing_constant_constructor(hash));
+                                };
 
-                            let Some(subtree) = nodes.get(index..index + size) else {
-                                return Err(RuntimeError::new(VmErrorKind::MalformedConstValue));
-                            };
+                                let size = node.size as usize;
 
-                            produced =
-                                Some(constructor.const_construct(ConstValue::from_nodes(subtree))?);
+                                let Some(subtree) = nodes.get(index..index + size) else {
+                                    return Err(RuntimeError::new(
+                                        VmErrorKind::MalformedConstValue,
+                                    ));
+                                };
 
-                            index += size;
+                                produced = Some(
+                                    constructor.const_construct(ConstValue::from_nodes(subtree))?,
+                                );
+
+                                index += size;
+                            }
                         }
                     }
                 }
@@ -827,6 +869,56 @@ declare_dyn_trait! {
 
 pub(crate) trait ConstContext {
     fn get(&self, hash: Hash) -> Option<&ConstConstructImpl>;
+
+    /// Look up the type information of a type declared in a script, keyed by
+    /// the item hash of the type or, for a variant, of the variant.
+    #[inline]
+    fn rtti(&self, _: Hash) -> Option<&Arc<Rtti>> {
+        None
+    }
+}
+
+impl dyn ConstContext + '_ {
+    /// The type information of the script type an instance with the given
+    /// hashes describes, if it is one.
+    fn script_rtti(&self, hash: Hash, variant_hash: Hash) -> Option<&Arc<Rtti>> {
+        let key = if variant_hash == Hash::EMPTY {
+            hash
+        } else {
+            variant_hash
+        };
+
+        let rtti = self.rtti(key)?;
+        rtti.is(hash, variant_hash).then_some(rtti)
+    }
+}
+
+/// Something which holds the type information of the types a script declares,
+/// which is a unit or a unit being built.
+pub(crate) trait LookupRtti {
+    fn lookup_rtti(&self, hash: &Hash) -> Option<&Arc<Rtti>>;
+}
+
+/// A [`ConstContext`] which can also rebuild the types a script declares, by
+/// looking them up in `unit`.
+pub(crate) struct UnitConstContext<'a, U: ?Sized> {
+    pub(crate) context: &'a dyn ConstContext,
+    pub(crate) unit: &'a U,
+}
+
+impl<U> ConstContext for UnitConstContext<'_, U>
+where
+    U: ?Sized + LookupRtti,
+{
+    #[inline]
+    fn get(&self, hash: Hash) -> Option<&ConstConstructImpl> {
+        self.context.get(hash)
+    }
+
+    #[inline]
+    fn rtti(&self, hash: Hash) -> Option<&Arc<Rtti>> {
+        self.unit.lookup_rtti(&hash)
+    }
 }
 
 pub(crate) struct EmptyConstContext;

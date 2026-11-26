@@ -21,9 +21,9 @@ use super::{
     InstBitwiseOp, InstOp, InstRange, InstShiftOp, InstTarget, InstValue, IntoOutput, Object,
     Output, OwnedTuple, Pair, Panic, Protocol, ProtocolCaller, Range, RangeFrom, RangeFull,
     RangeInclusive, RangeTo, RangeToInclusive, Repr, RttiKind, RuntimeContext, Select,
-    SelectFuture, Stack, StoreError, Stream, Type, TypeHash, TypeInfo, TypeOf, Unit, UnitFn,
-    UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError, VmErrorKind, VmExecution,
-    VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution, Worklist,
+    SelectFuture, Stack, StoreError, Stream, Type, TypeHash, TypeInfo, TypeOf, Unit,
+    UnitConstContext, UnitFn, UnitStorage, Value, Vec, VmDiagnostics, VmDiagnosticsObj, VmError,
+    VmErrorKind, VmExecution, VmHalt, VmIntegerRepr, VmOutcome, VmSendExecution, Worklist,
 };
 
 /// Helper to take a value, replacing the old one with empty.
@@ -2528,7 +2528,12 @@ impl Vm {
                     }));
                 };
 
-                let value = init.to_value_with(&*self.context)?;
+                let cx = UnitConstContext {
+                    context: &*self.context,
+                    unit: &*self.unit,
+                };
+
+                let value = init.to_value_with(&cx)?;
                 self.globals.set_at(slot, value.clone()).map_err(|_| {
                     VmError::new(VmErrorKind::BadGlobalSlot {
                         slot,

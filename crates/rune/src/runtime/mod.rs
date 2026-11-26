@@ -59,7 +59,7 @@ pub use self::const_value::{
     ConstFieldsIter, ConstValue, ConstValueBuf, FromConstValue,
 };
 pub(crate) use self::const_value::{
-    ConstContext, ConstNodeKind, EmptyConstContext, MAX_CONST_DEPTH,
+    ConstContext, ConstNodeKind, EmptyConstContext, LookupRtti, UnitConstContext, MAX_CONST_DEPTH,
 };
 
 pub mod debug;

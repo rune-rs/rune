@@ -95,6 +95,13 @@ pub(crate) struct UnitBuilder {
     globals_rev: hash::Map<usize>,
 }
 
+impl crate::runtime::LookupRtti for UnitBuilder {
+    #[inline]
+    fn lookup_rtti(&self, hash: &Hash) -> Option<&Arc<Rtti>> {
+        self.rtti.get(hash)
+    }
+}
+
 impl UnitBuilder {
     /// Construct a new drop set.
     pub(crate) fn drop_set(&mut self) -> DropSet<'_> {

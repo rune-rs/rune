@@ -8,6 +8,8 @@ impl Rgb {
     /// The largest value a channel can have.
     pub const MAX = 255;
     const HALF = Self::MAX / 2;
+    /// Black, built at compile time like any other constant.
+    pub const BLACK = Self { r: 0, g: 0, b: 0 };
 
     fn grey(level) {
         Rgb { r: level, g: level, b: level }
@@ -19,4 +21,4 @@ impl Rgb {
 }
 
 let grey = Rgb::mid_grey();
-println!("max: {}, grey: {}", Rgb::MAX, grey.r);
+println!("max: {}, grey: {}, black: {}", Rgb::MAX, grey.r, Rgb::BLACK.g);

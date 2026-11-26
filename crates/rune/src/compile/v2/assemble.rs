@@ -12,8 +12,8 @@ use crate::hir;
 use crate::query::Query;
 use crate::runtime::{
     self, inst, ConstNodeKind, ConstValue, ConstValueBuf, Inline, InstArithmeticOp, InstBitwiseOp,
-    InstOp, InstRange, InstShiftOp, InstTarget, InstValue, Label, Output, PanicReason, Protocol,
-    TypeHash,
+    InstOp, InstRange, InstShiftOp, InstTarget, InstValue, Label, LookupRtti, Output, PanicReason,
+    Protocol, RttiKind, TypeHash,
 };
 use crate::{Hash, ItemBuf, SourceId};
 
@@ -1308,7 +1308,37 @@ fn const_<'a, 'hir>(
                 const_(cx, value, span, needs)?;
             }
 
-            let kind = if *variant_hash != Hash::EMPTY {
+            let key = if *variant_hash == Hash::EMPTY {
+                *hash
+            } else {
+                *variant_hash
+            };
+
+            // A type declared in a script is built the way the script would
+            // build it: a struct with named fields out of its fields in the
+            // order its type information keeps them, anything else by calling
+            // its constructor.
+            let script =
+                cx.q.unit
+                    .lookup_rtti(&key)
+                    .filter(|rtti| rtti.is(*hash, *variant_hash))
+                    .map(|rtti| rtti.kind);
+
+            let kind = if let Some(kind) = script {
+                match kind {
+                    RttiKind::Struct => inst::Kind::Struct {
+                        addr: linear.addr(),
+                        hash: key,
+                        out,
+                    },
+                    RttiKind::Empty | RttiKind::Tuple => inst::Kind::Call {
+                        addr: linear.addr(),
+                        hash: key,
+                        args: fields.len(),
+                        out,
+                    },
+                }
+            } else if *variant_hash != Hash::EMPTY {
                 inst::Kind::Call {
                     addr: linear.addr(),
                     hash: *variant_hash,

@@ -353,6 +353,47 @@ fn deep_const_value_is_bounded() {
     );
 }
 
+/// A script-defined type is walked into the way a container is, so a value
+/// made of them is bounded by depth and by size like any other constant.
+#[test]
+fn a_constant_of_script_types_is_bounded() {
+    let deep_for = |depth: usize| {
+        format!(
+            "struct Node {{ next }} \
+             const fn nest() {{ \
+                 let a = (); let i = 0; \
+                 while i < {depth} {{ a = Node {{ next: a }}; i += 1; }} \
+                 a \
+             }} \
+             const A = nest(); A"
+        )
+    };
+
+    let source = deep_for(8);
+    build(&source, &options(usize::MAX)).expect("Source should compile");
+
+    let source = deep_for(4000);
+    let error = build(&source, &options(usize::MAX)).expect_err("Should exceed the limit");
+    assert!(
+        error
+            .to_string()
+            .contains("nested too deeply to be a constant"),
+        "{error:?}"
+    );
+
+    // Shared twice per level, so it is exponential to convert while only `24`
+    // deep.
+    let source = "struct Pair(a, b); \
+                  const fn f(n) { if n == 0 { 1 } else { let v = f(n - 1); Pair(v, v) } } \
+                  const A = f(24); A";
+
+    let error = build(source, &options(usize::MAX)).expect_err("Should exceed the limit");
+    assert!(
+        error.to_string().contains("too large to be a constant"),
+        "{error:?}"
+    );
+}
+
 /// A constant nests no more deeply than `MAX_CONST_DEPTH`, whichever way one is
 /// made.
 ///

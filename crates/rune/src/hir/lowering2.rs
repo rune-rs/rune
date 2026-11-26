@@ -6,7 +6,7 @@ use rust_alloc::rc::Rc;
 use tracing::instrument_ast;
 
 use crate::alloc::prelude::*;
-use crate::alloc::{self, Box, HashMap, HashSet};
+use crate::alloc::{self, Box, HashMap, HashSet, Vec};
 use crate::ast::{self, Delimiter, Kind, NumberSize, Span, Spanned};
 use crate::compile::{meta, Error, ErrorKind, ItemId, Result, WithSpan};
 use crate::grammar::{
@@ -17,7 +17,10 @@ use crate::hir::{self, alloc_with};
 use crate::internal_macros::resolve_context;
 use crate::parse::{NonZeroId, Resolve};
 use crate::query::{self, GenericsParameters, Named2, Named2Kind, Used};
-use crate::runtime::{self, format, ConstNodeKind, ConstValue, Inline, Type, TypeHash};
+use crate::runtime::{
+    self, format, ConstNodeKind, ConstValue, Inline, LookupRtti, Rtti, RttiKind, Type, TypeHash,
+};
+use crate::sync::Arc;
 use crate::Hash;
 
 use super::{Ctxt, Needs};
@@ -5952,6 +5955,54 @@ fn pat_const_value<'hir>(
                 }));
             }
             ConstNodeKind::Instance {
+                hash, variant_hash, ..
+            } if let Some(rtti) = script_rtti(cx, *hash, *variant_hash) => {
+                let fields = const_value.fields();
+                let kind = hir::PatSequenceKind::Type {
+                    hash: *hash,
+                    variant_hash: *variant_hash,
+                };
+
+                if !matches!(rtti.kind, RttiKind::Struct) {
+                    let items = iter!(fields.iter(), fields.len(), |value| pat_const_value(
+                        cx, value, span
+                    )?);
+
+                    break 'kind hir::PatKind::Sequence(alloc!(hir::PatSequence { kind, items }));
+                }
+
+                // The fields are stored in the order the type information
+                // indexes them, so each is named by looking its index up.
+                let mut names = Vec::try_with_capacity(rtti.fields.len())?;
+
+                for _ in 0..rtti.fields.len() {
+                    names.try_push(None)?;
+                }
+
+                for (name, &index) in rtti.fields.iter() {
+                    let Some(slot) = names.get_mut(index) else {
+                        return Err(Error::msg(span, "Unsupported constant value in pattern"));
+                    };
+
+                    *slot = Some(name.as_ref());
+                }
+
+                if names.len() != fields.len() {
+                    return Err(Error::msg(span, "Unsupported constant value in pattern"));
+                }
+
+                let bindings = iter!(names.iter().zip(fields), fields.len(), |(name, value)| {
+                    let Some(name) = name else {
+                        return Err(Error::msg(span, "Unsupported constant value in pattern"));
+                    };
+
+                    let pat = alloc!(pat_const_value(cx, value, span)?);
+                    hir::Binding::Binding(span.span(), alloc_str!(name), pat)
+                });
+
+                break 'kind hir::PatKind::Object(alloc!(hir::PatObject { kind, bindings }));
+            }
+            ConstNodeKind::Instance {
                 hash,
                 variant_hash: Hash::EMPTY,
                 ..
@@ -5984,6 +6035,19 @@ fn pat_const_value<'hir>(
         span: span.span(),
         kind,
     })
+}
+
+/// The type information of the script type a constant instance with the given
+/// hashes describes, if it is one.
+fn script_rtti(cx: &Ctxt<'_, '_, '_>, hash: Hash, variant_hash: Hash) -> Option<Arc<Rtti>> {
+    let key = if variant_hash == Hash::EMPTY {
+        hash
+    } else {
+        variant_hash
+    };
+
+    let rtti = cx.q.unit.lookup_rtti(&key)?;
+    rtti.is(hash, variant_hash).then(|| rtti.clone())
 }
 
 /// Generate a legal struct match for the given meta which indicates the type of

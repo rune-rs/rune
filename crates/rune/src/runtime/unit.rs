@@ -99,6 +99,13 @@ pub struct Logic<S = DefaultStorage> {
     globals_rev: hash::Map<usize>,
 }
 
+impl<S> crate::runtime::LookupRtti for Unit<S> {
+    #[inline]
+    fn lookup_rtti(&self, hash: &Hash) -> Option<&Arc<Rtti>> {
+        Unit::lookup_rtti(self, hash)
+    }
+}
+
 impl<S> Unit<S> {
     /// Constructs a new unit from a pair of data and debug info.
     #[inline]
