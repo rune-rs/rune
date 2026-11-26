@@ -1307,6 +1307,10 @@ main.container.fill {
     cursor: default;
 }
 
+.rune-listing-row.node {
+    cursor: default;
+}
+
 .rune-listing-row.related {
     background-color: var(--code-related);
 }
@@ -1355,6 +1359,22 @@ main.container.fill {
 .rune-inst-comment {
     color: var(--syntax-comment);
     font-style: italic;
+}
+
+.rune-node-kind {
+    color: var(--syntax-type);
+}
+
+.rune-node-kind.token {
+    color: var(--syntax-keyword);
+}
+
+.rune-node-span {
+    color: var(--code-muted);
+}
+
+.rune-node-text {
+    color: var(--syntax-string);
 }
 
 /* A background only, since the span is cut into one element per token. */

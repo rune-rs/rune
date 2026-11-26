@@ -202,6 +202,9 @@ pub mod fmt;
 
 pub mod highlight;
 
+#[doc(hidden)]
+pub mod syntax_tree;
+
 #[cfg(feature = "emit")]
 #[cfg_attr(rune_docsrs, doc(cfg(feature = "emit")))]
 #[doc(inline)]
