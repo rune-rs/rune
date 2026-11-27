@@ -1480,7 +1480,7 @@ fn tail(
     if matches!(cfg.binary, Binary::Yes) {
         let mut state = BinaryState {
             start: c.span(),
-            expr: c.clone(),
+            expr: c,
             cfg,
             levels: Vec::new(),
             has_any: false,

@@ -12,7 +12,7 @@ mod parser;
 use self::parser::Checkpoint;
 
 mod tree;
-use self::tree::{inner_token, InternalChildren};
+use self::tree::{inner_token, InternalChildren, Value};
 pub(crate) use self::tree::{
     Ignore, MaybeNode, Node, NodeAt, NodeId, Remaining, Stream, StreamBuf, Tree,
 };

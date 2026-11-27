@@ -608,6 +608,10 @@ struct SelectState<'hir> {
 }
 
 /// What lowering an expression produced.
+///
+/// The state only lives for one step of the lowering loop, so its size isn't
+/// worth an allocation for every child that is lowered.
+#[allow(clippy::large_enum_variant)]
 enum ExprState<'hir, 'a> {
     /// An inner expression produced this kind.
     Kind(hir::ExprKind<'hir>),
