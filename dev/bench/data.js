@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795590433092,
+  "lastUpdate": 1795762421456,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -36317,6 +36317,130 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 431,
             "range": "± 5",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "johnjohn.tedro@gmail.com"
+          },
+          "id": "473458ca70d04036f9b05d1cfb4e997c38667e14",
+          "message": "Refuse a body-less function outside a declaration source when formatting\n\nSince declaration sources (.d.rn) were introduced, the formatter has laid out\nany function without a body as a declaration, ending it in a `;`. The grammar\nonly rejects a body-less function in an ordinary source when a `;` follows\nit, and otherwise leaves the missing body for a later pass to report, so\n`fn`, `fn foo` or `fn foo(a)` with nothing after it was formatted into\n`fn();`, which the formatter then refused when run again. The hegel property\nformatting_is_idempotent found it.\n\nThe formatter is now told whether it is laying out a declaration source and\nrequires a block everywhere else. The grammar is left as it is, since\nrejecting there pre-empts the better diagnostics later passes give for things\nlike `fn f(#[bogus] a) {}`.\n\nThe shapes are pinned among the formatter's known shapes in hegel_tests, and\na test in tests::declarations shows the refusal and that a declaration still\nformats.",
+          "timestamp": "2026-11-26T12:20:15Z",
+          "url": "https://github.com/rune-rs/rune/commit/473458ca70d04036f9b05d1cfb4e997c38667e14"
+        },
+        "date": 1795762420356,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 11795378,
+            "range": "± 194954",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 7248037,
+            "range": "± 172172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1547,
+            "range": "± 75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1719,
+            "range": "± 73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 254076,
+            "range": "± 2989",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1520019,
+            "range": "± 7820",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 421216742,
+            "range": "± 1752897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 325110493,
+            "range": "± 3802133",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sync_call",
+            "value": 15197935,
+            "range": "± 279931",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "await_call",
+            "value": 34949355,
+            "range": "± 317395",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 924801,
+            "range": "± 8095",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 9923941,
+            "range": "± 210486",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 53507954,
+            "range": "± 715316",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 8671383,
+            "range": "± 87398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 314691,
+            "range": "± 2254",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 3483547,
+            "range": "± 32094",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 612,
+            "range": "± 9",
             "unit": "ns/iter"
           }
         ]
