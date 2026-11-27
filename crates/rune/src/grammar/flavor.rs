@@ -1,6 +1,6 @@
 use core::ops::{Deref, DerefMut};
 
-use syntree::{Index, Storage, TreeIndex, Width};
+use syntree::{Index, Storage, Width};
 
 use crate::alloc::{self, Vec};
 
@@ -56,5 +56,4 @@ impl syntree::Flavor for Flavor {
     type Width = usize;
     type Pointer = <usize as Width>::Pointer;
     type Storage<T> = AllocVec<T>;
-    type Indexes = AllocVec<TreeIndex<Self>>;
 }

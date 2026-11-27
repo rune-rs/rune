@@ -18,8 +18,10 @@ use crate::Sources;
 
 use super::Flavor;
 
-pub(super) type InternalNode<'a> = syntree::Node<'a, Kind, Flavor>;
-pub(super) type InternalChildren<'a> = syntree::node::Children<'a, Kind, Flavor>;
+pub(super) type InternalNode<'a> = syntree::Element<'a, Value, Flavor>;
+type InternalId =
+    syntree::NodeOrToken<syntree::pointer::PointerUsize, syntree::pointer::PointerUsize>;
+pub(super) type InternalChildren<'a> = syntree::node::Children<'a, Value, Flavor>;
 
 pub(crate) trait Ignore<'a> {
     /// Capture an error.
@@ -29,14 +31,92 @@ pub(crate) trait Ignore<'a> {
     fn ignore(&mut self, node: Node<'a>) -> Result<()>;
 }
 
+/// The value of an element in the tree.
+///
+/// Syntree only knows the order of tokens, not where they are, since tokens
+/// are not always added in source order. So the true span of each element is
+/// kept here.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Value {
+    pub(super) kind: Kind,
+    /// The span of the element.
+    ///
+    /// The span of a node is filled in by [`Tree::new`], and until then it
+    /// is the point where the node was opened.
+    pub(super) span: Span,
+    /// Whether this node was wrapped around its children through a
+    /// checkpoint, in which case it spans from the start of its first child
+    /// to the end of its last one. Otherwise its span is the join of where it
+    /// was opened and the spans of its children.
+    wrap: bool,
+}
+
+impl Value {
+    /// The value of a token.
+    pub(super) fn token(tok: Token) -> Self {
+        Self {
+            kind: tok.kind,
+            span: tok.span,
+            wrap: false,
+        }
+    }
+
+    /// The value of a node opened at the given position.
+    pub(super) fn node(kind: Kind, at: ByteIndex) -> Self {
+        Self {
+            kind,
+            span: Span { start: at, end: at },
+            wrap: false,
+        }
+    }
+
+    /// The value of a node wrapping what was added since a checkpoint, at
+    /// the given position should that be nothing.
+    pub(super) fn wrap(kind: Kind, at: ByteIndex) -> Self {
+        Self {
+            kind,
+            span: Span { start: at, end: at },
+            wrap: true,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Tree {
-    inner: syntree::Tree<Kind, Flavor>,
+    inner: syntree::Tree<Value, Flavor>,
 }
 
 impl Tree {
-    pub(super) fn new(inner: syntree::Tree<Kind, Flavor>) -> Self {
-        Self { inner }
+    /// Construct a tree, filling in the spans of its nodes from the spans of
+    /// their children.
+    pub(super) fn new(inner: syntree::Tree<Value, Flavor>) -> alloc::Result<Self> {
+        let mut nodes = Vec::new();
+
+        for element in inner.walk() {
+            if let syntree::NodeOrToken::Node(node) = element {
+                nodes.try_push(node)?;
+            }
+        }
+
+        // Nodes are walked before their children, so in reverse each node
+        // comes after its children, whose spans are then filled in.
+        for node in nodes.into_iter().rev() {
+            let value = node.value();
+
+            let span = match (value.wrap, node.first(), node.last()) {
+                (true, Some(first), Some(last)) => Span {
+                    start: inner_span(&first).start,
+                    end: inner_span(&last).end,
+                },
+                _ => node
+                    .children()
+                    .fold(value.span, |span, child| span.join(inner_span(&child))),
+            };
+
+            node.replace(Value { span, ..value });
+        }
+
+        Ok(Self { inner })
     }
 
     /// Construt a root for the tree.
@@ -49,8 +129,13 @@ impl Tree {
     }
 
     /// Get a reference to a node.
-    pub(crate) fn get(&self, id: syntree::pointer::PointerUsize) -> Option<Node<'_>> {
-        self.inner.get(id).map(Node::new)
+    fn get(&self, id: InternalId) -> Option<Node<'_>> {
+        let element = match id {
+            syntree::NodeOrToken::Node(id) => syntree::NodeOrToken::Node(self.inner.get(id)?),
+            syntree::NodeOrToken::Token(id) => syntree::NodeOrToken::Token(self.inner.token(id)?),
+        };
+
+        Some(Node::new(element))
     }
 
     /// Get the children as an array ignoring whitespace.
@@ -68,7 +153,7 @@ impl Tree {
         for node in self
             .inner
             .children()
-            .filter(|n| !matches!(n.value(), ws!()))
+            .filter(|n| !matches!(n.value().kind, ws!()))
         {
             if vec.try_push(factory(node)).is_err() {
                 return None;
@@ -86,7 +171,7 @@ impl Tree {
         for node in self
             .inner
             .children()
-            .filter(|n| !matches!(n.value(), ws!()))
+            .filter(|n| !matches!(n.value().kind, ws!()))
         {
             let mut p = Stream::new(node);
             parser(&mut p)?;
@@ -106,13 +191,9 @@ impl Tree {
     /// whether it is a token.
     pub(crate) fn walk_with_depths(&self) -> impl Iterator<Item = (usize, Kind, Span, bool)> + '_ {
         self.inner.walk().with_depths().map(|(depth, node)| {
-            let span = node.span();
-            let span = Span {
-                start: ByteIndex(span.start),
-                end: ByteIndex(span.end),
-            };
+            let span = inner_span(&node);
             let depth = usize::try_from(depth).unwrap_or_default();
-            (depth, node.value(), span, !node.has_children())
+            (depth, node.value().kind, span, !node.has_children())
         })
     }
 
@@ -133,8 +214,8 @@ impl Tree {
 
         for (depth, node) in self.inner.walk().with_depths() {
             let n = (depth * 2) as usize;
-            let data = node.value();
-            let span = node.span();
+            let data = node.value().kind;
+            let span = inner_span(&node);
 
             if node.has_children() {
                 writeln!(o, "{:n$}{:?}@{}", "", data, span).with_span(span)?;
@@ -160,8 +241,8 @@ impl Tree {
 
         for (depth, node) in self.inner.walk().with_depths() {
             let n = (depth * 2) as usize;
-            let data = node.value();
-            let span = node.span();
+            let data = node.value().kind;
+            let span = inner_span(&node);
 
             if node.has_children() {
                 writeln!(o, "{:n$}{:?}@{}", "", data, span).with_span(span)?;
@@ -301,7 +382,7 @@ impl<'a> Stream<'a> {
                 continue;
             }
 
-            if matches!(node.value(), Kind::Whitespace) {
+            if matches!(node.value().kind, Kind::Whitespace) {
                 buf = Some(Node::new(node));
                 continue;
             }
@@ -312,7 +393,7 @@ impl<'a> Stream<'a> {
                 }
             }
 
-            last_was_line = matches!(node.value(), Kind::Comment);
+            last_was_line = matches!(node.value().kind, Kind::Comment);
             o.write_raw(Node::new(node))?;
             first = false;
         }
@@ -328,7 +409,7 @@ impl<'a> Stream<'a> {
 
     /// Get the kind of the current node.
     pub(crate) fn kind(&self) -> Kind {
-        self.node.value()
+        self.node.value().kind
     }
 
     /// Get kinds of all children excluding whitespace.
@@ -348,7 +429,7 @@ impl<'a> Stream<'a> {
 
     /// Get the identifier of the node.
     pub(crate) fn id(&self) -> NodeId {
-        NodeId(self.node.id())
+        NodeId(inner_id(&self.node))
     }
 
     /// Get the current parser as a node.
@@ -360,7 +441,7 @@ impl<'a> Stream<'a> {
     /// Peek the next node.
     pub(crate) fn peek(&mut self) -> Kind {
         if let Some(value) = self.peek_node() {
-            return value.value();
+            return value.value().kind;
         }
 
         Kind::Eof
@@ -369,10 +450,10 @@ impl<'a> Stream<'a> {
     /// Get the current span of the parser.
     pub(crate) fn peek_span(&mut self) -> Span {
         if let Some(node) = self.peek_node() {
-            return inner_span(node.span());
+            return inner_span(node);
         }
 
-        Span::point(self.node.span().end)
+        self.span().tail()
     }
 
     fn peek_node(&mut self) -> Option<&InternalNode<'a>> {
@@ -428,13 +509,13 @@ impl<'a> Stream<'a> {
             ));
         };
 
-        if node.value() != expected {
+        if node.value().kind != expected {
             return Err(Error::new(
-                inner_span(node.span()),
+                inner_span(&node),
                 ErrorKind::ExpectedSyntaxIn {
                     inside: self.kind().into_expectation(),
                     expected: expected.into_expectation(),
-                    actual: node.value().into_expectation(),
+                    actual: node.value().kind.into_expectation(),
                 },
             ));
         }
@@ -496,7 +577,7 @@ impl<'a> Stream<'a> {
         F: FnMut(Kind) -> bool,
     {
         if let Some(node) = self.next_node() {
-            if filter(node.value()) {
+            if filter(node.value().kind) {
                 return MaybeNode::Some(Node::new(node));
             }
 
@@ -518,7 +599,7 @@ impl<'a> Stream<'a> {
         let mut count = 0;
 
         while let Some(node) = self.next_node() {
-            if node.value() != expected {
+            if node.value().kind != expected {
                 if let Some(node) = self.peek.replace(node) {
                     o.ignore(Node::new(node))?;
                 }
@@ -526,7 +607,7 @@ impl<'a> Stream<'a> {
                 break;
             }
 
-            let span = inner_span(node.span());
+            let span = inner_span(&node);
 
             if first.is_none() {
                 first = Some(span);
@@ -578,15 +659,15 @@ impl<'a> Stream<'a> {
             let inside = self.kind();
 
             let span = match self.iter.next_back() {
-                Some(last) => node.span().join(last.span()),
-                None => *node.span(),
+                Some(last) => inner_span(&node).join(inner_span(&last)),
+                None => inner_span(&node),
             };
 
             return Err(Error::new(
-                inner_span(&span),
+                span,
                 ErrorKind::ExpectedSyntaxEnd {
                     inside: inside.into_expectation(),
-                    actual: node.value().into_expectation(),
+                    actual: node.value().kind.into_expectation(),
                 },
             ));
         }
@@ -596,17 +677,20 @@ impl<'a> Stream<'a> {
 
     /// Get the current span of the parser.
     pub(crate) fn remaining_span(&mut self) -> Option<Span> {
-        let head = *self.peek_node()?.span();
+        let head = inner_span(self.peek_node()?);
 
         if let Some(last) = self.iter.peek_back() {
-            Some(Span::new(head.start, last.span().end))
+            Some(Span {
+                start: head.start,
+                end: inner_span(&last).end,
+            })
         } else {
-            Some(Span::new(head.start, head.end))
+            Some(head)
         }
     }
 
     pub(crate) fn span(&self) -> Span {
-        inner_span(self.node.span())
+        inner_span(&self.node)
     }
 
     /// Get the next raw node, including whitespace.
@@ -627,14 +711,14 @@ impl<'a> Stream<'a> {
         // We walk over comments and whitespace separately when writing
         // nodes to ensure that formatting functions do not need to worry
         // about it here.
-        self.iter.find(|node| !matches!(node.value(), ws!()))
+        self.iter.find(|node| !matches!(node.value().kind, ws!()))
     }
 
     fn next_back_node(&mut self) -> Option<InternalNode<'a>> {
         // We walk over comments and whitespace separately when writing
         // nodes to ensure that formatting functions do not need to worry
         // about it here.
-        if let Some(node) = self.iter.rfind(|node| !matches!(node.value(), ws!())) {
+        if let Some(node) = self.iter.rfind(|node| !matches!(node.value().kind, ws!())) {
             return Some(node);
         }
 
@@ -673,7 +757,7 @@ impl DoubleEndedIterator for Stream<'_> {
 
 /// The identifier of a node.
 #[derive(Debug)]
-pub(crate) struct NodeId(syntree::pointer::PointerUsize);
+pub(crate) struct NodeId(InternalId);
 
 /// A node associated with a tree.
 #[derive(Debug, TryClone, Clone)]
@@ -683,7 +767,7 @@ pub(crate) struct NodeAt {
     #[try_clone(copy)]
     source_id: SourceId,
     #[try_clone(copy)]
-    id: syntree::pointer::PointerUsize,
+    id: InternalId,
 }
 
 impl NodeAt {
@@ -700,7 +784,7 @@ impl NodeAt {
         let Some(node) = self.tree.get(self.id) else {
             return Err(Error::msg(
                 Span::empty(),
-                try_format!("missing node {}", self.id.get()),
+                try_format!("missing node {}", id_index(self.id)),
             ));
         };
 
@@ -715,7 +799,7 @@ impl NodeAt {
         let Some(node) = self.tree.get(id) else {
             return Err(Error::msg(
                 Span::empty(),
-                try_format!("missing node {}", self.id.get()),
+                try_format!("missing node {}", id_index(self.id)),
             ));
         };
 
@@ -737,7 +821,7 @@ impl NodeAt {
         let Some(node) = self.tree.get(self.id) else {
             return Err(Error::msg(
                 Span::empty(),
-                try_format!("missing node {}", self.id.get()),
+                try_format!("missing node {}", id_index(self.id)),
             ));
         };
 
@@ -751,8 +835,8 @@ impl NodeAt {
             }
 
             let n = (depth * 2) as usize;
-            let data = node.value();
-            let span = inner_span(node.span());
+            let data = node.value().kind;
+            let span = inner_span(&node);
 
             if node.has_children() {
                 writeln!(o, "{:n$}{:?}@{}", "", data, span).with_span(span)?;
@@ -791,7 +875,7 @@ impl<'a> Node<'a> {
 
     /// Check if the current token is empty.
     pub(crate) fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        !self.inner.has_children()
     }
 
     /// Test whether this is a token rather than a node the grammar built.
@@ -818,7 +902,7 @@ impl<'a> Node<'a> {
 
     /// Get the kind of the node.
     pub(crate) fn kind(&self) -> Kind {
-        self.inner.value()
+        self.inner.value().kind
     }
 
     /// Walk the subtree.
@@ -831,13 +915,14 @@ impl<'a> Node<'a> {
         NodeAt {
             tree,
             source_id,
-            id: self.inner.id(),
+            id: inner_id(&self.inner),
         }
     }
 
     /// Replace the kind of the node.
     pub(crate) fn replace(&self, kind: Kind) -> Kind {
-        self.inner.replace(kind)
+        let value = self.inner.value();
+        self.inner.replace(Value { kind, ..value }).kind
     }
 
     /// Iterate over child nodes.
@@ -860,7 +945,7 @@ impl<'a> Node<'a> {
         for node in self
             .inner
             .children()
-            .filter(|n| !matches!(n.value(), ws!()))
+            .filter(|n| !matches!(n.value().kind, ws!()))
         {
             if vec.try_push(factory(node)).is_err() {
                 return None;
@@ -872,7 +957,7 @@ impl<'a> Node<'a> {
 
     /// Get the kinds of all children excluding whitespace.
     pub(crate) fn kinds<const N: usize>(&self) -> Option<[Kind; N]> {
-        self.fixed_vec(|n| n.value())?.try_into_inner()
+        self.fixed_vec(|n| n.value().kind)?.try_into_inner()
     }
 
     /// Get the tokens of all children excluding whitespace.
@@ -941,12 +1026,12 @@ impl<'a> Node<'a> {
 
     /// Construct a span for the current node.
     pub(crate) fn span(&self) -> Span {
-        inner_span(self.inner.span())
+        inner_span(&self.inner)
     }
 
     /// Test if the current node is whitespace.
     pub(crate) fn is_whitespace(&self) -> bool {
-        matches!(self.inner.value(), Kind::Whitespace)
+        matches!(self.inner.value().kind, Kind::Whitespace)
     }
 
     /// Test if the node has children.
@@ -959,7 +1044,7 @@ impl<'a> Node<'a> {
     pub(crate) fn find(&self, kind: Kind) -> Option<Node<'a>> {
         self.inner
             .children()
-            .find(|n| n.value() == kind)
+            .find(|n| n.value().kind == kind)
             .map(Node::new)
     }
 
@@ -978,20 +1063,38 @@ impl<'a> Node<'a> {
 #[inline]
 pub(super) fn inner_token(node: InternalNode<'_>) -> Token {
     Token {
-        span: inner_span(node.span()),
-        kind: node.value(),
+        span: inner_span(&node),
+        kind: node.value().kind,
+    }
+}
+
+/// The identifier of an element, telling nodes and tokens apart since they are
+/// numbered separately.
+#[inline]
+fn inner_id(element: &InternalNode<'_>) -> InternalId {
+    match element {
+        syntree::NodeOrToken::Node(node) => syntree::NodeOrToken::Node(node.id()),
+        syntree::NodeOrToken::Token(token) => syntree::NodeOrToken::Token(token.id()),
+    }
+}
+
+/// The index of an identifier, for diagnostics.
+#[inline]
+fn id_index(id: InternalId) -> usize {
+    match id {
+        syntree::NodeOrToken::Node(id) | syntree::NodeOrToken::Token(id) => id.get(),
     }
 }
 
 #[inline]
-fn inner_span(span: &syntree::Span<u32>) -> Span {
-    Span::new(span.start, span.end)
+fn inner_span(node: &InternalNode<'_>) -> Span {
+    node.value().span
 }
 
 impl IntoExpectation for Node<'_> {
     #[inline]
     fn into_expectation(self) -> Expectation {
-        self.inner.value().into_expectation()
+        self.inner.value().kind.into_expectation()
     }
 }
 
@@ -1249,7 +1352,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let node = self.first.take()?;
 
-        if Some(node.id()) == self.last.map(|n| n.id()) {
+        if Some(inner_id(&node)) == self.last.map(|n| inner_id(&n)) {
             self.last = None;
         } else {
             self.first = node.next();
@@ -1263,7 +1366,7 @@ impl DoubleEndedIterator for Iter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
         let node = self.last.take()?;
 
-        if Some(node.id()) == self.first.map(|n| n.id()) {
+        if Some(inner_id(&node)) == self.first.map(|n| inner_id(&n)) {
             self.first = None;
         } else {
             self.last = node.prev();

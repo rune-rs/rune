@@ -1,19 +1,19 @@
 use core::fmt;
 use core::mem::take;
 
-use crate::alloc::VecDeque;
+use crate::alloc::{Vec, VecDeque};
 
-use crate::ast::{Kind, OptionSpanned, Span, Token};
+use crate::ast::{ByteIndex, Kind, OptionSpanned, Span, Token};
 use crate::compile::{Error, ErrorKind, Result, WithSpan};
 use crate::grammar::ws;
 use crate::macros::TokenStreamIter;
 use crate::parse::{Advance, IntoExpectation, Lexer};
 use crate::shared::{rune_trace, FixedVec};
 
-use super::{inner_token, Flavor, InternalChildren, Node, Tree};
+use super::{inner_token, Flavor, InternalChildren, Node, Tree, Value};
 
 /// A checkpoint during tree construction.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(super) struct Checkpoint {
     span: Span,
     inner: syntree::Checkpoint<syntree::pointer::PointerUsize>,
@@ -30,7 +30,7 @@ pub(super) struct Parser<'a> {
     lexer: Source<'a>,
     ws: VecDeque<Token>,
     buf: VecDeque<(Token, usize)>,
-    tree: syntree::Builder<Kind, Flavor>,
+    tree: Builder,
     eof: Token,
     include_whitespace: bool,
     /// How deeply the parser is currently nested.
@@ -54,7 +54,7 @@ impl<'a> Parser<'a> {
             lexer: source,
             ws: VecDeque::new(),
             buf: VecDeque::new(),
-            tree: syntree::Builder::new_with(),
+            tree: Builder::new(),
             eof,
             include_whitespace: false,
             nesting: 0,
@@ -141,8 +141,8 @@ impl<'a> Parser<'a> {
     /// Construct the syntax tree.
     #[tracing::instrument(skip_all)]
     pub(crate) fn build(self) -> Result<Tree> {
-        let tree = self.tree.build().with_span(self.eof.span)?;
-        Ok(Tree::new(tree))
+        let tree = self.tree.inner.build().with_span(self.eof.span)?;
+        Ok(Tree::new(tree).with_span(self.eof.span)?)
     }
 
     /// Construct whatever syntax tree has been built so far, closing every
@@ -159,14 +159,14 @@ impl<'a> Parser<'a> {
 
         Ok(Checkpoint {
             span,
-            inner: self.tree.checkpoint().with_span(span)?,
+            inner: self.tree.inner.checkpoint().with_span(span)?,
         })
     }
 
     #[tracing::instrument(skip_all)]
     pub(super) fn bump(&mut self) -> Result<Token> {
         let tok = self.next()?;
-        emit(&mut self.tree, tok)?;
+        self.tree.token(tok)?;
         Ok(tok)
     }
 
@@ -241,7 +241,7 @@ impl<'a> Parser<'a> {
             kind: K![>],
         };
 
-        emit(&mut self.tree, gt)?;
+        self.tree.token(gt)?;
         Ok(true)
     }
 
@@ -272,8 +272,7 @@ impl<'a> Parser<'a> {
     pub(super) fn push(&mut self, kind: Kind) -> Result<()> {
         let tok = self.next()?;
         self.tree.open(kind).with_span(tok.span)?;
-        let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
-        self.tree.token_with(tok.kind, span).with_span(tok.span)?;
+        self.tree.token(tok)?;
         self.tree.close().with_span(tok.span)?;
         Ok(())
     }
@@ -283,16 +282,17 @@ impl<'a> Parser<'a> {
     pub(super) fn empty(&mut self, kind: Kind) -> Result<()> {
         self.flush_ws()?;
         let span = self.nth_token(0)?.span;
-        let s = span.head();
-        let s = syntree::Span::new(s.start.0, s.end.0);
-        self.tree.token_with(kind, s).with_span(span)?;
+        self.tree.token(Token {
+            span: span.head(),
+            kind,
+        })?;
         Ok(())
     }
 
     /// Close a node at the given checkpoint.
     #[tracing::instrument(skip_all)]
     pub(super) fn close_at(&mut self, c: &Checkpoint, kind: Kind) -> Result<()> {
-        self.tree.close_at(&c.inner, kind).with_span(c.span)?;
+        self.tree.close_at(c.inner, kind).with_span(c.span)?;
         Ok(())
     }
 
@@ -319,7 +319,7 @@ impl<'a> Parser<'a> {
 
         let Some((tok, ws)) = self.buf.front_mut() else {
             for tok in self.ws.drain(..) {
-                emit(&mut self.tree, tok)?;
+                self.tree.token(tok)?;
             }
 
             return Ok(self.eof.span);
@@ -328,7 +328,7 @@ impl<'a> Parser<'a> {
         let span = tok.span.head();
 
         for tok in self.ws.drain(..take(ws)) {
-            emit(&mut self.tree, tok)?;
+            self.tree.token(tok)?;
         }
 
         Ok(span)
@@ -396,10 +396,10 @@ impl<'a> Parser<'a> {
     fn advance(&mut self, n: usize) -> Result<()> {
         for (tok, ws) in self.buf.drain(..n) {
             for tok in self.ws.drain(..ws) {
-                emit(&mut self.tree, tok)?;
+                self.tree.token(tok)?;
             }
 
-            emit(&mut self.tree, tok)?;
+            self.tree.token(tok)?;
         }
 
         Ok(())
@@ -436,11 +436,80 @@ impl<'a> Parser<'a> {
     }
 }
 
-#[inline]
-fn emit(tree: &mut syntree::Builder<Kind, Flavor>, tok: Token) -> Result<()> {
-    let span = syntree::Span::new(tok.span.start.0, tok.span.end.0);
-    tree.token_with(tok.kind, span).with_span(tok.span)?;
-    Ok(())
+/// Builds the tree while keeping track of the true spans of tokens.
+///
+/// Syntree requires tokens to be added in source order, which tokens from
+/// macro expansions, template strings and doc comments are not. So syntree
+/// only sees tokens without a width, and the true span of each token is kept
+/// in its [`Value`]. The spans of nodes are filled in once the tree is built,
+/// through [`Tree::new`].
+///
+/// This keeps track of the cursor the way syntree did before it required
+/// tokens in source order: the end of the last token or of the last closed
+/// node. Opened nodes and empty wrapping nodes start at it.
+struct Builder {
+    inner: syntree::Builder<Value, Flavor>,
+    /// The end of the last token or closed node.
+    cursor: ByteIndex,
+    /// The furthest end inside of each open node, which is where the cursor
+    /// ends up once the node is closed.
+    open: Vec<ByteIndex>,
+}
+
+impl Builder {
+    fn new() -> Self {
+        Self {
+            inner: syntree::Builder::new_with(),
+            cursor: ByteIndex(0),
+            open: Vec::new(),
+        }
+    }
+
+    /// Open a node at the cursor.
+    fn open(&mut self, kind: Kind) -> Result<(), ErrorKind> {
+        self.inner.open(Value::node(kind, self.cursor))?;
+        self.open.try_push(self.cursor)?;
+        Ok(())
+    }
+
+    /// Close the last opened node, moving the cursor to its end.
+    fn close(&mut self) -> Result<(), ErrorKind> {
+        self.inner.close()?;
+
+        if let Some(end) = self.open.pop() {
+            self.advance(end);
+        }
+
+        Ok(())
+    }
+
+    /// Wrap everything added since the checkpoint in a node.
+    fn close_at(
+        &mut self,
+        c: syntree::Checkpoint<syntree::pointer::PointerUsize>,
+        kind: Kind,
+    ) -> Result<(), ErrorKind> {
+        self.inner.close_at(c, Value::wrap(kind, self.cursor))?;
+        Ok(())
+    }
+
+    /// Add a token with its true span.
+    fn token(&mut self, tok: Token) -> Result<()> {
+        self.inner
+            .token_empty(Value::token(tok))
+            .with_span(tok.span)?;
+        self.advance(tok.span.end);
+        Ok(())
+    }
+
+    /// Move the cursor, extending the open node.
+    fn advance(&mut self, end: ByteIndex) {
+        self.cursor = end;
+
+        if let Some(last) = self.open.last_mut() {
+            *last = ByteIndex::max(*last, end);
+        }
+    }
 }
 
 /// A source adapter.
