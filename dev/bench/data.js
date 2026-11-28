@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795762421456,
+  "lastUpdate": 1795847259155,
   "repoUrl": "https://github.com/rune-rs/rune",
   "entries": {
     "Benchmark": [
@@ -36441,6 +36441,130 @@ window.BENCHMARK_DATA = {
             "name": "external_functions",
             "value": 612,
             "range": "± 9",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "udoprog@tedro.se"
+          },
+          "committer": {
+            "name": "John-John Tedro",
+            "username": "udoprog",
+            "email": "johnjohn.tedro@gmail.com"
+          },
+          "id": "83b3c373a4e882cd28ea29503c929e69bf2338ac",
+          "message": "Update syntree to 0.20.1\n\nsyntree 0.20.1 stores tokens in source order and refuses a token whose span\nstarts before the end of the previous one, which tokens from macro\nexpansions, template strings and doc comments do. So syntree now only\nsees tokens without a width, and rune keeps the true span of every\nelement in its tree value. Node spans are filled in when the tree is\nbuilt, by the rules syntree 0.19 used: the join of where a node was\nopened and its children, or for a node wrapped at a checkpoint, the start\nof its first child to the end of its last.\n\nThe rest of the port follows 0.20.1's API: elements are a node or a token\nwith separately numbered ids, checkpoints are Copy, and the flavor no\nlonger has indexes.",
+          "timestamp": "2026-11-27T17:01:14Z",
+          "url": "https://github.com/rune-rs/rune/commit/83b3c373a4e882cd28ea29503c929e69bf2338ac"
+        },
+        "date": 1795847257719,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "primes/rhai",
+            "value": 8189058,
+            "range": "± 40740",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "primes/rune",
+            "value": 5706055,
+            "range": "± 62664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rhai",
+            "value": 1173,
+            "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "eval/rune",
+            "value": 1541,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1a",
+            "value": 210295,
+            "range": "± 1467",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_1b",
+            "value": 1185183,
+            "range": "± 17597",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_11a",
+            "value": 307906450,
+            "range": "± 2250263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "aoc_2020_19b",
+            "value": 279020359,
+            "range": "± 3225550",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sync_call",
+            "value": 12256910,
+            "range": "± 75907",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "await_call",
+            "value": 30949303,
+            "range": "± 198708",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world",
+            "value": 685756,
+            "range": "± 9092",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_hello_world2",
+            "value": 7454816,
+            "range": "± 31565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_fib",
+            "value": 39814268,
+            "range": "± 552530",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "brainfuck_loopity",
+            "value": 6412155,
+            "range": "± 56731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_15",
+            "value": 251267,
+            "range": "± 1870",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "fib_20",
+            "value": 2785417,
+            "range": "± 17213",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "external_functions",
+            "value": 522,
+            "range": "± 4",
             "unit": "ns/iter"
           }
         ]
